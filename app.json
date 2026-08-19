@@ -10,6 +10,7 @@
     "ios": {
       "icon": "./assets/tamdok.icon",
       "bundleIdentifier": "com.solsticeleaf.Tamdok",
+      "appleTeamId": "KMUQN5QBHJ",
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -136,7 +137,19 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ec5a47da-19a1-47b1-b356-ec6f943f023a"
+        "projectId": "ec5a47da-19a1-47b1-b356-ec6f943f023a",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "LibraryRefreshWidget",
+                  "bundleIdentifier": "com.solsticeleaf.Tamdok.LibraryRefreshWidget"
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "solsticeleaf"

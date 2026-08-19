@@ -38,13 +38,88 @@ function nativeTarget(project, name) {
   return null;
 }
 
+function unquoteSetting(value) {
+  return String(value ?? '').replace(/^"+|"+$/g, '');
+}
+
 function firstDevelopmentTeam(project) {
   const configs = project.pbxXCBuildConfigurationSection();
   for (const key of Object.keys(configs)) {
-    const team = configs[key]?.buildSettings?.DEVELOPMENT_TEAM;
+    const team = unquoteSetting(configs[key]?.buildSettings?.DEVELOPMENT_TEAM);
     if (team) return team;
   }
   return undefined;
+}
+
+function isNamedProduct(buildSettings, name) {
+  return unquoteSetting(buildSettings?.PRODUCT_NAME) === name;
+}
+
+function signingFromAppTarget(project) {
+  const configs = project.pbxXCBuildConfigurationSection();
+  const signing = {};
+  for (const key of Object.keys(configs)) {
+    const buildSettings = configs[key]?.buildSettings;
+    if (!buildSettings || !isNamedProduct(buildSettings, 'Tamdok')) continue;
+    if (buildSettings.DEVELOPMENT_TEAM) signing.team = unquoteSetting(buildSettings.DEVELOPMENT_TEAM);
+    if (buildSettings.CODE_SIGN_IDENTITY) signing.identity = buildSettings.CODE_SIGN_IDENTITY;
+    if (buildSettings.CODE_SIGN_STYLE) signing.style = unquoteSetting(buildSettings.CODE_SIGN_STYLE);
+  }
+  return signing;
+}
+
+function setWidgetTargetAttributes(project, widgetUuid, team) {
+  const projectSection = objects(project).PBXProject;
+  for (const key of Object.keys(projectSection)) {
+    if (key.endsWith('_comment')) continue;
+    const attrs = projectSection[key].attributes ?? (projectSection[key].attributes = {});
+    const targetAttributes = attrs.TargetAttributes ?? (attrs.TargetAttributes = {});
+    targetAttributes[widgetUuid] = {
+      ...(targetAttributes[widgetUuid] ?? {}),
+      DevelopmentTeam: team,
+      ProvisioningStyle: 'Automatic',
+    };
+  }
+}
+
+const PODFILE_SIGNING_MARK = 'TAMDOK_WIDGET_SIGNING';
+
+function patchPodfileSigning(podfilePath) {
+  if (!fs.existsSync(podfilePath)) return;
+  let podfile = fs.readFileSync(podfilePath, 'utf8');
+  if (podfile.includes(PODFILE_SIGNING_MARK)) return;
+
+  const snippet = `
+  # ${PODFILE_SIGNING_MARK}
+  begin
+    user_project_path = File.join(__dir__, 'Tamdok.xcodeproj')
+    user_project = Xcodeproj::Project.open(user_project_path)
+    app_target = user_project.targets.find { |t| t.name == 'Tamdok' }
+    widget_target = user_project.targets.find { |t| t.name == '${TARGET_NAME}' }
+    if app_target && widget_target
+      app_target.build_configurations.each do |app_config|
+        widget_config = widget_target.build_configurations.find { |c| c.name == app_config.name }
+        next unless widget_config
+        team = app_config.build_settings['DEVELOPMENT_TEAM']
+        next if team.nil? || team.to_s.empty?
+        widget_config.build_settings['DEVELOPMENT_TEAM'] = team
+        widget_config.build_settings['CODE_SIGN_STYLE'] = 'Automatic'
+        widget_config.build_settings.delete('PROVISIONING_PROFILE')
+        widget_config.build_settings.delete('PROVISIONING_PROFILE_SPECIFIER')
+      end
+      user_project.save
+    end
+  rescue => e
+    Pod::UI.warn("Tamdok widget signing sync failed: #{e}")
+  end
+`;
+
+  if (!podfile.includes('post_install do |installer|')) {
+    podfile += `\npost_install do |installer|${snippet}end\n`;
+  } else {
+    podfile = podfile.replace('post_install do |installer|', `post_install do |installer|${snippet}`);
+  }
+  fs.writeFileSync(podfilePath, podfile);
 }
 
 function commentOf(entry) {
@@ -315,11 +390,25 @@ function ensureTargetDependency(project, appUuid, widgetUuid) {
   app.dependencies.push({ value: depUuid, comment: 'PBXTargetDependency' });
 }
 
+function ensureEmbedCodeSignOnCopy(project) {
+  const buildFiles = objects(project).PBXBuildFile;
+  for (const key of Object.keys(buildFiles)) {
+    if (key.endsWith('_comment')) continue;
+    const comment = buildFiles[`${key}_comment`] ?? '';
+    if (!String(comment).includes(`${TARGET_NAME}.appex`)) continue;
+    buildFiles[key].settings = {
+      ATTRIBUTES: ['CodeSignOnCopy', 'RemoveHeadersOnCopy'],
+    };
+  }
+}
+
 function applyWidgetBuildSettings(project, marketingVersion, projectVersion, bundleIdentifier, developmentTeam) {
+  const appSigning = signingFromAppTarget(project);
+  const team = unquoteSetting(developmentTeam) || appSigning.team;
   const configs = project.pbxXCBuildConfigurationSection();
   for (const key of Object.keys(configs)) {
     const buildSettings = configs[key]?.buildSettings;
-    if (!buildSettings || buildSettings.PRODUCT_NAME !== `"${TARGET_NAME}"`) continue;
+    if (!buildSettings || !isNamedProduct(buildSettings, TARGET_NAME)) continue;
 
     buildSettings.INFOPLIST_FILE = `"${TARGET_NAME}/Info.plist"`;
     buildSettings.IPHONEOS_DEPLOYMENT_TARGET = '"16.2"';
@@ -328,14 +417,22 @@ function applyWidgetBuildSettings(project, marketingVersion, projectVersion, bun
     buildSettings.SKIP_INSTALL = '"YES"';
     buildSettings.GENERATE_INFOPLIST_FILE = '"NO"';
     buildSettings.APPLICATION_EXTENSION_API_ONLY = '"YES"';
+    buildSettings.CODE_SIGN_STYLE = 'Automatic';
     buildSettings.CURRENT_PROJECT_VERSION = `"${projectVersion}"`;
     buildSettings.MARKETING_VERSION = `"${marketingVersion}"`;
     buildSettings.PRODUCT_BUNDLE_IDENTIFIER = `"${bundleIdentifier}"`;
     buildSettings.LD_RUNPATH_SEARCH_PATHS =
       '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"';
     buildSettings.ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = '"YES"';
-    if (developmentTeam) buildSettings.DEVELOPMENT_TEAM = developmentTeam;
+    delete buildSettings.PROVISIONING_PROFILE;
+    delete buildSettings.PROVISIONING_PROFILE_SPECIFIER;
+    delete buildSettings.CODE_SIGN_IDENTITY;
+    delete buildSettings['CODE_SIGN_IDENTITY[sdk=iphoneos*]'];
+    if (team) buildSettings.DEVELOPMENT_TEAM = team;
   }
+
+  const widget = nativeTarget(project, TARGET_NAME);
+  if (widget?.uuid && team) setWidgetTargetAttributes(project, widget.uuid, team);
 }
 
 function configureWidgetTarget(project, config) {
@@ -393,16 +490,29 @@ function configureWidgetTarget(project, config) {
   }
 
   ensureTargetDependency(project, app.uuid, widget.uuid);
+  ensureEmbedCodeSignOnCopy(project);
   applyWidgetBuildSettings(
     project,
     config.version ?? '1.0',
     config.ios?.buildNumber ?? '1',
     `${config.ios?.bundleIdentifier ?? 'com.solsticeleaf.Tamdok'}.${TARGET_NAME}`,
-    firstDevelopmentTeam(project)
+    config.ios?.appleTeamId || process.env.EXPO_APPLE_TEAM_ID || firstDevelopmentTeam(project)
   );
 }
 
 function withLibraryRefreshLiveActivity(config) {
+  const bundleIdentifier = `${config.ios?.bundleIdentifier ?? 'com.solsticeleaf.Tamdok'}.${TARGET_NAME}`;
+  config.extra = config.extra ?? {};
+  config.extra.eas = config.extra.eas ?? {};
+  config.extra.eas.build = config.extra.eas.build ?? {};
+  config.extra.eas.build.experimental = config.extra.eas.build.experimental ?? {};
+  config.extra.eas.build.experimental.ios = config.extra.eas.build.experimental.ios ?? {};
+  const extensions = config.extra.eas.build.experimental.ios.appExtensions ?? [];
+  if (!extensions.some((extension) => extension.targetName === TARGET_NAME)) {
+    extensions.push({ targetName: TARGET_NAME, bundleIdentifier });
+  }
+  config.extra.eas.build.experimental.ios.appExtensions = extensions;
+
   config = withInfoPlist(config, (mod) => {
     mod.modResults.NSSupportsLiveActivities = true;
     mod.modResults.NSSupportsLiveActivitiesFrequentUpdates = true;
@@ -413,6 +523,7 @@ function withLibraryRefreshLiveActivity(config) {
     'ios',
     async (mod) => {
       copyWidgetSources(mod.modRequest.projectRoot, mod.modRequest.platformProjectRoot);
+      patchPodfileSigning(path.join(mod.modRequest.platformProjectRoot, 'Podfile'));
       return mod;
     },
   ]);
