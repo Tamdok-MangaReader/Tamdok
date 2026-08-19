@@ -41,6 +41,11 @@ export function MangaCover({
   const { colors, radius } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
   const height = Math.round(width * 1.45);
+  const badgeScale = coverBadgeScale(width);
+  const badgeSize = Math.round(20 * badgeScale);
+  const badgeFontSize = Math.max(9, Math.round(11 * badgeScale));
+  const badgePadding = Math.max(4, Math.round(6 * badgeScale));
+  const badgeInset = Math.max(4, Math.round(Spacing.xs * badgeScale));
   const showUnread = inLibrary && unreadCount > 0;
   const showDownloaded = inLibrary && downloadedCount > 0;
   const pressableProps = {
@@ -75,15 +80,35 @@ export function MangaCover({
         ) : null}
 
         {showUnread || showDownloaded ? (
-          <View style={styles.countRow}>
+          <View style={[styles.countRow, { top: badgeInset, left: badgeInset, gap: Math.max(3, Math.round(4 * badgeScale)) }]}>
             {showUnread ? (
-              <View style={[styles.countBadge, styles.unreadBadge]}>
-                <Text style={styles.countText}>{formatCount(unreadCount)}</Text>
+              <View
+                style={[
+                  styles.countBadge,
+                  styles.unreadBadge,
+                  {
+                    minWidth: badgeSize,
+                    height: badgeSize,
+                    borderRadius: badgeSize / 2,
+                    paddingHorizontal: badgePadding,
+                  },
+                ]}>
+                <Text style={[styles.countText, { fontSize: badgeFontSize }]}>{formatCount(unreadCount)}</Text>
               </View>
             ) : null}
             {showDownloaded ? (
-              <View style={[styles.countBadge, styles.downloadedBadge]}>
-                <Text style={styles.countText}>{formatCount(downloadedCount)}</Text>
+              <View
+                style={[
+                  styles.countBadge,
+                  styles.downloadedBadge,
+                  {
+                    minWidth: badgeSize,
+                    height: badgeSize,
+                    borderRadius: badgeSize / 2,
+                    paddingHorizontal: badgePadding,
+                  },
+                ]}>
+                <Text style={[styles.countText, { fontSize: badgeFontSize }]}>{formatCount(downloadedCount)}</Text>
               </View>
             ) : null}
           </View>
@@ -129,6 +154,12 @@ export function MangaCover({
 function formatCount(value: number): string {
   if (value > 99) return '99+';
   return String(value);
+}
+
+const BADGE_REFERENCE_WIDTH = 112;
+
+function coverBadgeScale(width: number): number {
+  return Math.min(1.7, Math.max(0.72, width / BADGE_REFERENCE_WIDTH));
 }
 
 const styles = StyleSheet.create({

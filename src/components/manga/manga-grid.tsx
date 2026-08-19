@@ -7,6 +7,7 @@ import { useLibraryLookup, enrichMangaWithLibraryMeta } from '@/hooks/use-librar
 import type { Manga } from '@/parsers/shared/types';
 
 export type MangaGridItem = Manga & {
+  sourceId?: string;
   inLibrary?: boolean;
   unreadCount?: number;
   downloadedCount?: number;
@@ -68,7 +69,7 @@ export function MangaGrid({
       ListEmptyComponent={ListEmptyComponent}
       refreshControl={refreshControl ?? undefined}
       renderItem={({ item }) => {
-        const enriched = enrichMangaWithLibraryMeta(item, sourceId, getMeta);
+        const enriched = enrichMangaWithLibraryMeta(item, sourceId ?? item.sourceId, getMeta);
         const showMeta = enriched.inLibrary;
         return (
           <MangaCover

@@ -187,7 +187,7 @@ export function MangaOverflowMenu({
                     <MenuRow
                       item={{
                         key: 'mark-all-read',
-                        label: t('manga_mark_all_read'),
+                        label: t('manga_read'),
                         sfSymbol: 'checkmark.circle',
                         fallbackIcon: 'checkmark-circle-outline',
                         onPress: onMarkAllRead,
@@ -198,7 +198,7 @@ export function MangaOverflowMenu({
                     <MenuRow
                       item={{
                         key: 'mark-all-unread',
-                        label: t('manga_mark_all_unread'),
+                        label: t('manga_unread'),
                         sfSymbol: 'circle',
                         fallbackIcon: 'ellipse-outline',
                         onPress: onMarkAllUnread,
@@ -217,7 +217,7 @@ export function MangaOverflowMenu({
                 <MenuRow
                   item={{
                     key: 'mark-selected',
-                    label: t('manga_mark_all'),
+                    label: t('manga_mark_selected'),
                     sfSymbol: 'checkmark.rectangle.stack',
                     fallbackIcon: 'checkmark-done-outline',
                     onPress: () => setMarkSelectedExpanded((value) => !value),
@@ -231,7 +231,7 @@ export function MangaOverflowMenu({
                     <MenuRow
                       item={{
                         key: 'read',
-                        label: t('manga_mark_read'),
+                        label: t('manga_read'),
                         sfSymbol: 'checkmark.circle',
                         fallbackIcon: 'checkmark-circle-outline',
                         onPress: onMarkSelectedRead,
@@ -242,7 +242,7 @@ export function MangaOverflowMenu({
                     <MenuRow
                       item={{
                         key: 'unread',
-                        label: t('manga_mark_unread'),
+                        label: t('manga_unread'),
                         sfSymbol: 'circle',
                         fallbackIcon: 'ellipse-outline',
                         onPress: onMarkSelectedUnread,

@@ -21,6 +21,15 @@ import { useTheme } from '@/hooks/use-theme';
 
 const GITHUB_URL = 'https://github.com/Tamdok-MangaReader';
 
+function firstVersionPart(...values: Array<string | number | null | undefined>): string {
+  for (const value of values) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return '—';
+}
+
 const MENU_ITEMS_FIRST = [
   { icon: 'color-palette-outline' as const, labelKey: 'section_appearance', path: '/settings/appearance' },
   { icon: 'library-outline' as const, labelKey: 'library_settings_title', path: '/settings/library' },
@@ -41,12 +50,13 @@ const MENU_ITEMS_THIRD = [
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, radius, spacing } = useTheme();
-  const appVersion = Constants.expoConfig?.version ?? '—';
-  const buildNumber =
-    Constants.nativeBuildVersion ??
-    Constants.expoConfig?.ios?.buildNumber ??
-    Constants.expoConfig?.android?.versionCode ??
-    '—';
+  const appVersion = firstVersionPart(Constants.nativeAppVersion, Constants.expoConfig?.version);
+  const buildNumber = firstVersionPart(
+    Constants.nativeBuildVersion,
+    Constants.platform?.ios?.buildNumber,
+    Constants.expoConfig?.ios?.buildNumber,
+    Constants.expoConfig?.android?.versionCode,
+  );
   const [incognitoMode, setIncognitoMode] = useState(false);
   const [settingsReady, setSettingsReady] = useState(false);
 

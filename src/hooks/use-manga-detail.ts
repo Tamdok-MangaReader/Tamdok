@@ -6,7 +6,7 @@ import type { InstalledSource, Manga } from '@/parsers/shared/types';
 import type { SourceRunner } from '@/parsers/shared/source-runner';
 import { isAidokuRequestCancelled } from '@/parsers/aidoku/wasm-bridge';
 import { peekMangaDetailCache, readMangaDetailCache, writeMangaDetailCache } from '@/services/manga-detail-cache';
-import { getLibraryEntry, updateLibraryEntryMetadata } from '@/services/library';
+import { getLibraryEntry, syncLibraryEntryUnread, updateLibraryEntryMetadata } from '@/services/library';
 
 const MANGA_LOAD_TIMEOUT_MS = 45_000;
 
@@ -146,6 +146,7 @@ export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: 
             status: updated.status,
             lastRefreshed: Date.now(),
           });
+          await syncLibraryEntryUnread(cacheSourceId, mangaKey, updated.chapters);
         }
       } catch (error) {
         if (requestId !== requestIdRef.current || timedOut) return;

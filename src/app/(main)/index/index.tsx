@@ -141,6 +141,7 @@ export default function LibraryScreen() {
         key: entry.mangaKey,
         title: entry.title,
         cover: entry.cover,
+        sourceId: entry.sourceId,
         inLibrary: true,
         unreadCount: showUnreadBadges ? entry.unreadCount ?? 0 : 0,
         downloadedCount: showDownloadedBadges ? entry.downloadedCount ?? 0 : 0,
@@ -285,7 +286,7 @@ export default function LibraryScreen() {
               <MangaGrid
             entries={mangaEntries}
             columns={gridColumns}
-            showBookmark
+            showBookmark={false}
             scrollEnabled
             ListHeaderComponent={listHeader}
             ListEmptyComponent={<View style={styles.emptyBelowTabs}>{emptyState}</View>}

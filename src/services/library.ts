@@ -57,6 +57,51 @@ export function chapterKeysForLibraryEntry(entry: LibraryEntry): string[] {
   return peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters?.map((chapter) => chapter.key) ?? [];
 }
 
+export function resolveLibraryUnreadCount(
+  entry: Pick<LibraryEntry, 'sourceId' | 'mangaKey' | 'unreadCount' | 'knownChapterKeys'>,
+  readKeys?: Set<string>,
+): number {
+  const cachedKeys =
+    peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters?.map((chapter) => chapter.key) ?? [];
+  const known = entry.knownChapterKeys ?? [];
+  const keys = cachedKeys.length >= known.length ? cachedKeys : known;
+  if (keys.length === 0) return entry.unreadCount ?? 0;
+  if (!readKeys) return entry.unreadCount ?? keys.length;
+  return keys.filter((key) => !readKeys.has(key)).length;
+}
+
+export async function syncLibraryEntryUnread(
+  sourceId: string,
+  mangaKey: string,
+  chapters?: { key: string }[],
+): Promise<void> {
+  const entry = await getLibraryEntry(sourceId, mangaKey);
+  if (!entry) return;
+
+  const progress = await getMangaChapterProgress(sourceId, mangaKey);
+  const readKeys = new Set(
+    Object.values(progress)
+      .filter((item) => item.page === -1)
+      .map((item) => item.chapterKey),
+  );
+  const cachedKeys =
+    chapters?.map((chapter) => chapter.key) ??
+    peekMangaDetailCache(sourceId, mangaKey)?.manga.chapters?.map((chapter) => chapter.key) ??
+    [];
+  const known = entry.knownChapterKeys ?? [];
+  const keys = cachedKeys.length >= known.length ? cachedKeys : known;
+  if (keys.length === 0) return;
+
+  const unreadCount = keys.filter((key) => !readKeys.has(key)).length;
+  const keysChanged = keys.length !== known.length || keys.some((key, index) => known[index] !== key);
+  if (entry.unreadCount === unreadCount && !keysChanged) return;
+
+  await updateLibraryEntryMetadata(sourceId, mangaKey, {
+    unreadCount,
+    knownChapterKeys: keys,
+  });
+}
+
 export const LIBRARY_SORT_MODES: LibrarySortMode[] = ['unread', 'title', 'recent', 'lastRead'];
 
 function titleSortKey(title: string): string {
@@ -101,25 +146,28 @@ async function applyEntryBadges(
   if (meta?.knownChapterKeys !== undefined) entry.knownChapterKeys = meta.knownChapterKeys;
   if (meta?.status !== undefined) entry.status = meta.status;
 
-  const needsUnread = entry.unreadCount === undefined;
+  const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey);
+  const chapters = cached?.manga.chapters ?? [];
+  const cachedKeys = chapters.map((chapter) => chapter.key);
+  const known = entry.knownChapterKeys ?? [];
+  const needsUnread =
+    entry.unreadCount === undefined || (cachedKeys.length > 0 && cachedKeys.length !== known.length);
   const needsDownloads = entry.downloadedCount === undefined;
   if (!needsUnread && !needsDownloads) return;
 
-  const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey);
-  const chapters = cached?.manga.chapters ?? [];
   const [progress, downloads] = await Promise.all([
     needsUnread ? getMangaChapterProgress(entry.sourceId, entry.mangaKey) : Promise.resolve({} as Record<string, ChapterProgress>),
     needsDownloads ? getMangaDownloads(entry.sourceId, entry.mangaKey) : Promise.resolve([]),
   ]);
 
-  if (needsUnread && chapters.length > 0) {
+  if (needsUnread && cachedKeys.length > 0) {
     const readKeys = new Set(
       Object.values(progress)
         .filter((item) => item.page === -1)
         .map((item) => item.chapterKey),
     );
-    entry.unreadCount = chapters.filter((chapter) => !readKeys.has(chapter.key)).length;
-    entry.knownChapterKeys = chapters.map((chapter) => chapter.key);
+    entry.unreadCount = cachedKeys.filter((key) => !readKeys.has(key)).length;
+    entry.knownChapterKeys = cachedKeys;
   }
 
   if (needsDownloads) {

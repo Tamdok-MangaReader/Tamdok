@@ -106,6 +106,26 @@ export async function getMangaChapterProgress(
   return result;
 }
 
+/** Read chapter keys keyed by `sourceId:mangaKey`. */
+export async function getReadChapterKeysByManga(): Promise<Map<string, Set<string>>> {
+  const store = await readStore();
+  const map = new Map<string, Set<string>>();
+  for (const progress of Object.values(store.chapters)) {
+    if (progress.page !== -1) continue;
+    const key = `${progress.sourceId}:${progress.mangaKey}`;
+    const set = map.get(key) ?? new Set<string>();
+    set.add(progress.chapterKey);
+    map.set(key, set);
+  }
+  return map;
+}
+
+function scheduleLibraryUnreadSync(sourceId: string, mangaKey: string) {
+  void import('@/services/library')
+    .then((mod) => mod.syncLibraryEntryUnread(sourceId, mangaKey))
+    .catch(() => undefined);
+}
+
 export async function markChapterRead(
   sourceId: string,
   mangaKey: string,
@@ -137,6 +157,7 @@ export async function markChapterRead(
     });
 
   await writeStore(store, meta?.notify !== false);
+  scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
 export async function markChapterUnread(
@@ -148,6 +169,7 @@ export async function markChapterUnread(
   delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
   removeChapterHistory(store, sourceId, mangaKey, chapterKeyValue);
   await writeStore(store);
+  scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
 export async function markAllChaptersRead(
@@ -184,6 +206,7 @@ export async function markAllChaptersRead(
   }
 
   await writeStore(store);
+  scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
 export async function markAllChaptersUnread(sourceId: string, mangaKey: string, chapterKeys: string[]): Promise<void> {
@@ -194,6 +217,7 @@ export async function markAllChaptersUnread(sourceId: string, mangaKey: string, 
   const historyKey = mangaHistoryKey(sourceId, mangaKey);
   store.history = store.history.filter((entry) => mangaHistoryKey(entry.sourceId, entry.mangaKey) !== historyKey);
   await writeStore(store);
+  scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
 export async function recordChapterProgress(
@@ -227,6 +251,7 @@ export async function recordChapterProgress(
     });
 
   await writeStore(store, meta?.notify !== false);
+  if (page === -1) scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
 export async function getMangaHistoryForEntry(sourceId: string, mangaKey: string): Promise<HistoryEntry[]> {

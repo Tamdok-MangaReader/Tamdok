@@ -10,6 +10,7 @@
     "ios": {
       "icon": "./assets/tamdok.icon",
       "bundleIdentifier": "com.solsticeleaf.Tamdok",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIViewControllerBasedStatusBarAppearance": true,
