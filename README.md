@@ -82,7 +82,7 @@ If you are choosing an app:
 
 ## Status
 
-Early (`0.1`). iOS is the platform that is actually maintained. APIs, source packages, and UI will still move.
+Early (`1.0`). iOS is the platform that is actually maintained. APIs, source packages, and UI will still move.
 
 This app does not host manga. It talks to whatever catalogs you install. You are responsible for the sources you add and for following the sites’ terms and local law.
 
