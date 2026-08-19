@@ -280,6 +280,7 @@
   "manga_continue_reading": "Продолжить с {chapter}",
   "library_set_primary": "Назначить основной",
   "library_refresh_all": "Обновить библиотеку",
+  "library_refresh_progress": "{current} из {total} обновлено",
   "library_update_failed": "Не удалось обновить",
   "library_updates_section": "Обновление библиотеки",
   "library_updates_hint": "Выберите категории для обновления и параметры синхронизации.",

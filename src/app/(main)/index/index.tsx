@@ -12,12 +12,13 @@ import { SourceCategoryTabs } from '@/components/sources/source-category-tabs';
 import { EmptyState } from '@/components/ui/empty-state';
 import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { ScreenContent } from '@/components/ui/screen-content';
+import { ThemedText } from '@/components/ui/themed-text';
 import { t } from '@/constants/locales';
 import { Spacing } from '@/constants/theme';
 import { useSources } from '@/context/sources-context';
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { useTheme } from '@/hooks/use-theme';
-import { refreshLibraryEntries } from '@/services/library-refresh';
+import { refreshLibraryEntries, type LibraryRefreshProgress } from '@/services/library-refresh';
 import {
   ALL_CATEGORY_ID,
   chapterKeysForLibraryEntry,
@@ -55,6 +56,7 @@ export default function LibraryScreen() {
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [showCategoryTabs, setShowCategoryTabs] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState<LibraryRefreshProgress | null>(null);
   const [gridColumns, setGridColumns] = useState(3);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
@@ -127,11 +129,13 @@ export default function LibraryScreen() {
 
   const refreshLibrary = useCallback(async () => {
     setRefreshing(true);
+    setRefreshProgress(null);
     try {
-      await refreshLibraryEntries(installed, selectedCategoryId);
+      await refreshLibraryEntries(installed, selectedCategoryId, setRefreshProgress);
       await loadLibrary();
     } finally {
       setRefreshing(false);
+      setRefreshProgress(null);
     }
   }, [installed, selectedCategoryId, loadLibrary]);
 
@@ -243,6 +247,26 @@ export default function LibraryScreen() {
   );
 
   const isEmpty = mangaEntries.length === 0;
+
+  const refreshStatus =
+    refreshing ? (
+      <View style={styles.refreshStatus}>
+        <ActivityIndicator color={colors.tint} />
+        {refreshProgress ? (
+          <View style={styles.refreshMeta}>
+            <ThemedText variant='subheadline' numberOfLines={1}>
+              {refreshProgress.title}
+            </ThemedText>
+            <ThemedText variant='caption1' color='secondaryLabel'>
+              {t('library_refresh_progress', {
+                current: String(refreshProgress.current),
+                total: String(refreshProgress.total),
+              })}
+            </ThemedText>
+          </View>
+        ) : null}
+      </View>
+    ) : null;
   const canSwipeCategories = showCategoryTabs && categories.length > 1;
 
   const categorySwipe = useMemo(() => {
@@ -277,10 +301,13 @@ export default function LibraryScreen() {
       />
       <Stack.Title>{t('library')}</Stack.Title>
       {isEmpty && !showCategoryTabs ? (
-        <ScreenContent centerContent>{emptyState}</ScreenContent>
+        <ScreenContent centerContent>
+          {refreshStatus}
+          {emptyState}
+        </ScreenContent>
       ) : (
         <View style={styles.root}>
-          {refreshing ? <ActivityIndicator style={styles.refreshIndicator} color={colors.tint} /> : null}
+          {refreshStatus}
           <GestureDetector gesture={categorySwipe}>
             <View style={styles.root}>
               <MangaGrid
@@ -324,8 +351,17 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  refreshIndicator: {
-    marginTop: 8,
+  refreshStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  refreshMeta: {
+    flex: 1,
+    minWidth: 0,
   },
   emptyBelowTabs: {
     paddingTop: Spacing.xl,

@@ -281,6 +281,7 @@
   "manga_continue_reading": "Continue from {chapter}",
   "library_set_primary": "Set as primary",
   "library_refresh_all": "Refresh library",
+  "library_refresh_progress": "{current} of {total} updated",
   "library_update_failed": "Couldn't update this title",
   "library_updates_section": "Library updates",
   "library_updates_hint": "Choose which categories are refreshed and update preferences.",

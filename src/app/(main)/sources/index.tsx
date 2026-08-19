@@ -63,15 +63,26 @@ export default function SourcesScreen() {
     [query],
   );
 
-  const categoryTabs = useMemo<SourceCategoryTab[]>(
-    () => [
-      { id: 'all', label: t('sources') },
-      { id: 'pinned', label: t('sources_pinned') },
-      { id: 'aidoku', label: t('sources_tab_aidoku') },
-      { id: 'tamdok', label: t('sources_tab_tamdok') },
-    ],
-    [],
-  );
+  const hasPinned = useMemo(() => installed.some((source) => isPinned(source)), [installed, isPinned]);
+  const hasAidoku = useMemo(() => installed.some((source) => source.kind === 'aidoku'), [installed]);
+  const hasTamdok = useMemo(() => installed.some((source) => source.kind === 'tamdok'), [installed]);
+  const showKindTabs = hasAidoku && hasTamdok;
+
+  const categoryTabs = useMemo<SourceCategoryTab[]>(() => {
+    const tabs: SourceCategoryTab[] = [{ id: 'all', label: t('sources') }];
+    if (hasPinned) tabs.push({ id: 'pinned', label: t('sources_pinned') });
+    if (showKindTabs) {
+      tabs.push({ id: 'aidoku', label: t('sources_tab_aidoku') });
+      tabs.push({ id: 'tamdok', label: t('sources_tab_tamdok') });
+    }
+    return tabs;
+  }, [hasPinned, showKindTabs]);
+
+  useEffect(() => {
+    if (!categoryTabs.some((tab) => tab.id === selectedCategory)) {
+      setSelectedCategory('all');
+    }
+  }, [categoryTabs, selectedCategory]);
 
   const filteredByCategory = useMemo(() => {
     switch (selectedCategory) {

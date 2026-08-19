@@ -104,9 +104,16 @@ async function persistRefreshedManga(
   });
 }
 
+export type LibraryRefreshProgress = {
+  title: string;
+  current: number;
+  total: number;
+};
+
 export async function refreshLibraryEntries(
   installed: InstalledSource[],
   categoryId?: string,
+  onProgress?: (progress: LibraryRefreshProgress) => void,
 ): Promise<{ refreshed: number; skipped: number; failed: number }> {
   const settings = await getLibraryUpdateSettings();
   if (settings.updateOnWifiOnly) {
@@ -115,15 +122,26 @@ export async function refreshLibraryEntries(
 
   const entries = await getLibraryEntries(categoryId);
   const runnerCache = new Map<string, SourceRunner>();
-  let refreshed = 0;
+  const pending: LibraryEntry[] = [];
   let skipped = 0;
-  let failed = 0;
 
   for (const entry of entries) {
-    if (!(await shouldRefreshLibraryEntry(entry))) {
+    if (await shouldRefreshLibraryEntry(entry)) {
+      pending.push(entry);
+    } else {
       skipped += 1;
-      continue;
     }
+  }
+
+  let refreshed = 0;
+  let failed = 0;
+
+  for (const [index, entry] of pending.entries()) {
+    onProgress?.({
+      title: entry.title,
+      current: index + 1,
+      total: pending.length,
+    });
 
     try {
       await refreshEntry(entry, installed, runnerCache, settings.refreshMetadata);
