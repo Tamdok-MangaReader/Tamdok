@@ -19,7 +19,7 @@ import { getAppSettings, updateAppSettings } from '@/services/app-settings';
 import { subscribeAppSettings } from '@/utils/app-settings-events';
 import { useTheme } from '@/hooks/use-theme';
 
-const GITHUB_URL = 'https://github.com/Tamdok-MangaReader';
+const GITHUB_URL = 'https://github.com/Tamdok-MangaReader/Tamdok';
 
 function firstVersionPart(...values: Array<string | number | null | undefined>): string {
   for (const value of values) {
@@ -177,11 +177,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.supportActions}>
             <Pressable
-              style={({ pressed }) => [
-                styles.emailButton,
-                { backgroundColor: colors.tint, borderRadius: radius.md },
-                pressed && styles.pressed,
-              ]}
+              style={({ pressed }) => [styles.emailButton, { backgroundColor: colors.tint, borderRadius: radius.md }, pressed && styles.pressed]}
               onPress={openEmail}
               accessibilityRole='button'>
               <ThemedText variant='headline' color='onTint'>
@@ -189,11 +185,7 @@ export default function SettingsScreen() {
               </ThemedText>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [
-                styles.githubButton,
-                { backgroundColor: colors.secondaryFill, borderRadius: radius.md },
-                pressed && styles.pressed,
-              ]}
+              style={({ pressed }) => [styles.githubButton, { backgroundColor: colors.secondaryFill, borderRadius: radius.md }, pressed && styles.pressed]}
               onPress={() => void Linking.openURL(GITHUB_URL)}
               accessibilityRole='button'
               accessibilityLabel='GitHub'>
