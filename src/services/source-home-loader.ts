@@ -2,6 +2,8 @@ import { isMissingWasmExportError } from '@/parsers/aidoku/invoke-settings';
 import { parseMangaDescription } from '@/parsers/shared/manga-description';
 import type { HomeComponent, HomeLayout, Listing, Manga } from '@/parsers/shared/types';
 import type { SourceRunner } from '@/parsers/shared/source-runner';
+import { readMangaDetailsMap } from '@/services/manga-detail-cache';
+import { peekSourceHomeCache, readSourceHomeCache } from '@/services/source-home-cache';
 import { withLatestChapterOnly } from '@/utils/chapter-label';
 
 const DEFAULT_BIG_SCROLLER_INTERVAL = 5;
@@ -9,6 +11,19 @@ const NHENTAI_SOURCE_ID = 'multi.nhentai';
 
 function isRemangaSource(sourceId?: string): boolean {
   return Boolean(sourceId?.toLowerCase().includes('remanga'));
+}
+
+function isPopularHomeComponent(component: HomeComponent): boolean {
+  const title = component.title?.trim().toLowerCase() ?? '';
+  const listingId = component.listing?.id?.toLowerCase() ?? '';
+  const listingName = component.listing?.name?.trim().toLowerCase() ?? '';
+  return (
+    listingId === 'popular' ||
+    title === 'популярное' ||
+    title === 'popular' ||
+    listingName === 'популярное' ||
+    listingName === 'popular'
+  );
 }
 
 function fallbackHomeSectionKind(sourceId?: string): HomeComponent['kind'] {
@@ -36,8 +51,11 @@ export async function loadSourceHomeData(
     homeLayout = await buildFallbackHome(runner, sourceListings, source?.id);
   }
 
+  const previousDetails = await loadPreviousHomeDetails(source?.id);
   homeLayout =
-    (await enrichHomeLayout(runner, homeLayout, sourceListings, source?.id)) ?? { components: [] };
+    (await enrichHomeLayout(runner, homeLayout, sourceListings, source?.id, previousDetails)) ?? {
+      components: [],
+    };
 
   if (homeLayout.components.length === 0) {
     homeLayout = await buildSearchFallbackHome(runner, source?.id);
@@ -73,6 +91,7 @@ async function enrichHomeLayout(
   home: HomeLayout,
   listings: Listing[],
   sourceId?: string,
+  previousDetails?: Map<string, Manga>,
 ): Promise<HomeLayout> {
   const components: HomeComponent[] = [];
   const skipListingFallback = sourceId === NHENTAI_SOURCE_ID;
@@ -89,7 +108,11 @@ async function enrichHomeLayout(
       continue;
     }
 
-    if (component.kind === 'bigScroller') {
+    const treatAsBigScroller =
+      component.kind === 'bigScroller' ||
+      (component.kind === 'scroller' && isPopularHomeComponent(component));
+
+    if (treatAsBigScroller) {
       let entries = component.entries;
 
       if (entries.length === 0 && runner.getMangaList) {
@@ -105,12 +128,18 @@ async function enrichHomeLayout(
 
       if (entries.length === 0) continue;
 
+      entries = entries.slice(0, 12);
+
+      // Reuse cached description/tags; only fetch tiles that have never been seen.
+      if (sourceId !== NHENTAI_SOURCE_ID) {
+        entries = await enrichBigScrollerEntries(runner, entries, sourceId, previousDetails);
+      }
       if (!skipEntryEnrichment) {
-        entries = await enrichBigScrollerEntries(runner, entries);
         entries = await enrichWithLatestChapters(runner, entries);
       }
       components.push({
         ...component,
+        kind: 'bigScroller',
         entries,
         autoScrollInterval: component.autoScrollInterval ?? DEFAULT_BIG_SCROLLER_INTERVAL,
       });
@@ -181,7 +210,38 @@ async function enrichHomeLayout(
 
 function mangaHasBigScrollerDetails(manga: Manga): boolean {
   const { summary } = parseMangaDescription(manga.description);
-  return Boolean(manga.authors?.length && manga.tags?.length && summary?.trim());
+  return Boolean(manga.tags?.length && summary?.trim());
+}
+
+function overlayCachedDetails(manga: Manga, cached?: Manga): Manga {
+  if (!cached) return manga;
+  return {
+    ...manga,
+    description: cached.description ?? manga.description,
+    tags: cached.tags?.length ? cached.tags : manga.tags,
+    authors: cached.authors?.length ? cached.authors : manga.authors,
+    artists: cached.artists?.length ? cached.artists : manga.artists,
+  };
+}
+
+function collectHomeManga(home: HomeLayout): Map<string, Manga> {
+  const map = new Map<string, Manga>();
+  for (const component of home.components) {
+    for (const manga of component.entries ?? []) {
+      if (manga?.key) map.set(manga.key, manga);
+    }
+    for (const entry of component.scrollerEntries ?? []) {
+      if (entry.manga?.key) map.set(entry.manga.key, entry.manga);
+    }
+  }
+  return map;
+}
+
+async function loadPreviousHomeDetails(sourceId?: string): Promise<Map<string, Manga>> {
+  if (!sourceId) return new Map();
+  const cached = peekSourceHomeCache(sourceId) ?? (await readSourceHomeCache(sourceId));
+  if (!cached?.home) return new Map();
+  return collectHomeManga(cached.home);
 }
 
 function preserveHomeCover(homeCover: string | undefined, manga: Manga): Manga {
@@ -220,34 +280,54 @@ async function enrichWithLatestChapters(runner: SourceRunner, entries: Manga[]):
   return entries.map((manga) => enriched.get(manga.key) ?? manga);
 }
 
-async function enrichBigScrollerEntries(runner: SourceRunner, entries: Manga[]): Promise<Manga[]> {
-  if (!runner.getMangaUpdate) return entries;
+async function enrichBigScrollerEntries(
+  runner: SourceRunner,
+  entries: Manga[],
+  sourceId?: string,
+  previousDetails?: Map<string, Manga>,
+): Promise<Manga[]> {
+  const detailCache = sourceId
+    ? await readMangaDetailsMap(
+        sourceId,
+        entries.map((manga) => manga.key),
+      )
+    : new Map<string, Manga>();
 
-  const needsEnrichment = entries.filter((manga) => !mangaHasBigScrollerDetails(manga));
-  if (needsEnrichment.length === 0) return entries;
+  // Manga detail cache wins (updated only when the title is opened). Home cache fills the rest.
+  const hydrated = entries.map((manga) => {
+    const fromDetail = detailCache.get(manga.key);
+    const fromHome = previousDetails?.get(manga.key);
+    const withDetails = overlayCachedDetails(overlayCachedDetails(manga, fromHome), fromDetail);
+    return preserveHomeCover(manga.cover, withDetails);
+  });
 
-  const enriched = new Map<string, Manga>();
+  if (!runner.getMangaUpdate) return hydrated;
+
+  const needsFetch = hydrated.filter((manga) => !mangaHasBigScrollerDetails(manga));
+  if (needsFetch.length === 0) return hydrated;
+
+  const fetched = new Map<string, Manga>();
   const concurrency = 4;
 
-  for (let index = 0; index < needsEnrichment.length; index += concurrency) {
-    const batch = needsEnrichment.slice(index, index + concurrency);
+  for (let index = 0; index < needsFetch.length; index += concurrency) {
+    const batch = needsFetch.slice(index, index + concurrency);
     const results = await Promise.all(
       batch.map(async (manga) => {
         try {
           const homeCover = manga.cover;
           const updated = await runner.getMangaUpdate!(manga, true, false);
-          return [manga.key, preserveHomeCover(homeCover, updated)] as const;
+          return [manga.key, preserveHomeCover(homeCover, { ...manga, ...updated })] as const;
         } catch {
           return [manga.key, manga] as const;
         }
       }),
     );
     for (const [key, manga] of results) {
-      enriched.set(key, manga);
+      fetched.set(key, manga);
     }
   }
 
-  return entries.map((manga) => enriched.get(manga.key) ?? manga);
+  return hydrated.map((manga) => fetched.get(manga.key) ?? manga);
 }
 
 async function buildFallbackHome(

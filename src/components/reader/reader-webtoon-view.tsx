@@ -13,10 +13,10 @@ import { ReaderChapterBoundary } from '@/components/reader/reader-chapter-bounda
 import { ReaderQuickActions, type ReaderQuickActionAnchor } from '@/components/reader/reader-quick-actions';
 import { ReaderPageImage } from '@/components/reader/reader-page-image';
 import { useReader } from '@/components/reader/reader-context';
-import { formatChapterLabel } from '@/utils/chapter-label';
+import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
 import { findAdjacentChapter } from '@/utils/reader-chapters';
 import { prefetchReaderPagesAhead } from '@/utils/reader-prefetch';
-import { buildTapZoneGrid, mapTapActionForMode, tapActionAtPoint } from '@/utils/reader-tap-zones';
+import { effectiveTapZoneGrid, tapActionAtPoint } from '@/utils/reader-tap-zones';
 import type { Chapter } from '@/parsers/shared/types';
 import { readerPageFrameHeight, type ReaderPage } from '@/utils/reader-pages';
 
@@ -45,7 +45,7 @@ type ReaderWebtoonViewProps = {
 };
 
 function chapterLabel(chapter: Chapter): string {
-  return chapter.title?.trim() || formatChapterLabel(chapter);
+  return chapterTitleForDisplay(chapter) || formatChapterLabel(chapter);
 }
 
 function isPageItem(item: StripListItem | undefined): item is StripPageItem {
@@ -75,7 +75,7 @@ export function ReaderWebtoonView({
   const listRef = useRef<FlatList<StripListItem>>(null);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const tapGrid = useMemo(() => buildTapZoneGrid(settings, mode), [settings, mode]);
+  const tapGrid = useMemo(() => effectiveTapZoneGrid(settings, mode), [settings, mode]);
   const resumeIndexRef = useRef(currentPage);
   const restoringRef = useRef(currentPage > 0);
   const restoreDoneRef = useRef(false);
@@ -432,7 +432,7 @@ export function ReaderWebtoonView({
         actions.toggleBars();
         return;
       }
-      const action = mapTapActionForMode(tapActionAtPoint(tapGrid, x, y, width, height), mode);
+      const action = tapActionAtPoint(tapGrid, x, y, width, height);
       if (action === 'toggleBars' || action === 'none') {
         if (action === 'toggleBars') actions.toggleBars();
         return;
@@ -603,10 +603,7 @@ export function ReaderWebtoonView({
           return (
             <View
               style={[styles.page, { width, height: heightForItem(item) }]}
-              key={`${item.id}-${reloadKeys[item.id] ?? 0}`}
-              onLayout={(event) => {
-                applyItemHeight(item.id, event.nativeEvent.layout.height);
-              }}>
+              key={`${item.id}-${reloadKeys[item.id] ?? 0}`}>
               <ReaderPageImage
                 page={item}
                 settings={settings}
@@ -618,6 +615,7 @@ export function ReaderWebtoonView({
                 pillarboxAmount={settings.pillarboxAmount}
                 pillarboxOrientation={settings.pillarboxOrientation}
                 layout='intrinsic'
+                containerWidth={width}
                 onMeasuredAspectRatio={(ratio) => {
                   applyItemHeight(item.id, readerPageFrameHeight(item, contentWidth, ratio, estimatedHeight));
                 }}

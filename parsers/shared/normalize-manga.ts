@@ -1,4 +1,5 @@
 import type { Chapter, Manga, MangaPageResult } from './types';
+import { sanitizeChapterNumber, sanitizeChapterTitle } from './chapter-number';
 
 export function normalizeMangaPageResult(result: MangaPageResult): MangaPageResult {
   return {
@@ -22,8 +23,9 @@ export function normalizeChapter(chapter: Chapter): Chapter {
   };
   return {
     ...chapter,
-    chapterNumber: chapter.chapterNumber ?? raw.chapter_number,
-    volumeNumber: chapter.volumeNumber ?? raw.volume_number,
+    title: sanitizeChapterTitle(chapter.title),
+    chapterNumber: sanitizeChapterNumber(chapter.chapterNumber ?? raw.chapter_number),
+    volumeNumber: sanitizeChapterNumber(chapter.volumeNumber ?? raw.volume_number),
     dateUploaded: chapter.dateUploaded ?? raw.date_uploaded,
   };
 }

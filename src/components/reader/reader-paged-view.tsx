@@ -9,9 +9,9 @@ import { ReaderChapterBoundary } from '@/components/reader/reader-chapter-bounda
 import { ReaderQuickActions, type ReaderQuickActionAnchor } from '@/components/reader/reader-quick-actions';
 import { useReader } from '@/components/reader/reader-context';
 import { ReaderSpreadPage } from '@/components/reader/reader-spread-page';
-import { buildTapZoneGrid, mapTapActionForMode, tapActionAtPoint } from '@/utils/reader-tap-zones';
+import { effectiveTapZoneGrid, tapActionAtPoint } from '@/utils/reader-tap-zones';
 import { findAdjacentChapter } from '@/utils/reader-chapters';
-import { formatChapterLabel } from '@/utils/chapter-label';
+import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
 import {
   buildSpreads,
   defaultIsolatedPages,
@@ -45,7 +45,7 @@ export function ReaderPagedView({
   const pagerRef = useRef<PagerView>(null);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const tapGrid = useMemo(() => buildTapZoneGrid(settings, mode), [settings, mode]);
+  const tapGrid = useMemo(() => effectiveTapZoneGrid(settings, mode), [settings, mode]);
   const doublePages = usesDoublePageLayout(settings.pagedPageLayout, width, height);
   const [isolatedPages, setIsolatedPages] = useState<Set<number>>(() =>
     defaultIsolatedPages(pages, doublePages, pageOffsetEnabled),
@@ -125,7 +125,7 @@ export function ReaderPagedView({
         actions.toggleBars();
         return;
       }
-      const action = mapTapActionForMode(tapActionAtPoint(tapGrid, x, y, width, height), mode);
+      const action = tapActionAtPoint(tapGrid, x, y, width, height);
       if (action === 'toggleBars' || action === 'none') {
         if (action === 'toggleBars') actions.toggleBars();
         return;
@@ -228,12 +228,17 @@ export function ReaderPagedView({
   const layoutDirection = mode === 'rtl' ? 'rtl' : 'ltr';
   const offscreenLimit = Math.max(4, Math.min(8, settings.pagesToPreload));
 
-  const chapterLabel = useMemo(() => chapter.title?.trim() || formatChapterLabel(chapter), [chapter]);
+  const chapterLabel = useMemo(
+    () => chapterTitleForDisplay(chapter) || formatChapterLabel(chapter),
+    [chapter],
+  );
   const nextChapter = useMemo(
     () => findAdjacentChapter(chapters, chapter.key, 'next', settings.skipDuplicateChapters),
     [chapter.key, chapters, settings.skipDuplicateChapters],
   );
-  const nextChapterLabel = nextChapter ? nextChapter.title?.trim() || formatChapterLabel(nextChapter) : null;
+  const nextChapterLabel = nextChapter
+    ? chapterTitleForDisplay(nextChapter) || formatChapterLabel(nextChapter)
+    : null;
 
   const openQuickActions = (page: ReaderPage, x: number, y: number) => {
     if (settings.disableQuickActions || !page.url) return;

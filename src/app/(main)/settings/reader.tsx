@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Switch, View } from 'react-native';
 
 import { InlinePillGrid } from '@/components/library/inline-pill-grid';
+import { TapZonePreview } from '@/components/reader/tap-zone-preview';
 import { Card, CardSeparator } from '@/components/ui/card';
 import { ScreenContent } from '@/components/ui/screen-content';
 import { SectionLabel } from '@/components/ui/section-label';
@@ -25,10 +26,10 @@ import {
   type TextReaderStyle,
 } from '@/services/app-settings';
 
-const READING_MODES: ReadingMode[] = ['default', 'auto', 'rtl', 'ltr', 'vertical', 'webtoon', 'continuous'];
+const READING_MODES: ReadingMode[] = ['auto', 'default', 'rtl', 'ltr', 'vertical', 'webtoon', 'continuous'];
 const BACKGROUND_COLORS: ReaderBackgroundColor[] = ['system', 'white', 'black'];
 const ORIENTATIONS: ReaderOrientation[] = ['device', 'portrait', 'landscape'];
-const TAP_ZONES: TapZones[] = ['disabled', 'left-right', 'l-shaped', 'kindle', 'edge', 'auto'];
+const TAP_ZONES: TapZones[] = ['left-right', 'l-shaped', 'kindle', 'edge', 'auto', 'disabled'];
 const PAGE_LAYOUTS: PagedPageLayout[] = ['auto', 'single', 'double'];
 const PILLARBOX_ORIENTATIONS: PillarboxOrientation[] = ['both', 'horizontal', 'vertical'];
 const TEXT_FONT_FAMILIES = ['System', 'serif', 'monospace'] as const;
@@ -215,6 +216,7 @@ export default function ReaderSettingsScreen() {
             preserveOrder
             onSelect={(id) => patch({ tapZones: id as TapZones })}
           />
+          <TapZonePreview settings={settings} />
         </Card>
         <Card>
           <SettingSwitch

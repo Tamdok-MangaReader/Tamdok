@@ -1,16 +1,17 @@
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InlinePillGrid } from '@/components/library/inline-pill-grid';
 import { useReader } from '@/components/reader/reader-context';
+import { TapZonePreview } from '@/components/reader/tap-zone-preview';
 import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { useTheme } from '@/hooks/use-theme';
-import type { ReadingMode } from '@/services/app-settings';
-import { setMangaReadingMode } from '@/services/reader-manga-settings';
+import { updateAppSettings, type ReadingMode, type TapZones } from '@/services/app-settings';
+import { setMangaAutoResolvedMode, setMangaReadingMode } from '@/services/reader-manga-settings';
 
 const MANGA_READING_MODES: Array<ReadingMode | 'default'> = [
   'default',
@@ -21,6 +22,8 @@ const MANGA_READING_MODES: Array<ReadingMode | 'default'> = [
   'webtoon',
   'continuous',
 ];
+
+const TAP_ZONES: TapZones[] = ['left-right', 'l-shaped', 'kindle', 'edge', 'auto', 'disabled'];
 
 type ReaderSettingsSheetProps = {
   visible: boolean;
@@ -40,12 +43,16 @@ export function ReaderSettingsSheet({
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const router = useRouter();
-  const { manga } = useReader();
+  const { manga, settings } = useReader();
   const selectedMode = mangaReadingMode ?? 'default';
 
   const modeOptions = MANGA_READING_MODES.map((mode) => ({
     id: mode,
     label: t(`reader_mode_${mode}`),
+  }));
+  const tapZoneOptions = TAP_ZONES.map((zone) => ({
+    id: zone,
+    label: t(`reader_tap_zones_${zone.replace('-', '_')}`),
   }));
 
   return (
@@ -72,8 +79,34 @@ export function ReaderSettingsSheet({
               onSelect={(id) => {
                 const mode = id as ReadingMode | 'default';
                 void setMangaReadingMode(sourceId, manga.key, mode).then(() => onMangaReadingModeChange(mode));
+                if (mode !== 'default' && mode !== 'auto') {
+                  void setMangaAutoResolvedMode(sourceId, manga.key, mode);
+                }
               }}
             />
+          </Card>
+          <Card style={styles.card}>
+            <ThemedText variant='subheadline'>{t('reader_tap_zones')}</ThemedText>
+            <InlinePillGrid
+              options={tapZoneOptions}
+              selectedId={settings.tapZones}
+              preserveOrder
+              onSelect={(id) => {
+                void updateAppSettings({ reader: { ...settings, tapZones: id as TapZones } });
+              }}
+            />
+            <TapZonePreview settings={settings} />
+            <View style={styles.invertRow}>
+              <ThemedText variant='body' style={styles.invertLabel}>
+                {t('reader_invert_tap_zones')}
+              </ThemedText>
+              <Switch
+                value={settings.invertTapZones}
+                onValueChange={(value) => {
+                  void updateAppSettings({ reader: { ...settings, invertTapZones: value } });
+                }}
+              />
+            </View>
           </Card>
           <Pressable
             style={[styles.linkRow, { backgroundColor: colors.tertiaryFill }]}
@@ -114,6 +147,15 @@ const styles = StyleSheet.create({
   card: {
     padding: Spacing.lg,
     gap: Spacing.sm,
+  },
+  invertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingTop: Spacing.xs,
+  },
+  invertLabel: {
+    flex: 1,
   },
   linkRow: {
     borderRadius: 12,

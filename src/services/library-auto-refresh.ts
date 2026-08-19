@@ -2,7 +2,6 @@ import type { InstalledSource } from '@/parsers/shared/types';
 import {
   getLibraryUpdateSettings,
   LIBRARY_UPDATE_INTERVAL_MS,
-  updateLibraryUpdateSettings,
 } from '@/services/library';
 import { refreshLibraryEntries } from '@/services/library-refresh';
 
@@ -28,7 +27,6 @@ export async function runLibraryAutoRefreshIfNeeded(installed: InstalledSource[]
   refreshInFlight = true;
   try {
     await refreshLibraryEntries(installed);
-    await updateLibraryUpdateSettings({ lastAutoRefreshAt: now });
   } finally {
     refreshInFlight = false;
   }

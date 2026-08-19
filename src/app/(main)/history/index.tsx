@@ -12,6 +12,7 @@ import { ScreenContent } from '@/components/ui/screen-content';
 import { ThemedText } from '@/components/ui/themed-text';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
+import { chaptersOldestFirst, formatEntryChapterLabel } from '@/utils/chapter-label';
 import { SourceCoverHeadersProvider, useSourceCoverHeaders, useSourceCoverHeadersReady } from '@/context/source-cover-context';
 import { useSources } from '@/context/sources-context';
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
@@ -118,9 +119,13 @@ function sourceKindLabel(kind: string): string {
 }
 
 function formatHistoryChapterLabel(entry: HistoryEntry): string {
-  if (entry.chapterTitle?.trim()) return entry.chapterTitle;
-  if (entry.chapterKey?.trim()) return entry.chapterKey;
-  return t('history_unknown_chapter');
+  const chapters = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters;
+  const chapter = chapters?.find((item) => item.key === entry.chapterKey);
+  const ordinal =
+    chapter && chapters?.length
+      ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1
+      : undefined;
+  return formatEntryChapterLabel(chapter, entry.chapterTitle, entry.chapterKey, ordinal || undefined);
 }
 
 function HistoryMangaGroup({

@@ -90,7 +90,7 @@ export type AppSettings = {
 const DEFAULT_SETTINGS: AppSettings = {
   incognitoMode: false,
   reader: {
-    readingMode: 'continuous',
+    readingMode: 'auto',
     skipDuplicateChapters: true,
     markDuplicateChapters: true,
     downsampleImages: false,
@@ -102,7 +102,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     hideStatusBarWithMenu: true,
     backgroundColor: 'black',
     orientation: 'device',
-    tapZones: 'disabled',
+    tapZones: 'left-right',
     invertTapZones: false,
     animatePageTransitions: true,
     pagesToPreload: 4,
@@ -156,6 +156,10 @@ async function readSettings(): Promise<AppSettings> {
     reader: {
       ...DEFAULT_SETTINGS.reader,
       ...(stored.reader ?? {}),
+      readingMode:
+        stored.reader?.readingMode && stored.reader.readingMode !== 'default'
+          ? stored.reader.readingMode
+          : DEFAULT_SETTINGS.reader.readingMode,
       hideStatusBarWithMenu: stored.reader?.hideStatusBarWithMenu ?? DEFAULT_SETTINGS.reader.hideStatusBarWithMenu,
     },
     dictionary: { ...DEFAULT_SETTINGS.dictionary, ...(stored.dictionary ?? {}) },

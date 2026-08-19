@@ -13,6 +13,7 @@ import type {
   SourceListParams,
 } from '../../shared/types';
 import { parseMangaDescription } from '../../shared/manga-description';
+import { sanitizeChapterNumber, sanitizeChapterTitle } from '../../shared/chapter-number';
 import { GlobalStore, WasmEnv } from './env';
 import { SyncFetchBridge } from './fetch-bridge';
 import { createWasmImports } from './imports';
@@ -648,9 +649,9 @@ function fromPostcardManga(manga: PostcardManga): Manga {
 function fromPostcardChapter(chapter: PostcardChapter): Chapter {
   return {
     key: chapter.key,
-    title: chapter.title ?? undefined,
-    chapterNumber: chapter.chapter_number ?? undefined,
-    volumeNumber: chapter.volume_number ?? undefined,
+    title: sanitizeChapterTitle(chapter.title),
+    chapterNumber: sanitizeChapterNumber(chapter.chapter_number ?? undefined),
+    volumeNumber: sanitizeChapterNumber(chapter.volume_number ?? undefined),
     dateUploaded: chapter.date_uploaded != null ? Number(chapter.date_uploaded) : undefined,
     scanlators: chapter.scanlators ?? undefined,
     url: chapter.url ?? undefined,

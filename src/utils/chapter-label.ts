@@ -1,5 +1,20 @@
 import type { Chapter, Manga } from '@/parsers/shared/types';
+import { t } from '@/constants/locales';
 import { decodeMangaKey } from '@/utils/manga-route';
+import {
+  formatChapterNumberValue,
+  looksLikeOpaqueChapterId,
+  sanitizeChapterDisplayText,
+  sanitizeChapterTitle,
+} from '@/parsers/shared/chapter-number';
+
+export {
+  formatChapterNumberValue,
+  looksLikeOpaqueChapterId,
+  sanitizeChapterNumber,
+  sanitizeChapterDisplayText,
+  sanitizeChapterTitle,
+} from '@/parsers/shared/chapter-number';
 
 export function chaptersOldestFirst(chapters: Chapter[]): Chapter[] {
   const numbered = chapters.filter((chapter) => chapter.chapterNumber != null).length;
@@ -9,14 +24,39 @@ export function chaptersOldestFirst(chapters: Chapter[]): Chapter[] {
   return [...chapters].reverse();
 }
 
-export function formatChapterLabel(chapter: Chapter): string {
+export function chapterTitleForDisplay(chapter: Chapter): string | undefined {
+  return sanitizeChapterTitle(chapter.title);
+}
+
+export function formatChapterLabel(chapter: Chapter, ordinal?: number): string {
   if (chapter.chapterNumber != null) {
-    return `Ch. ${chapter.chapterNumber}`;
+    return `Ch. ${formatChapterNumberValue(chapter.chapterNumber)}`;
   }
-  if (chapter.title?.trim()) {
-    return chapter.title;
-  }
-  return decodeMangaKey(chapter.key);
+  const title = chapterTitleForDisplay(chapter);
+  if (title) return title;
+  const fromKey = sanitizeChapterDisplayText(decodeMangaKey(chapter.key));
+  if (fromKey && !looksLikeOpaqueChapterId(fromKey)) return fromKey;
+  if (ordinal != null && ordinal > 0) return `Ch. ${ordinal}`;
+  return t('history_unknown_chapter');
+}
+
+export function formatStoredChapterLabel(title?: string | null, key?: string | null): string | undefined {
+  const fromTitle = sanitizeChapterTitle(title);
+  if (fromTitle) return fromTitle;
+  if (!key) return undefined;
+  const fromKey = sanitizeChapterDisplayText(decodeMangaKey(key));
+  if (fromKey && !looksLikeOpaqueChapterId(fromKey)) return fromKey;
+  return undefined;
+}
+
+export function formatEntryChapterLabel(
+  chapter: Chapter | undefined,
+  storedTitle?: string | null,
+  storedKey?: string | null,
+  ordinal?: number,
+): string {
+  if (chapter) return formatChapterLabel(chapter, ordinal);
+  return formatStoredChapterLabel(storedTitle, storedKey) ?? t('history_unknown_chapter');
 }
 
 /** Same chapter resolution as vertical home sections: explicit chapter, else first attached chapter. */

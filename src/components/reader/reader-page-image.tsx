@@ -1,12 +1,13 @@
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Image as RNImage, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ReaderDictionaryOverlay } from '@/components/reader/reader-dictionary-overlay';
 import { useReader } from '@/components/reader/reader-context';
+import { describeImageLoadError } from '@/utils/reader-image-error';
 import { ThemedText } from '@/components/ui/themed-text';
 import { t } from '@/constants/locales';
 import type { DictionarySettings, ReaderSettings } from '@/services/app-settings';
@@ -33,6 +34,7 @@ type ReaderPageImageProps = {
   onDictionaryLookup?: (x: number, y: number) => void;
   layout?: 'fill' | 'intrinsic';
   contentFit?: 'contain' | 'cover' | 'fill';
+  containerWidth?: number;
 };
 
 const MIN_SCALE = 1;
@@ -59,6 +61,7 @@ export function ReaderPageImage({
   onDictionaryLookup,
   layout = 'fill',
   contentFit,
+  containerWidth,
 }: ReaderPageImageProps) {
   const { debugShowPageNumbers } = useReader();
   const dictionaryEnabled = dictionarySettings?.enable ?? false;
@@ -67,7 +70,10 @@ export function ReaderPageImage({
   const quickActionsLongPress = !settings.disableQuickActions && !dictionaryLongPress;
   const [aspectRatio, setAspectRatio] = useState(() => initialAspectRatio(page, layout));
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
+  const onMeasuredAspectRatioRef = useRef(onMeasuredAspectRatio);
+  onMeasuredAspectRatioRef.current = onMeasuredAspectRatio;
   const { width: windowWidth } = useWindowDimensions();
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -231,13 +237,48 @@ export function ReaderPageImage({
 
   useEffect(() => {
     setAspectRatio(initialAspectRatio(page, layout));
-  }, [headerKey, layout, page.height, page.url, page.width]);
+  }, [headerKey, layout, page.url]);
+
+  const commitAspectRatio = useCallback((width: number, height: number, ignoreIfMatchesView?: { viewWidth: number; viewHeight: number }) => {
+    if (width < 16 || height < 16) return;
+    if (
+      ignoreIfMatchesView &&
+      Math.abs(width - ignoreIfMatchesView.viewWidth) < 2 &&
+      Math.abs(height - ignoreIfMatchesView.viewHeight) < 2
+    ) {
+      return;
+    }
+    const next = width / height;
+    setAspectRatio((current) => (Math.abs(next - current) > 0.01 ? next : current));
+    onMeasuredAspectRatioRef.current?.(next);
+  }, []);
+
+  useEffect(() => {
+    if (layout !== 'intrinsic' || !page.url) return;
+    let cancelled = false;
+    const headers = { ...coverHeaders, ...page.headers };
+    const finish = (width?: number, height?: number) => {
+      if (cancelled || !width || !height) return;
+      commitAspectRatio(width, height);
+    };
+    const onFailure = () => {};
+    if (Object.keys(headers).length > 0 && typeof RNImage.getSizeWithHeaders === 'function') {
+      RNImage.getSizeWithHeaders(page.url, headers, finish, onFailure);
+    } else {
+      RNImage.getSize(page.url, finish, onFailure);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [commitAspectRatio, coverHeaders, headerKey, layout, page.headers, page.url]);
 
   useEffect(() => {
     if (!page.url) {
+      setLoadError(t('reader_image_error_missing'));
       setLoadState('error');
       return;
     }
+    setLoadError(null);
     setLoadState('loading');
   }, [page.url, retryTick]);
 
@@ -254,7 +295,7 @@ export function ReaderPageImage({
   const pillarboxPadding = pillarbox ? Math.round(pillarboxAmount) : 0;
   const intrinsicWidth = Math.max(
     1,
-    windowWidth -
+    (containerWidth ?? windowWidth) -
       (pillarboxPadding > 0 && pillarboxOrientation !== 'vertical' ? pillarboxPadding * 2 : 0),
   );
   const displayAspectRatio =
@@ -279,7 +320,7 @@ export function ReaderPageImage({
       : null;
   const imageStyle =
     layout === 'intrinsic'
-      ? [styles.intrinsicImage, splitStyle ?? { width: intrinsicWidth, height: frameHeight }]
+      ? [styles.intrinsicImage, splitStyle ?? { width: intrinsicWidth, aspectRatio: displayAspectRatio }]
       : [styles.image, splitStyle ?? styles.imageFull];
   const missingPage = !page.url && !page.text;
   const statusOverlay =
@@ -291,6 +332,7 @@ export function ReaderPageImage({
       <Pressable
         style={styles.statusOverlay}
         onPress={() => {
+          setLoadError(null);
           setLoadState('loading');
           setRetryTick((value) => value + 1);
         }}
@@ -298,7 +340,7 @@ export function ReaderPageImage({
         accessibilityLabel={t('reader_image_retry')}>
         <Ionicons name='alert-circle-outline' size={28} color='#FFFFFF' />
         <ThemedText variant='subheadline' style={styles.retryLabel}>
-          {t('reader_image_failed')}
+          {loadError ?? t('reader_image_failed')}
         </ThemedText>
         <ThemedText variant='footnote' style={styles.retryHint}>
           {t('reader_image_retry')}
@@ -332,7 +374,7 @@ export function ReaderPageImage({
           {page.url && imageSource ? (
             <View
               style={[
-                layout === 'intrinsic' ? [styles.intrinsicFrame, { width: intrinsicWidth, height: frameHeight }] : styles.imageFrame,
+                layout === 'intrinsic' ? [styles.intrinsicFrame, { width: intrinsicWidth, aspectRatio: displayAspectRatio }] : styles.imageFrame,
                 frameStyle,
               ]}>
               <Image
@@ -340,7 +382,7 @@ export function ReaderPageImage({
                 source={imageSource}
                 style={[imageStyle, showPlaceholder ? styles.loadingImage : null]}
                 contentFit={resolvedFit}
-                allowDownscaling={layout !== 'intrinsic'}
+                allowDownscaling
                 cachePolicy={settings.downsampleImages ? 'memory-disk' : 'disk'}
                 recyclingKey={`${page.id}:${retryTick}`}
                 transition={0}
@@ -349,20 +391,22 @@ export function ReaderPageImage({
                   ? ({ enableLiveTextInteraction: true } as Record<string, unknown>)
                   : {})}
                 onLoad={(event) => {
-                  const { width, height } = event.source;
-                  if (width && height) {
-                    const next = width / height;
-                    if (Math.abs(next - aspectRatio) > 0.01) {
-                      setAspectRatio(next);
-                    }
-                    onMeasuredAspectRatio?.(next);
+                  const { width: loadedWidth, height: loadedHeight } = event.source;
+                  if (loadedWidth && loadedHeight) {
+                    commitAspectRatio(loadedWidth, loadedHeight, {
+                      viewWidth: intrinsicWidth,
+                      viewHeight: frameHeight,
+                    });
                   }
                   setLoadState('ready');
                 }}
                 onLoadEnd={() => {
                   setLoadState((current) => (current === 'error' ? current : 'ready'));
                 }}
-                onError={() => setLoadState('error')}
+                onError={(event) => {
+                  setLoadError(describeImageLoadError(event));
+                  setLoadState('error');
+                }}
               />
               {statusOverlay}
               {layout !== 'intrinsic' ? debugBadge : null}
@@ -385,7 +429,7 @@ export function ReaderPageImage({
               <View style={styles.statusOverlay} pointerEvents='none'>
                 <Ionicons name='alert-circle-outline' size={28} color='#FFFFFF' />
                 <ThemedText variant='subheadline' style={styles.retryLabel}>
-                  {t('reader_image_failed')}
+                  {t('reader_image_error_missing')}
                 </ThemedText>
               </View>
             </View>
@@ -443,6 +487,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    paddingHorizontal: 24,
     backgroundColor: 'rgba(0,0,0,0.18)',
   },
   retryLabel: {

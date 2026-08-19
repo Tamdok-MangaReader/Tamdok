@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/ui/themed-text';
 import { t } from '@/constants/locales';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
 
 type ReaderChapterSheetProps = {
   visible: boolean;
@@ -36,7 +37,7 @@ export function ReaderChapterSheet({ visible, onClose }: ReaderChapterSheetProps
                   onClose();
                 }}>
                 <ThemedText variant='body' color={selected ? 'tint' : 'label'} numberOfLines={1}>
-                  {item.title ?? item.key}
+                  {chapterTitleForDisplay(item) || formatChapterLabel(item)}
                 </ThemedText>
               </Pressable>
             );

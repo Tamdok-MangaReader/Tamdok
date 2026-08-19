@@ -124,3 +124,10 @@ export function mapTapActionForMode(action: TapAction, mode: ResolvedReadingMode
   }
   return action;
 }
+
+/** Grid after invert and RTL/LTR mapping, ready to hit-test. */
+export function effectiveTapZoneGrid(settings: ReaderSettings, mode: ResolvedReadingMode): TapZoneGrid {
+  return buildTapZoneGrid(settings, mode).map((row) =>
+    row.map((action) => mapTapActionForMode(action, mode)),
+  ) as TapZoneGrid;
+}

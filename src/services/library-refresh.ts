@@ -6,8 +6,10 @@ import {
   getLibraryUpdateSettings,
   shouldRefreshLibraryEntry,
   updateLibraryEntryMetadata,
+  updateLibraryUpdateSettings,
   type LibraryEntry,
 } from '@/services/library';
+import { peekMangaDetailCache, readMangaDetailCache, writeMangaDetailCache } from '@/services/manga-detail-cache';
 import { getMangaChapterProgress } from '@/services/manga-tracking';
 import { notifyNewChaptersAvailable } from '@/services/notifications';
 import { createSourceRunner, findInstalledSource } from '@/services/sources';
@@ -74,6 +76,32 @@ async function refreshEntry(
     knownChapterKeys: chapterKeys,
     updateFailed: false,
   });
+  await persistRefreshedManga(entry.sourceId, entry.mangaKey, updated, refreshMetadata);
+}
+
+async function persistRefreshedManga(
+  sourceId: string,
+  mangaKey: string,
+  updated: Manga,
+  refreshMetadata: boolean,
+): Promise<void> {
+  const existing = peekMangaDetailCache(sourceId, mangaKey) ?? (await readMangaDetailCache(sourceId, mangaKey));
+  const previous = existing?.manga;
+  await writeMangaDetailCache(sourceId, mangaKey, {
+    manga: {
+      ...(previous ?? {}),
+      ...updated,
+      key: mangaKey,
+      title: updated.title || previous?.title || '',
+      cover: updated.cover || previous?.cover,
+      description: refreshMetadata ? (updated.description ?? previous?.description) : previous?.description,
+      tags: refreshMetadata && updated.tags?.length ? updated.tags : previous?.tags,
+      authors: refreshMetadata && updated.authors?.length ? updated.authors : previous?.authors,
+      artists: refreshMetadata && updated.artists?.length ? updated.artists : previous?.artists,
+      chapters: updated.chapters ?? previous?.chapters,
+    },
+    cachedAt: Date.now(),
+  });
 }
 
 export async function refreshLibraryEntries(
@@ -106,5 +134,6 @@ export async function refreshLibraryEntries(
     }
   }
 
+  await updateLibraryUpdateSettings({ lastAutoRefreshAt: Date.now() });
   return { refreshed, skipped, failed };
 }

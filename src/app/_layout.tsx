@@ -120,6 +120,8 @@ function RootLayoutContent() {
             headerShown: false,
             animation: 'slide_from_right',
             gestureDirection: 'horizontal',
+            gestureEnabled: false,
+            fullScreenGestureEnabled: false,
             statusBarStyle: 'light',
             statusBarAnimation: 'fade',
             contentStyle: { backgroundColor: '#000' },

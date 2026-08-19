@@ -27,6 +27,7 @@ import { processQueuedDownloads } from '@/services/download-processor';
 import { getLibraryEntries } from '@/services/library';
 import { peekMangaDetailCache } from '@/services/manga-detail-cache';
 import { findInstalledSource, sourceRouteId } from '@/services/sources';
+import { chaptersOldestFirst, formatEntryChapterLabel, formatStoredChapterLabel, looksLikeOpaqueChapterId } from '@/utils/chapter-label';
 import { coverImageSource } from '@/utils/cover-image-source';
 import { mangaHref } from '@/utils/manga-route';
 
@@ -43,7 +44,8 @@ const VISIBLE_CHAPTER_LIMIT = 3;
 
 function parseChapterSortNumber(entry: DownloadEntry, cachedNumber?: number): number {
   if (cachedNumber != null && Number.isFinite(cachedNumber)) return cachedNumber;
-  const text = `${entry.chapterTitle ?? ''} ${entry.chapterKey}`;
+  const text = formatStoredChapterLabel(entry.chapterTitle, entry.chapterKey);
+  if (!text || looksLikeOpaqueChapterId(text)) return Number.NEGATIVE_INFINITY;
   const named = text.match(/(?:ch(?:apter)?|гл(?:ава)?)\.?\s*(\d+(?:[.,]\d+)?)/i);
   const picked = named?.[1] ?? text.match(/(\d+(?:[.,]\d+)?)\s*$/)?.[1] ?? text.match(/(\d+(?:[.,]\d+)?)/)?.[1];
   if (!picked) return Number.NEGATIVE_INFINITY;
@@ -63,6 +65,16 @@ function sortDownloadsByChapterNumber(chapters: DownloadEntry[], sourceId: strin
       sensitivity: 'base',
     });
   });
+}
+
+function formatDownloadChapterLabel(entry: DownloadEntry): string {
+  const chapters = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters;
+  const chapter = chapters?.find((item) => item.key === entry.chapterKey);
+  const ordinal =
+    chapter && chapters?.length
+      ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1
+      : undefined;
+  return formatEntryChapterLabel(chapter, entry.chapterTitle, entry.chapterKey, ordinal || undefined);
 }
 
 function formatStatus(entry: DownloadEntry): string {
@@ -164,7 +176,7 @@ function DownloadMangaGroupRow({
               fullSwipeActionKey='delete'>
               <View style={styles.chapterRow}>
                 <ThemedText variant='subheadline' numberOfLines={2} style={styles.chapterTitle}>
-                  {chapter.chapterTitle?.trim() || chapter.chapterKey}
+                  {formatDownloadChapterLabel(chapter)}
                 </ThemedText>
                 <ThemedText variant='caption1' color='secondaryLabel'>
                   {formatStatus(chapter)}

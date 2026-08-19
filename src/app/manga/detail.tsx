@@ -38,7 +38,7 @@ import {
   type ChapterProgress,
 } from '@/services/manga-tracking';
 import { findInstalledSource, parseSourceRouteId, sourceRouteId } from '@/services/sources';
-import { chaptersOldestFirst } from '@/utils/chapter-label';
+import { chaptersOldestFirst, formatChapterLabel } from '@/utils/chapter-label';
 import { subscribeMangaData } from '@/utils/manga-events';
 import { mangaFromParams, readerHref } from '@/utils/manga-route';
 import { resolveMangaPageUrl } from '@/utils/manga-url';
@@ -65,12 +65,6 @@ function decodeParam(value: string | string[] | undefined): string {
   } catch {
     return raw;
   }
-}
-
-function formatChapterLabel(chapter: Chapter): string {
-  if (chapter.title) return chapter.title;
-  if (chapter.chapterNumber != null) return `#${chapter.chapterNumber}`;
-  return chapter.key;
 }
 
 function resolveReadingTarget(
@@ -247,7 +241,7 @@ export default function MangaDetailScreen() {
           sourceRouteId(source),
           mangaKey,
           chapter.key,
-          chapter.title ?? '',
+          formatChapterLabel(chapter),
           manga.title,
           page,
           manga.cover,
@@ -285,7 +279,7 @@ export default function MangaDetailScreen() {
       });
       void markChapterRead(manifestSourceId, mangaKey, chapter.key, {
         mangaTitle: manga.title,
-        chapterTitle: chapter.title,
+        chapterTitle: formatChapterLabel(chapter),
         cover: manga.cover,
       }).then(() => refreshProgress());
     },
@@ -381,7 +375,7 @@ export default function MangaDetailScreen() {
         mangaKey,
         chapterKey: chapter.key,
         mangaTitle: manga.title,
-        chapterTitle: chapter.title,
+        chapterTitle: formatChapterLabel(chapter),
       });
     }
     void processQueuedDownloads(installed);
@@ -416,7 +410,7 @@ export default function MangaDetailScreen() {
         mangaKey,
         chapterKey: chapter.key,
         mangaTitle: manga.title,
-        chapterTitle: chapter.title,
+        chapterTitle: formatChapterLabel(chapter),
       });
     }
     void processQueuedDownloads(installed);

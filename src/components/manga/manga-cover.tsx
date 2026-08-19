@@ -59,6 +59,7 @@ export function MangaCover({
             source={coverImageSource(cover, coverHeaders)}
             style={StyleSheet.absoluteFill}
             contentFit='cover'
+            recyclingKey={cover}
             transition={0}
           />
         ) : (

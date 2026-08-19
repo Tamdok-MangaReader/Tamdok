@@ -3,7 +3,7 @@ import { useNavigation, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, StatusBar, StyleSheet, useColorScheme, View, ActivityIndicator } from 'react-native';
+import { Platform, StatusBar, StyleSheet, useColorScheme, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ReaderChapterSheet } from '@/components/reader/reader-chapter-sheet';
@@ -15,6 +15,7 @@ import { ReaderSettingsSheet } from '@/components/reader/reader-settings-sheet';
 import { ReaderTextView } from '@/components/reader/reader-text-view';
 import { ReaderToolbar } from '@/components/reader/reader-toolbar';
 import { ReaderWebtoonView } from '@/components/reader/reader-webtoon-view';
+import { ReaderModeHint } from '@/components/reader/reader-mode-hint';
 import { IncognitoModeBanner } from '@/components/settings/incognito-mode-banner';
 import { useReaderChapterWindow } from '@/hooks/use-reader-chapter-window';
 import type { Chapter, Manga, Page } from '@/parsers/shared/types';
@@ -23,25 +24,34 @@ import { removeChapterDownload } from '@/services/downloads';
 import { lookupWord, pickWordNearTap, type DictionaryEntry } from '@/services/dictionary-lookup';
 import { markChapterRead, recordChapterProgress, getChapterProgress } from '@/services/manga-tracking';
 import {
+  getMangaAutoResolvedMode,
   getMangaPageOffset,
   getMangaReadingMode,
+  setMangaAutoResolvedMode,
   setMangaPageOffset,
 } from '@/services/reader-manga-settings';
 import { subscribeAppSettings } from '@/utils/app-settings-events';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 import { extractTextFromImage } from 'expo-text-extractor';
+import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
 import { findAdjacentChapter, findAdjacentChapterWithSkipped } from '@/utils/reader-chapters';
 import { readerBackgroundColor, readerForegroundColor } from '@/utils/reader-colors';
 import {
   inferReadingModeFromImageSizes,
+  inferReadingModeFromManga,
   isStripMode,
   isTextChapter,
+  pagesForAutoModeProbe,
+  pickAutoReadingMode,
   resolveReadingMode,
   shouldInferModeFromImages,
 } from '@/utils/reader-mode';
-import { materializeReaderPages, buildReaderPages, type ReaderPage } from '@/utils/reader-pages';
+import { materializeReaderPages, buildReaderPages, probeReaderImageDimensions, type ReaderPage } from '@/utils/reader-pages';
 import { prefetchReaderPagesAhead } from '@/utils/reader-prefetch';
 import type { ResolvedReadingMode } from '@/services/app-settings';
+
+const BARS_IDLE_HIDE_MS = 12_000;
+const MODE_HINT_MS = 2_200;
 
 type ReaderViewProps = {
   sourceId: string;
@@ -54,8 +64,6 @@ type ReaderViewProps = {
   loadChapterPages?: (chapter: Chapter) => Promise<Page[]>;
   onStatusBarHiddenChange?: (hidden: boolean) => void;
 };
-
-const BARS_IDLE_HIDE_MS = 12_000;
 
 // Native stack reads statusBarHidden from screen options; Android still uses StatusBar API.
 function applyStatusBarHidden(
@@ -95,6 +103,7 @@ export function ReaderView({
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [activeChapter, setActiveChapter] = useState(chapter);
   const [barsVisible, setBarsVisible] = useState(true);
+  const [modeHintVisible, setModeHintVisible] = useState(false);
   const barsIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearBarsIdleTimer = useCallback(() => {
@@ -124,7 +133,9 @@ export function ReaderView({
   const [chapterSheetOpen, setChapterSheetOpen] = useState(false);
   const [readerSettingsOpen, setReaderSettingsOpen] = useState(false);
   const [readerPages, setReaderPages] = useState<ReaderPage[]>([]);
-  const [inferredMode, setInferredMode] = useState<ResolvedReadingMode | null>(null);
+  const [lockedAutoMode, setLockedAutoMode] = useState<ResolvedReadingMode | null>(null);
+  const [rememberedAutoMode, setRememberedAutoMode] = useState<ResolvedReadingMode | null | undefined>(undefined);
+  const autoLockedRef = useRef(false);
   const [chaptersToMark, setChaptersToMark] = useState<Chapter[]>([chapter]);
   const [dictionaryEntry, setDictionaryEntry] = useState<DictionaryEntry | null>(null);
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
@@ -161,6 +172,8 @@ export function ReaderView({
     });
     void getMangaReadingMode(sourceId, manga.key).then(setMangaModeOverride);
     void getMangaPageOffset(sourceId, manga.key).then(setMangaPageOffsetOverride);
+    setRememberedAutoMode(undefined);
+    void getMangaAutoResolvedMode(sourceId, manga.key).then(setRememberedAutoMode);
     const unsubscribe = subscribeAppSettings(() => {
       void getAppSettings().then((value) => {
         setSettings(value.reader);
@@ -239,48 +252,118 @@ export function ReaderView({
     };
   }, [chapter.key, coverHeaders, pages, settings]);
 
+  const fromManga = useMemo(() => inferReadingModeFromManga(manga), [manga]);
   const wantsAuto = settings ? shouldInferModeFromImages(settings, mangaModeOverride) : false;
 
-  // Sample first few page URLs so auto mode can pick rtl vs webtoon before full decode.
   useEffect(() => {
-    if (!settings || !wantsAuto) {
-      setInferredMode(null);
+    autoLockedRef.current = false;
+    setLockedAutoMode(null);
+  }, [manga.key, mangaModeOverride, settings?.readingMode, wantsAuto]);
+
+  useEffect(() => {
+    if (!settings || !wantsAuto) return;
+    if (autoLockedRef.current) return;
+    if (rememberedAutoMode === undefined) return;
+
+    const commit = (mode: ResolvedReadingMode, persist: boolean) => {
+      if (autoLockedRef.current) return;
+      autoLockedRef.current = true;
+      setLockedAutoMode(mode);
+      if (persist) void setMangaAutoResolvedMode(sourceId, manga.key, mode);
+    };
+
+    const rememberedStrip = rememberedAutoMode === 'continuous' || rememberedAutoMode === 'webtoon';
+    if (rememberedStrip) {
+      commit(rememberedAutoMode, false);
       return;
     }
 
-    const urls = pages.map((page) => page.url).filter((url): url is string => Boolean(url)).slice(0, 4);
-    if (urls.length === 0) {
-      setInferredMode('rtl');
+    if (fromManga === 'continuous') {
+      commit('continuous', true);
+      return;
+    }
+
+    const probePages = pagesForAutoModeProbe(pages);
+    const knownSizes = probePages
+      .map((page) =>
+        page.width && page.height && page.width > 0 && page.height > 0
+          ? { width: page.width, height: page.height }
+          : null,
+      )
+      .filter((item): item is { width: number; height: number } => item != null);
+    const fromKnown = knownSizes.length > 0 ? inferReadingModeFromImageSizes(knownSizes) : null;
+    if (fromKnown?.confident && fromKnown.mode === 'continuous') {
+      commit('continuous', true);
+      return;
+    }
+
+    const samples = probePages
+      .map((page) => ({ url: page.url, headers: { ...coverHeaders, ...page.headers } }))
+      .filter((item): item is { url: string; headers: Record<string, string> } => Boolean(item.url));
+    if (pages.length === 0) return;
+    if (samples.length === 0) {
+      commit(pickAutoReadingMode(fromManga, fromKnown), Boolean(fromKnown?.confident || fromManga === 'continuous'));
       return;
     }
 
     let cancelled = false;
-    void Promise.all(
-      urls.map(
-        (url) =>
-          new Promise<{ width: number; height: number }>((resolve) => {
-            Image.getSize(
-              url,
-              (width, height) => resolve({ width, height }),
-              () => resolve({ width: 0, height: 0 }),
-            );
-          }),
-      ),
-    ).then((sizes) => {
-      if (!cancelled) setInferredMode(inferReadingModeFromImageSizes(sizes));
-    });
+    const collected = [...knownSizes];
+
+    const consider = (sizes: Array<{ width: number; height: number }>) => {
+      if (cancelled || autoLockedRef.current) return;
+      const inferred = inferReadingModeFromImageSizes(sizes);
+      if (inferred.mode === 'continuous' && inferred.confident) commit('continuous', true);
+    };
+
+    void (async () => {
+      await Promise.all(
+        samples.map(async (item) => {
+          const size = await probeReaderImageDimensions(item.url, item.headers);
+          if (cancelled || !size) return;
+          collected.push(size);
+          consider(collected);
+        }),
+      );
+      if (cancelled || autoLockedRef.current) return;
+      const inferred = inferReadingModeFromImageSizes(collected);
+      if (inferred.confident) {
+        commit(pickAutoReadingMode(fromManga, inferred), true);
+        return;
+      }
+      if (rememberedAutoMode) {
+        commit(rememberedAutoMode, false);
+        return;
+      }
+      commit(pickAutoReadingMode(fromManga, inferred), false);
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [pages, settings, wantsAuto]);
+  }, [coverHeaders, fromManga, manga.key, pages, rememberedAutoMode, settings, sourceId, wantsAuto]);
 
   const resolvedBase = useMemo(
-    () => (settings ? resolveReadingMode(settings, mangaModeOverride, manga.viewer) : 'continuous'),
-    [settings, mangaModeOverride, manga.viewer],
+    () => (settings ? resolveReadingMode(settings, mangaModeOverride, manga) : 'rtl'),
+    [settings, mangaModeOverride, manga],
   );
-  const mode = wantsAuto && inferredMode ? inferredMode : resolvedBase;
+  const autoPending = Boolean(wantsAuto && (lockedAutoMode == null || rememberedAutoMode === undefined));
+  const mode = wantsAuto ? lockedAutoMode ?? fromManga ?? 'rtl' : resolvedBase;
   const stripEnabled = isStripMode(mode);
+
+  useEffect(() => {
+    if (!settings || autoPending) return;
+    setModeHintVisible(true);
+    const timer = setTimeout(() => setModeHintVisible(false), MODE_HINT_MS);
+    return () => clearTimeout(timer);
+  }, [autoPending, mode, settings]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      gestureEnabled: stripEnabled,
+      fullScreenGestureEnabled: stripEnabled,
+      gestureDirection: 'horizontal',
+    });
+  }, [navigation, stripEnabled]);
   const { segments, loadAdjacent } = useReaderChapterWindow({
     enabled: stripEnabled,
     routeChapter: chapter,
@@ -311,7 +394,7 @@ export function ReaderView({
         seen.add(item.key);
         await markChapterRead(sourceId, manga.key, item.key, {
           mangaTitle: manga.title,
-          chapterTitle: item.title,
+          chapterTitle: formatChapterLabel(item),
           cover: manga.cover,
           notify: false,
         });
@@ -324,7 +407,7 @@ export function ReaderView({
     async (targetChapter: Chapter, pageIndex: number, pageCount: number, notify = true) => {
       const historyMeta = {
         mangaTitle: manga.title,
-        chapterTitle: targetChapter.title,
+        chapterTitle: formatChapterLabel(targetChapter),
         cover: manga.cover,
         notify,
       };
@@ -361,7 +444,7 @@ export function ReaderView({
               nextProgress && nextProgress.page >= 0 ? nextProgress.page : 0,
               {
                 mangaTitle: manga.title,
-                chapterTitle: nextChapter.title,
+                chapterTitle: formatChapterLabel(nextChapter),
                 cover: manga.cover,
                 notify,
               },
@@ -495,7 +578,7 @@ export function ReaderView({
           sourceId,
           mangaKey: encodeURIComponent(manga.key),
           chapterKey: encodeURIComponent(nextChapter.key),
-          chapterTitle: nextChapter.title ?? nextChapter.key,
+          chapterTitle: formatChapterLabel(nextChapter),
           mangaTitle: manga.title,
           ...(manga.cover ? { cover: manga.cover } : {}),
         },
@@ -639,12 +722,17 @@ export function ReaderView({
     currentPage,
     totalPages: activePages.length,
     pagesRemaining: Math.max(0, activePages.length - currentPage - 1),
-    chapterTitle: activeChapter.title ?? activeChapter.key,
+    chapterTitle: chapterTitleForDisplay(activeChapter) || formatChapterLabel(activeChapter),
     mangaTitle: manga.title,
     incognito,
   };
 
-  if (!settings || !dictionarySettings || (!isText && pages.length > 0 && readerPages.length === 0)) {
+  if (
+    !settings ||
+    !dictionarySettings ||
+    autoPending ||
+    (!isText && pages.length > 0 && readerPages.length === 0)
+  ) {
     return (
       <View style={[styles.root, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator color='#fff' />
@@ -732,6 +820,7 @@ export function ReaderView({
 
         <ReaderNavBar visible={barsVisible} />
         <ReaderToolbar visible={barsVisible} />
+        {modeHintVisible ? <ReaderModeHint mode={mode} /> : null}
         <IncognitoModeBanner floating />
         <ReaderChapterSheet visible={chapterSheetOpen} onClose={() => setChapterSheetOpen(false)} />
         <ReaderSettingsSheet
@@ -741,6 +830,9 @@ export function ReaderView({
           onClose={() => setReaderSettingsOpen(false)}
           onMangaReadingModeChange={(nextMode) => {
             setMangaModeOverride(nextMode === 'default' ? null : nextMode);
+            if (nextMode !== 'default' && nextMode !== 'auto') {
+              setRememberedAutoMode(nextMode);
+            }
           }}
         />
         <ReaderDictionaryPopup

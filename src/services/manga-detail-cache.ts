@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import type { Manga } from '@/parsers/shared/types';
+import { normalizeManga } from '@/parsers/shared/normalize-manga';
 
 export type MangaDetailCacheEntry = {
   manga: Manga;
@@ -34,6 +35,10 @@ async function ensureCacheDirectory(): Promise<void> {
   }
 }
 
+function withNormalizedManga(entry: MangaDetailCacheEntry): MangaDetailCacheEntry {
+  return { ...entry, manga: normalizeManga(entry.manga) };
+}
+
 export function peekMangaDetailCache(sourceId: string, mangaKey: string): MangaDetailCacheEntry | null {
   return memoryCache.get(cacheKey(sourceId, mangaKey)) ?? null;
 }
@@ -54,11 +59,27 @@ export async function readMangaDetailCache(
   try {
     const parsed = JSON.parse(await FileSystem.readAsStringAsync(path)) as MangaDetailCacheEntry;
     if (!parsed?.manga?.key) return null;
-    memoryCache.set(key, parsed);
-    return parsed;
+    const normalized = withNormalizedManga(parsed);
+    memoryCache.set(key, normalized);
+    return normalized;
   } catch {
     return null;
   }
+}
+
+export async function readMangaDetailsMap(
+  sourceId: string,
+  mangaKeys: string[],
+): Promise<Map<string, Manga>> {
+  const unique = [...new Set(mangaKeys.filter(Boolean))];
+  const result = new Map<string, Manga>();
+  await Promise.all(
+    unique.map(async (mangaKey) => {
+      const entry = await readMangaDetailCache(sourceId, mangaKey);
+      if (entry?.manga) result.set(mangaKey, entry.manga);
+    }),
+  );
+  return result;
 }
 
 export async function writeMangaDetailCache(
@@ -67,9 +88,10 @@ export async function writeMangaDetailCache(
   entry: MangaDetailCacheEntry,
 ): Promise<void> {
   const key = cacheKey(sourceId, mangaKey);
-  memoryCache.set(key, entry);
+  const normalized = withNormalizedManga(entry);
+  memoryCache.set(key, normalized);
   await ensureCacheDirectory();
-  await FileSystem.writeAsStringAsync(cacheFilePath(sourceId, mangaKey), JSON.stringify(entry));
+  await FileSystem.writeAsStringAsync(cacheFilePath(sourceId, mangaKey), JSON.stringify(normalized));
 }
 
 export async function clearMangaDetailCache(sourceId?: string, mangaKey?: string): Promise<void> {

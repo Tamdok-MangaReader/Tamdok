@@ -30,8 +30,8 @@ import { useTheme } from '@/hooks/use-theme';
 import type { Chapter, Manga } from '@/parsers/shared/types';
 import { ALL_CATEGORY_ID, type LibraryCategory } from '@/services/library';
 import type { DownloadEntry } from '@/services/downloads';
+import { chapterTitleForDisplay, formatChapterLabel, formatChapterNumberValue } from '@/utils/chapter-label';
 import { coverImageSource } from '@/utils/cover-image-source';
-import { decodeMangaKey } from '@/utils/manga-route';
 import { parseMangaDescription, parseRatingText } from '@/utils/manga-description';
 
 const DESCRIPTION_PREVIEW_LINES = 4;
@@ -217,6 +217,7 @@ export function MangaDetailView({
                 source={coverImageSource(manga.cover, coverHeaders)}
                 style={StyleSheet.absoluteFill}
                 contentFit='cover'
+                recyclingKey={manga.cover}
                 transition={200}
               />
             ) : (
@@ -622,7 +623,7 @@ const ChapterRow = memo(function ChapterRow({
             numberOfLines={1}
             color={isRead ? 'tertiaryLabel' : 'label'}
             style={[styles.chapterTitle, isRead ? styles.readChapter : undefined]}>
-            {chapter.title ?? formatChapterLabel(chapter)}
+            {chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter)}
           </ThemedText>
           <View style={styles.chapterIcons}>
             {isRead ? (
@@ -687,16 +688,9 @@ function formatStatus(status: NonNullable<Manga['status']>): string {
 
 function formatChapterNumber(chapter: Chapter, index: number, total: number): string {
   if (chapter.chapterNumber != null) {
-    return `${chapter.chapterNumber}.`;
+    return `${formatChapterNumberValue(chapter.chapterNumber)}.`;
   }
   return `${total - index}.`;
-}
-
-function formatChapterLabel(chapter: Chapter): string {
-  if (chapter.chapterNumber != null) {
-    return `#${chapter.chapterNumber}`;
-  }
-  return decodeMangaKey(chapter.key);
 }
 
 const styles = StyleSheet.create({
