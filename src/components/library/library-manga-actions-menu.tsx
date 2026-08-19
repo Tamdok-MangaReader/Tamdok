@@ -9,7 +9,7 @@ import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { useTheme } from '@/hooks/use-theme';
-import { ALL_CATEGORY_ID, isAllCategory, type LibraryCategory } from '@/services/library';
+import { isAllCategory, type LibraryCategory } from '@/services/library';
 
 type LibraryMangaActionsMenuProps = {
   visible: boolean;
@@ -94,7 +94,7 @@ export function LibraryMangaActionsMenu({
   const { radius } = useTheme();
   const [markExpanded, setMarkExpanded] = useState(false);
   const [categoryExpanded, setCategoryExpanded] = useState(false);
-  const userCategories = categories.filter((category) => !isAllCategory(category.id) && category.id !== ALL_CATEGORY_ID);
+  const orderedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
 
   if (!visible) return null;
 
@@ -154,21 +154,27 @@ export function LibraryMangaActionsMenu({
               onPress={() => setCategoryExpanded((value) => !value)}
             />
             {categoryExpanded
-              ? userCategories.map((category) => (
-                  <MenuRow
-                    key={category.id}
-                    label={category.name}
-                    sfSymbol={selectedCategoryIds.includes(category.id) ? 'checkmark.circle.fill' : 'circle'}
-                    fallback={selectedCategoryIds.includes(category.id) ? 'checkbox-outline' : 'square-outline'}
-                    showDivider
-                    inset
-                    selected={selectedCategoryIds.includes(category.id)}
-                    onPress={() => {
-                      void Haptics.selectionAsync();
-                      onToggleCategory(category.id);
-                    }}
-                  />
-                ))
+              ? orderedCategories.map((category) => {
+                  const selected = isAllCategory(category.id)
+                    ? selectedCategoryIds.length === 0 || selectedCategoryIds.every((id) => isAllCategory(id))
+                    : selectedCategoryIds.includes(category.id);
+                  const label = isAllCategory(category.id) ? t('library_category_all') : category.name;
+                  return (
+                    <MenuRow
+                      key={category.id}
+                      label={label}
+                      sfSymbol={selected ? 'checkmark.circle.fill' : 'circle'}
+                      fallback={selected ? 'checkbox-outline' : 'square-outline'}
+                      showDivider
+                      inset
+                      selected={selected}
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        onToggleCategory(category.id);
+                      }}
+                    />
+                  );
+                })
               : null}
             <MenuRow
               label={t('manga_remove_from_library')}

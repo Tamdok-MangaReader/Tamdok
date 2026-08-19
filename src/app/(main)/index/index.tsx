@@ -1,7 +1,7 @@
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, StyleSheet, View } from 'react-native';
+import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 
@@ -235,13 +235,6 @@ export default function LibraryScreen() {
     <SourceCategoryTabs tabs={categories} selectedId={selectedCategoryId} onSelect={(id) => void selectCategory(id)} />
   ) : null;
 
-  const listHeader = (
-    <>
-      <IncognitoModeBanner />
-      {categoryTabs}
-    </>
-  );
-
   const emptyState = (
     <EmptyState icon='library-outline' title={t('library_empty_title')} description={t('library_empty_desc')} />
   );
@@ -249,24 +242,27 @@ export default function LibraryScreen() {
   const isEmpty = mangaEntries.length === 0;
 
   const refreshStatus =
-    refreshing ? (
+    refreshing && refreshProgress ? (
       <View style={styles.refreshStatus}>
-        <ActivityIndicator color={colors.tint} />
-        {refreshProgress ? (
-          <View style={styles.refreshMeta}>
-            <ThemedText variant='subheadline' numberOfLines={1}>
-              {refreshProgress.title}
-            </ThemedText>
-            <ThemedText variant='caption1' color='secondaryLabel'>
-              {t('library_refresh_progress', {
-                current: String(refreshProgress.current),
-                total: String(refreshProgress.total),
-              })}
-            </ThemedText>
-          </View>
-        ) : null}
+        <ThemedText variant='subheadline' numberOfLines={1} style={styles.refreshText}>
+          {refreshProgress.title}
+        </ThemedText>
+        <ThemedText variant='caption1' color='secondaryLabel' style={styles.refreshText}>
+          {t('library_refresh_progress', {
+            current: String(refreshProgress.current),
+            total: String(refreshProgress.total),
+          })}
+        </ThemedText>
       </View>
     ) : null;
+
+  const listHeader = (
+    <>
+      {refreshStatus}
+      <IncognitoModeBanner />
+      {categoryTabs}
+    </>
+  );
   const canSwipeCategories = showCategoryTabs && categories.length > 1;
 
   const categorySwipe = useMemo(() => {
@@ -301,19 +297,20 @@ export default function LibraryScreen() {
       />
       <Stack.Title>{t('library')}</Stack.Title>
       {isEmpty && !showCategoryTabs ? (
-        <ScreenContent centerContent>
+        <ScreenContent centerContent={!refreshing} scrollable={refreshing}>
           {refreshStatus}
           {emptyState}
         </ScreenContent>
       ) : (
         <View style={styles.root}>
-          {refreshStatus}
           <GestureDetector gesture={categorySwipe}>
             <View style={styles.root}>
               <MangaGrid
             entries={mangaEntries}
             columns={gridColumns}
             showBookmark={false}
+            scaleBadges
+            extraData={refreshProgress}
             scrollEnabled
             ListHeaderComponent={listHeader}
             ListEmptyComponent={<View style={styles.emptyBelowTabs}>{emptyState}</View>}
@@ -352,16 +349,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   refreshStatus: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    paddingBottom: Spacing.md,
+    gap: 2,
   },
-  refreshMeta: {
-    flex: 1,
-    minWidth: 0,
+  refreshText: {
+    textAlign: 'center',
   },
   emptyBelowTabs: {
     paddingTop: Spacing.xl,

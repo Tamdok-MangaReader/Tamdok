@@ -152,7 +152,13 @@ export function MangaDetailView({
     if (libraryPickerOpen) onToggleLibraryPicker();
   }, [libraryPickerOpen, onToggleLibraryPicker]);
 
+  const hasCustomCategories = libraryCategories.some((category) => category.id !== ALL_CATEGORY_ID);
+
   const handleLibraryPickerPress = useCallback(() => {
+    if (!hasCustomCategories) {
+      onToggleCategory(ALL_CATEGORY_ID);
+      return;
+    }
     if (libraryPickerOpen) {
       closeLibraryPicker();
       return;
@@ -161,7 +167,7 @@ export function MangaDetailView({
       setDropdownAnchor({ x, y, width, height });
       onToggleLibraryPicker();
     });
-  }, [closeLibraryPicker, libraryPickerOpen, onToggleLibraryPicker]);
+  }, [closeLibraryPicker, hasCustomCategories, libraryPickerOpen, onToggleCategory, onToggleLibraryPicker]);
 
   const renderChapter: ListRenderItem<Chapter> = useCallback(
     ({ item, index }) => {
@@ -522,6 +528,7 @@ export function MangaDetailView({
         anchor={dropdownAnchor}
         categories={libraryCategories}
         selectedIds={selectedCategoryIds}
+        inLibrary={inLibrary}
         onToggleCategory={onToggleCategory}
         onClose={closeLibraryPicker}
       />

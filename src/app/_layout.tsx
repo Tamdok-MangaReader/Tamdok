@@ -73,8 +73,8 @@ function RootLayoutContent() {
     const handleDeepLink = (url: string) => {
       const registryUrl = parseRegistryDeepLink(url);
       if (!registryUrl) return;
+      if (!setPendingRegistryDeepLink(registryUrl)) return;
 
-      setPendingRegistryDeepLink(registryUrl);
       navigateToRegistrySettings(router, registryUrl);
     };
 

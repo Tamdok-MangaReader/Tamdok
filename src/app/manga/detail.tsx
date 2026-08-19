@@ -23,6 +23,7 @@ import {
 } from '@/services/downloads';
 import { processQueuedDownloads } from '@/services/download-processor';
 import {
+  ALL_CATEGORY_ID,
   getLibraryCategories,
   getLibraryEntry,
   isInLibrary,
@@ -316,7 +317,9 @@ export default function MangaDetailScreen() {
         return next;
       });
       setInLibraryState(true);
-      setLibraryPickerOpen(true);
+      if (libraryCategories.some((category) => category.id !== ALL_CATEGORY_ID)) {
+        setLibraryPickerOpen(true);
+      }
 
       void toggleMangaLibraryCategory(manifestSourceId, mangaKey, categoryId, {
         title: manga.title,
@@ -333,7 +336,7 @@ export default function MangaDetailScreen() {
         }
       });
     },
-    [manifestSourceId, mangaKey, manga.title, manga.cover, manga.status, chapters, readChapterKeys, downloadedChapterKeys, chapterKeys],
+    [manifestSourceId, mangaKey, manga.title, manga.cover, manga.status, chapters, readChapterKeys, downloadedChapterKeys, chapterKeys, libraryCategories],
   );
 
   const handleOpenInBrowser = useCallback(() => {

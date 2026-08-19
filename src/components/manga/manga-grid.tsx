@@ -19,6 +19,7 @@ type MangaGridProps = {
   sourceId?: string;
   columns?: number;
   showBookmark?: boolean;
+  scaleBadges?: boolean;
   onPressManga: (manga: MangaGridItem) => void;
   onLongPressManga?: (manga: MangaGridItem) => void;
   onEndReached?: () => void;
@@ -26,6 +27,7 @@ type MangaGridProps = {
   ListFooterComponent?: React.ReactElement | null;
   ListEmptyComponent?: React.ReactElement | null;
   refreshControl?: React.ReactElement<RefreshControlProps> | null;
+  extraData?: unknown;
   scrollEnabled?: boolean;
   contentInsetAdjustmentBehavior?: 'automatic' | 'never';
 };
@@ -35,6 +37,7 @@ export function MangaGrid({
   sourceId,
   columns = 3,
   showBookmark = true,
+  scaleBadges = false,
   onPressManga,
   onLongPressManga,
   onEndReached,
@@ -42,6 +45,7 @@ export function MangaGrid({
   ListFooterComponent,
   ListEmptyComponent,
   refreshControl,
+  extraData,
   scrollEnabled = true,
   contentInsetAdjustmentBehavior = 'automatic',
 }: MangaGridProps) {
@@ -68,6 +72,7 @@ export function MangaGrid({
       ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={ListEmptyComponent}
       refreshControl={refreshControl ?? undefined}
+      extraData={extraData}
       renderItem={({ item }) => {
         const enriched = enrichMangaWithLibraryMeta(item, sourceId ?? item.sourceId, getMeta);
         const showMeta = enriched.inLibrary;
@@ -81,6 +86,7 @@ export function MangaGrid({
             downloadedCount={enriched.downloadedCount}
             updateFailed={enriched.updateFailed}
             showBookmark={showBookmark}
+            scaleBadges={scaleBadges}
             onPress={() => onPressManga(item as MangaGridItem)}
             onLongPress={onLongPressManga ? () => onLongPressManga(item as MangaGridItem) : undefined}
           />

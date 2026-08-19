@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -38,7 +38,9 @@ import {
 } from '@/services/registry-catalog';
 import { resolveRegistryIconUrl } from '@/services/sources';
 import {
+  claimRegistryDeepLink,
   consumePendingRegistryDeepLink,
+  finishRegistryDeepLinkPrompt,
   parseRegistryFromRouteParam,
   subscribePendingRegistryDeepLink,
 } from '@/utils/registry-deep-link';
@@ -239,47 +241,71 @@ export default function SettingsSourcesScreen() {
   const confirmAddRegistryFromDeepLink = useCallback(
     (url: string) => {
       const trimmed = url.trim();
-      if (!trimmed) return;
+      if (!trimmed || !claimRegistryDeepLink(trimmed)) return;
 
       const validation = validateRegistryUrl(trimmed);
       if (validation === 'invalid') {
-        Alert.alert(t('settings_sources_registry_invalid'));
+        Alert.alert(
+          t('settings_sources_registry_invalid'),
+          undefined,
+          [{ text: t('done'), onPress: finishRegistryDeepLinkPrompt }],
+          { onDismiss: finishRegistryDeepLinkPrompt },
+        );
         return;
       }
       if (validation === 'duplicate') {
-        Alert.alert(t('settings_sources_registry_exists'));
+        Alert.alert(
+          t('settings_sources_registry_exists'),
+          undefined,
+          [{ text: t('done'), onPress: finishRegistryDeepLinkPrompt }],
+          { onDismiss: finishRegistryDeepLinkPrompt },
+        );
         return;
       }
 
-      Alert.alert(t('settings_sources_registry_add_title'), resolveRegistryDisplayName({ url: trimmed }), [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('add'),
-          onPress: () => void addRegistry(trimmed),
-        },
-      ]);
+      Alert.alert(
+        t('settings_sources_registry_add_title'),
+        resolveRegistryDisplayName({ url: trimmed }),
+        [
+          { text: t('cancel'), style: 'cancel', onPress: finishRegistryDeepLinkPrompt },
+          {
+            text: t('add'),
+            onPress: () => {
+              finishRegistryDeepLinkPrompt();
+              void addRegistry(trimmed);
+            },
+          },
+        ],
+        { onDismiss: finishRegistryDeepLinkPrompt },
+      );
     },
     [addRegistry, validateRegistryUrl],
   );
 
-  const handlePendingRegistryDeepLink = useCallback(() => {
-    const url = consumePendingRegistryDeepLink();
-    if (!url) return;
-    confirmAddRegistryFromDeepLink(url);
-  }, [confirmAddRegistryFromDeepLink]);
+  const confirmAddRegistryFromDeepLinkRef = useRef(confirmAddRegistryFromDeepLink);
+  confirmAddRegistryFromDeepLinkRef.current = confirmAddRegistryFromDeepLink;
 
   useEffect(() => {
+    if (isLoading) return;
+
+    const prompt = (url: string) => confirmAddRegistryFromDeepLinkRef.current(url);
     const rawRegistry = Array.isArray(registryParam) ? registryParam[0] : registryParam;
     const fromRoute = parseRegistryFromRouteParam(rawRegistry);
+
     if (fromRoute) {
-      confirmAddRegistryFromDeepLink(fromRoute);
+      consumePendingRegistryDeepLink();
+      prompt(fromRoute);
       router.setParams({ registry: undefined });
-      return;
+    } else {
+      const pending = consumePendingRegistryDeepLink();
+      if (pending) prompt(pending);
     }
 
-    handlePendingRegistryDeepLink();
-    return subscribePendingRegistryDeepLink(handlePendingRegistryDeepLink);
-  }, [confirmAddRegistryFromDeepLink, handlePendingRegistryDeepLink, registryParam, router]);
+    return subscribePendingRegistryDeepLink(() => {
+      const pending = consumePendingRegistryDeepLink();
+      if (pending) prompt(pending);
+    });
+  }, [isLoading, registryParam, router]);
 
   const submitNewRegistry = useCallback(() => {
     Keyboard.dismiss();

@@ -1,9 +1,17 @@
+import { registryUrlsMatch } from '@/utils/registry-url';
+
 type PendingListener = () => void;
 
 export const DEFAULT_REGISTRY_URL = 'https://tamdok-mangareader.github.io/sources/index.min.json';
 
 let pendingRegistryUrl: string | null = null;
+let promptingRegistryUrl: string | null = null;
 const listeners = new Set<PendingListener>();
+
+function urlsEqual(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  return a === b || registryUrlsMatch(a, b);
+}
 
 function decodeRegistryParam(value: string): string | null {
   const trimmed = value.trim();
@@ -100,14 +108,24 @@ export function parseRegistryDeepLink(link: string): string | null {
   return null;
 }
 
-export function setPendingRegistryDeepLink(url: string) {
-  if (pendingRegistryUrl === url) {
-    listeners.forEach((listener) => listener());
-    return;
+const SAME_LINK_COOLDOWN_MS = 2500;
+let lastClaimedUrl: string | null = null;
+let lastClaimedAt = 0;
+
+function isSameLinkOnCooldown(url: string): boolean {
+  return urlsEqual(lastClaimedUrl, url) && Date.now() - lastClaimedAt < SAME_LINK_COOLDOWN_MS;
+}
+
+export function setPendingRegistryDeepLink(url: string): boolean {
+  if (urlsEqual(promptingRegistryUrl, url) || urlsEqual(pendingRegistryUrl, url) || isSameLinkOnCooldown(url)) {
+    return false;
   }
 
   pendingRegistryUrl = url;
+  if (promptingRegistryUrl) return false;
+
   listeners.forEach((listener) => listener());
+  return true;
 }
 
 export function peekPendingRegistryDeepLink(): string | null {
@@ -115,14 +133,38 @@ export function peekPendingRegistryDeepLink(): string | null {
 }
 
 export function renotifyPendingRegistryDeepLink() {
-  if (!pendingRegistryUrl) return;
+  if (!pendingRegistryUrl || promptingRegistryUrl) return;
   listeners.forEach((listener) => listener());
+}
+
+export function claimRegistryDeepLink(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed || promptingRegistryUrl || isSameLinkOnCooldown(trimmed)) return false;
+
+  if (urlsEqual(pendingRegistryUrl, trimmed)) {
+    pendingRegistryUrl = null;
+  }
+
+  promptingRegistryUrl = trimmed;
+  lastClaimedUrl = trimmed;
+  lastClaimedAt = Date.now();
+  return true;
 }
 
 export function consumePendingRegistryDeepLink(): string | null {
   const url = pendingRegistryUrl;
   pendingRegistryUrl = null;
   return url;
+}
+
+export function finishRegistryDeepLinkPrompt() {
+  if (!promptingRegistryUrl) return;
+
+  lastClaimedUrl = promptingRegistryUrl;
+  lastClaimedAt = Date.now();
+  promptingRegistryUrl = null;
+  if (!pendingRegistryUrl) return;
+  listeners.forEach((listener) => listener());
 }
 
 export function subscribePendingRegistryDeepLink(listener: PendingListener) {

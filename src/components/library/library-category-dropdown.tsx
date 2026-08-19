@@ -6,7 +6,7 @@ import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { useTheme } from '@/hooks/use-theme';
-import { ALL_CATEGORY_ID, type LibraryCategory } from '@/services/library';
+import { ALL_CATEGORY_ID, isAllCategory, type LibraryCategory } from '@/services/library';
 
 export type CategoryDropdownAnchor = {
   x: number;
@@ -20,6 +20,7 @@ type LibraryCategoryDropdownProps = {
   anchor: CategoryDropdownAnchor | null;
   categories: LibraryCategory[];
   selectedIds: string[];
+  inLibrary?: boolean;
   onToggleCategory: (categoryId: string) => void;
   onClose: () => void;
 };
@@ -29,17 +30,22 @@ function categoryLabel(category: LibraryCategory): string {
   return category.name;
 }
 
+function orderedCategories(categories: LibraryCategory[]): LibraryCategory[] {
+  return [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
 export function LibraryCategoryDropdown({
   visible,
   anchor,
   categories,
   selectedIds,
+  inLibrary = false,
   onToggleCategory,
   onClose,
 }: LibraryCategoryDropdownProps) {
   const { colors, radius } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const userCategories = categories.filter((category) => category.id !== ALL_CATEGORY_ID);
+  const visibleCategories = orderedCategories(categories);
 
   if (!visible || !anchor) return null;
 
@@ -59,14 +65,16 @@ export function LibraryCategoryDropdown({
             <ThemedText variant='footnote' color='secondaryLabel' style={styles.hint}>
               {t('library_category_picker_hint')}
             </ThemedText>
-            {userCategories.length === 0 ? (
+            {visibleCategories.length === 0 ? (
               <ThemedText variant='body' color='tertiaryLabel' style={styles.empty}>
                 {t('library_category_picker_empty')}
               </ThemedText>
             ) : (
               <View style={styles.list}>
-                {userCategories.map((category, index) => {
-                  const selected = selectedIds.includes(category.id);
+                {visibleCategories.map((category, index) => {
+                  const selected = isAllCategory(category.id)
+                    ? inLibrary && selectedIds.every((id) => isAllCategory(id))
+                    : selectedIds.includes(category.id);
                   return (
                     <Pressable
                       key={category.id}

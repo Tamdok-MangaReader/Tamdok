@@ -449,8 +449,37 @@ export async function toggleMangaLibraryCategory(
     Partial<Pick<LibraryEntry, 'unreadCount' | 'downloadedCount' | 'knownChapterKeys' | 'status'>>,
 ): Promise<{ inLibrary: boolean; categoryIds: string[] }> {
   if (isAllCategory(categoryId)) {
-    const entry = await getLibraryEntry(sourceId, mangaKey);
-    return { inLibrary: Boolean(entry), categoryIds: entry?.categoryIds ?? [] };
+    const store = await readStore();
+    const key = entryKey(sourceId, mangaKey);
+    let entry = store.entries.find((item) => entryKey(item.sourceId, item.mangaKey) === key);
+
+    if (!entry) {
+      entry = {
+        sourceId,
+        mangaKey,
+        title: meta.title,
+        cover: meta.cover,
+        categoryIds: [],
+        dateAdded: Date.now(),
+      };
+      await applyEntryBadges(entry, meta);
+      store.entries.push(entry);
+      await writeStore(store);
+      return { inLibrary: true, categoryIds: [] };
+    }
+
+    if (entry.categoryIds.length === 0) {
+      store.entries = store.entries.filter((item) => entryKey(item.sourceId, item.mangaKey) !== key);
+      await writeStore(store);
+      await removeMangaDownloads(sourceId, mangaKey);
+      return { inLibrary: false, categoryIds: [] };
+    }
+
+    entry.categoryIds = [];
+    entry.title = meta.title;
+    entry.cover = meta.cover;
+    await writeStore(store);
+    return { inLibrary: true, categoryIds: [] };
   }
 
   const store = await readStore();

@@ -19,6 +19,7 @@ type MangaCoverProps = {
   unreadCount?: number;
   downloadedCount?: number;
   showBookmark?: boolean;
+  scaleBadges?: boolean;
   showTitleOverlay?: boolean;
   updateFailed?: boolean;
   onPress?: () => void;
@@ -33,6 +34,7 @@ export function MangaCover({
   unreadCount = 0,
   downloadedCount = 0,
   showBookmark = true,
+  scaleBadges = false,
   showTitleOverlay = true,
   updateFailed = false,
   onPress,
@@ -41,7 +43,7 @@ export function MangaCover({
   const { colors, radius } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
   const height = Math.round(width * 1.45);
-  const badgeScale = coverBadgeScale(width);
+  const badgeScale = scaleBadges ? coverBadgeScale(width) : 1;
   const badgeSize = Math.round(20 * badgeScale);
   const badgeFontSize = Math.max(9, Math.round(11 * badgeScale));
   const badgePadding = Math.max(4, Math.round(6 * badgeScale));
