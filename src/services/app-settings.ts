@@ -69,6 +69,10 @@ export type LibrarySortMode = 'unread' | 'title' | 'recent' | 'lastRead';
 export type LibraryDisplaySettings = {
   showUnreadBadges: boolean;
   showDownloadedBadges: boolean;
+  showCategoryCountBadges: boolean;
+  showEmptyCategoryCountBadges: boolean;
+  showLibraryRefreshStatus: boolean;
+  showLibraryRefreshLiveActivity: boolean;
   updateOnWifiOnly: boolean;
   gridSize: 'small' | 'medium' | 'large' | 'extraLarge';
   sortMode: LibrarySortMode;
@@ -139,6 +143,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   libraryDisplay: {
     showUnreadBadges: true,
     showDownloadedBadges: true,
+    showCategoryCountBadges: true,
+    showEmptyCategoryCountBadges: false,
+    showLibraryRefreshStatus: false,
+    showLibraryRefreshLiveActivity: true,
     updateOnWifiOnly: false,
     gridSize: 'medium',
     sortMode: 'unread',
@@ -169,6 +177,16 @@ async function readSettings(): Promise<AppSettings> {
       ...stored.libraryDisplay,
       gridSize: stored.libraryDisplay?.gridSize ?? DEFAULT_SETTINGS.libraryDisplay.gridSize,
       sortMode: stored.libraryDisplay?.sortMode ?? DEFAULT_SETTINGS.libraryDisplay.sortMode,
+      showCategoryCountBadges:
+        stored.libraryDisplay?.showCategoryCountBadges ?? DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
+      showEmptyCategoryCountBadges:
+        stored.libraryDisplay?.showEmptyCategoryCountBadges ??
+        DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,
+      showLibraryRefreshStatus:
+        stored.libraryDisplay?.showLibraryRefreshStatus ?? DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshStatus,
+      showLibraryRefreshLiveActivity:
+        stored.libraryDisplay?.showLibraryRefreshLiveActivity ??
+        DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshLiveActivity,
     },
     debug: {
       ...DEFAULT_SETTINGS.debug,

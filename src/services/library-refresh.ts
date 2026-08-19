@@ -12,6 +12,7 @@ import {
 import { peekMangaDetailCache, readMangaDetailCache, writeMangaDetailCache } from '@/services/manga-detail-cache';
 import { getMangaChapterProgress } from '@/services/manga-tracking';
 import { notifyNewChaptersAvailable } from '@/services/notifications';
+import { setLibraryRefreshProgress } from '@/services/library-refresh-progress';
 import { createSourceRunner, findInstalledSource } from '@/services/sources';
 
 function countUnreadChapters(manga: Manga, readChapterKeys: Set<string>): number {
@@ -136,22 +137,28 @@ export async function refreshLibraryEntries(
   let refreshed = 0;
   let failed = 0;
 
-  for (const [index, entry] of pending.entries()) {
-    onProgress?.({
-      title: entry.title,
-      current: index + 1,
-      total: pending.length,
-    });
+  try {
+    for (const [index, entry] of pending.entries()) {
+      const progress = {
+        title: entry.title,
+        current: index + 1,
+        total: pending.length,
+      };
+      setLibraryRefreshProgress(progress);
+      onProgress?.(progress);
 
-    try {
-      await refreshEntry(entry, installed, runnerCache, settings.refreshMetadata);
-      refreshed += 1;
-    } catch {
-      failed += 1;
-      await updateLibraryEntryMetadata(entry.sourceId, entry.mangaKey, { updateFailed: true });
+      try {
+        await refreshEntry(entry, installed, runnerCache, settings.refreshMetadata);
+        refreshed += 1;
+      } catch {
+        failed += 1;
+        await updateLibraryEntryMetadata(entry.sourceId, entry.mangaKey, { updateFailed: true });
+      }
     }
-  }
 
-  await updateLibraryUpdateSettings({ lastAutoRefreshAt: Date.now() });
-  return { refreshed, skipped, failed };
+    await updateLibraryUpdateSettings({ lastAutoRefreshAt: Date.now() });
+    return { refreshed, skipped, failed };
+  } finally {
+    setLibraryRefreshProgress(null);
+  }
 }

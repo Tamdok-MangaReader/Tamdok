@@ -5,8 +5,9 @@ import { View } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { AidokuWasmHost } from '@/components/sources/aidoku-wasm-host';
+import { LibraryRefreshIsland } from '@/components/library/library-refresh-island';
 import { WelcomeScreen } from '@/components/onboarding/WelcomeScreen';
+import { AidokuWasmHost } from '@/components/sources/aidoku-wasm-host';
 import { AppearanceProvider } from '@/context/appearance-context';
 import { SourcesProvider } from '@/context/sources-context';
 import { ThemePreferenceProvider } from '@/context/theme-preference-context';
@@ -129,6 +130,7 @@ function RootLayoutContent() {
         />
         <Stack.Screen name='[...unmatched]' />
       </Stack>
+      <LibraryRefreshIsland />
     </ThemeProvider>
   );
 }

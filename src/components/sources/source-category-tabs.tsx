@@ -9,6 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 export type SourceCategoryTab = {
   id: string;
   label: string;
+  count?: number;
 };
 
 type SourceCategoryTabsProps = {
@@ -40,15 +41,43 @@ export function SourceCategoryTabs({ tabs, selectedId, onSelect }: SourceCategor
         contentInsetAdjustmentBehavior='never'>
         {tabs.map((tab) => {
           const selected = tab.id === selectedId;
+          const countLabel = tab.count == null ? undefined : tab.count > 99 ? '99+' : String(tab.count);
+          const label = (
+            <View style={styles.tabInner}>
+              <ThemedText
+                variant='subheadline'
+                style={selected ? { color: colors.onTint, fontWeight: '600' } : undefined}>
+                {tab.label}
+              </ThemedText>
+              {countLabel ? (
+                <View
+                  style={[
+                    styles.countBadge,
+                    {
+                      backgroundColor: selected ? 'rgba(255,255,255,0.28)' : colors.fill,
+                    },
+                  ]}>
+                  <ThemedText
+                    variant='caption2'
+                    style={{
+                      color: selected ? colors.onTint : colors.secondaryLabel,
+                      fontWeight: '700',
+                      fontVariant: ['tabular-nums'],
+                    }}>
+                    {countLabel}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
+          );
           const tabNode = selected ? (
             <Pressable
               onPress={() => onSelect(tab.id)}
               style={[styles.tabActive, { borderRadius: radius.pill, backgroundColor: colors.tint }]}
               accessibilityRole='button'
-              accessibilityState={{ selected: true }}>
-              <ThemedText variant='subheadline' style={{ color: colors.systemBackground, fontWeight: '600' }}>
-                {tab.label}
-              </ThemedText>
+              accessibilityState={{ selected: true }}
+              accessibilityLabel={countLabel ? `${tab.label}, ${countLabel}` : tab.label}>
+              {label}
             </Pressable>
           ) : (
             <GlassSurface borderRadius={radius.pill} interactive>
@@ -56,8 +85,9 @@ export function SourceCategoryTabs({ tabs, selectedId, onSelect }: SourceCategor
                 style={styles.tabPressable}
                 onPress={() => onSelect(tab.id)}
                 accessibilityRole='button'
-                accessibilityState={{ selected: false }}>
-                <ThemedText variant='subheadline'>{tab.label}</ThemedText>
+                accessibilityState={{ selected: false }}
+                accessibilityLabel={countLabel ? `${tab.label}, ${countLabel}` : tab.label}>
+                {label}
               </Pressable>
             </GlassSurface>
           );
@@ -95,5 +125,18 @@ const styles = StyleSheet.create({
   tabActive: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  tabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  countBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

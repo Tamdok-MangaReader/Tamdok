@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tamdok",
     "slug": "tamdok",
-    "version": "1.0",
+    "version": "1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tamdok",
@@ -13,30 +13,23 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true,
         "UIViewControllerBasedStatusBarAppearance": true,
         "CFBundleDevelopmentRegion": "en",
         "NSUserNotificationsUsageDescription": "Tamdok schedules local reminders for new chapters notification.",
         "NSContactsUsageDescription": "Tamdok uses Live Text on manga pages. Some images may contain contact information that iOS can recognize.",
         "NSLocalNetworkUsageDescription": "Tamdok connects to the development server on your local network during development.",
-        "NSBonjourServices": [
-          "_expo._tcp",
-          "_http._tcp"
-        ],
+        "NSBonjourServices": ["_expo._tcp", "_http._tcp"],
         "LSSupportsOpeningDocumentsInPlace": false,
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "Tamdok data",
             "LSHandlerRank": "Alternate",
-            "LSItemContentTypes": [
-              "public.json",
-              "public.plain-text"
-            ]
+            "LSItemContentTypes": ["public.json", "public.plain-text"]
           }
         ],
-        "CFBundleLocalizations": [
-          "en",
-          "ru"
-        ]
+        "CFBundleLocalizations": ["en", "ru"]
       }
     },
     "locales": {
@@ -71,10 +64,7 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": [
-              "en",
-              "ru"
-            ]
+            "ios": ["en", "ru"]
           }
         }
       ],
@@ -134,6 +124,7 @@
           }
         ]
       ],
+      "./plugins/with-library-refresh-live-activity.js",
       "./plugins/with-device-friendly-entitlements.js",
       "./plugins/with-status-bar-appearance.js",
       "./plugins/with-dev-launcher-strip-script-fix.js"

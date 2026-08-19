@@ -77,6 +77,10 @@ export default function LibrarySettingsScreen() {
   const [backgroundRefresh, setBackgroundRefreshState] = useState(false);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
+  const [showCategoryCountBadges, setShowCategoryCountBadges] = useState(true);
+  const [showEmptyCategoryCountBadges, setShowEmptyCategoryCountBadges] = useState(false);
+  const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] = useState(false);
+  const [showLibraryRefreshLiveActivity, setShowLibraryRefreshLiveActivity] = useState(true);
   const [sortMode, setSortMode] = useState<LibrarySortMode>('unread');
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<InlineActionMenuAnchor | null>(null);
@@ -105,6 +109,10 @@ export default function LibrarySettingsScreen() {
     setBackgroundRefreshState(updateSettings.backgroundRefresh);
     setShowUnreadBadges(appSettings.libraryDisplay.showUnreadBadges);
     setShowDownloadedBadges(appSettings.libraryDisplay.showDownloadedBadges);
+    setShowCategoryCountBadges(appSettings.libraryDisplay.showCategoryCountBadges ?? true);
+    setShowEmptyCategoryCountBadges(appSettings.libraryDisplay.showEmptyCategoryCountBadges ?? false);
+    setShowLibraryRefreshStatus(appSettings.libraryDisplay.showLibraryRefreshStatus ?? false);
+    setShowLibraryRefreshLiveActivity(appSettings.libraryDisplay.showLibraryRefreshLiveActivity ?? true);
     setSortMode(appSettings.libraryDisplay.sortMode ?? 'unread');
   }, []);
 
@@ -372,6 +380,54 @@ export default function LibrarySettingsScreen() {
             onChange={(value) => {
               setShowDownloadedBadges(value);
               patchLibraryDisplay({ showDownloadedBadges: value });
+            }}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('library_show_category_count_badges')}
+            hint={t('library_show_category_count_badges_hint')}
+            value={showCategoryCountBadges}
+            onChange={(value) => {
+              setShowCategoryCountBadges(value);
+              patchLibraryDisplay({ showCategoryCountBadges: value });
+            }}
+            isLast={!showCategoryCountBadges}
+          />
+          {showCategoryCountBadges ? (
+            <>
+              <CardSeparator />
+              <SwitchRow
+                label={t('library_show_empty_category_count_badges')}
+                hint={t('library_show_empty_category_count_badges_hint')}
+                value={showEmptyCategoryCountBadges}
+                onChange={(value) => {
+                  setShowEmptyCategoryCountBadges(value);
+                  patchLibraryDisplay({ showEmptyCategoryCountBadges: value });
+                }}
+                isLast
+              />
+            </>
+          ) : null}
+        </Card>
+        <Card>
+          <SwitchRow
+            label={t('library_show_refresh_status')}
+            hint={t('library_show_refresh_status_hint')}
+            value={showLibraryRefreshStatus}
+            onChange={(value) => {
+              setShowLibraryRefreshStatus(value);
+              patchLibraryDisplay({ showLibraryRefreshStatus: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('library_show_refresh_live_activity')}
+            hint={t('library_show_refresh_live_activity_hint')}
+            value={showLibraryRefreshLiveActivity}
+            onChange={(value) => {
+              setShowLibraryRefreshLiveActivity(value);
+              patchLibraryDisplay({ showLibraryRefreshLiveActivity: value });
             }}
             isLast
           />

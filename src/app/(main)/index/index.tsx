@@ -19,6 +19,7 @@ import { useSources } from '@/context/sources-context';
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { useTheme } from '@/hooks/use-theme';
 import { refreshLibraryEntries, type LibraryRefreshProgress } from '@/services/library-refresh';
+import { subscribeLibraryRefreshProgress } from '@/services/library-refresh-progress';
 import {
   ALL_CATEGORY_ID,
   chapterKeysForLibraryEntry,
@@ -27,6 +28,7 @@ import {
   getLibraryEntries,
   hasCustomLibraryCategories,
   isAllCategory,
+  libraryCategoryCount,
   removeFromLibrary,
   setCurrentCategoryId,
   sortLibraryEntries,
@@ -51,7 +53,7 @@ export default function LibraryScreen() {
   const { colors } = useTheme();
   const { installed } = useSources();
   const refreshTick = useMangaDataRefresh();
-  const [categories, setCategories] = useState<{ id: string; label: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; label: string; count?: number }[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(ALL_CATEGORY_ID);
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [showCategoryTabs, setShowCategoryTabs] = useState(false);
@@ -60,6 +62,7 @@ export default function LibraryScreen() {
   const [gridColumns, setGridColumns] = useState(3);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
+  const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] = useState(false);
   const [sortMode, setSortMode] = useState<LibrarySortMode>('unread');
   const [lastReadAt, setLastReadAt] = useState<Map<string, number>>(() => new Map());
   const [libraryCategories, setLibraryCategories] = useState<LibraryCategory[]>([]);
@@ -68,14 +71,17 @@ export default function LibraryScreen() {
   menuEntryRef.current = menuEntry;
 
   const loadLibrary = useCallback(async () => {
-    const [nextCategories, currentCategoryId, customCategories, settings, history] = await Promise.all([
+    const [nextCategories, currentCategoryId, customCategories, settings, history, allEntries] = await Promise.all([
       getLibraryCategories(),
       getCurrentCategoryId(),
       hasCustomLibraryCategories(),
       getAppSettings(),
       getHistoryEntries(),
+      getLibraryEntries(),
     ]);
-    const nextEntries = await getLibraryEntries(currentCategoryId);
+    const nextEntries = isAllCategory(currentCategoryId)
+      ? allEntries
+      : allEntries.filter((entry) => entry.categoryIds.includes(currentCategoryId));
     const nextLastRead = new Map<string, number>();
     for (const item of history) {
       const key = `${item.sourceId}:${item.mangaKey}`;
@@ -84,14 +90,21 @@ export default function LibraryScreen() {
     setGridColumns(libraryGridColumns(settings.libraryDisplay.gridSize));
     setShowUnreadBadges(settings.libraryDisplay.showUnreadBadges);
     setShowDownloadedBadges(settings.libraryDisplay.showDownloadedBadges);
+    setShowLibraryRefreshStatus(settings.libraryDisplay.showLibraryRefreshStatus ?? false);
     setSortMode(settings.libraryDisplay.sortMode ?? 'unread');
     setLastReadAt(nextLastRead);
     setLibraryCategories(nextCategories);
     setCategories(
-      nextCategories.map((category) => ({
-        id: category.id,
-        label: categoryLabel(category.id, category.name),
-      })),
+      nextCategories.map((category) => {
+        const count = libraryCategoryCount(allEntries, category.id);
+        const showCounts = settings.libraryDisplay.showCategoryCountBadges ?? true;
+        const showEmpty = settings.libraryDisplay.showEmptyCategoryCountBadges ?? false;
+        return {
+          id: category.id,
+          label: categoryLabel(category.id, category.name),
+          count: !showCounts || (count === 0 && !showEmpty) ? undefined : count,
+        };
+      }),
     );
     setSelectedCategoryId(currentCategoryId);
     setEntries(nextEntries);
@@ -103,6 +116,7 @@ export default function LibraryScreen() {
   }, [loadLibrary, refreshTick]);
 
   useEffect(() => subscribeAppSettings(() => void loadLibrary()), [loadLibrary]);
+  useEffect(() => subscribeLibraryRefreshProgress(setRefreshProgress), []);
 
   const selectCategory = async (categoryId: string) => {
     setSelectedCategoryId(categoryId);
@@ -129,13 +143,11 @@ export default function LibraryScreen() {
 
   const refreshLibrary = useCallback(async () => {
     setRefreshing(true);
-    setRefreshProgress(null);
     try {
-      await refreshLibraryEntries(installed, selectedCategoryId, setRefreshProgress);
+      await refreshLibraryEntries(installed, selectedCategoryId);
       await loadLibrary();
     } finally {
       setRefreshing(false);
-      setRefreshProgress(null);
     }
   }, [installed, selectedCategoryId, loadLibrary]);
 
@@ -242,7 +254,7 @@ export default function LibraryScreen() {
   const isEmpty = mangaEntries.length === 0;
 
   const refreshStatus =
-    refreshing && refreshProgress ? (
+    showLibraryRefreshStatus && refreshProgress ? (
       <View style={styles.refreshStatus}>
         <ThemedText variant='subheadline' numberOfLines={1} style={styles.refreshText}>
           {refreshProgress.title}

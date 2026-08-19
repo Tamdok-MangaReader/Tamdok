@@ -260,6 +260,11 @@ export function isAllCategory(categoryId: string): boolean {
   return categoryId === ALL_CATEGORY_ID;
 }
 
+export function libraryCategoryCount(entries: LibraryEntry[], categoryId: string): number {
+  if (isAllCategory(categoryId)) return entries.length;
+  return entries.filter((entry) => entry.categoryIds.includes(categoryId)).length;
+}
+
 export function isAllCategoryLocked(defaultCategoryId: string): boolean {
   return defaultCategoryId === ALL_CATEGORY_ID;
 }
