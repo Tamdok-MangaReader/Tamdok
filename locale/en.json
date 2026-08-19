@@ -372,6 +372,7 @@
   "reader_tap_zones_previous": "Prev",
   "reader_tap_zones_menu": "Menu",
   "reader_tap_zones_paged_hint": "Used in right-to-left and left-to-right page modes. Left/right sides turn pages; the center toggles the menu.",
+  "reader_tap_zones_continuous_disabled": "Tap zones are off in Continuous mode. Tap anywhere to show or hide the menu.",
   "reader_mode_hint_rtl": "Right to left",
   "reader_mode_hint_ltr": "Left to right",
   "reader_mode_hint_vertical": "Scroll down",

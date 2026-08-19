@@ -70,7 +70,15 @@ function autoZones(mode: ResolvedReadingMode): TapZoneGrid {
   return leftRightZones();
 }
 
+export function areReaderTapZonesEnabled(mode: ResolvedReadingMode): boolean {
+  return mode !== 'continuous';
+}
+
 export function buildTapZoneGrid(settings: ReaderSettings, mode: ResolvedReadingMode): TapZoneGrid {
+  if (!areReaderTapZonesEnabled(mode) || settings.tapZones === 'disabled') {
+    return grid('toggleBars');
+  }
+
   let gridValue: TapZoneGrid;
   switch (settings.tapZones) {
     case 'left-right':

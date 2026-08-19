@@ -43,7 +43,7 @@ export function ReaderSettingsSheet({
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const router = useRouter();
-  const { manga, settings } = useReader();
+  const { manga, settings, mode } = useReader();
   const selectedMode = mangaReadingMode ?? 'default';
 
   const modeOptions = MANGA_READING_MODES.map((mode) => ({
@@ -85,6 +85,11 @@ export function ReaderSettingsSheet({
               }}
             />
           </Card>
+          {mode === 'continuous' ? (
+            <ThemedText variant='footnote' color='secondaryLabel'>
+              {t('reader_tap_zones_continuous_disabled')}
+            </ThemedText>
+          ) : (
           <Card style={styles.card}>
             <ThemedText variant='subheadline'>{t('reader_tap_zones')}</ThemedText>
             <InlinePillGrid
@@ -108,6 +113,7 @@ export function ReaderSettingsSheet({
               />
             </View>
           </Card>
+          )}
           <Pressable
             style={[styles.linkRow, { backgroundColor: colors.tertiaryFill }]}
             onPress={() => {

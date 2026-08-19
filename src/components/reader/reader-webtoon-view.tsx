@@ -16,7 +16,7 @@ import { useReader } from '@/components/reader/reader-context';
 import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
 import { findAdjacentChapter } from '@/utils/reader-chapters';
 import { prefetchReaderPagesAhead } from '@/utils/reader-prefetch';
-import { effectiveTapZoneGrid, tapActionAtPoint } from '@/utils/reader-tap-zones';
+import { areReaderTapZonesEnabled, effectiveTapZoneGrid, tapActionAtPoint } from '@/utils/reader-tap-zones';
 import type { Chapter } from '@/parsers/shared/types';
 import { readerPageFrameHeight, type ReaderPage } from '@/utils/reader-pages';
 
@@ -428,7 +428,7 @@ export function ReaderWebtoonView({
       const now = Date.now();
       if (now - lastTapAtRef.current < 120) return;
       lastTapAtRef.current = now;
-      if (settings.tapZones === 'disabled') {
+      if (settings.tapZones === 'disabled' || !areReaderTapZonesEnabled(mode)) {
         actions.toggleBars();
         return;
       }
