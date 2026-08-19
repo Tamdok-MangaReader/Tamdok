@@ -1,0 +1,48 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.35909,0.78393,0.97938,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "First.png",
+          "name" : "First",
+          "position" : {
+            "scale" : 0.3,
+            "translation-in-points" : [
+              -207.9000000000001,
+              -92.02499999999998
+            ]
+          }
+        },
+        {
+          "image-name" : "Second.png",
+          "name" : "Second",
+          "position" : {
+            "scale" : 0.3,
+            "translation-in-points" : [
+              192.89999999999986,
+              123.82500000000005
+            ]
+          }
+        }
+      ],
+      "name" : "Text",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

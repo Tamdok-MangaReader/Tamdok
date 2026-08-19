@@ -1,0 +1,152 @@
+{
+  "expo": {
+    "name": "Tamdok",
+    "slug": "tamdok",
+    "version": "0.1",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "tamdok",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/tamdok.icon",
+      "bundleIdentifier": "com.solsticeleaf.Tamdok",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIViewControllerBasedStatusBarAppearance": true,
+        "CFBundleDevelopmentRegion": "en",
+        "NSUserNotificationsUsageDescription": "Tamdok schedules local reminders for new chapters notification.",
+        "NSContactsUsageDescription": "Tamdok uses Live Text on manga pages. Some images may contain contact information that iOS can recognize.",
+        "NSLocalNetworkUsageDescription": "Tamdok connects to the development server on your local network during development.",
+        "NSBonjourServices": [
+          "_expo._tcp",
+          "_http._tcp"
+        ],
+        "LSSupportsOpeningDocumentsInPlace": false,
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Tamdok data",
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": [
+              "public.json",
+              "public.plain-text"
+            ]
+          }
+        ],
+        "CFBundleLocalizations": [
+          "en",
+          "ru"
+        ]
+      }
+    },
+    "locales": {
+      "en": "./locale/ios/en.json",
+      "ru": "./locale/ios/ru.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F2F2F7",
+          "image": "./assets/images/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#000000",
+            "image": "./assets/images/icon.png"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "26.0"
+          }
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "en",
+              "ru"
+            ]
+          }
+        }
+      ],
+      "expo-secure-store",
+      "expo-mail-composer",
+      "expo-sharing",
+      "expo-ios-scene-lifecycle-plugin",
+      "expo-font",
+      "expo-image",
+      "expo-web-browser",
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "TamdokRed",
+            "ios": "./assets/app-icons/red/preview.png"
+          },
+          {
+            "name": "TamdokOrange",
+            "ios": "./assets/app-icons/orange/preview.png"
+          },
+          {
+            "name": "TamdokYellow",
+            "ios": "./assets/app-icons/yellow/preview.png"
+          },
+          {
+            "name": "TamdokLime",
+            "ios": "./assets/app-icons/lime/preview.png"
+          },
+          {
+            "name": "TamdokGreen",
+            "ios": "./assets/app-icons/green/preview.png"
+          },
+          {
+            "name": "TamdokTeal",
+            "ios": "./assets/app-icons/teal/preview.png"
+          },
+          {
+            "name": "TamdokBlue",
+            "ios": "./assets/app-icons/blue/preview.png"
+          },
+          {
+            "name": "TamdokIndigo",
+            "ios": "./assets/app-icons/indigo/preview.png"
+          },
+          {
+            "name": "TamdokPurple",
+            "ios": "./assets/app-icons/purple/preview.png"
+          },
+          {
+            "name": "TamdokCoral",
+            "ios": "./assets/app-icons/coral/preview.png"
+          },
+          {
+            "name": "TamdokBrown",
+            "ios": "./assets/app-icons/brown/preview.png"
+          }
+        ]
+      ],
+      "./plugins/with-device-friendly-entitlements.js",
+      "./plugins/with-status-bar-appearance.js",
+      "./plugins/with-dev-launcher-strip-script-fix.js"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ec5a47da-19a1-47b1-b356-ec6f943f023a"
+      }
+    },
+    "owner": "solsticeleaf"
+  }
+}

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Official sources
+    url: https://github.com/Tamdok-MangaReader/sources/issues
+    about: Bug in a bundled source (Komga, etc.)
+  - name: Community sources
+    url: https://github.com/Tamdok-MangaReader/sources-community/issues
+    about: Bug in a community `.tamdok` source
+  - name: Source author docs
+    url: https://github.com/Tamdok-MangaReader/sources-community/tree/main/docs
+    about: How to write Tamdok JavaScript sources

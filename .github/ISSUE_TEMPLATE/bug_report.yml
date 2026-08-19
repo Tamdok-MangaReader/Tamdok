@@ -1,0 +1,89 @@
+name: Bug report
+description: Something in the Tamdok app is broken
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Reader
+        - Library
+        - Sources / registry
+        - Search / filters
+        - Downloads
+        - Settings
+        - Onboarding / UI
+        - Aidoku (.aix) compatibility
+        - Performance
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Web
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Tamdok version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device / OS
+      placeholder: iPhone 15, iOS 18.0
+
+  - type: input
+    id: source
+    attributes:
+      label: Source ID (if applicable)
+      placeholder: en.asurascans.tamdok / multi.nhentai
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Metro / Xcode logs, screen recording, or error text.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues
+          required: true
+        - label: This is an app bug, not a specific source parser (see contact links if source-only)
+          required: true

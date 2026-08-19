@@ -1,0 +1,50 @@
+name: Feature request
+description: Suggest a new feature or improvement for Tamdok
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or motivation
+      placeholder: What is inconvenient or missing today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Reader
+        - Library
+        - Sources / registry
+        - Search
+        - Downloads / backups
+        - Settings
+        - UI / UX
+        - Tamdok JS parser API
+        - Aidoku compatibility
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: This is a feature request, not a bug report
+          required: true
