@@ -18,7 +18,15 @@
 
 ---
 
-**탐독 (Tamdok)** — *to devour a book.* A reader for people who want catalogs, libraries, and chapters in one place, and for people who want to write those catalogs in JavaScript.
+**탐독 (Tamdok)** — _to devour a book._ A reader for people who want catalogs, libraries, and chapters in one place, and for people who want to write those catalogs in JavaScript.
+
+<p align="center">
+  <img src=".github/preview/01.png" style="height: 350px" alt="Preview image">
+  <img src=".github/preview/02.png" style="height: 350px" alt="Preview image">
+  <img src=".github/preview/03.png" style="height: 350px" alt="Preview image">
+  <img src=".github/preview/04.png" style="height: 350px" alt="Preview image">
+  <img src=".github/preview/05.png" style="height: 350px" alt="Preview image">
+</p>
 
 ## Why Tamdok exists
 
@@ -30,10 +38,10 @@ Aidoku `.aix` packages are supported as a compatibility layer so you can try com
 
 ## Sources
 
-| Format | Role | Reality |
-| --- | --- | --- |
+| Format        | Role                           | Reality                                                                                    |
+| ------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
 | **`.tamdok`** | First-class JavaScript parsers | This is what Tamdok is for. Write `index.js`, ship `source.json`, install from a registry. |
-| **`.aix`** | Aidoku WASM compatibility | Optional. Many sources work; many will not. No 100% guarantee. |
+| **`.aix`**    | Aidoku WASM compatibility      | Optional. Many sources work; many will not. No 100% guarantee.                             |
 
 ### JavaScript parsers (`.tamdok`)
 
@@ -95,22 +103,22 @@ pnpm ios
 
 Useful scripts:
 
-| Command | What it does |
-| --- | --- |
-| `pnpm ios` | Build and run on a connected iOS device |
-| `pnpm build:wasm-host` | Rebuild the Aidoku WASM host bundle |
-| `pnpm lint` | Lint |
+| Command                | What it does                            |
+| ---------------------- | --------------------------------------- |
+| `pnpm ios`             | Build and run on a connected iOS device |
+| `pnpm build:wasm-host` | Rebuild the Aidoku WASM host bundle     |
+| `pnpm lint`            | Lint                                    |
 
 Requires a recent Xcode / iOS toolchain (the project targets a current iOS SDK).
 
 ## Related
 
-| Project | Link |
-| --- | --- |
-| Tamdok org | [github.com/Tamdok-MangaReader](https://github.com/Tamdok-MangaReader) |
-| Official JS sources | [Tamdok-MangaReader/sources](https://github.com/Tamdok-MangaReader/sources) |
+| Project              | Link                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Tamdok org           | [github.com/Tamdok-MangaReader](https://github.com/Tamdok-MangaReader)                          |
+| Official JS sources  | [Tamdok-MangaReader/sources](https://github.com/Tamdok-MangaReader/sources)                     |
 | Community JS sources | [Tamdok-MangaReader/sources-community](https://github.com/Tamdok-MangaReader/sources-community) |
-| Aidoku | [Aidoku/Aidoku](https://github.com/Aidoku/Aidoku) |
+| Aidoku               | [Aidoku/Aidoku](https://github.com/Aidoku/Aidoku)                                               |
 
 ## License
 
