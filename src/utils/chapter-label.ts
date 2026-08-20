@@ -1,12 +1,7 @@
 import type { Chapter, Manga } from '@/parsers/shared/types';
 import { t } from '@/constants/locales';
 import { decodeMangaKey } from '@/utils/manga-route';
-import {
-  formatChapterNumberValue,
-  looksLikeOpaqueChapterId,
-  sanitizeChapterDisplayText,
-  sanitizeChapterTitle,
-} from '@/parsers/shared/chapter-number';
+import { formatChapterNumberValue, looksLikeOpaqueChapterId, sanitizeChapterDisplayText, sanitizeChapterTitle } from '@/parsers/shared/chapter-number';
 
 export {
   formatChapterNumberValue,
@@ -49,12 +44,7 @@ export function formatStoredChapterLabel(title?: string | null, key?: string | n
   return undefined;
 }
 
-export function formatEntryChapterLabel(
-  chapter: Chapter | undefined,
-  storedTitle?: string | null,
-  storedKey?: string | null,
-  ordinal?: number,
-): string {
+export function formatEntryChapterLabel(chapter: Chapter | undefined, storedTitle?: string | null, storedKey?: string | null, ordinal?: number): string {
   if (chapter) return formatChapterLabel(chapter, ordinal);
   return formatStoredChapterLabel(storedTitle, storedKey) ?? t('history_unknown_chapter');
 }

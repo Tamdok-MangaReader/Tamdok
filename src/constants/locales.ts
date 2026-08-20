@@ -1,4 +1,4 @@
-import { getLocales } from 'expo-localization';
+import { getLocales, type Locale } from 'expo-localization';
 import en from '../../locale/en.json';
 import ru from '../../locale/ru.json';
 
@@ -12,6 +12,10 @@ export const getLocale = (): SupportedLanguage => {
     return locale as SupportedLanguage;
   }
   return 'en';
+};
+
+export const getExpoLocale = (): Locale => {
+  return getLocales()[0];
 };
 
 let currentLanguage: SupportedLanguage = getLocale();

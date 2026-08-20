@@ -1,16 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  View,
-  type ListRenderItem,
-  type View as ViewType,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View, type ListRenderItem, type View as ViewType } from 'react-native';
 
 import { StarRating } from '@/components/manga/star-rating';
 import { IncognitoModeBanner } from '@/components/settings/incognito-mode-banner';
@@ -24,7 +15,7 @@ import { ProgressRing } from '@/components/ui/progress-ring';
 import { SFSymbolIcon } from '@/components/ui/sf-symbol-icon';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
-import { t } from '@/constants/locales';
+import { t, getLocale, getExpoLocale } from '@/constants/locales';
 import { useSourceCoverHeaders } from '@/context/source-cover-context';
 import { useTheme } from '@/hooks/use-theme';
 import type { Chapter, Manga } from '@/parsers/shared/types';
@@ -207,17 +198,11 @@ export function MangaDetailView({
   const listHeader = useMemo(
     () => (
       <View style={styles.header}>
-        {inlineError ? (
-          <SourceHomeAlertBanner message={inlineError} onDismiss={onDismissInlineError} />
-        ) : null}
+        {inlineError ? <SourceHomeAlertBanner message={inlineError} onDismiss={onDismissInlineError} /> : null}
         <IncognitoModeBanner />
 
         <View style={styles.hero}>
-          <View
-            style={[
-              styles.cover,
-              { width: COVER_WIDTH, height: COVER_HEIGHT, borderRadius: radius.md, backgroundColor: colors.secondaryFill },
-            ]}>
+          <View style={[styles.cover, { width: COVER_WIDTH, height: COVER_HEIGHT, borderRadius: radius.md, backgroundColor: colors.secondaryFill }]}>
             {manga.cover ? (
               <Image
                 source={coverImageSource(manga.cover, coverHeaders)}
@@ -311,20 +296,12 @@ export function MangaDetailView({
                           backgroundColor: inLibrary ? colors.secondaryFill : colors.tint,
                         },
                       ]}>
-                      <Ionicons
-                        name={inLibrary ? 'bookmark' : 'bookmark-outline'}
-                        size={14}
-                        color={inLibrary ? colors.tint : colors.onTint}
-                      />
+                      <Ionicons name={inLibrary ? 'bookmark' : 'bookmark-outline'} size={14} color={inLibrary ? colors.tint : colors.onTint} />
                       <ThemedText variant='footnote' color={inLibrary ? 'tint' : 'onTint'}>
                         {inLibrary ? t('manga_in_library') : t('manga_add_to_library')}
                       </ThemedText>
                       {libraryCategories.some((category) => category.id !== ALL_CATEGORY_ID) ? (
-                        <Ionicons
-                          name={libraryPickerOpen ? 'chevron-up' : 'chevron-down'}
-                          size={13}
-                          color={inLibrary ? colors.tint : colors.onTint}
-                        />
+                        <Ionicons name={libraryPickerOpen ? 'chevron-up' : 'chevron-down'} size={13} color={inLibrary ? colors.tint : colors.onTint} />
                       ) : null}
                     </View>
                   </Pressable>
@@ -483,15 +460,7 @@ export function MangaDetailView({
       tagsExpanded,
       descriptionExpanded,
     }),
-    [
-      chapterSelectMode,
-      selectedChapterKeys,
-      readChapterKeys,
-      downloadedChapterKeys,
-      chapterDownloads,
-      tagsExpanded,
-      descriptionExpanded,
-    ],
+    [chapterSelectMode, selectedChapterKeys, readChapterKeys, downloadedChapterKeys, chapterDownloads, tagsExpanded, descriptionExpanded],
   );
 
   return (
@@ -515,11 +484,7 @@ export function MangaDetailView({
           updateCellsBatchingPeriod={16}
           removeClippedSubviews
           extraData={listExtraData}
-          refreshControl={
-            onRefresh ? (
-              <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.tint} />
-            ) : undefined
-          }
+          refreshControl={onRefresh ? <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={colors.tint} /> : undefined}
           renderScrollComponent={(props) => <LiquidGlassScrollComponent {...props} scrollsToTop={false} />}
         />
       </SwipeableRowsProvider>
@@ -613,11 +578,7 @@ const ChapterRow = memo(function ChapterRow({
       }}
       accessibilityRole='button'>
       {selectMode ? (
-        <Ionicons
-          name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-          size={22}
-          color={isSelected ? colors.tint : colors.tertiaryLabel}
-        />
+        <Ionicons name={isSelected ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={isSelected ? colors.tint : colors.tertiaryLabel} />
       ) : (
         <ThemedText variant='footnote' color='secondaryLabel' style={styles.chapterNumber}>
           {chapterNumberLabel}
@@ -633,12 +594,27 @@ const ChapterRow = memo(function ChapterRow({
             {chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter)}
           </ThemedText>
           <View style={styles.chapterIcons}>
-            {isRead ? (
-              <SFSymbolIcon name='eye.fill' fallback='eye-outline' size={14} color={colors.tertiaryLabel} />
+            {chapter.dateUploaded ? (
+              <View
+                style={[
+                  styles.dateUploaded,
+                  {
+                    backgroundColor: colors.tertiaryFill,
+                  },
+                ]}>
+                <ThemedText
+                  variant='caption2'
+                  style={{
+                    color: colors.secondaryLabel,
+                    fontWeight: '700',
+                    fontVariant: ['tabular-nums'],
+                  }}>
+                  {Intl.DateTimeFormat(getExpoLocale().regionCode || getLocale()).format(new Date(chapter.dateUploaded * 1000))}
+                </ThemedText>
+              </View>
             ) : null}
-            {isLocked ? (
-              <SFSymbolIcon name='lock.fill' fallback='lock-closed-outline' size={14} color={colors.tertiaryLabel} />
-            ) : null}
+            {isRead ? <SFSymbolIcon name='eye.fill' fallback='eye-outline' size={14} color={colors.tertiaryLabel} /> : null}
+            {isLocked ? <SFSymbolIcon name='lock.fill' fallback='lock-closed-outline' size={14} color={colors.tertiaryLabel} /> : null}
             {!isDownloading && isDownloaded ? <Ionicons name='download' size={14} color={DOWNLOADED_COLOR} /> : null}
             {downloadEntry?.status === 'failed' ? <Ionicons name='alert-circle' size={14} color='#FF3B30' /> : null}
           </View>
@@ -894,5 +870,13 @@ const styles = StyleSheet.create({
   },
   loading: {
     paddingVertical: Spacing.xl,
+  },
+  dateUploaded: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

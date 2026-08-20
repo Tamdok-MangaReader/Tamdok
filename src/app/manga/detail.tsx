@@ -15,21 +15,9 @@ import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { useMangaDetail } from '@/hooks/use-manga-detail';
 import { useSourceRunner } from '@/hooks/use-source-runner';
 import type { Chapter } from '@/parsers/shared/types';
-import {
-  getMangaDownloads,
-  queueChapterDownload,
-  removeMangaDownloads,
-  type DownloadEntry,
-} from '@/services/downloads';
+import { getMangaDownloads, queueChapterDownload, removeMangaDownloads, type DownloadEntry } from '@/services/downloads';
 import { processQueuedDownloads } from '@/services/download-processor';
-import {
-  ALL_CATEGORY_ID,
-  getLibraryCategories,
-  getLibraryEntry,
-  isInLibrary,
-  toggleMangaLibraryCategory,
-  type LibraryCategory,
-} from '@/services/library';
+import { ALL_CATEGORY_ID, getLibraryCategories, getLibraryEntry, isInLibrary, toggleMangaLibraryCategory, type LibraryCategory } from '@/services/library';
 import {
   getMangaChapterProgress,
   markAllChaptersRead,
@@ -98,25 +86,15 @@ export default function MangaDetailScreen() {
   const { runner, error } = useSourceRunner(source);
   const refreshTick = useMangaDataRefresh();
   const initialManga = useMemo(
-    () =>
-      mangaFromParams(
-        manifestSourceId,
-        mangaKey,
-        decodeParam(params.title),
-        decodeParam(params.cover),
-        decodeParam(params.url),
-      ),
+    () => mangaFromParams(manifestSourceId, mangaKey, decodeParam(params.title), decodeParam(params.cover), decodeParam(params.url)),
     [manifestSourceId, mangaKey, params.title, params.cover, params.url],
   );
-  const {
-    manga,
-    isLoading,
-    isRefreshing,
-    loadError,
-    hasCachedContent,
-    refresh,
-    dismissError,
-  } = useMangaDetail({ source, runner, initialManga, cacheSourceId });
+  const { manga, isLoading, isRefreshing, loadError, hasCachedContent, refresh, dismissError } = useMangaDetail({
+    source,
+    runner,
+    initialManga,
+    cacheSourceId,
+  });
   const [inLibrary, setInLibraryState] = useState(false);
   const [chapterProgressMap, setChapterProgressMap] = useState<Record<string, ChapterProgress>>({});
   const [readChapterKeys, setReadChapterKeys] = useState<Set<string>>(new Set());
@@ -151,10 +129,7 @@ export default function MangaDetailScreen() {
   selectedChapterKeysRef.current = selectedChapterKeys;
   inLibraryRef.current = inLibrary;
 
-  const mangaPageUrl = useMemo(
-    () => (source ? resolveMangaPageUrl(manga, source.manifest.info.url) : undefined),
-    [manga, source],
-  );
+  const mangaPageUrl = useMemo(() => (source ? resolveMangaPageUrl(manga, source.manifest.info.url) : undefined), [manga, source]);
 
   const refreshDownloads = useCallback(async () => {
     const downloads = await getMangaDownloads(manifestSourceId, mangaKey);
@@ -163,9 +138,7 @@ export default function MangaDetailScreen() {
       nextMap[entry.chapterKey] = entry;
     }
     setChapterDownloads(nextMap);
-    setDownloadedChapterKeys(
-      new Set(downloads.filter((entry) => entry.status === 'completed').map((entry) => entry.chapterKey)),
-    );
+    setDownloadedChapterKeys(new Set(downloads.filter((entry) => entry.status === 'completed').map((entry) => entry.chapterKey)));
   }, [manifestSourceId, mangaKey]);
 
   useEffect(() => {
@@ -181,7 +154,13 @@ export default function MangaDetailScreen() {
       if (cancelled) return;
       setInLibraryState(library);
       setChapterProgressMap(progress);
-      setReadChapterKeys(new Set(Object.values(progress).filter((entry) => entry.page === -1).map((entry) => entry.chapterKey)));
+      setReadChapterKeys(
+        new Set(
+          Object.values(progress)
+            .filter((entry) => entry.page === -1)
+            .map((entry) => entry.chapterKey),
+        ),
+      );
       setLibraryCategories(categories);
       setSelectedCategoryIds(entry?.categoryIds ?? []);
       await refreshDownloads();
@@ -213,17 +192,11 @@ export default function MangaDetailScreen() {
     };
   }, [refreshTick]);
 
-  const chapters = useMemo(
-    () => [...(manga.chapters ?? [])].sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)),
-    [manga.chapters],
-  );
+  const chapters = useMemo(() => [...(manga.chapters ?? [])].sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)), [manga.chapters]);
 
   const chapterKeys = useMemo(() => chapters.map((chapter) => chapter.key), [chapters]);
 
-  const readingTarget = useMemo(
-    () => resolveReadingTarget(chapters, chapterProgressMap),
-    [chapters, chapterProgressMap],
-  );
+  const readingTarget = useMemo(() => resolveReadingTarget(chapters, chapterProgressMap), [chapters, chapterProgressMap]);
 
   const continueLabel = useMemo(() => {
     if (!readingTarget) return t('manga_start_reading');
@@ -235,19 +208,8 @@ export default function MangaDetailScreen() {
     (chapter: Chapter, initialPage?: number) => {
       if (!source) return;
       const saved = chapterProgressMap[chapter.key];
-      const page =
-        initialPage ?? (saved && saved.page >= 0 ? saved.page : 0);
-      router.push(
-        readerHref(
-          sourceRouteId(source),
-          mangaKey,
-          chapter.key,
-          formatChapterLabel(chapter),
-          manga.title,
-          page,
-          manga.cover,
-        ),
-      );
+      const page = initialPage ?? (saved && saved.page >= 0 ? saved.page : 0);
+      router.push(readerHref(sourceRouteId(source), mangaKey, chapter.key, formatChapterLabel(chapter), manga.title, page, manga.cover));
     },
     [chapterProgressMap, router, source, mangaKey, manga.title, manga.cover],
   );
@@ -255,7 +217,13 @@ export default function MangaDetailScreen() {
   const refreshProgress = useCallback(async () => {
     const progress = await getMangaChapterProgress(manifestSourceId, mangaKey);
     setChapterProgressMap(progress);
-    setReadChapterKeys(new Set(Object.values(progress).filter((entry) => entry.page === -1).map((entry) => entry.chapterKey)));
+    setReadChapterKeys(
+      new Set(
+        Object.values(progress)
+          .filter((entry) => entry.page === -1)
+          .map((entry) => entry.chapterKey),
+      ),
+    );
   }, [manifestSourceId, mangaKey]);
 
   useEffect(() => {
@@ -311,9 +279,7 @@ export default function MangaDetailScreen() {
   const handleToggleCategory = useCallback(
     (categoryId: string) => {
       setSelectedCategoryIds((previous) => {
-        const next = previous.includes(categoryId)
-          ? previous.filter((id) => id !== categoryId)
-          : [...previous, categoryId];
+        const next = previous.includes(categoryId) ? previous.filter((id) => id !== categoryId) : [...previous, categoryId];
         return next;
       });
       setInLibraryState(true);
@@ -500,11 +466,7 @@ export default function MangaDetailScreen() {
 
   const headerLeft = useCallback(
     () => (
-      <MangaDetailHeaderLeft
-        chapterSelectMode={chapterSelectMode}
-        onBack={() => router.back()}
-        onCancelSelect={() => handlersRef.current.onCancelSelect()}
-      />
+      <MangaDetailHeaderLeft chapterSelectMode={chapterSelectMode} onBack={() => router.back()} onCancelSelect={() => handlersRef.current.onCancelSelect()} />
     ),
     [chapterSelectMode, router],
   );
@@ -521,13 +483,8 @@ export default function MangaDetailScreen() {
 
   const combinedError = error ?? loadError;
   const hasDisplayContent =
-    hasCachedContent ||
-    Boolean(manga.title?.trim()) ||
-    Boolean(manga.cover) ||
-    Boolean(manga.description?.trim()) ||
-    (manga.chapters?.length ?? 0) > 0;
-  const showBlockingError =
-    Boolean(combinedError) && !hasDisplayContent && !isLoading;
+    hasCachedContent || Boolean(manga.title?.trim()) || Boolean(manga.cover) || Boolean(manga.description?.trim()) || (manga.chapters?.length ?? 0) > 0;
+  const showBlockingError = Boolean(combinedError) && !hasDisplayContent && !isLoading;
   const showInlineError = Boolean(combinedError) && !showBlockingError;
   const showInitialLoading = isLoading && !hasCachedContent && !hasDisplayContent;
   const showChapterLoading = isLoading && chapters.length === 0;
@@ -554,11 +511,7 @@ export default function MangaDetailScreen() {
           }}
         />
         <ScreenContent centerContent>
-          <EmptyState
-            icon='alert-circle-outline'
-            title={t('sources_load_error_title')}
-            description={combinedError!}
-          />
+          <EmptyState icon='alert-circle-outline' title={t('sources_load_error_title')} description={combinedError!} />
         </ScreenContent>
       </SourceCoverHeadersProvider>
     );
