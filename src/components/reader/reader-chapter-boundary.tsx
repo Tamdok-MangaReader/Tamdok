@@ -8,37 +8,40 @@ type ReaderChapterBoundaryProps = {
   kind: 'start' | 'end';
   chapterLabel: string;
   nextChapterLabel?: string | null;
+  previousChapterLabel?: string | null;
   foregroundColor: string;
   compact?: boolean;
   safeInset?: number;
   onPress?: () => void;
   onContinue?: () => void;
+  onPrevious?: () => void;
 };
 
 export function ReaderChapterBoundary({
   kind,
   chapterLabel,
   nextChapterLabel,
+  previousChapterLabel,
   foregroundColor,
   compact = false,
   safeInset = 0,
   onPress,
   onContinue,
+  onPrevious,
 }: ReaderChapterBoundaryProps) {
-  const title =
-    kind === 'start'
-      ? t('reader_chapter_started', { title: chapterLabel })
-      : t('reader_chapter_finished', { title: chapterLabel });
+  const title = kind === 'start' ? t('reader_chapter_started', { title: chapterLabel }) : t('reader_chapter_finished', { title: chapterLabel });
   const subtitle =
     kind === 'end'
       ? nextChapterLabel
         ? t('reader_chapter_next_hint', { title: nextChapterLabel })
         : t('reader_chapter_last')
-      : t('reader_chapter_started_hint');
+      : previousChapterLabel
+        ? t('reader_chapter_previous_hint', { title: previousChapterLabel })
+        : t('reader_chapter_started_hint');
 
   return (
     <Pressable
-      onPress={kind === 'end' && onContinue && nextChapterLabel ? onContinue : onPress}
+      onPress={kind === 'end' && onContinue && nextChapterLabel ? onContinue : kind === 'start' && onPrevious && previousChapterLabel ? onPrevious : onPress}
       style={[
         styles.root,
         compact && styles.rootCompact,

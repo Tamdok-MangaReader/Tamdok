@@ -37,7 +37,7 @@ export function ReaderChapterSheet({ visible, onClose }: ReaderChapterSheetProps
                   onClose();
                 }}>
                 <ThemedText variant='body' color={selected ? 'tint' : 'label'} numberOfLines={1}>
-                  {chapterTitleForDisplay(item) || formatChapterLabel(item)}
+                  {`${item.chapterNumber ? `${item.chapterNumber}. ` : ''}${chapterTitleForDisplay(item) || formatChapterLabel(item)}`}
                 </ThemedText>
               </Pressable>
             );

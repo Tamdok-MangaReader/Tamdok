@@ -411,6 +411,7 @@
   "reader_chapter_started_hint": "Tap to show reader controls",
   "reader_chapter_finished": "{title} finished",
   "reader_chapter_next_hint": "Next: {title}",
+  "reader_chapter_previous_hint": "Previous: {title}",
   "reader_chapter_last": "This is the last chapter",
   "reader_manga_reading_mode": "Reading mode for this manga",
   "reader_manga_reading_mode_hint": "Overrides the global reading mode while reading this title.",

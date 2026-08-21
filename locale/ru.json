@@ -411,6 +411,7 @@
   "reader_chapter_started_hint": "Нажмите, чтобы показать меню читалки",
   "reader_chapter_finished": "Глава закончена: {title}",
   "reader_chapter_next_hint": "Дальше: {title}",
+  "reader_chapter_previous_hint": "Предыдущая: {title}",
   "reader_chapter_last": "Это последняя глава",
   "reader_manga_reading_mode": "Режим для этой манги",
   "reader_manga_reading_mode_hint": "Переопределяет глобальный режим чтения для этого тайтла.",
