@@ -31,6 +31,8 @@ import { chaptersOldestFirst, formatChapterLabel } from '@/utils/chapter-label';
 import { subscribeMangaData } from '@/utils/manga-events';
 import { mangaFromParams, readerHref } from '@/utils/manga-route';
 import { resolveMangaPageUrl } from '@/utils/manga-url';
+import { getAppSettings } from '@/services/app-settings';
+import { subscribeAppSettings } from '@/utils/app-settings-events';
 
 const styles = StyleSheet.create({
   headerActions: {
@@ -105,6 +107,7 @@ export default function MangaDetailScreen() {
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [chapterSelectMode, setChapterSelectMode] = useState(false);
   const [selectedChapterKeys, setSelectedChapterKeys] = useState<Set<string>>(new Set());
+  const [showBigMangaCover, setShowBigMangaCover] = useState(true);
 
   const handlersRef = useRef({
     onCancelSelect: () => {},
@@ -130,6 +133,17 @@ export default function MangaDetailScreen() {
   inLibraryRef.current = inLibrary;
 
   const mangaPageUrl = useMemo(() => (source ? resolveMangaPageUrl(manga, source.manifest.info.url) : undefined), [manga, source]);
+
+  const loadSettings = useCallback(async () => {
+    const [settings] = await Promise.all([getAppSettings()]);
+    setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
+  }, []);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings, refreshTick]);
+
+  useEffect(() => subscribeAppSettings(() => void loadSettings()), [loadSettings]);
 
   const refreshDownloads = useCallback(async () => {
     const downloads = await getMangaDownloads(manifestSourceId, mangaKey);
@@ -553,6 +567,7 @@ export default function MangaDetailScreen() {
         continueLabel={continueLabel}
         chapterSelectMode={chapterSelectMode}
         selectedChapterKeys={selectedChapterKeys}
+        showBigMangaCover={showBigMangaCover}
         inlineError={showInlineError ? combinedError : null}
         onDismissInlineError={dismissError}
         isLoading={showChapterLoading}

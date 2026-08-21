@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, StyleSheet } from 'react-native';
+import { Alert, Platform, StyleSheet, View, Switch } from 'react-native';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
 
 import { InlinePillGrid } from '@/components/library/inline-pill-grid';
@@ -16,7 +16,7 @@ import type { AccentColorId } from '@/constants/accent-colors';
 import type { AppIconId } from '@/constants/app-icons';
 import { useAppearance } from '@/context/appearance-context';
 import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
-import { getAppSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
+import { getAppSettings, MangaScreenSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 
 const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
@@ -28,10 +28,12 @@ export default function AppearanceScreen() {
   const isDark = resolvedColorScheme === 'dark';
   const selectedIndex = THEME_MODES.indexOf(themeMode);
   const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
+  const [showBigMangaCover, setShowBigMangaCover] = useState(true);
 
   const load = useCallback(async () => {
     const settings = await getAppSettings();
     setGridSize(settings.libraryDisplay.gridSize);
+    setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
   }, []);
 
   useEffect(() => {
@@ -42,6 +44,14 @@ export default function AppearanceScreen() {
     id: size,
     label: t(`library_grid_size_${size}`),
   }));
+
+  const updateMangaScreenSettings = (next: Partial<MangaScreenSettings>) => {
+    void getAppSettings().then((settings) =>
+      updateAppSettings({
+        mangaScreen: { ...settings.mangaScreen, ...next },
+      }),
+    );
+  };
 
   const handleAppIconSelect = (id: AppIconId) => {
     if (Platform.OS !== 'ios') {
@@ -54,6 +64,36 @@ export default function AppearanceScreen() {
     }
     void setAppIconId(id);
   };
+
+  function SwitchRow({
+    label,
+    hint,
+    value,
+    onChange,
+    isFirst,
+    isLast,
+  }: {
+    label: string;
+    hint?: string;
+    value: boolean;
+    onChange: (value: boolean) => void;
+    isFirst?: boolean;
+    isLast?: boolean;
+  }) {
+    return (
+      <View style={[styles.switchRow, isFirst && { paddingTop: Spacing.lg }, isLast && { paddingBottom: Spacing.lg }]}>
+        <View style={styles.switchText}>
+          <ThemedText variant='body'>{label}</ThemedText>
+          {hint ? (
+            <ThemedText variant='footnote' color='secondaryLabel'>
+              {hint}
+            </ThemedText>
+          ) : null}
+        </View>
+        <Switch value={value} onValueChange={onChange} />
+      </View>
+    );
+  }
 
   return (
     <>
@@ -117,6 +157,20 @@ export default function AppearanceScreen() {
             {t('library_grid_size_hint')}
           </ThemedText>
         </Card>
+
+        <SectionLabel>{t('library_manga_screen_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('show_big_manga_cover')}
+            value={showBigMangaCover}
+            onChange={(value) => {
+              setShowBigMangaCover(value);
+              updateMangaScreenSettings({ showBigMangaCover: value });
+            }}
+            isFirst
+            isLast
+          />
+        </Card>
       </ScreenContent>
     </>
   );
@@ -129,5 +183,17 @@ const styles = StyleSheet.create({
   },
   segmented: {
     height: 36,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  switchText: {
+    flex: 1,
+    gap: 2,
   },
 });

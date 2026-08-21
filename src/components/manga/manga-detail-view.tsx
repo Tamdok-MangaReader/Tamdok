@@ -8,6 +8,7 @@ import { IncognitoModeBanner } from '@/components/settings/incognito-mode-banner
 import { LibraryCategoryDropdown, type CategoryDropdownAnchor } from '@/components/library/library-category-dropdown';
 import { SourceHomeAlertBanner } from '@/components/sources/source-home-alert-banner';
 import { SwipeableRow, SwipeableRowsProvider, type SwipeAction } from '@/components/sources/swipeable-row';
+import { MangaBackground } from '@/components/manga/manga-image-background';
 import { EmptyState } from '@/components/ui/empty-state';
 import { GlassSurface } from '@/components/ui/glass-surface';
 import { LiquidGlassScrollComponent } from '@/components/ui/liquid-glass-scroll-root';
@@ -66,6 +67,7 @@ type MangaDetailViewProps = {
   chapterSelectMode?: boolean;
   contentBottomInset?: number;
   selectedChapterKeys?: Set<string>;
+  showBigMangaCover?: boolean;
   inlineError?: string | null;
   onDismissInlineError?: () => void;
   isLoading: boolean;
@@ -100,6 +102,7 @@ export function MangaDetailView({
   chapterSelectMode = false,
   contentBottomInset = 0,
   selectedChapterKeys,
+  showBigMangaCover,
   inlineError,
   onDismissInlineError,
   isLoading,
@@ -202,6 +205,7 @@ export function MangaDetailView({
         <IncognitoModeBanner />
 
         <View style={styles.hero}>
+          {showBigMangaCover && manga.cover ? <MangaBackground source={coverImageSource(manga.cover, coverHeaders)} /> : null}
           <View style={[styles.cover, { width: COVER_WIDTH, height: COVER_HEIGHT, borderRadius: radius.md, backgroundColor: colors.secondaryFill }]}>
             {manga.cover ? (
               <Image

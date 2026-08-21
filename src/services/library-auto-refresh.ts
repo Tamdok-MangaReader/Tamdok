@@ -1,8 +1,5 @@
 import type { InstalledSource } from '@/parsers/shared/types';
-import {
-  getLibraryUpdateSettings,
-  LIBRARY_UPDATE_INTERVAL_MS,
-} from '@/services/library';
+import { getLibraryUpdateSettings, LIBRARY_UPDATE_INTERVAL_MS } from '@/services/library';
 import { refreshLibraryEntries } from '@/services/library-refresh';
 
 let refreshInFlight = false;

@@ -82,12 +82,17 @@ export type DebugSettings = {
   showReaderPageNumbers: boolean;
 };
 
+export type MangaScreenSettings = {
+  showBigMangaCover: boolean;
+};
+
 export type AppSettings = {
   incognitoMode: boolean;
   reader: ReaderSettings;
   dictionary: DictionarySettings;
   downloads: DownloadSettings;
   libraryDisplay: LibraryDisplaySettings;
+  mangaScreen: MangaScreenSettings;
   debug: DebugSettings;
 };
 
@@ -151,6 +156,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     gridSize: 'medium',
     sortMode: 'unread',
   },
+  mangaScreen: {
+    showBigMangaCover: false,
+  },
   debug: {
     showReaderPageNumbers: false,
   },
@@ -164,10 +172,7 @@ async function readSettings(): Promise<AppSettings> {
     reader: {
       ...DEFAULT_SETTINGS.reader,
       ...(stored.reader ?? {}),
-      readingMode:
-        stored.reader?.readingMode && stored.reader.readingMode !== 'default'
-          ? stored.reader.readingMode
-          : DEFAULT_SETTINGS.reader.readingMode,
+      readingMode: stored.reader?.readingMode && stored.reader.readingMode !== 'default' ? stored.reader.readingMode : DEFAULT_SETTINGS.reader.readingMode,
       hideStatusBarWithMenu: stored.reader?.hideStatusBarWithMenu ?? DEFAULT_SETTINGS.reader.hideStatusBarWithMenu,
     },
     dictionary: { ...DEFAULT_SETTINGS.dictionary, ...(stored.dictionary ?? {}) },
@@ -177,16 +182,13 @@ async function readSettings(): Promise<AppSettings> {
       ...stored.libraryDisplay,
       gridSize: stored.libraryDisplay?.gridSize ?? DEFAULT_SETTINGS.libraryDisplay.gridSize,
       sortMode: stored.libraryDisplay?.sortMode ?? DEFAULT_SETTINGS.libraryDisplay.sortMode,
-      showCategoryCountBadges:
-        stored.libraryDisplay?.showCategoryCountBadges ?? DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
-      showEmptyCategoryCountBadges:
-        stored.libraryDisplay?.showEmptyCategoryCountBadges ??
-        DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,
-      showLibraryRefreshStatus:
-        stored.libraryDisplay?.showLibraryRefreshStatus ?? DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshStatus,
-      showLibraryRefreshLiveActivity:
-        stored.libraryDisplay?.showLibraryRefreshLiveActivity ??
-        DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshLiveActivity,
+      showCategoryCountBadges: stored.libraryDisplay?.showCategoryCountBadges ?? DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
+      showEmptyCategoryCountBadges: stored.libraryDisplay?.showEmptyCategoryCountBadges ?? DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,
+      showLibraryRefreshStatus: stored.libraryDisplay?.showLibraryRefreshStatus ?? DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshStatus,
+      showLibraryRefreshLiveActivity: stored.libraryDisplay?.showLibraryRefreshLiveActivity ?? DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshLiveActivity,
+    },
+    mangaScreen: {
+      showBigMangaCover: stored.mangaScreen?.showBigMangaCover ?? DEFAULT_SETTINGS.mangaScreen.showBigMangaCover,
     },
     debug: {
       ...DEFAULT_SETTINGS.debug,
@@ -211,6 +213,7 @@ export async function updateAppSettings(patch: Partial<AppSettings>): Promise<Ap
     dictionary: { ...current.dictionary, ...patch.dictionary },
     downloads: { ...current.downloads, ...patch.downloads },
     libraryDisplay: { ...current.libraryDisplay, ...patch.libraryDisplay },
+    mangaScreen: { ...current.mangaScreen, ...patch.mangaScreen },
     debug: { ...current.debug, ...patch.debug },
   };
   await writeSettings(next);
