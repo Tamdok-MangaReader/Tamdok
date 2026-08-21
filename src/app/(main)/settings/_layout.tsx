@@ -8,8 +8,8 @@ export default function SettingsLayout() {
   return (
     <Stack screenOptions={stackScreenOptions}>
       <Stack.Screen name='index' />
-      <Stack.Screen name='appearance' options={{ title: '' }} />
-      <Stack.Screen name='notifications' options={{ title: '' }} />
+      <Stack.Screen name='appearance' options={{ headerLargeTitle: false, title: '' }} />
+      <Stack.Screen name='notifications' options={{ headerLargeTitle: false, title: '' }} />
       <Stack.Screen name='sources' options={{ headerLargeTitle: false, title: '' }} />
       <Stack.Screen name='source/[sourceId]' options={{ headerLargeTitle: false, title: '' }} />
       <Stack.Screen name='library' options={{ headerLargeTitle: false, title: '' }} />
