@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
     left: -20,
     zIndex: -3,
     width: '120%',
-    height: '180%',
+    height: 350,
   },
   blur: {
     display: 'flex',

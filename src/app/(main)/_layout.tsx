@@ -7,10 +7,7 @@ import { useNavigationTheme } from '@/hooks/use-navigation-theme';
 export default function MainTabLayout() {
   const { tabTintColor, tabIconColor } = useNavigationTheme();
 
-  const tabIconColors = useMemo(
-    () => ({ default: tabIconColor, selected: tabTintColor }),
-    [tabIconColor, tabTintColor],
-  );
+  const tabIconColors = useMemo(() => ({ default: tabIconColor, selected: tabTintColor }), [tabIconColor, tabTintColor]);
 
   return (
     <NativeTabs tintColor={tabTintColor} iconColor={tabIconColors}>

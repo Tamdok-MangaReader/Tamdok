@@ -108,7 +108,7 @@ export default function MangaDetailScreen() {
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [chapterSelectMode, setChapterSelectMode] = useState(false);
   const [selectedChapterKeys, setSelectedChapterKeys] = useState<Set<string>>(new Set());
-  const [showBigMangaCover, setShowBigMangaCover] = useState(true);
+  const [showBigMangaCover, setShowBigMangaCover] = useState(false);
 
   const handlersRef = useRef({
     onCancelSelect: () => {},
@@ -179,6 +179,7 @@ export default function MangaDetailScreen() {
       setLibraryCategories(categories);
       setSelectedCategoryIds(entry?.categoryIds ?? []);
       await refreshDownloads();
+      await loadSettings();
     };
 
     if (hasCachedContent) {

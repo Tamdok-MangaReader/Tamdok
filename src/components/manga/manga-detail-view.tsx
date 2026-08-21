@@ -247,7 +247,9 @@ export function MangaDetailView({
           </View>
 
           <View style={styles.heroMeta}>
-            <ThemedText variant='title2'>{manga.title}</ThemedText>
+            <ThemedText variant='title2' numberOfLines={2}>
+              {manga.title}
+            </ThemedText>
             {sourceName ? (
               <View style={styles.sourceRow}>
                 <ThemedText variant='footnote' color='tint'>
@@ -263,9 +265,16 @@ export function MangaDetailView({
               </View>
             ) : null}
             {altTitles.length > 0 ? (
-              <ThemedText variant='subheadline' color='tertiaryLabel'>
-                {altTitles.join(', ')}
-              </ThemedText>
+              <View style={styles.altTitles}>
+                <ThemedText variant='subheadline' color='tertiaryLabel' numberOfLines={1}>
+                  {altTitles[0]}
+                </ThemedText>
+                {altTitles.length > 1 ? (
+                  <View style={[styles.caltTitleBadge, { backgroundColor: colors.fill }]}>
+                    <ThemedText variant='caption1' color='tertiaryLabel'>{`+${altTitles.length - 1}`}</ThemedText>
+                  </View>
+                ) : null}
+              </View>
             ) : null}
             {authors ? (
               <ThemedText variant='subheadline' color='secondaryLabel'>
@@ -388,7 +397,7 @@ export function MangaDetailView({
               {visibleTags.map((tag) => (
                 <GlassSurface key={tag} borderRadius={radius.pill}>
                   <View style={styles.tagPill}>
-                    <ThemedText variant='caption1' color='secondaryLabel' numberOfLines={1}>
+                    <ThemedText variant='footnote' color='secondaryLabel' numberOfLines={1}>
                       {tag}
                     </ThemedText>
                   </View>
@@ -934,5 +943,18 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'row',
     gap: Spacing.xs,
+  },
+  altTitles: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  caltTitleBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
