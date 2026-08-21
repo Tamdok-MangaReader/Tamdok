@@ -109,6 +109,13 @@ export async function invokeExport(
   const ptr = callExport(instance, method, descriptors);
   env.memory = instance.exports.memory;
   const decoded = decodeResult(env, instance, method, ptr);
+  env.store = new GlobalStore();
+  const memoryBytes = instance.exports.memory.buffer.byteLength;
+  // WASM linear memory never shrinks; drop the cached instance after large HTML parses.
+  if (memoryBytes > 96 * 1024 * 1024) {
+    resetWasmSourceRuntime(ctx.sourceId);
+    env.memory = null;
+  }
   return normalizeResult(method, decoded);
 }
 

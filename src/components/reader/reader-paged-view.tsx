@@ -226,7 +226,7 @@ export function ReaderPagedView({
 
   const orientation = mode === 'vertical' ? 'vertical' : 'horizontal';
   const layoutDirection = mode === 'rtl' ? 'rtl' : 'ltr';
-  const offscreenLimit = Math.max(4, Math.min(8, settings.pagesToPreload));
+  const offscreenLimit = Math.max(1, Math.min(2, settings.pagesToPreload));
 
   const chapterLabel = useMemo(
     () => chapterTitleForDisplay(chapter) || formatChapterLabel(chapter),
@@ -300,22 +300,26 @@ export function ReaderPagedView({
                     onPress={actions.toggleBars}
                   />
                 ) : null}
-                <View style={styles.spread}>
-                  <ReaderSpreadPage
-                    pages={spread.pages}
-                    settings={settings}
-                    dictionarySettings={dictionarySettings}
-                    coverHeaders={coverHeaders}
-                    backgroundColor={backgroundColor}
-                    mode={mode === 'vertical' ? 'vertical' : mode === 'rtl' ? 'rtl' : 'ltr'}
-                    onSingleTap={handleTap}
-                    onLongPress={(page, x, y) => openQuickActions(page, x, y)}
-                    onDictionaryLookup={(page, x, y) =>
-                      actions.lookupDictionary(page.url ?? '', x, y, { width, height })
-                    }
-                    reloadKeys={reloadKeys}
-                  />
-                </View>
+                {Math.abs(index - currentSpreadIndex) <= offscreenLimit ? (
+                  <View style={styles.spread}>
+                    <ReaderSpreadPage
+                      pages={spread.pages}
+                      settings={settings}
+                      dictionarySettings={dictionarySettings}
+                      coverHeaders={coverHeaders}
+                      backgroundColor={backgroundColor}
+                      mode={mode === 'vertical' ? 'vertical' : mode === 'rtl' ? 'rtl' : 'ltr'}
+                      onSingleTap={handleTap}
+                      onLongPress={(page, x, y) => openQuickActions(page, x, y)}
+                      onDictionaryLookup={(page, x, y) =>
+                        actions.lookupDictionary(page.url ?? '', x, y, { width, height })
+                      }
+                      reloadKeys={reloadKeys}
+                    />
+                  </View>
+                ) : (
+                  <View style={styles.spread} />
+                )}
                 {index === spreads.length - 1 ? (
                   <ReaderChapterBoundary
                     kind='end'

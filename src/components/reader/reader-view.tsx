@@ -48,6 +48,7 @@ import {
 } from '@/utils/reader-mode';
 import { materializeReaderPages, buildReaderPages, probeReaderImageDimensions, type ReaderPage } from '@/utils/reader-pages';
 import { prefetchReaderPagesAhead } from '@/utils/reader-prefetch';
+import { clearDecodedImageCache } from '@/utils/image-memory';
 import type { ResolvedReadingMode } from '@/services/app-settings';
 
 const BARS_IDLE_HIDE_MS = 12_000;
@@ -483,6 +484,12 @@ export function ReaderView({
         });
     };
   }, [chapter.key]);
+
+  useEffect(() => {
+    return () => {
+      clearDecodedImageCache();
+    };
+  }, []);
 
   const handleLocationChange = useCallback(
     (nextChapter: Chapter, pageIndex: number, pageCount: number) => {

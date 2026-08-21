@@ -10,6 +10,7 @@ import { Spacing } from '@/constants/theme';
 import { useSourceCoverHeaders } from '@/context/source-cover-context';
 import { useTheme } from '@/hooks/use-theme';
 import { coverImageSource } from '@/utils/cover-image-source';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 
 type MangaCoverProps = {
   title: string;
@@ -67,6 +68,8 @@ export function MangaCover({
             style={StyleSheet.absoluteFill}
             contentFit='cover'
             recyclingKey={cover}
+            cachePolicy={IMAGE_CACHE_POLICY}
+            allowDownscaling
             transition={0}
           />
         ) : (

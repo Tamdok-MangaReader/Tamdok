@@ -76,13 +76,16 @@ export function useReaderChapterWindow({
 
       try {
         const rawPages = await loadChapterPages(adjacent);
-        const pages = await materializeReaderPages(rawPages, settings, adjacent.key, requestHeaders, 'full');
+        const pages = await materializeReaderPages(rawPages, settings, adjacent.key, requestHeaders, 'headers');
         if (pages.length === 0) return;
 
         setSegments((existing) => {
           if (existing.some((segment) => segment.chapter.key === adjacent.key)) return existing;
           const nextSegment = { chapter: adjacent, pages };
-          return direction === 'previous' ? [nextSegment, ...existing] : [...existing, nextSegment];
+          const merged = direction === 'previous' ? [nextSegment, ...existing] : [...existing, nextSegment];
+          // Keep only prev/current/next decoded chapter windows in JS + native views.
+          if (merged.length <= 3) return merged;
+          return direction === 'previous' ? merged.slice(0, 3) : merged.slice(-3);
         });
       } catch {
         // Adjacent chapters are best-effort.

@@ -24,6 +24,7 @@ import { ALL_CATEGORY_ID, type LibraryCategory } from '@/services/library';
 import type { DownloadEntry } from '@/services/downloads';
 import { chapterTitleForDisplay, formatChapterLabel, formatChapterNumberValue } from '@/utils/chapter-label';
 import { coverImageSource } from '@/utils/cover-image-source';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 import { parseMangaDescription, parseRatingText } from '@/utils/manga-description';
 import { Icon } from 'expo-router';
 
@@ -214,6 +215,8 @@ export function MangaDetailView({
                 style={StyleSheet.absoluteFill}
                 contentFit='cover'
                 recyclingKey={manga.cover}
+                cachePolicy={IMAGE_CACHE_POLICY}
+                allowDownscaling
                 transition={200}
               />
             ) : (

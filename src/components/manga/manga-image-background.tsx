@@ -2,6 +2,8 @@ import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
+
 type MangaBackgroundProps = {
   source: {
     isAnimated?: true | undefined;
@@ -14,7 +16,7 @@ export function MangaBackground({ source }: MangaBackgroundProps) {
   return (
     <>
       <View style={styles.root}>
-        <Image source={source} style={styles.image} contentFit='cover' recyclingKey={`background-${source.uri}`} transition={200} />
+        <Image source={source} style={styles.image} contentFit='cover' recyclingKey={`background-${source.uri}`} cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling transition={200} />
       </View>
       <BlurView intensity={40} style={styles.blur} />
     </>
@@ -43,6 +45,6 @@ const styles = StyleSheet.create({
   image: {
     display: 'flex',
     height: '100%',
-    backgroundColor: 'red',
+    backgroundColor: 'transparent',
   },
 });

@@ -147,6 +147,9 @@ export class WasmEnv {
 
   writeStdout(text: string): void {
     this.stdout += text;
+    if (this.stdout.length > 16_384) {
+      this.stdout = this.stdout.slice(-8_192);
+    }
   }
 
   readU32(ptr: Ptr): number {

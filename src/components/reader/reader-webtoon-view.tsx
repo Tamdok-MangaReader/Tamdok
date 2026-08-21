@@ -547,10 +547,11 @@ export function ReaderWebtoonView({
         contentContainerStyle={styles.listContent}
         pagingEnabled={false}
         decelerationRate={mode === 'continuous' ? 'normal' : 'fast'}
-        initialNumToRender={Math.max(4, settings.pagesToPreload)}
-        windowSize={Math.max(11, settings.pagesToPreload + 8)}
-        maxToRenderPerBatch={6}
-        removeClippedSubviews={false}
+        initialNumToRender={2}
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        updateCellsBatchingPeriod={50}
+        removeClippedSubviews
         extraData={`${debugShowPageNumbers ? 1 : 0}:${stripItems.length}:${contentWidth}:${headerHeight}:${heightTick}`}
         getItemLayout={(_, index) => ({
           length: heightForItem(stripItems[index]),

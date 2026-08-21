@@ -21,6 +21,7 @@ import {
   setPendingRegistryDeepLink,
 } from '@/utils/registry-deep-link';
 import { shouldShowWelcome, markWelcomeCompleted, subscribeWelcomeReplay } from '@/utils/welcome-data-loader';
+import { installImageMemoryReclaimer } from '@/utils/image-memory';
 
 export const unstable_settings = {
   initialRouteName: '(main)',
@@ -67,6 +68,7 @@ function RootLayoutContent() {
   }, []);
 
   useEffect(() => subscribeWelcomeReplay(() => setShowWelcome(true)), []);
+  useEffect(() => installImageMemoryReclaimer(), []);
 
   useEffect(() => {
     if (isLoading || showWelcome) return;

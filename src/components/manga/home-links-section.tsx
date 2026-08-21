@@ -7,6 +7,7 @@ import { useSourceCoverHeaders } from '@/context/source-cover-context';
 import { useTheme } from '@/hooks/use-theme';
 import type { HomeNavigationLink, Listing, Manga } from '@/parsers/shared/types';
 import { coverImageSource } from '@/utils/cover-image-source';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 
 type HomeLinksSectionProps = {
   title?: string;
@@ -62,7 +63,7 @@ export function HomeLinksSection({
             onPress={() => handlePress(link)}>
             {link.imageUrl ? (
               <View style={[styles.thumb, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
-                <Image source={coverImageSource(link.imageUrl, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' />
+                <Image source={coverImageSource(link.imageUrl, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling recyclingKey={link.imageUrl} />
               </View>
             ) : null}
             <View style={styles.text}>

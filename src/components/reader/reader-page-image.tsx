@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/ui/themed-text';
 import { t } from '@/constants/locales';
 import type { DictionarySettings, ReaderSettings } from '@/services/app-settings';
 import { coverImageSource } from '@/utils/cover-image-source';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 import {
   READER_DEFAULT_ASPECT_RATIO,
   readerPageAspectFromSize,
@@ -383,7 +384,7 @@ export function ReaderPageImage({
                 style={[imageStyle, showPlaceholder ? styles.loadingImage : null]}
                 contentFit={resolvedFit}
                 allowDownscaling
-                cachePolicy={settings.downsampleImages ? 'memory-disk' : 'disk'}
+                cachePolicy={IMAGE_CACHE_POLICY}
                 recyclingKey={`${page.id}:${retryTick}`}
                 transition={0}
                 pointerEvents={Platform.OS === 'ios' && settings.liveText ? 'auto' : 'none'}

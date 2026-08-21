@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 import type { Manga } from '@/parsers/shared/types';
 import { normalizeManga } from '@/parsers/shared/normalize-manga';
+import { LruMap } from '@/utils/lru-map';
 
 export type MangaDetailCacheEntry = {
   manga: Manga;
@@ -9,7 +10,7 @@ export type MangaDetailCacheEntry = {
 };
 
 const CACHE_DIR = `${FileSystem.documentDirectory}manga-detail-cache/`;
-const memoryCache = new Map<string, MangaDetailCacheEntry>();
+const memoryCache = new LruMap<MangaDetailCacheEntry>(40);
 
 function normalizeMangaKey(mangaKey: string): string {
   try {

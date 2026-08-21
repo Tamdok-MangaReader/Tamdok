@@ -9,6 +9,7 @@ import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import type { InstalledSource, RegistryEntry } from '@/parsers/shared/types';
 import { useTheme } from '@/hooks/use-theme';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 
 type SourceListItemProps = {
   title: string;
@@ -67,7 +68,7 @@ export const SourceListItem = memo(function SourceListItem({
             source={imageSource}
             style={[styles.icon, { borderRadius: radius.sm }]}
             contentFit='cover'
-            cachePolicy='memory-disk'
+            cachePolicy={IMAGE_CACHE_POLICY}
             recyclingKey={iconUri}
             transition={imageTransition}
           />

@@ -1,4 +1,5 @@
 import type { Page } from '@/parsers/shared/types';
+import { LruMap } from '@/utils/lru-map';
 import { filterRenderablePages } from '@/utils/reader-pages';
 
 type ReaderPageCacheEntry = {
@@ -6,7 +7,7 @@ type ReaderPageCacheEntry = {
   cachedAt: number;
 };
 
-const memoryCache = new Map<string, ReaderPageCacheEntry>();
+const memoryCache = new LruMap<ReaderPageCacheEntry>(8);
 
 function normalizeKey(value: string): string {
   try {

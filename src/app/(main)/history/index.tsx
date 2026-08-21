@@ -22,6 +22,7 @@ import { getHistoryEntries, removeChapterFromHistory, removeHistorySince, remove
 import { peekMangaDetailCache } from '@/services/manga-detail-cache';
 import { findInstalledSource, sourceRouteId } from '@/services/sources';
 import { coverImageSource } from '@/utils/cover-image-source';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 import { mangaHref, readerHref } from '@/utils/manga-route';
 
 const VISIBLE_CHAPTER_LIMIT = 5;
@@ -181,7 +182,7 @@ function HistoryMangaGroup({
     <Pressable style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]} onPress={() => onOpenManga(group)}>
       <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
         {group.cover && coverHeadersReady ? (
-          <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy='memory-disk' />
+          <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling />
         ) : (
           <ThemedText variant='title3' color='tertiaryLabel'>
             {group.mangaTitle.slice(0, 1)}

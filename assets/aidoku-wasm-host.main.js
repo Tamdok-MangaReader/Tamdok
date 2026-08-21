@@ -1879,6 +1879,9 @@ var AidokuWasmHostBundle = (() => {
     }
     writeStdout(text) {
       this.stdout += text;
+      if (this.stdout.length > 16384) {
+        this.stdout = this.stdout.slice(-8192);
+      }
     }
     readU32(ptr) {
       const view = this.memoryView();
@@ -1926,6 +1929,7 @@ var AidokuWasmHostBundle = (() => {
         view.setInt32(ptr + index * 4, value, true);
       });
     }
+    /** Read Aidoku FFI result blob from linear memory (see decodeResult in runner.ts). */
     readResultBytes(ptr) {
       const len = this.readI32(ptr);
       if (len === -1) {
@@ -3453,6 +3457,45 @@ var AidokuWasmHostBundle = (() => {
       }
     }
     return { summary, altTitle, altTitles, ratingLine };
+  }
+
+  // parsers/shared/chapter-number.ts
+  var MAX_PLAUSIBLE_CHAPTER = 1e9;
+  function sanitizeChapterNumber(value) {
+    if (value == null || !Number.isFinite(value)) return void 0;
+    const rounded = Math.round(value * 1e3) / 1e3;
+    if (!Number.isFinite(rounded) || Math.abs(rounded) >= MAX_PLAUSIBLE_CHAPTER) return void 0;
+    return Object.is(rounded, -0) ? 0 : rounded;
+  }
+  function formatChapterNumberValue(value) {
+    const n = sanitizeChapterNumber(value);
+    if (n == null) return "";
+    if (Number.isInteger(n)) return String(n);
+    return n.toFixed(3).replace(/\.?0+$/, "");
+  }
+  function looksLikeOpaqueChapterId(value) {
+    const trimmed = value.trim();
+    if (!trimmed) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) return true;
+    const lastSegment = trimmed.split(/[/\\?#]/).pop()?.split("&")[0] ?? trimmed;
+    if (/^\d{10,}$/.test(trimmed) || /^\d{10,}$/.test(lastSegment)) return true;
+    return false;
+  }
+  function sanitizeChapterDisplayText(value) {
+    return value.replace(/(\d+)\.(\d{4,})/g, (match) => {
+      const n = Number(match);
+      if (!Number.isFinite(n)) return match;
+      const formatted = formatChapterNumberValue(n);
+      return formatted || match;
+    });
+  }
+  function sanitizeChapterTitle(title) {
+    if (title == null) return void 0;
+    const trimmed = title.trim();
+    if (!trimmed || looksLikeOpaqueChapterId(trimmed)) return void 0;
+    const cleaned = sanitizeChapterDisplayText(trimmed);
+    if (!cleaned || looksLikeOpaqueChapterId(cleaned)) return void 0;
+    return cleaned;
   }
 
   // parsers/aidoku/wasm-host/imports/canvas.ts
@@ -14863,6 +14906,7 @@ var AidokuWasmHostBundle = (() => {
         return env.store.store({ kind: "request", value: request });
       },
       send: (rid) => commonSend(env, rid),
+      // Batch path used by sources that fire many parallel requests at once.
       send_all: (ridPtr, len) => {
         try {
           const rids = env.readValues(ridPtr, len);
@@ -15295,6 +15339,12 @@ var AidokuWasmHostBundle = (() => {
     const ptr = callExport(instance, method, descriptors);
     env.memory = instance.exports.memory;
     const decoded = decodeResult(env, instance, method, ptr);
+    env.store = new GlobalStore();
+    const memoryBytes = instance.exports.memory.buffer.byteLength;
+    if (memoryBytes > 96 * 1024 * 1024) {
+      resetWasmSourceRuntime(ctx.sourceId);
+      env.memory = null;
+    }
     return normalizeResult(method, decoded);
   }
   function encodeArgs(method, args, env) {
@@ -15758,9 +15808,9 @@ var AidokuWasmHostBundle = (() => {
   function fromPostcardChapter(chapter) {
     return {
       key: chapter.key,
-      title: chapter.title ?? void 0,
-      chapterNumber: chapter.chapter_number ?? void 0,
-      volumeNumber: chapter.volume_number ?? void 0,
+      title: sanitizeChapterTitle(chapter.title),
+      chapterNumber: sanitizeChapterNumber(chapter.chapter_number ?? void 0),
+      volumeNumber: sanitizeChapterNumber(chapter.volume_number ?? void 0),
       dateUploaded: chapter.date_uploaded != null ? Number(chapter.date_uploaded) : void 0,
       scanlators: chapter.scanlators ?? void 0,
       url: chapter.url ?? void 0,

@@ -4,6 +4,7 @@ import { Image } from 'react-native';
 import type { Page } from '@/parsers/shared/types';
 import type { ReaderSettings } from '@/services/app-settings';
 import { coverImageSource } from '@/utils/cover-image-source';
+import { releaseImageRef } from '@/utils/image-memory';
 import { readImageSizeFromPrefix } from '@/utils/image-size-from-prefix';
 
 export type ReaderPage = Page & {
@@ -121,8 +122,12 @@ async function probeImageSizeExpo(
   url: string,
   headers?: Record<string, string>,
 ): Promise<{ width: number; height: number } | null> {
-  const ref = await ExpoImage.loadAsync(coverImageSource(url, headers), { maxWidth: 64 });
-  return usableImageSize(ref.width, ref.height);
+  const ref = await ExpoImage.loadAsync(coverImageSource(url, headers), { maxWidth: 64, maxHeight: 64 });
+  try {
+    return usableImageSize(ref.width, ref.height);
+  } finally {
+    releaseImageRef(ref);
+  }
 }
 
 /** Prefer image-header sniff so long webtoon files are not fully downloaded. */
