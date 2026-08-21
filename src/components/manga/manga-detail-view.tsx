@@ -26,7 +26,6 @@ import { chapterTitleForDisplay, formatChapterLabel, formatChapterNumberValue } 
 import { coverImageSource } from '@/utils/cover-image-source';
 import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
 import { parseMangaDescription, parseRatingText } from '@/utils/manga-description';
-import { Icon } from 'expo-router';
 
 const DESCRIPTION_PREVIEW_LINES = 4;
 const TAG_PREVIEW_COUNT = 6;
@@ -379,7 +378,7 @@ export function MangaDetailView({
               color='secondaryLabel'
               style={styles.description}
               numberOfLines={descriptionExpanded ? undefined : DESCRIPTION_PREVIEW_LINES}>
-              {descriptionText}
+              {`${descriptionText}${altTitles.length > 0 ? `\n\n${altTitles.join(', ')}` : ''}`}
             </ThemedText>
             {canExpandDescription ? (
               <Pressable onPress={() => setDescriptionExpanded((value) => !value)} hitSlop={8}>
@@ -644,31 +643,6 @@ const ChapterRow = memo(function ChapterRow({
             style={[styles.chapterTitle, isRead ? styles.readChapter : undefined]}>
             {chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter)}
           </ThemedText>
-          <View style={styles.chapterIcons}>
-            {chapter.dateUploaded ? (
-              <View
-                style={[
-                  styles.dateUploaded,
-                  {
-                    backgroundColor: colors.tertiaryFill,
-                  },
-                ]}>
-                <ThemedText
-                  variant='caption2'
-                  style={{
-                    color: colors.secondaryLabel,
-                    fontWeight: '700',
-                    fontVariant: ['tabular-nums'],
-                  }}>
-                  {Intl.DateTimeFormat(getExpoLocale().regionCode || getLocale()).format(new Date(chapter.dateUploaded * 1000))}
-                </ThemedText>
-              </View>
-            ) : null}
-            {isRead ? <SFSymbolIcon name='eye.fill' fallback='eye-outline' size={14} color={colors.tertiaryLabel} /> : null}
-            {isLocked ? <SFSymbolIcon name='lock.fill' fallback='lock-closed-outline' size={14} color={colors.tertiaryLabel} /> : null}
-            {!isDownloading && isDownloaded ? <Ionicons name='download' size={14} color={DOWNLOADED_COLOR} /> : null}
-            {downloadEntry?.status === 'failed' ? <Ionicons name='alert-circle' size={14} color='#FF3B30' /> : null}
-          </View>
         </View>
         {chapter.scanlators?.length ? (
           <ThemedText variant='caption1' color='tertiaryLabel' numberOfLines={1}>
@@ -680,6 +654,33 @@ const ChapterRow = memo(function ChapterRow({
             {downloadEntry.error}
           </ThemedText>
         ) : null}
+      </View>
+      <View style={styles.sourceRowRightInfo}>
+        {chapter.dateUploaded ? (
+          <View
+            style={[
+              styles.dateUploaded,
+              {
+                backgroundColor: isRead ? colors.quaternaryFill : colors.tertiaryFill,
+              },
+            ]}>
+            <ThemedText
+              variant='caption2'
+              style={{
+                color: isRead ? colors.tertiaryLabel : colors.secondaryLabel,
+                fontWeight: '700',
+                fontVariant: ['tabular-nums'],
+              }}>
+              {Intl.DateTimeFormat(getExpoLocale().regionCode || getLocale()).format(new Date(chapter.dateUploaded * 1000))}
+            </ThemedText>
+          </View>
+        ) : null}
+        <View style={styles.chapterIcons}>
+          {isRead ? <SFSymbolIcon name='eye.fill' fallback='eye-outline' size={14} color={colors.tertiaryLabel} /> : null}
+          {isLocked ? <SFSymbolIcon name='lock.fill' fallback='lock-closed-outline' size={14} color={colors.tertiaryLabel} /> : null}
+          {!isDownloading && isDownloaded ? <Ionicons name='download' size={14} color={DOWNLOADED_COLOR} /> : null}
+          {downloadEntry?.status === 'failed' ? <Ionicons name='alert-circle' size={14} color='#FF3B30' /> : null}
+        </View>
       </View>
       {!selectMode && !isLocked ? (
         isDownloading ? (
@@ -722,9 +723,9 @@ function formatStatus(status: NonNullable<Manga['status']>): string {
 
 function formatChapterNumber(chapter: Chapter, index: number, total: number): string {
   if (chapter.chapterNumber != null) {
-    return `${formatChapterNumberValue(chapter.chapterNumber)}.`;
+    return `${formatChapterNumberValue(chapter.chapterNumber)}`;
   }
-  return `${total - index}.`;
+  return `${total - index}`;
 }
 
 const styles = StyleSheet.create({
@@ -797,6 +798,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.xs,
     flexWrap: 'wrap',
+  },
+  sourceRowRightInfo: {
+    flexDirection: 'column',
+    gap: Spacing.xs,
+    alignItems: 'flex-end',
+    verticalAlign: 'middle',
   },
   kindBadge: {
     paddingHorizontal: Spacing.sm,
@@ -904,13 +911,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: 'transparent',
   },
   chapterNumber: {
-    width: 28,
-    textAlign: 'right',
+    width: 35,
+    textAlign: 'center',
   },
   chapterMeta: {
     flex: 1,
