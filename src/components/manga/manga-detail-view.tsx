@@ -326,7 +326,7 @@ export function MangaDetailView({
               {manga.viewer ? (
                 <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
                   <ThemedText variant='caption1' color='secondaryLabel' style={styles.typeText}>
-                    {manga.viewer === 'webtoon' ? 'Webtoon' : 'manga'}
+                    {manga.viewer === 'webtoon' ? 'Webtoon' : 'Manga'}
                   </ThemedText>
                 </GlassSurface>
               ) : null}
