@@ -432,7 +432,7 @@ export function MangaDetailView({
         <View style={styles.chapterHeader}>
           <View style={styles.chapterTitleRow}>
             <ThemedText variant='headline' style={styles.blockTitle}>
-              {chapterSelectMode ? t('manga_select_chapters') : t('manga_chapters')}
+              {chapterSelectMode ? t('manga_select_chapters') : `${t('manga_chapters')}${chapters.length > 0 ? ` (${chapters.length})` : ''}`}
             </ThemedText>
             {isRefreshing ? <ActivityIndicator size='small' /> : null}
           </View>
