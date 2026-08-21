@@ -25,6 +25,7 @@ import type { DownloadEntry } from '@/services/downloads';
 import { chapterTitleForDisplay, formatChapterLabel, formatChapterNumberValue } from '@/utils/chapter-label';
 import { coverImageSource } from '@/utils/cover-image-source';
 import { parseMangaDescription, parseRatingText } from '@/utils/manga-description';
+import { Icon } from 'expo-router';
 
 const DESCRIPTION_PREVIEW_LINES = 4;
 const TAG_PREVIEW_COUNT = 6;
@@ -288,17 +289,31 @@ export function MangaDetailView({
                       : manga.status === 'completed'
                         ? 'rgba(1,200,100.0,0.6)'
                         : manga.status === 'hiatus'
-                          ? 'rgba(180,300,90.0,0.6)'
-                          : 'rgba(255,100,90.0,0.6)'
+                          ? 'rgba(230,210,30.0,0.6)'
+                          : 'rgba(255,40,20.0,0.6)'
                   }>
+                  <SFSymbolIcon
+                    name={
+                      manga.status === 'ongoing'
+                        ? 'play.fill'
+                        : manga.status === 'completed'
+                          ? 'checkmark'
+                          : manga.status === 'hiatus'
+                            ? 'pause.fill'
+                            : 'x.circle.fill'
+                    }
+                    size={13}
+                    color={colors.secondaryLabel}
+                    fallback='globe-outline'
+                  />
                   <ThemedText variant='caption1' color='secondaryLabel' style={styles.statusText}>
                     {formatStatus(manga.status)}
                   </ThemedText>
                 </GlassSurface>
               ) : null}
               {manga.viewer ? (
-                <GlassSurface borderRadius={radius.pill} style={styles.statusPill}>
-                  <ThemedText variant='caption1' color='secondaryLabel' style={styles.statusText}>
+                <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
+                  <ThemedText variant='caption1' color='secondaryLabel' style={styles.typeText}>
                     {manga.viewer === 'webtoon' ? 'Webtoon' : 'manga'}
                   </ThemedText>
                 </GlassSurface>
@@ -391,7 +406,7 @@ export function MangaDetailView({
         ) : null}
 
         {!chapterSelectMode && !isLoading && chapters.length > 0 ? (
-          <Pressable onPress={onContinueReading}>
+          <Pressable onPress={onContinueReading} style={({ pressed }) => [styles.libraryButtonPressable, pressed && { opacity: 0.85 }]}>
             <View style={[styles.continueButton, { backgroundColor: colors.tint, borderRadius: radius.md }]}>
               <ThemedText variant='headline' color='onTint' style={styles.continueButtonText}>
                 {continueLabel}
@@ -776,10 +791,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   statusPill: {
+    paddingHorizontal: Spacing.sm,
+    flexDirection: 'row',
     alignSelf: 'flex-start',
+    alignItems: 'center',
+    gap: 2,
+  },
+  typePill: {
+    paddingHorizontal: Spacing.sm,
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
   },
   statusText: {
-    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+  },
+  typeText: {
     paddingVertical: 4,
   },
   librarySection: {

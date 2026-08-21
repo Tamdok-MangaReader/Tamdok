@@ -1,5 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Share, StyleSheet, View } from 'react-native';
 
@@ -301,6 +302,8 @@ export default function MangaDetailScreen() {
         setLibraryPickerOpen(true);
       }
 
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
       void toggleMangaLibraryCategory(manifestSourceId, mangaKey, categoryId, {
         title: manga.title,
         cover: manga.cover,
@@ -331,6 +334,7 @@ export default function MangaDetailScreen() {
 
   const handleContinueReading = useCallback(() => {
     if (!readingTarget) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     openChapter(readingTarget.chapter, readingTarget.page);
   }, [openChapter, readingTarget]);
 
