@@ -277,13 +277,33 @@ export function MangaDetailView({
               </ThemedText>
             ) : null}
             {rating ? <StarRating rating={rating} /> : null}
-            {manga.status && manga.status !== 'unknown' ? (
-              <GlassSurface borderRadius={radius.pill} style={styles.statusPill}>
-                <ThemedText variant='caption1' color='secondaryLabel' style={styles.statusText}>
-                  {formatStatus(manga.status)}
-                </ThemedText>
-              </GlassSurface>
-            ) : null}
+            <View style={styles.pills}>
+              {manga.status && manga.status !== 'unknown' ? (
+                <GlassSurface
+                  borderRadius={radius.pill}
+                  style={styles.statusPill}
+                  tintColor={
+                    manga.status === 'ongoing'
+                      ? 'transparent'
+                      : manga.status === 'completed'
+                        ? 'rgba(1,200,100.0,0.6)'
+                        : manga.status === 'hiatus'
+                          ? 'rgba(180,300,90.0,0.6)'
+                          : 'rgba(255,100,90.0,0.6)'
+                  }>
+                  <ThemedText variant='caption1' color='secondaryLabel' style={styles.statusText}>
+                    {formatStatus(manga.status)}
+                  </ThemedText>
+                </GlassSurface>
+              ) : null}
+              {manga.viewer ? (
+                <GlassSurface borderRadius={radius.pill} style={styles.statusPill}>
+                  <ThemedText variant='caption1' color='secondaryLabel' style={styles.statusText}>
+                    {manga.viewer === 'webtoon' ? 'Webtoon' : 'manga'}
+                  </ThemedText>
+                </GlassSurface>
+              ) : null}
+            </View>
             {!chapterSelectMode ? (
               <View style={styles.librarySection}>
                 <View style={styles.libraryRow}>
@@ -300,7 +320,7 @@ export function MangaDetailView({
                           backgroundColor: inLibrary ? colors.secondaryFill : colors.tint,
                         },
                       ]}>
-                      <Ionicons name={inLibrary ? 'bookmark' : 'bookmark-outline'} size={14} color={inLibrary ? colors.tint : colors.onTint} />
+                      <Ionicons name={inLibrary ? 'bookmark' : 'bookmark-outline'} size={16} color={inLibrary ? colors.tint : colors.onTint} />
                       <ThemedText variant='footnote' color={inLibrary ? 'tint' : 'onTint'}>
                         {inLibrary ? t('manga_in_library') : t('manga_add_to_library')}
                       </ThemedText>
@@ -882,5 +902,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pills: {
+    display: 'flex',
+    flexDirection: 'row',
+    gap: Spacing.xs,
   },
 });
