@@ -118,6 +118,7 @@
   "settings_notifications_open_settings": "Открыть настройки",
   "settings_notifications_ios_footer": "Tamdok использует локальные уведомления. Push не требуется.",
   "show_big_manga_cover": "Показывать обложку манги на фоне",
+  "show_chapter_number": "Показывать номер главы в списке",
   "notification_source_update_title": "Доступно обновление источника",
   "notification_source_update_body": "{name} v{version} доступен для установки.",
   "notification_new_chapter_title": "Новая глава",

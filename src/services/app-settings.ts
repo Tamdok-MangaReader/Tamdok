@@ -84,6 +84,7 @@ export type DebugSettings = {
 
 export type MangaScreenSettings = {
   showBigMangaCover: boolean;
+  showChapterNumber: boolean;
 };
 
 export type AppSettings = {
@@ -158,6 +159,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   mangaScreen: {
     showBigMangaCover: false,
+    showChapterNumber: true,
   },
   debug: {
     showReaderPageNumbers: false,
@@ -189,6 +191,7 @@ async function readSettings(): Promise<AppSettings> {
     },
     mangaScreen: {
       showBigMangaCover: stored.mangaScreen?.showBigMangaCover ?? DEFAULT_SETTINGS.mangaScreen.showBigMangaCover,
+      showChapterNumber: stored.mangaScreen?.showChapterNumber ?? DEFAULT_SETTINGS.mangaScreen.showChapterNumber,
     },
     debug: {
       ...DEFAULT_SETTINGS.debug,

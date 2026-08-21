@@ -69,6 +69,7 @@ type MangaDetailViewProps = {
   contentBottomInset?: number;
   selectedChapterKeys?: Set<string>;
   showBigMangaCover?: boolean;
+  showChapterNumber?: boolean;
   inlineError?: string | null;
   onDismissInlineError?: () => void;
   isLoading: boolean;
@@ -104,6 +105,7 @@ export function MangaDetailView({
   contentBottomInset = 0,
   selectedChapterKeys,
   showBigMangaCover,
+  showChapterNumber,
   inlineError,
   onDismissInlineError,
   isLoading,
@@ -173,6 +175,7 @@ export function MangaDetailView({
           index={index}
           total={chapters.length}
           selectMode={chapterSelectMode}
+          showChapterNumber={showChapterNumber}
           isSelected={selectedChapterKeys?.has(item.key) ?? false}
           isRead={readChapterKeys.has(item.key)}
           isDownloaded={downloadedChapterKeys.has(item.key)}
@@ -565,6 +568,7 @@ type ChapterRowProps = {
   isDownloaded: boolean;
   downloadEntry?: DownloadEntry;
   isLast: boolean;
+  showChapterNumber?: boolean;
   onOpen: (chapter: Chapter) => void;
   onToggleSelected?: (chapter: Chapter) => void;
   onMarkRead: (chapter: Chapter) => void;
@@ -585,6 +589,7 @@ const ChapterRow = memo(function ChapterRow({
   onToggleSelected,
   onMarkRead,
   onMarkUnread,
+  showChapterNumber,
 }: ChapterRowProps) {
   const { colors, radius } = useTheme();
   const isLocked = chapter.locked === true;
@@ -617,7 +622,7 @@ const ChapterRow = memo(function ChapterRow({
 
   const row = (
     <Pressable
-      style={({ pressed }) => [styles.chapterRow, pressed && { opacity: 0.72 }]}
+      style={({ pressed }) => [styles.chapterRow, pressed && { opacity: 0.72 }, { paddingHorizontal: showChapterNumber ? Spacing.md : Spacing.lg }]}
       onPress={() => {
         if (selectMode) {
           onToggleSelected?.(chapter);
@@ -629,11 +634,11 @@ const ChapterRow = memo(function ChapterRow({
       accessibilityRole='button'>
       {selectMode ? (
         <Ionicons name={isSelected ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={isSelected ? colors.tint : colors.tertiaryLabel} />
-      ) : (
+      ) : showChapterNumber ? (
         <ThemedText variant='footnote' color='secondaryLabel' style={styles.chapterNumber}>
           {chapterNumberLabel}
         </ThemedText>
-      )}
+      ) : null}
       <View style={styles.chapterMeta}>
         <View style={styles.chapterTitleRow}>
           <ThemedText
@@ -911,7 +916,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     backgroundColor: 'transparent',
   },

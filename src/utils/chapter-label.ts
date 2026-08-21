@@ -24,7 +24,7 @@ export function chapterTitleForDisplay(chapter: Chapter): string | undefined {
 }
 
 export function formatChapterLabel(chapter: Chapter, ordinal?: number): string {
-  if (chapter.chapterNumber != null) {
+  if (!chapter.title && chapter.chapterNumber != null) {
     return `Ch. ${formatChapterNumberValue(chapter.chapterNumber)}`;
   }
   const title = chapterTitleForDisplay(chapter);

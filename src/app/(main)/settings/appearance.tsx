@@ -6,7 +6,7 @@ import SegmentedControl from '@react-native-segmented-control/segmented-control'
 import { InlinePillGrid } from '@/components/library/inline-pill-grid';
 import { AccentColorPicker } from '@/components/settings/accent-color-picker';
 import { AppIconPicker } from '@/components/settings/app-icon-picker';
-import { Card } from '@/components/ui/card';
+import { Card, CardSeparator } from '@/components/ui/card';
 import { ScreenContent } from '@/components/ui/screen-content';
 import { SectionLabel } from '@/components/ui/section-label';
 import { ThemedText } from '@/components/ui/themed-text';
@@ -29,11 +29,13 @@ export default function AppearanceScreen() {
   const selectedIndex = THEME_MODES.indexOf(themeMode);
   const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
   const [showBigMangaCover, setShowBigMangaCover] = useState(false);
+  const [showChapterNumber, setShowChapterNumber] = useState(true);
 
   const load = useCallback(async () => {
     const settings = await getAppSettings();
     setGridSize(settings.libraryDisplay.gridSize);
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
+    setShowChapterNumber(settings.mangaScreen.showChapterNumber);
   }, []);
 
   useEffect(() => {
@@ -168,6 +170,15 @@ export default function AppearanceScreen() {
               updateMangaScreenSettings({ showBigMangaCover: value });
             }}
             isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('show_chapter_number')}
+            value={showChapterNumber}
+            onChange={(value) => {
+              setShowChapterNumber(value);
+              updateMangaScreenSettings({ showChapterNumber: value });
+            }}
             isLast
           />
         </Card>

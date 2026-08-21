@@ -118,6 +118,7 @@
   "settings_notifications_open_settings": "Open Settings",
   "settings_notifications_ios_footer": "Tamdok uses local notifications. Push is not required.",
   "show_big_manga_cover": "Show manga cover on background",
+  "show_chapter_number": "Show chapter number in row",
   "notification_source_update_title": "Source update available",
   "notification_source_update_body": "{name} v{version} is available.",
   "notification_new_chapter_title": "New chapter",

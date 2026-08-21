@@ -109,6 +109,7 @@ export default function MangaDetailScreen() {
   const [chapterSelectMode, setChapterSelectMode] = useState(false);
   const [selectedChapterKeys, setSelectedChapterKeys] = useState<Set<string>>(new Set());
   const [showBigMangaCover, setShowBigMangaCover] = useState(false);
+  const [showChapterNumber, setShowChapterNumber] = useState(true);
 
   const handlersRef = useRef({
     onCancelSelect: () => {},
@@ -138,6 +139,7 @@ export default function MangaDetailScreen() {
   const loadSettings = useCallback(async () => {
     const [settings] = await Promise.all([getAppSettings()]);
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
+    setShowChapterNumber(settings.mangaScreen.showChapterNumber);
   }, []);
 
   useEffect(() => {
@@ -573,6 +575,7 @@ export default function MangaDetailScreen() {
         chapterSelectMode={chapterSelectMode}
         selectedChapterKeys={selectedChapterKeys}
         showBigMangaCover={showBigMangaCover}
+        showChapterNumber={showChapterNumber}
         inlineError={showInlineError ? combinedError : null}
         onDismissInlineError={dismissError}
         isLoading={showChapterLoading}
