@@ -12,48 +12,46 @@ type LongPressScalePressableProps = PressableProps & {
   squeezeScale?: number;
 };
 
-export const LongPressScalePressable = forwardRef<View, LongPressScalePressableProps>(
-  function LongPressScalePressable(
-    { onLongPress, onPressOut, onPressIn, style, squeezeOnLongPress = true, squeezeScale = SQUEEZE_SCALE, children, ...rest },
-    ref,
-  ) {
-    const scale = useSharedValue(1);
-    const nativeGesture = Gesture.Native();
+export const LongPressScalePressable = forwardRef<View, LongPressScalePressableProps>(function LongPressScalePressable(
+  { onLongPress, onPressOut, onPressIn, style, squeezeOnLongPress = true, squeezeScale = SQUEEZE_SCALE, children, ...rest },
+  ref,
+) {
+  const scale = useSharedValue(1);
+  const nativeGesture = Gesture.Native();
 
-    const animatedStyle = useAnimatedStyle(() => ({
-      transform: [{ scale: scale.value }],
-    }));
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
-    const squeeze = useCallback(() => {
-      if (!squeezeOnLongPress) return;
-      scale.value = withSpring(squeezeScale, SPRING);
-    }, [scale, squeezeOnLongPress, squeezeScale]);
+  const squeeze = useCallback(() => {
+    if (!squeezeOnLongPress) return;
+    scale.value = withSpring(squeezeScale, SPRING);
+  }, [scale, squeezeOnLongPress, squeezeScale]);
 
-    const release = useCallback(() => {
-      scale.value = withSpring(1, SPRING);
-    }, [scale]);
+  const release = useCallback(() => {
+    scale.value = withSpring(1, SPRING);
+  }, [scale]);
 
-    return (
-      <GestureDetector gesture={nativeGesture}>
-        <Pressable
-          ref={ref}
-          {...rest}
-          style={style}
-          onPressIn={(event) => {
-            onPressIn?.(event);
-          }}
-          onLongPress={(event) => {
-            squeeze();
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            onLongPress?.(event);
-          }}
-          onPressOut={(event) => {
-            release();
-            onPressOut?.(event);
-          }}>
-          <Reanimated.View style={animatedStyle}>{children}</Reanimated.View>
-        </Pressable>
-      </GestureDetector>
-    );
-  },
-);
+  return (
+    <GestureDetector gesture={nativeGesture}>
+      <Pressable
+        ref={ref}
+        {...rest}
+        style={style}
+        onPressIn={(event) => {
+          onPressIn?.(event);
+        }}
+        onLongPress={(event) => {
+          squeeze();
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          onLongPress?.(event);
+        }}
+        onPressOut={(event) => {
+          release();
+          onPressOut?.(event);
+        }}>
+        <Reanimated.View style={animatedStyle}>{children as any}</Reanimated.View>
+      </Pressable>
+    </GestureDetector>
+  );
+});

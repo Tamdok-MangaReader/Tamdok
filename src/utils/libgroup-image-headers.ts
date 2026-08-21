@@ -18,16 +18,10 @@ function encodeBasicAuth(username: string, password: string): string {
   if (typeof globalThis.btoa === 'function') {
     return globalThis.btoa(value);
   }
-  if (typeof Buffer !== 'undefined') {
-    return Buffer.from(value, 'utf8').toString('base64');
-  }
   return '';
 }
 
-function resolveKomgaCoverHeaders(
-  source: InstalledSource,
-  settings: Record<string, unknown>,
-): Record<string, string> | undefined {
+function resolveKomgaCoverHeaders(source: InstalledSource, settings: Record<string, unknown>): Record<string, string> | undefined {
   if (source.id !== 'server.komga.tamdok') return undefined;
 
   const headers: Record<string, string> = {};
@@ -45,10 +39,7 @@ function resolveKomgaCoverHeaders(
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
-export function resolveLibgroupCoverHeaders(
-  source: InstalledSource,
-  settings: Record<string, unknown>,
-): Record<string, string> | undefined {
+export function resolveLibgroupCoverHeaders(source: InstalledSource, settings: Record<string, unknown>): Record<string, string> | undefined {
   const komgaHeaders = resolveKomgaCoverHeaders(source, settings);
   if (komgaHeaders) return komgaHeaders;
 

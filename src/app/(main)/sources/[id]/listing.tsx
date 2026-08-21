@@ -78,12 +78,10 @@ export default function SourceListingScreen() {
 
   const openManga = (manga: Manga) => {
     if (!source) return;
-    router.push(mangaHref(sourceRouteId(source), manga));
+    router.navigate(mangaHref(sourceRouteId(source), manga));
   };
 
-  const centerContent =
-    !error &&
-    (!runner?.getMangaList || runnerLoading || (isLoading && entries.length === 0) || entries.length === 0);
+  const centerContent = !error && (!runner?.getMangaList || runnerLoading || (isLoading && entries.length === 0) || entries.length === 0);
 
   if (!source) {
     return (
@@ -115,13 +113,13 @@ export default function SourceListingScreen() {
         ) : (
           <View style={styles.gridWrap}>
             <MangaGrid
-            entries={entries}
-            sourceId={source?.id}
-            onPressManga={openManga}
-            onEndReached={() => {
-              if (!isLoading && hasNextPage) void load(page + 1, true);
-            }}
-            ListFooterComponent={isLoading ? <ActivityIndicator style={{ paddingVertical: Spacing.lg }} /> : null}
+              entries={entries}
+              sourceId={source?.id}
+              onPressManga={openManga}
+              onEndReached={() => {
+                if (!isLoading && hasNextPage) void load(page + 1, true);
+              }}
+              ListFooterComponent={isLoading ? <ActivityIndicator style={{ paddingVertical: Spacing.lg }} /> : null}
             />
           </View>
         )}

@@ -16,13 +16,7 @@ import { useSources } from '@/context/sources-context';
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { useTheme } from '@/hooks/use-theme';
 import { getAppSettings, updateAppSettings } from '@/services/app-settings';
-import {
-  clearFailedDownloads,
-  getDownloads,
-  removeChapterDownload,
-  removeMangaDownloads,
-  type DownloadEntry,
-} from '@/services/downloads';
+import { clearFailedDownloads, getDownloads, removeChapterDownload, removeMangaDownloads, type DownloadEntry } from '@/services/downloads';
 import { processQueuedDownloads } from '@/services/download-processor';
 import { getLibraryEntries } from '@/services/library';
 import { peekMangaDetailCache } from '@/services/manga-detail-cache';
@@ -70,10 +64,7 @@ function sortDownloadsByChapterNumber(chapters: DownloadEntry[], sourceId: strin
 function formatDownloadChapterLabel(entry: DownloadEntry): string {
   const chapters = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters;
   const chapter = chapters?.find((item) => item.key === entry.chapterKey);
-  const ordinal =
-    chapter && chapters?.length
-      ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1
-      : undefined;
+  const ordinal = chapter && chapters?.length ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1 : undefined;
   return formatEntryChapterLabel(chapter, entry.chapterTitle, entry.chapterKey, ordinal || undefined);
 }
 
@@ -103,12 +94,9 @@ function DownloadMangaGroupRow({
   const coverHeadersReady = useSourceCoverHeadersReady();
   const [expanded, setExpanded] = useState(false);
   const source = findInstalledSource(installed, group.sourceId);
-  const sourceLabel = source
-    ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
-    : group.sourceId;
+  const sourceLabel = source ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}` : group.sourceId;
   const hiddenCount = Math.max(0, group.chapters.length - VISIBLE_CHAPTER_LIMIT);
-  const visibleChapters =
-    expanded || hiddenCount === 0 ? group.chapters : group.chapters.slice(0, VISIBLE_CHAPTER_LIMIT);
+  const visibleChapters = expanded || hiddenCount === 0 ? group.chapters : group.chapters.slice(0, VISIBLE_CHAPTER_LIMIT);
 
   const deleteMangaAction: SwipeAction = {
     key: 'delete',
@@ -135,17 +123,10 @@ function DownloadMangaGroupRow({
   return (
     <View style={styles.mangaGroup}>
       <SwipeableRow rowId={`${group.key}:manga`} actions={[deleteMangaAction]} fullSwipeActionKey='delete'>
-        <Pressable
-          style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]}
-          onPress={() => onOpenManga(group)}>
+        <Pressable style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]} onPress={() => onOpenManga(group)}>
           <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
             {group.cover && coverHeadersReady ? (
-              <Image
-                source={coverImageSource(group.cover, coverHeaders)}
-                style={StyleSheet.absoluteFill}
-                contentFit='cover'
-                cachePolicy='memory-disk'
-              />
+              <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy='memory-disk' />
             ) : (
               <ThemedText variant='title3' color='tertiaryLabel'>
                 {group.mangaTitle.slice(0, 1)}
@@ -209,11 +190,7 @@ export default function DownloadsSettingsScreen() {
   const [deleteAfterReading, setDeleteAfterReading] = useState(false);
 
   const load = useCallback(async () => {
-    const [downloads, settings, libraryEntries] = await Promise.all([
-      getDownloads(),
-      getAppSettings(),
-      getLibraryEntries(),
-    ]);
+    const [downloads, settings, libraryEntries] = await Promise.all([getDownloads(), getAppSettings(), getLibraryEntries()]);
     const nextCovers: Record<string, string> = {};
     for (const entry of libraryEntries) {
       if (entry.cover) nextCovers[`${entry.sourceId}:${entry.mangaKey}`] = entry.cover;
@@ -279,7 +256,7 @@ export default function DownloadsSettingsScreen() {
   const openManga = (group: DownloadMangaGroup) => {
     const source = findInstalledSource(installed, group.sourceId);
     if (!source) return;
-    router.push(
+    router.navigate(
       mangaHref(sourceRouteId(source), {
         key: group.mangaKey,
         title: group.mangaTitle,

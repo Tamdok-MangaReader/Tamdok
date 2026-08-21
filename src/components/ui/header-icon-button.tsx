@@ -17,13 +17,7 @@ export function HeaderIconButton({ icon, onPress, accessibilityLabel }: HeaderIc
 
   if (onPress) {
     return (
-      <Pressable
-        onPress={onPress}
-        hitSlop={12}
-        delayPressIn={0}
-        style={styles.button}
-        accessibilityRole='button'
-        accessibilityLabel={accessibilityLabel}>
+      <Pressable onPress={onPress} hitSlop={12} style={styles.button} accessibilityRole='button' accessibilityLabel={accessibilityLabel}>
         {iconNode}
       </Pressable>
     );

@@ -1,13 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Platform,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, TextInput, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -120,13 +114,11 @@ export default function SourceSearchScreen() {
 
   const openManga = (manga: Manga) => {
     if (!source) return;
-    router.push(mangaHref(sourceRouteId(source), manga));
+    router.navigate(mangaHref(sourceRouteId(source), manga));
   };
 
   const displayError = error ?? loadError;
-  const centerContent =
-    !displayError &&
-    (runnerLoading || filtersLoading || (isLoading && entries.length === 0) || entries.length === 0);
+  const centerContent = !displayError && (runnerLoading || filtersLoading || (isLoading && entries.length === 0) || entries.length === 0);
 
   if (!source) {
     return (
@@ -159,19 +151,10 @@ export default function SourceSearchScreen() {
             />
           </View>
         </GlassSurface>
-        <GlassIconButton
-          icon='close'
-          onPress={() => router.back()}
-          size={44}
-          iconSize={22}
-          iconColor={colors.destructive}
-          accessibilityLabel={t('cancel')}
-        />
+        <GlassIconButton icon='close' onPress={() => router.back()} size={44} iconSize={22} iconColor={colors.destructive} accessibilityLabel={t('cancel')} />
       </View>
 
-      {definitions.length > 0 ? (
-        <MangaSearchFilterBar definitions={definitions} values={filters} onChange={setFilters} />
-      ) : null}
+      {definitions.length > 0 ? <MangaSearchFilterBar definitions={definitions} values={filters} onChange={setFilters} /> : null}
 
       <ScreenContent padded={false} centerContent={centerContent} scrollable={false}>
         {displayError ? (
@@ -257,7 +240,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   searchOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: Spacing.xl,

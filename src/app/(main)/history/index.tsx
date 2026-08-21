@@ -18,13 +18,7 @@ import { useSources } from '@/context/sources-context';
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { useTheme } from '@/hooks/use-theme';
 import { getLibraryEntries } from '@/services/library';
-import {
-  getHistoryEntries,
-  removeChapterFromHistory,
-  removeHistorySince,
-  removeMangaHistoryGroup,
-  type HistoryEntry,
-} from '@/services/manga-tracking';
+import { getHistoryEntries, removeChapterFromHistory, removeHistorySince, removeMangaHistoryGroup, type HistoryEntry } from '@/services/manga-tracking';
 import { peekMangaDetailCache } from '@/services/manga-detail-cache';
 import { findInstalledSource, sourceRouteId } from '@/services/sources';
 import { coverImageSource } from '@/utils/cover-image-source';
@@ -121,10 +115,7 @@ function sourceKindLabel(kind: string): string {
 function formatHistoryChapterLabel(entry: HistoryEntry): string {
   const chapters = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters;
   const chapter = chapters?.find((item) => item.key === entry.chapterKey);
-  const ordinal =
-    chapter && chapters?.length
-      ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1
-      : undefined;
+  const ordinal = chapter && chapters?.length ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1 : undefined;
   return formatEntryChapterLabel(chapter, entry.chapterTitle, entry.chapterKey, ordinal || undefined);
 }
 
@@ -146,28 +137,17 @@ function HistoryMangaGroup({
 
   const source = findInstalledSource(installed, group.sourceId);
   const hiddenCount = Math.max(0, group.chapters.length - VISIBLE_CHAPTER_LIMIT);
-  const visibleChapters =
-    expanded || hiddenCount === 0 ? group.chapters : group.chapters.slice(0, VISIBLE_CHAPTER_LIMIT);
+  const visibleChapters = expanded || hiddenCount === 0 ? group.chapters : group.chapters.slice(0, VISIBLE_CHAPTER_LIMIT);
 
-  const sourceLabel = source
-    ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
-    : group.sourceId;
+  const sourceLabel = source ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}` : group.sourceId;
 
   const timeRange = formatMangaTimeRange(group.chapters);
 
   const openChapter = (entry: HistoryEntry) => {
     if (!source) return;
     const page = entry.page != null && entry.page >= 0 ? entry.page : undefined;
-    router.push(
-      readerHref(
-        sourceRouteId(source),
-        entry.mangaKey,
-        entry.chapterKey,
-        entry.chapterTitle ?? entry.chapterKey,
-        entry.mangaTitle,
-        page,
-        entry.cover,
-      ),
+    router.navigate(
+      readerHref(sourceRouteId(source), entry.mangaKey, entry.chapterKey, entry.chapterTitle ?? entry.chapterKey, entry.mangaTitle, page, entry.cover),
     );
   };
 
@@ -198,17 +178,10 @@ function HistoryMangaGroup({
   });
 
   const mangaRow = (
-    <Pressable
-      style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]}
-      onPress={() => onOpenManga(group)}>
+    <Pressable style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]} onPress={() => onOpenManga(group)}>
       <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
         {group.cover && coverHeadersReady ? (
-          <Image
-            source={coverImageSource(group.cover, coverHeaders)}
-            style={StyleSheet.absoluteFill}
-            contentFit='cover'
-            cachePolicy='memory-disk'
-          />
+          <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy='memory-disk' />
         ) : (
           <ThemedText variant='title3' color='tertiaryLabel'>
             {group.mangaTitle.slice(0, 1)}
@@ -245,9 +218,7 @@ function HistoryMangaGroup({
               rowId={`${group.key}:${chapter.chapterKey}:${chapter.dateRead}`}
               actions={[deleteChapterAction(chapter)]}
               fullSwipeActionKey='delete'>
-              <Pressable
-                style={({ pressed }) => [styles.chapterRow, pressed && { opacity: 0.72 }]}
-                onPress={() => openChapter(chapter)}>
+              <Pressable style={({ pressed }) => [styles.chapterRow, pressed && { opacity: 0.72 }]} onPress={() => openChapter(chapter)}>
                 <ThemedText variant='subheadline' numberOfLines={2} style={styles.chapterTitle}>
                   {formatHistoryChapterLabel(chapter)}
                 </ThemedText>
@@ -286,9 +257,7 @@ export default function HistoryScreen() {
 
   const loadHistory = useCallback(async () => {
     const [history, libraryEntries] = await Promise.all([getHistoryEntries(), getLibraryEntries()]);
-    const libraryMeta = new Map(
-      libraryEntries.map((entry) => [`${entry.sourceId}:${entry.mangaKey}`, entry] as const),
-    );
+    const libraryMeta = new Map(libraryEntries.map((entry) => [`${entry.sourceId}:${entry.mangaKey}`, entry] as const));
 
     setEntries(
       history.map((entry) => {
@@ -296,10 +265,7 @@ export default function HistoryScreen() {
         const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga;
         return {
           ...entry,
-          mangaTitle:
-            entry.mangaTitle && entry.mangaTitle !== entry.mangaKey
-              ? entry.mangaTitle
-              : (libraryEntry?.title ?? cached?.title ?? entry.mangaTitle),
+          mangaTitle: entry.mangaTitle && entry.mangaTitle !== entry.mangaKey ? entry.mangaTitle : (libraryEntry?.title ?? cached?.title ?? entry.mangaTitle),
           cover: entry.cover ?? libraryEntry?.cover ?? cached?.cover,
         };
       }),
@@ -315,7 +281,7 @@ export default function HistoryScreen() {
   const openManga = (group: MangaHistoryGroup) => {
     const source = findInstalledSource(installed, group.sourceId);
     if (!source) return;
-    router.push(
+    router.navigate(
       mangaHref(sourceRouteId(source), {
         key: group.mangaKey,
         title: group.mangaTitle,
@@ -340,12 +306,8 @@ export default function HistoryScreen() {
   const headerRight =
     entries.length > 0 ? (
       <HistoryOverflowMenu
-        onClearToday={() =>
-          confirmClear(t('history_clear_today'), t('history_clear_today_confirm'), startOfLocalDay())
-        }
-        onClearWeek={() =>
-          confirmClear(t('history_clear_week'), t('history_clear_week_confirm'), startOfLocalDay(6))
-        }
+        onClearToday={() => confirmClear(t('history_clear_today'), t('history_clear_today_confirm'), startOfLocalDay())}
+        onClearWeek={() => confirmClear(t('history_clear_week'), t('history_clear_week_confirm'), startOfLocalDay(6))}
         onClearAll={() => confirmClear(t('history_clear_all'), t('history_clear_all_confirm'), 0)}
       />
     ) : undefined;
@@ -385,14 +347,8 @@ export default function HistoryScreen() {
                 {section.title}
               </ThemedText>
               {section.groups.map((group) => (
-                <SourceCoverHeadersProvider
-                  key={`${section.title}:${group.key}`}
-                  source={findInstalledSource(installed, group.sourceId)}>
-                  <HistoryMangaGroup
-                    group={group}
-                    onOpenManga={openManga}
-                    onChanged={loadHistory}
-                  />
+                <SourceCoverHeadersProvider key={`${section.title}:${group.key}`} source={findInstalledSource(installed, group.sourceId)}>
+                  <HistoryMangaGroup group={group} onOpenManga={openManga} onChanged={loadHistory} />
                 </SourceCoverHeadersProvider>
               ))}
             </View>

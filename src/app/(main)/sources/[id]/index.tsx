@@ -1,12 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { HomePlaceholderLayout } from '@/components/manga/home-placeholder-layout';
 import { HomeSection } from '@/components/manga/home-section';
@@ -49,39 +43,30 @@ export default function SourceHomeScreen() {
   const { installed } = useSources();
   const source = findInstalledSource(installed, sourceRoute);
   const { runner, error: runnerError, isLoading: runnerLoading } = useSourceRunner(source);
-  const {
-    home,
-    listings,
-    isLoading,
-    isRefreshing,
-    loadError: homeLoadError,
-    hasCachedContent,
-    refresh,
-    dismissError,
-  } = useSourceHome({ source, runner });
+  const { home, listings, isLoading, isRefreshing, loadError: homeLoadError, hasCachedContent, refresh, dismissError } = useSourceHome({ source, runner });
   const [selectedTabId, setSelectedTabId] = useState(SOURCE_HOME_TAB_ID);
 
   const openManga = useCallback(
     (manga: Manga) => {
       if (!source) return;
-      router.push(mangaHref(sourceRouteId(source), manga));
+      router.navigate(mangaHref(sourceRouteId(source), manga));
     },
     [router, source],
   );
 
   const openSearch = () => {
-    router.push(sourceSearchHref(sourceRoute));
+    router.navigate(sourceSearchHref(sourceRoute));
   };
 
   const openSearchWithFilters = useCallback(
     (filters: FilterValue[]) => {
-      router.push(sourceSearchHref(sourceRoute, '', filters));
+      router.navigate(sourceSearchHref(sourceRoute, '', filters));
     },
     [router, sourceRoute],
   );
 
   const openSettings = () => {
-    router.push(`/sources/${encodeURIComponent(sourceRoute)}/settings`);
+    router.navigate(`/sources/${encodeURIComponent(sourceRoute)}/settings`);
   };
 
   const websiteUrl = useMemo(() => sourceWebsiteUrl(source), [source]);
@@ -94,27 +79,19 @@ export default function SourceHomeScreen() {
     return tabs;
   }, [listings]);
 
-  const selectedListing = useMemo(
-    () => listings.find((listing) => listing.id === selectedTabId),
-    [listings, selectedTabId],
-  );
+  const selectedListing = useMemo(() => listings.find((listing) => listing.id === selectedTabId), [listings, selectedTabId]);
 
   const combinedError = runnerError ?? homeLoadError;
   const showHome = selectedTabId === SOURCE_HOME_TAB_ID;
   const hasHomeContent = Boolean(home && home.components.length > 0);
-  const showBlockingError =
-    Boolean(combinedError) && !hasCachedContent && !hasHomeContent && !isLoading && !runnerLoading;
+  const showBlockingError = Boolean(combinedError) && !hasCachedContent && !hasHomeContent && !isLoading && !runnerLoading;
   const showInlineError = Boolean(combinedError) && (hasCachedContent || hasHomeContent);
   const showHomePlaceholder = (isLoading || runnerLoading) && !hasCachedContent && !hasHomeContent;
   const showCategoryTabs = categoryTabs.length > 1;
 
-  const categoryTabsElement = showCategoryTabs ? (
-    <SourceCategoryTabs tabs={categoryTabs} selectedId={selectedTabId} onSelect={setSelectedTabId} />
-  ) : null;
+  const categoryTabsElement = showCategoryTabs ? <SourceCategoryTabs tabs={categoryTabs} selectedId={selectedTabId} onSelect={setSelectedTabId} /> : null;
 
-  const refreshControl = (
-    <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.tint} />
-  );
+  const refreshControl = <RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.tint} />;
 
   const lazyIndicator = isRefreshing ? (
     <View style={styles.refreshIndicator}>
@@ -122,9 +99,7 @@ export default function SourceHomeScreen() {
     </View>
   ) : null;
 
-  const alertBanner = showInlineError ? (
-    <SourceHomeAlertBanner message={combinedError!} onDismiss={dismissError} />
-  ) : null;
+  const alertBanner = showInlineError ? <SourceHomeAlertBanner message={combinedError!} onDismiss={dismissError} /> : null;
 
   const homeChrome = (
     <View style={styles.homeChrome}>

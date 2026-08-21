@@ -30,14 +30,7 @@ type GlobalSearchSourceSectionProps = {
   onRetry?: (source: InstalledSource) => void;
 };
 
-export function GlobalSearchSourceSection({
-  group,
-  resetKey,
-  columns = 3,
-  onPressSource,
-  onPressManga,
-  onRetry,
-}: GlobalSearchSourceSectionProps) {
+export function GlobalSearchSourceSection({ group, resetKey, columns = 3, onPressSource, onPressManga, onRetry }: GlobalSearchSourceSectionProps) {
   const { colors, radius } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const width = Dimensions.get('window').width;
@@ -79,7 +72,7 @@ export function GlobalSearchSourceSection({
           <View style={styles.headerText}>
             <ThemedText variant='title3'>{group.source.manifest.info.name}</ThemedText>
             <View style={styles.metaRow}>
-              <View style={[styles.kindBadge, { backgroundColor: colors.secondaryFill, borderRadius: radius.xs }]}>
+              <View style={[styles.kindBadge, { backgroundColor: colors.secondaryFill, borderRadius: radius.sm }]}>
                 <ThemedText variant='caption2' color='secondaryLabel'>
                   {kindLabel}
                 </ThemedText>
@@ -94,13 +87,7 @@ export function GlobalSearchSourceSection({
             </View>
           </View>
           {isError && onRetry ? (
-            <GlassIconButton
-              icon='refresh'
-              onPress={() => onRetry(group.source)}
-              size={36}
-              iconSize={18}
-              accessibilityLabel={t('search_source_retry')}
-            />
+            <GlassIconButton icon='refresh' onPress={() => onRetry(group.source)} size={36} iconSize={18} accessibilityLabel={t('search_source_retry')} />
           ) : null}
         </Pressable>
 

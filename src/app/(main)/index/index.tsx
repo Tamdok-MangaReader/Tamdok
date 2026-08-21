@@ -79,9 +79,7 @@ export default function LibraryScreen() {
       getHistoryEntries(),
       getLibraryEntries(),
     ]);
-    const nextEntries = isAllCategory(currentCategoryId)
-      ? allEntries
-      : allEntries.filter((entry) => entry.categoryIds.includes(currentCategoryId));
+    const nextEntries = isAllCategory(currentCategoryId) ? allEntries : allEntries.filter((entry) => entry.categoryIds.includes(currentCategoryId));
     const nextLastRead = new Map<string, number>();
     for (const item of history) {
       const key = `${item.sourceId}:${item.mangaKey}`;
@@ -159,8 +157,8 @@ export default function LibraryScreen() {
         cover: entry.cover,
         sourceId: entry.sourceId,
         inLibrary: true,
-        unreadCount: showUnreadBadges ? entry.unreadCount ?? 0 : 0,
-        downloadedCount: showDownloadedBadges ? entry.downloadedCount ?? 0 : 0,
+        unreadCount: showUnreadBadges ? (entry.unreadCount ?? 0) : 0,
+        downloadedCount: showDownloadedBadges ? (entry.downloadedCount ?? 0) : 0,
         updateFailed: Boolean(entry.updateFailed),
       })),
     [entries, lastReadAt, showDownloadedBadges, showUnreadBadges, sortMode],
@@ -169,14 +167,17 @@ export default function LibraryScreen() {
   const openManga = (manga: MangaGridItem, entry: LibraryEntry) => {
     const source = findInstalledSource(installed, entry.sourceId);
     if (!source) return;
-    router.push(mangaHref(sourceRouteId(source), manga));
+    router.navigate(mangaHref(sourceRouteId(source), manga));
   };
 
-  const openMangaMenu = useCallback((manga: MangaGridItem) => {
-    const entry = entries.find((item) => item.mangaKey === manga.key);
-    if (!entry) return;
-    setMenuEntry(entry);
-  }, [entries]);
+  const openMangaMenu = useCallback(
+    (manga: MangaGridItem) => {
+      const entry = entries.find((item) => item.mangaKey === manga.key);
+      if (!entry) return;
+      setMenuEntry(entry);
+    },
+    [entries],
+  );
 
   const closeMangaMenu = useCallback(() => {
     setMenuEntry(null);
@@ -247,9 +248,7 @@ export default function LibraryScreen() {
     <SourceCategoryTabs tabs={categories} selectedId={selectedCategoryId} onSelect={(id) => void selectCategory(id)} />
   ) : null;
 
-  const emptyState = (
-    <EmptyState icon='library-outline' title={t('library_empty_title')} description={t('library_empty_desc')} />
-  );
+  const emptyState = <EmptyState icon='library-outline' title={t('library_empty_title')} description={t('library_empty_desc')} />;
 
   const isEmpty = mangaEntries.length === 0;
 
@@ -298,13 +297,7 @@ export default function LibraryScreen() {
     <>
       <Stack.Screen
         options={{
-          headerRight: () => (
-            <HeaderIconButton
-              icon='refresh-outline'
-              accessibilityLabel={t('library_refresh_all')}
-              onPress={() => void refreshLibrary()}
-            />
-          ),
+          headerRight: () => <HeaderIconButton icon='refresh-outline' accessibilityLabel={t('library_refresh_all')} onPress={() => void refreshLibrary()} />,
         }}
       />
       <Stack.Title>{t('library')}</Stack.Title>
@@ -318,24 +311,20 @@ export default function LibraryScreen() {
           <GestureDetector gesture={categorySwipe}>
             <View style={styles.root}>
               <MangaGrid
-            entries={mangaEntries}
-            columns={gridColumns}
-            showBookmark={false}
-            scaleBadges
-            extraData={refreshProgress}
-            scrollEnabled
-            ListHeaderComponent={listHeader}
-            ListEmptyComponent={<View style={styles.emptyBelowTabs}>{emptyState}</View>}
-            refreshControl={
-              isEmpty ? null : (
-                <RefreshControl refreshing={refreshing} onRefresh={() => void refreshLibrary()} tintColor={colors.tint} />
-              )
-            }
-            onPressManga={(manga) => {
-              const entry = entries.find((item) => item.mangaKey === manga.key);
-              if (entry) openManga(manga, entry);
-            }}
-            onLongPressManga={openMangaMenu}
+                entries={mangaEntries}
+                columns={gridColumns}
+                showBookmark={false}
+                scaleBadges
+                extraData={refreshProgress}
+                scrollEnabled
+                ListHeaderComponent={listHeader}
+                ListEmptyComponent={<View style={styles.emptyBelowTabs}>{emptyState}</View>}
+                refreshControl={isEmpty ? null : <RefreshControl refreshing={refreshing} onRefresh={() => void refreshLibrary()} tintColor={colors.tint} />}
+                onPressManga={(manga) => {
+                  const entry = entries.find((item) => item.mangaKey === manga.key);
+                  if (entry) openManga(manga, entry);
+                }}
+                onLongPressManga={openMangaMenu}
               />
             </View>
           </GestureDetector>

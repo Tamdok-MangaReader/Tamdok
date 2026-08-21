@@ -129,19 +129,7 @@ function isAidokuSettingsEntry(entry: unknown): entry is AidokuSettingsEntry {
 }
 
 function isAidokuLeafSetting(item: AidokuSettingItem): boolean {
-  return [
-    'switch',
-    'text',
-    'select',
-    'segment',
-    'login',
-    'link',
-    'editable-list',
-    'multi-select',
-    'picker',
-    'button',
-    'stepper',
-  ].includes(item.type);
+  return ['switch', 'text', 'select', 'segment', 'login', 'link', 'editable-list', 'multi-select', 'picker', 'button', 'stepper'].includes(item.type);
 }
 
 type AidokuSettingsEntry = AidokuSettingsGroup | AidokuPageSetting | AidokuSettingItem;
@@ -167,11 +155,13 @@ type AidokuSettingItem = {
   title?: string;
   subtitle?: string;
   placeholder?: string;
+  footer?: string;
   secure?: boolean;
   default?: unknown;
   titles?: string[];
   values?: string[];
   options?: string[] | { id: string; label: string }[];
+  items?: AidokuSettingItem[];
   url?: string;
   lineLimit?: number;
   inline?: boolean;
@@ -278,12 +268,7 @@ function mapAidokuSettingItem(item: AidokuSettingItem): SettingDefinition | null
           id: String(index),
           label: typeof option === 'string' ? option : option.label,
         })),
-        default:
-          typeof item.default === 'number'
-            ? String(item.default)
-            : typeof item.default === 'string'
-              ? item.default
-              : '0',
+        default: typeof item.default === 'number' ? String(item.default) : typeof item.default === 'string' ? item.default : '0',
       };
     case 'multi-select':
       return {
@@ -380,7 +365,7 @@ function mapDefinition(definition: SettingDefinition, stored: Record<string, unk
         type: 'select',
         id: definition.id,
         title: definition.title,
-        value: typeof value === 'string' ? value : definition.default ?? definition.options[0]?.id ?? '',
+        value: typeof value === 'string' ? value : (definition.default ?? definition.options[0]?.id ?? ''),
         options: definition.options,
       },
     ];
@@ -393,9 +378,7 @@ function mapDefinition(definition: SettingDefinition, stored: Record<string, unk
         type: 'multi-select',
         id: definition.id,
         title: definition.title,
-        value: Array.isArray(value)
-          ? value.filter((entry): entry is string => typeof entry === 'string')
-          : definition.default ?? [],
+        value: Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : (definition.default ?? []),
         options: definition.options,
       },
     ];
@@ -409,9 +392,7 @@ function mapDefinition(definition: SettingDefinition, stored: Record<string, unk
         id: definition.id,
         title: definition.title,
         placeholder: definition.placeholder,
-        value: Array.isArray(value)
-          ? value.filter((entry): entry is string => typeof entry === 'string')
-          : definition.default ?? [],
+        value: Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : (definition.default ?? []),
       },
     ];
   }
@@ -424,7 +405,7 @@ function mapDefinition(definition: SettingDefinition, stored: Record<string, unk
       title: definition.title,
       placeholder: 'placeholder' in definition ? definition.placeholder : undefined,
       secure: 'secure' in definition ? definition.secure : undefined,
-      value: typeof value === 'string' ? value : definition.default ?? '',
+      value: typeof value === 'string' ? value : (definition.default ?? ''),
     },
   ];
 }

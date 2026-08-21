@@ -209,7 +209,7 @@ export default function MangaDetailScreen() {
       if (!source) return;
       const saved = chapterProgressMap[chapter.key];
       const page = initialPage ?? (saved && saved.page >= 0 ? saved.page : 0);
-      router.push(readerHref(sourceRouteId(source), mangaKey, chapter.key, formatChapterLabel(chapter), manga.title, page, manga.cover));
+      router.navigate(readerHref(sourceRouteId(source), mangaKey, chapter.key, formatChapterLabel(chapter), manga.title, page, manga.cover));
     },
     [chapterProgressMap, router, source, mangaKey, manga.title, manga.cover],
   );

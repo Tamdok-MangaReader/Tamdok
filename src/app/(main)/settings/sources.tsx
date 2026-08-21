@@ -2,17 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  InteractionManager,
-  Keyboard,
-  Pressable,
-  StyleSheet,
-  Switch,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, InteractionManager, Keyboard, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { FlatList } from 'react-native-gesture-handler';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
@@ -30,12 +20,7 @@ import { t } from '@/constants/locales';
 import { useSources } from '@/context/sources-context';
 import { useTheme } from '@/hooks/use-theme';
 import type { InstalledSource, RegistryEntry } from '@/parsers/shared/types';
-import {
-  collectAvailableLanguages,
-  filterCatalogEntries,
-  hasBothCatalogKinds,
-  type CatalogSourceEntry,
-} from '@/services/registry-catalog';
+import { collectAvailableLanguages, filterCatalogEntries, hasBothCatalogKinds, type CatalogSourceEntry } from '@/services/registry-catalog';
 import { resolveRegistryIconUrl } from '@/services/sources';
 import {
   claimRegistryDeepLink,
@@ -113,44 +98,26 @@ export default function SettingsSourcesScreen() {
 
   const availableSearchActive = isSearchActive(deferredSearch);
 
-  const showKindFilter = useMemo(
-    () => hasBothCatalogKinds(catalogEntries, installedIds),
-    [catalogEntries, installedIds],
-  );
+  const showKindFilter = useMemo(() => hasBothCatalogKinds(catalogEntries, installedIds), [catalogEntries, installedIds]);
 
-  const availableLanguages = useMemo(
-    () => collectAvailableLanguages(catalogEntries, installedIds),
-    [catalogEntries, installedIds],
-  );
+  const availableLanguages = useMemo(() => collectAvailableLanguages(catalogEntries, installedIds), [catalogEntries, installedIds]);
 
   useEffect(() => {
     setVisibleAvailableCount(AVAILABLE_PAGE_SIZE);
   }, [languageFilter, kindFilter, catalogEntries.length, installedIds.size, deferredSearch]);
 
-  const filteredAvailableEntries = useMemo(
-    () => catalogBase.filter((item) => matchesCatalogEntry(item.entry, deferredSearch)),
-    [catalogBase, deferredSearch],
-  );
+  const filteredAvailableEntries = useMemo(() => catalogBase.filter((item) => matchesCatalogEntry(item.entry, deferredSearch)), [catalogBase, deferredSearch]);
 
   const visibleAvailableEntries = useMemo(
-    () =>
-      availableSearchActive
-        ? filteredAvailableEntries
-        : filteredAvailableEntries.slice(0, visibleAvailableCount),
+    () => (availableSearchActive ? filteredAvailableEntries : filteredAvailableEntries.slice(0, visibleAvailableCount)),
     [filteredAvailableEntries, availableSearchActive, visibleAvailableCount],
   );
 
-  const notInstalledCount = useMemo(
-    () => catalogEntries.filter((item) => !installedIds.has(item.entry.id)).length,
-    [catalogEntries, installedIds],
-  );
+  const notInstalledCount = useMemo(() => catalogEntries.filter((item) => !installedIds.has(item.entry.id)).length, [catalogEntries, installedIds]);
 
   const updateSourceIds = useMemo(() => new Set(pendingUpdates.map((update) => update.sourceId)), [pendingUpdates]);
 
-  const installedWithoutPendingUpdates = useMemo(
-    () => installed.filter((source) => !updateSourceIds.has(source.id)),
-    [installed, updateSourceIds],
-  );
+  const installedWithoutPendingUpdates = useMemo(() => installed.filter((source) => !updateSourceIds.has(source.id)), [installed, updateSourceIds]);
 
   const confirmRemoveRegistry = useCallback(
     (item: { url: string; name?: string }) => {
@@ -182,7 +149,7 @@ export default function SettingsSourcesScreen() {
 
   const openSourceSettings = useCallback(
     (source: InstalledSource) => {
-      router.push(`/settings/source/${encodeURIComponent(source.id)}`);
+      router.navigate(`/settings/source/${encodeURIComponent(source.id)}`);
     },
     [router],
   );
@@ -208,7 +175,12 @@ export default function SettingsSourcesScreen() {
         return 'invalid';
       }
 
-      if (isDuplicateRegistryUrl(url, registries.map((item) => item.url))) {
+      if (
+        isDuplicateRegistryUrl(
+          url,
+          registries.map((item) => item.url),
+        )
+      ) {
         return 'duplicate';
       }
 
@@ -245,21 +217,15 @@ export default function SettingsSourcesScreen() {
 
       const validation = validateRegistryUrl(trimmed);
       if (validation === 'invalid') {
-        Alert.alert(
-          t('settings_sources_registry_invalid'),
-          undefined,
-          [{ text: t('done'), onPress: finishRegistryDeepLinkPrompt }],
-          { onDismiss: finishRegistryDeepLinkPrompt },
-        );
+        Alert.alert(t('settings_sources_registry_invalid'), undefined, [{ text: t('done'), onPress: finishRegistryDeepLinkPrompt }], {
+          onDismiss: finishRegistryDeepLinkPrompt,
+        });
         return;
       }
       if (validation === 'duplicate') {
-        Alert.alert(
-          t('settings_sources_registry_exists'),
-          undefined,
-          [{ text: t('done'), onPress: finishRegistryDeepLinkPrompt }],
-          { onDismiss: finishRegistryDeepLinkPrompt },
-        );
+        Alert.alert(t('settings_sources_registry_exists'), undefined, [{ text: t('done'), onPress: finishRegistryDeepLinkPrompt }], {
+          onDismiss: finishRegistryDeepLinkPrompt,
+        });
         return;
       }
 
@@ -340,18 +306,14 @@ export default function SettingsSourcesScreen() {
 
   const confirmUninstall = useCallback(
     (source: InstalledSource) => {
-      Alert.alert(
-        t('sources_uninstall_title'),
-        t('sources_uninstall_confirm', { name: source.manifest.info.name }),
-        [
-          { text: t('cancel'), style: 'cancel' },
-          {
-            text: t('sources_uninstall_action'),
-            style: 'destructive',
-            onPress: () => void uninstall(source),
-          },
-        ],
-      );
+      Alert.alert(t('sources_uninstall_title'), t('sources_uninstall_confirm', { name: source.manifest.info.name }), [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('sources_uninstall_action'),
+          style: 'destructive',
+          onPress: () => void uninstall(source),
+        },
+      ]);
     },
     [uninstall],
   );
@@ -551,16 +513,7 @@ export default function SettingsSourcesScreen() {
         ) : null}
       </View>
     ),
-    [
-      applyUpdate,
-      colors.tint,
-      hasUpdatesSection,
-      installedWithoutPendingUpdates.length,
-      isLoading,
-      pendingUpdates,
-      radius.sm,
-      updatingSourceId,
-    ],
+    [applyUpdate, colors.tint, hasUpdatesSection, installedWithoutPendingUpdates.length, isLoading, pendingUpdates, radius.sm, updatingSourceId],
   );
 
   const renderItem = useCallback(
@@ -621,11 +574,7 @@ export default function SettingsSourcesScreen() {
                   accessibilityRole='button'
                   accessibilityLabel={t('settings_sources_refresh_registries')}
                   style={styles.registryRefreshButton}>
-                  {isCheckingUpdates ? (
-                    <ActivityIndicator size='small' color={colors.tint} />
-                  ) : (
-                    <Ionicons name='refresh' size={18} color={colors.tint} />
-                  )}
+                  {isCheckingUpdates ? <ActivityIndicator size='small' color={colors.tint} /> : <Ionicons name='refresh' size={18} color={colors.tint} />}
                 </Pressable>
               }>
               {t('settings_sources_registries')}
@@ -640,10 +589,7 @@ export default function SettingsSourcesScreen() {
               ) : (
                 registries.map((registry, index) => (
                   <View key={registry.url}>
-                    <SwipeableRow
-                      actions={registryActions(registry)}
-                      fullSwipeActionKey='remove'
-                      onFullSwipe={() => confirmRemoveRegistry(registry)}>
+                    <SwipeableRow actions={registryActions(registry)} fullSwipeActionKey='remove' onFullSwipe={() => confirmRemoveRegistry(registry)}>
                       <SourceListItem
                         title={resolveRegistryDisplayName(registry, registryCatalogs[registry.url])}
                         iconSource={resolveRegistryIconSource(registry.url, registryCatalogs[registry.url])}
@@ -761,27 +707,13 @@ export default function SettingsSourcesScreen() {
           );
         }
         if (item.kind === 'empty-search') {
-          return (
-            <EmptyState
-              icon='search-outline'
-              title={t('source_search_empty_title')}
-              description={t('source_search_empty_desc')}
-            />
-          );
+          return <EmptyState icon='search-outline' title={t('source_search_empty_title')} description={t('source_search_empty_desc')} />;
         }
-        return (
-          <EmptyState
-            icon='cloud-download-outline'
-            title={t('source_filter_empty_title')}
-            description={t('source_filter_empty_desc')}
-          />
-        );
+        return <EmptyState icon='cloud-download-outline' title={t('source_filter_empty_title')} description={t('source_filter_empty_desc')} />;
       }
 
       return (
-        <Pressable
-          style={styles.secondaryAction}
-          onPress={() => setVisibleAvailableCount((count) => count + AVAILABLE_PAGE_SIZE)}>
+        <Pressable style={styles.secondaryAction} onPress={() => setVisibleAvailableCount((count) => count + AVAILABLE_PAGE_SIZE)}>
           <ThemedText variant='callout' color='tint'>
             {t('sources_load_more')} ({item.remaining})
           </ThemedText>
@@ -827,7 +759,6 @@ export default function SettingsSourcesScreen() {
             keyExtractor={(item) => item.key}
             renderItem={renderItem}
             ListHeaderComponent={listHeader}
-            renderScrollComponent={(props) => <LiquidGlassScrollComponent {...props} />}
             contentContainerStyle={styles.content}
             contentInsetAdjustmentBehavior='automatic'
             keyboardShouldPersistTaps='handled'
@@ -845,15 +776,7 @@ export default function SettingsSourcesScreen() {
   );
 }
 
-const GroupedCard = memo(function GroupedCard({
-  index,
-  total,
-  children,
-}: {
-  index: number;
-  total: number;
-  children: ReactNode;
-}) {
+const GroupedCard = memo(function GroupedCard({ index, total, children }: { index: number; total: number; children: ReactNode }) {
   const { colors, radius } = useTheme();
   const isFirst = index === 0;
   const isLast = index === total - 1;
@@ -987,8 +910,7 @@ function AddRegistryButton({ colors, radius, onPress }: AddRegistryButtonProps) 
         scale.value = withSpring(1, PRESS_SPRING);
       }}
       accessibilityRole='button'>
-      <Reanimated.View
-        style={[styles.addButton, { backgroundColor: colors.tint, borderRadius: radius.md }, animatedStyle]}>
+      <Reanimated.View style={[styles.addButton, { backgroundColor: colors.tint, borderRadius: radius.md }, animatedStyle]}>
         <ThemedText variant='headline' color='onTint'>
           {t('add')}
         </ThemedText>

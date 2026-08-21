@@ -128,7 +128,7 @@ export default function SettingsScreen() {
               <ListRow
                 icon={item.icon}
                 label={t(item.labelKey)}
-                onPress={() => router.push(item.path as Href)}
+                onPress={() => router.navigate(item.path as Href)}
                 isFirst={index === 0}
                 isLast={index === MENU_ITEMS_FIRST.length - 1}
               />
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
               <ListRow
                 icon={item.icon}
                 label={t(item.labelKey)}
-                onPress={() => router.push(item.path as Href)}
+                onPress={() => router.navigate(item.path as Href)}
                 isFirst={index === 0}
                 isLast={index === MENU_ITEMS_SECOND.length - 1}
               />
@@ -158,7 +158,7 @@ export default function SettingsScreen() {
               <ListRow
                 icon={item.icon}
                 label={t(item.labelKey)}
-                onPress={() => router.push(item.path as Href)}
+                onPress={() => router.navigate(item.path as Href)}
                 isFirst={index === 0}
                 isLast={index === MENU_ITEMS_THIRD.length - 1}
               />

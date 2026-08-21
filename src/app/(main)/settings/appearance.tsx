@@ -59,7 +59,7 @@ export default function AppearanceScreen() {
     <>
       <Stack.Title>{t('section_appearance')}</Stack.Title>
       <ScreenContent>
-      <SectionLabel>{t('theme')}</SectionLabel>
+        <SectionLabel>{t('theme')}</SectionLabel>
         <Card style={styles.card}>
           <SegmentedControl
             values={[t('theme_system'), t('theme_light'), t('theme_dark')]}
@@ -126,9 +126,6 @@ const styles = StyleSheet.create({
   card: {
     padding: Spacing.lg,
     gap: Spacing.md,
-  },
-  title: {
-    fontWeight: '600',
   },
   segmented: {
     height: 36,

@@ -96,7 +96,6 @@ export function buildTapZoneGrid(settings: ReaderSettings, mode: ResolvedReading
     case 'auto':
       gridValue = autoZones(mode);
       break;
-    case 'disabled':
     default:
       gridValue = grid('toggleBars');
       break;
@@ -113,13 +112,7 @@ export function buildTapZoneGrid(settings: ReaderSettings, mode: ResolvedReading
   ) as TapZoneGrid;
 }
 
-export function tapActionAtPoint(
-  grid: TapZoneGrid,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): TapAction {
+export function tapActionAtPoint(grid: TapZoneGrid, x: number, y: number, width: number, height: number): TapAction {
   const col = Math.min(GRID_SIZE - 1, Math.max(0, Math.floor((x / width) * GRID_SIZE)));
   const row = Math.min(GRID_SIZE - 1, Math.max(0, Math.floor((y / height) * GRID_SIZE)));
   return grid[row]?.[col] ?? 'none';
@@ -135,7 +128,5 @@ export function mapTapActionForMode(action: TapAction, mode: ResolvedReadingMode
 
 /** Grid after invert and RTL/LTR mapping, ready to hit-test. */
 export function effectiveTapZoneGrid(settings: ReaderSettings, mode: ResolvedReadingMode): TapZoneGrid {
-  return buildTapZoneGrid(settings, mode).map((row) =>
-    row.map((action) => mapTapActionForMode(action, mode)),
-  ) as TapZoneGrid;
+  return buildTapZoneGrid(settings, mode).map((row) => row.map((action) => mapTapActionForMode(action, mode))) as TapZoneGrid;
 }

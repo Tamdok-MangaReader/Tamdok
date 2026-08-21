@@ -34,9 +34,7 @@ type SourceSection = {
   data: InstalledSource[];
 };
 
-type SourceListRow =
-  | { kind: 'header'; id: string; title: string; isFirst: boolean }
-  | { kind: 'source'; id: string; source: InstalledSource };
+type SourceListRow = { kind: 'header'; id: string; title: string; isFirst: boolean } | { kind: 'source'; id: string; source: InstalledSource };
 
 type SourcesListItem = SourceListRow | InstalledSource;
 
@@ -58,10 +56,7 @@ export default function SourcesScreen() {
   const isEmpty = !isLoading && installed.length === 0;
   const searchActive = isSearchActive(query);
 
-  const sourceMatches = useCallback(
-    (source: InstalledSource) => matchesInstalledSource(source, query),
-    [query],
-  );
+  const sourceMatches = useCallback((source: InstalledSource) => matchesInstalledSource(source, query), [query]);
 
   const hasPinned = useMemo(() => installed.some((source) => isPinned(source)), [installed, isPinned]);
   const hasAidoku = useMemo(() => installed.some((source) => source.kind === 'aidoku'), [installed]);
@@ -160,18 +155,15 @@ export default function SourcesScreen() {
   }, [sections]);
 
   const openSource = (source: InstalledSource) => {
-    router.push(`/sources/${encodeURIComponent(sourceRouteId(source))}`);
+    router.navigate(`/sources/${encodeURIComponent(sourceRouteId(source))}`);
   };
 
   const openSourceSettings = (source: InstalledSource) => {
-    router.push(`/settings/source/${encodeURIComponent(sourceRouteId(source))}`);
+    router.navigate(`/settings/source/${encodeURIComponent(sourceRouteId(source))}`);
   };
 
   const confirmUninstall = (source: InstalledSource) => {
-    Alert.alert(
-      t('sources_uninstall_title'),
-      t('sources_uninstall_confirm', { name: source.manifest.info.name }),
-      [
+    Alert.alert(t('sources_uninstall_title'), t('sources_uninstall_confirm', { name: source.manifest.info.name }), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('sources_uninstall_action'),
@@ -190,7 +182,7 @@ export default function SourcesScreen() {
     setIsReorderMode(false);
   }, []);
 
-const PIN_SWIPE_COLOR = '#E5B800';
+  const PIN_SWIPE_COLOR = '#E5B800';
 
   const pinLeadingActions = (source: InstalledSource): SwipeAction[] => {
     const pinned = isPinned(source);
@@ -274,9 +266,7 @@ const PIN_SWIPE_COLOR = '#E5B800';
   );
 
   const renderDraggableItem = ({ item, drag, isActive }: RenderItemParams<InstalledSource>) => (
-    <View style={[styles.reorderItem, isActive && styles.reorderItemActive]}>
-      {renderSourceRow(item, drag, isActive)}
-    </View>
+    <View style={[styles.reorderItem, isActive && styles.reorderItemActive]}>{renderSourceRow(item, drag, isActive)}</View>
   );
 
   const renderListRow = ({ item }: { item: SourceListRow }) => {
@@ -306,25 +296,17 @@ const PIN_SWIPE_COLOR = '#E5B800';
       !isReorderMode ? (
         <>
           <IncognitoModeBanner />
-          <SourceCategoryTabs
-            tabs={categoryTabs}
-            selectedId={selectedCategory}
-            onSelect={(id) => setSelectedCategory(id as SourcesCategoryId)}
-          />
+          <SourceCategoryTabs tabs={categoryTabs} selectedId={selectedCategory} onSelect={(id) => setSelectedCategory(id as SourcesCategoryId)} />
         </>
       ) : null,
     [categoryTabs, isReorderMode, selectedCategory],
   );
 
-  const categoryEmpty =
-    !isLoading && !isEmpty && !isReorderMode && !searchActive && filteredByCategory.length === 0;
+  const categoryEmpty = !isLoading && !isEmpty && !isReorderMode && !searchActive && filteredByCategory.length === 0;
 
   const listFooterHeight = Spacing.lg;
 
-  const renderListFooter = useCallback(
-    () => <View style={{ height: listFooterHeight }} />,
-    [listFooterHeight],
-  );
+  const renderListFooter = useCallback(() => <View style={{ height: listFooterHeight }} />, [listFooterHeight]);
 
   const reorderItemLayout = (_: ArrayLike<SourcesListItem> | null | undefined, index: number) => ({
     length: REORDER_ROW_HEIGHT,
@@ -368,7 +350,7 @@ const PIN_SWIPE_COLOR = '#E5B800';
               <EmptyState icon='globe-outline' title={t('sources_empty_title')} description={t('sources_empty_settings_hint')} />
               <Pressable
                 style={[styles.settingsButton, { backgroundColor: colors.tint, borderRadius: radius.md }]}
-                onPress={() => router.push('/settings/sources')}>
+                onPress={() => router.navigate('/settings/sources')}>
                 <ThemedText variant='headline' color='onTint'>
                   {t('section_sources')}
                 </ThemedText>
@@ -406,11 +388,7 @@ const PIN_SWIPE_COLOR = '#E5B800';
               ListHeaderComponent={isReorderMode ? undefined : renderListHeader}
               ListFooterComponent={isReorderMode ? undefined : renderListFooter}
               getItemLayout={isReorderMode ? reorderItemLayout : undefined}
-              renderPlaceholder={
-                isReorderMode
-                  ? (params) => renderDragPlaceholder({ item: params.item as InstalledSource })
-                  : undefined
-              }
+              renderPlaceholder={isReorderMode ? (params) => renderDragPlaceholder({ item: params.item as InstalledSource }) : undefined}
               onDragEnd={
                 isReorderMode
                   ? ({ data }) => {

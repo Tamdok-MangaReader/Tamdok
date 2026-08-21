@@ -17,6 +17,7 @@ export type Manga = {
   contentRating?: ContentRating;
   viewer?: Viewer;
   chapters?: Chapter[];
+  sourceId?: string;
 };
 
 export type Chapter = {
@@ -66,14 +67,7 @@ export type Listing = {
   kind?: 'grid' | 'list';
 };
 
-export type HomeComponentKind =
-  | 'scroller'
-  | 'bigScroller'
-  | 'mangaGrid'
-  | 'mangaList'
-  | 'mangaChapterList'
-  | 'filters'
-  | 'links';
+export type HomeComponentKind = 'scroller' | 'bigScroller' | 'mangaGrid' | 'mangaList' | 'mangaChapterList' | 'filters' | 'links';
 
 export type HomeLink = Manga | { type: 'listing'; listing: Listing };
 
@@ -193,12 +187,7 @@ export type TamdokSettingFieldDefinition =
 export type TamdokSourceModule = {
   getSearchMangaList?: (params: SourceListParams, ctx: TamdokSourceContext) => Promise<MangaPageResult>;
   getMangaList?: (listing: Listing, page: number, ctx: TamdokSourceContext) => Promise<MangaPageResult>;
-  getMangaUpdate?: (
-    manga: Manga,
-    needsDetails: boolean,
-    needsChapters: boolean,
-    ctx: TamdokSourceContext,
-  ) => Promise<Manga>;
+  getMangaUpdate?: (manga: Manga, needsDetails: boolean, needsChapters: boolean, ctx: TamdokSourceContext) => Promise<Manga>;
   getPageList?: (manga: Manga, chapter: Chapter, ctx: TamdokSourceContext) => Promise<Page[]>;
   getHome?: (ctx: TamdokSourceContext) => Promise<HomeLayout>;
   getListings?: (ctx: TamdokSourceContext) => Promise<Listing[]>;
@@ -257,7 +246,6 @@ export type SourceListParams = {
   page: number;
   filters?: FilterValue[];
 };
-
 
 export type TamdokSourceContext = {
   request: TamdokRequest;

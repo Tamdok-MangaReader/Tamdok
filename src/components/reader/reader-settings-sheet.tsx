@@ -13,15 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { updateAppSettings, type ReadingMode, type TapZones } from '@/services/app-settings';
 import { setMangaAutoResolvedMode, setMangaReadingMode } from '@/services/reader-manga-settings';
 
-const MANGA_READING_MODES: Array<ReadingMode | 'default'> = [
-  'default',
-  'auto',
-  'rtl',
-  'ltr',
-  'vertical',
-  'webtoon',
-  'continuous',
-];
+const MANGA_READING_MODES: Array<ReadingMode | 'default'> = ['default', 'auto', 'rtl', 'ltr', 'vertical', 'webtoon', 'continuous'];
 
 const TAP_ZONES: TapZones[] = ['left-right', 'l-shaped', 'kindle', 'edge', 'auto', 'disabled'];
 
@@ -33,13 +25,7 @@ type ReaderSettingsSheetProps = {
   onMangaReadingModeChange: (mode: ReadingMode | 'default') => void;
 };
 
-export function ReaderSettingsSheet({
-  visible,
-  sourceId,
-  mangaReadingMode,
-  onClose,
-  onMangaReadingModeChange,
-}: ReaderSettingsSheetProps) {
+export function ReaderSettingsSheet({ visible, sourceId, mangaReadingMode, onClose, onMangaReadingModeChange }: ReaderSettingsSheetProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const router = useRouter();
@@ -58,11 +44,7 @@ export function ReaderSettingsSheet({
   return (
     <Modal visible={visible} animationType='slide' transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View
-        style={[
-          styles.sheet,
-          { paddingBottom: insets.bottom + Spacing.lg, backgroundColor: colors.secondarySystemBackground },
-        ]}>
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg, backgroundColor: colors.secondarySystemBackground }]}>
         <ThemedText variant='headline' style={styles.title}>
           {t('reader_settings_title')}
         </ThemedText>
@@ -90,35 +72,35 @@ export function ReaderSettingsSheet({
               {t('reader_tap_zones_continuous_disabled')}
             </ThemedText>
           ) : (
-          <Card style={styles.card}>
-            <ThemedText variant='subheadline'>{t('reader_tap_zones')}</ThemedText>
-            <InlinePillGrid
-              options={tapZoneOptions}
-              selectedId={settings.tapZones}
-              preserveOrder
-              onSelect={(id) => {
-                void updateAppSettings({ reader: { ...settings, tapZones: id as TapZones } });
-              }}
-            />
-            <TapZonePreview settings={settings} />
-            <View style={styles.invertRow}>
-              <ThemedText variant='body' style={styles.invertLabel}>
-                {t('reader_invert_tap_zones')}
-              </ThemedText>
-              <Switch
-                value={settings.invertTapZones}
-                onValueChange={(value) => {
-                  void updateAppSettings({ reader: { ...settings, invertTapZones: value } });
+            <Card style={styles.card}>
+              <ThemedText variant='subheadline'>{t('reader_tap_zones')}</ThemedText>
+              <InlinePillGrid
+                options={tapZoneOptions}
+                selectedId={settings.tapZones}
+                preserveOrder
+                onSelect={(id) => {
+                  void updateAppSettings({ reader: { ...settings, tapZones: id as TapZones } });
                 }}
               />
-            </View>
-          </Card>
+              <TapZonePreview settings={settings} />
+              <View style={styles.invertRow}>
+                <ThemedText variant='body' style={styles.invertLabel}>
+                  {t('reader_invert_tap_zones')}
+                </ThemedText>
+                <Switch
+                  value={settings.invertTapZones}
+                  onValueChange={(value) => {
+                    void updateAppSettings({ reader: { ...settings, invertTapZones: value } });
+                  }}
+                />
+              </View>
+            </Card>
           )}
           <Pressable
             style={[styles.linkRow, { backgroundColor: colors.tertiaryFill }]}
             onPress={() => {
               onClose();
-              router.push('/settings/reader');
+              router.navigate('/settings/reader');
             }}>
             <ThemedText variant='body' color='tint'>
               {t('reader_open_global_settings')}

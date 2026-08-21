@@ -19,11 +19,7 @@ import { useNavigationTheme } from '@/hooks/use-navigation-theme';
 import { useSources } from '@/context/sources-context';
 import type { InstalledSource, Manga } from '@/parsers/shared/types';
 import { sanitizeAidokuInvokeError } from '@/parsers/aidoku/errors';
-import {
-  isAidokuRequestCancelled,
-  releaseAidokuSourceRequests,
-  retainAidokuSourceRequests,
-} from '@/parsers/aidoku/wasm-bridge';
+import { isAidokuRequestCancelled, releaseAidokuSourceRequests, retainAidokuSourceRequests } from '@/parsers/aidoku/wasm-bridge';
 import { createSourceRunner, sourceRouteId } from '@/services/sources';
 import { filterMangaByContent } from '@/utils/global-search-filters';
 import { mangaHref } from '@/utils/manga-route';
@@ -42,21 +38,12 @@ export default function SearchScreen() {
   const trimmedQuery = query.trim();
   const searchSources = useMemo(() => filterInstalledForSearch(installed, filters), [installed, filters]);
 
-  const visibleGroups = useMemo(
-    () =>
-      groups.filter(
-        (group) => group.status === 'loading' || group.status === 'error' || group.entries.length > 0,
-      ),
-    [groups],
-  );
+  const visibleGroups = useMemo(() => groups.filter((group) => group.status === 'loading' || group.status === 'error' || group.entries.length > 0), [groups]);
 
   const isSearchActive = trimmedQuery.length > 0;
   const anyLoading = visibleGroups.some((group) => group.status === 'loading');
   const anyErrors = visibleGroups.some((group) => group.status === 'error');
-  const totalResults = useMemo(
-    () => visibleGroups.reduce((sum, group) => sum + group.entries.length, 0),
-    [visibleGroups],
-  );
+  const totalResults = useMemo(() => visibleGroups.reduce((sum, group) => sum + group.entries.length, 0), [visibleGroups]);
   const searchFinished = isSearchActive && visibleGroups.length > 0 && !anyLoading;
   const showNoResults = searchFinished && totalResults === 0 && !anyErrors;
   const noSourcesForFilters = searchSources.length === 0;
@@ -69,9 +56,7 @@ export default function SearchScreen() {
       if (generation === searchGenerationRef.current) {
         setGroups((previous) =>
           previous.map((group) =>
-            sourceRouteId(group.source) === sourceRouteId(source)
-              ? { ...group, entries: [], status: 'loading', error: undefined }
-              : group,
+            sourceRouteId(group.source) === sourceRouteId(source) ? { ...group, entries: [], status: 'loading', error: undefined } : group,
           ),
         );
       }
@@ -82,24 +67,13 @@ export default function SearchScreen() {
         const entries = filterMangaByContent(page.entries, filters.contentFilter);
         if (generation !== searchGenerationRef.current) return;
         setGroups((previous) =>
-          previous.map((group) =>
-            sourceRouteId(group.source) === sourceRouteId(source)
-              ? { ...group, entries, status: 'done', error: undefined }
-              : group,
-          ),
+          previous.map((group) => (sourceRouteId(group.source) === sourceRouteId(source) ? { ...group, entries, status: 'done', error: undefined } : group)),
         );
       } catch (searchError) {
         if (isAidokuRequestCancelled(searchError) || generation !== searchGenerationRef.current) return;
-        const message =
-          searchError instanceof Error
-            ? sanitizeAidokuInvokeError(searchError.message)
-            : sanitizeAidokuInvokeError(String(searchError));
+        const message = searchError instanceof Error ? sanitizeAidokuInvokeError(searchError.message) : sanitizeAidokuInvokeError(String(searchError));
         setGroups((previous) =>
-          previous.map((group) =>
-            sourceRouteId(group.source) === sourceRouteId(source)
-              ? { ...group, entries: [], status: 'error', error: message }
-              : group,
-          ),
+          previous.map((group) => (sourceRouteId(group.source) === sourceRouteId(source) ? { ...group, entries: [], status: 'error', error: message } : group)),
         );
       }
     },
@@ -163,10 +137,7 @@ export default function SearchScreen() {
     };
   }, [searchSources, trimmedQuery]);
 
-  const filterBar = useMemo(
-    () => <GlobalSearchFilterBar installed={installed} filters={filters} onChange={setFilters} />,
-    [installed, filters],
-  );
+  const filterBar = useMemo(() => <GlobalSearchFilterBar installed={installed} filters={filters} onChange={setFilters} />, [installed, filters]);
 
   const renderListHeader = useCallback(() => filterBar, [filterBar]);
 
@@ -206,14 +177,14 @@ export default function SearchScreen() {
 
   const openManga = useCallback(
     (source: InstalledSource, manga: Manga) => {
-      router.push(mangaHref(source, manga));
+      router.navigate(mangaHref(source, manga));
     },
     [router],
   );
 
   const openSource = useCallback(
     (source: InstalledSource) => {
-      router.push(`/sources/${encodeURIComponent(sourceRouteId(source))}`);
+      router.navigate(`/sources/${encodeURIComponent(sourceRouteId(source))}`);
     },
     [router],
   );
@@ -248,10 +219,7 @@ export default function SearchScreen() {
             style={styles.list}
             data={showResultsList ? visibleGroups : []}
             keyExtractor={(item) => sourceRouteId(item.source)}
-            contentContainerStyle={[
-              styles.listContent,
-              !showResultsList && styles.listContentEmpty,
-            ]}
+            contentContainerStyle={[styles.listContent, !showResultsList && styles.listContentEmpty]}
             contentInsetAdjustmentBehavior='automatic'
             automaticallyAdjustsScrollIndicatorInsets
             ListHeaderComponent={isSearchActive ? renderListHeader : undefined}
