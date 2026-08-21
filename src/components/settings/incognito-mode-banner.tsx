@@ -16,12 +16,7 @@ export function IncognitoModeBanner({ floating = false, style }: { floating?: bo
   if (!incognitoMode) return null;
 
   return (
-    <View
-      style={[
-        floating && [styles.floatingWrap, { top: insets.top + Spacing.xs }],
-        style,
-      ]}
-      pointerEvents={floating ? 'box-none' : undefined}>
+    <View style={[floating && [styles.floatingWrap, { top: insets.top + Spacing.xs }], style]} pointerEvents={floating ? 'box-none' : undefined}>
       <View
         style={[
           styles.banner,

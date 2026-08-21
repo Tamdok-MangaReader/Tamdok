@@ -182,7 +182,13 @@ function HistoryMangaGroup({
     <Pressable style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]} onPress={() => onOpenManga(group)}>
       <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
         {group.cover && coverHeadersReady ? (
-          <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling />
+          <Image
+            source={coverImageSource(group.cover, coverHeaders)}
+            style={StyleSheet.absoluteFill}
+            contentFit='cover'
+            cachePolicy={IMAGE_CACHE_POLICY}
+            allowDownscaling
+          />
         ) : (
           <ThemedText variant='title3' color='tertiaryLabel'>
             {group.mangaTitle.slice(0, 1)}

@@ -29,12 +29,7 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
       exiting={FadeOut.duration(180)}
       style={[styles.root, { paddingBottom: Math.max(insets.bottom, Spacing.sm) }]}
       pointerEvents='box-none'>
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.72)', '#000000']}
-        locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents='none'
-      />
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)', '#000000']} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} pointerEvents='none' />
       <View style={styles.row}>
         <ThemedText variant='footnote' style={{ color: foregroundColor }}>
           {t('reader_page_counter', { current: String(chrome.currentPage + 1), total: String(totalPages) })}

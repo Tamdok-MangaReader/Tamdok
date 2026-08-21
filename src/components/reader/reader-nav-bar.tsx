@@ -27,12 +27,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
       exiting={FadeOut.duration(180)}
       style={[styles.root, { paddingTop: Math.max(insets.top, Spacing.sm) }]}
       pointerEvents='box-none'>
-      <LinearGradient
-        colors={['#000000', 'rgba(0,0,0,0.72)', 'transparent']}
-        locations={[0, 0.55, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents='none'
-      />
+      <LinearGradient colors={['#000000', 'rgba(0,0,0,0.72)', 'transparent']} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} pointerEvents='none' />
       <View style={styles.row}>
         <GlassIconButton
           icon='close'

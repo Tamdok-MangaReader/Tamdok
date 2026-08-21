@@ -16,7 +16,6 @@ import { ReaderTextView } from '@/components/reader/reader-text-view';
 import { ReaderToolbar } from '@/components/reader/reader-toolbar';
 import { ReaderWebtoonView } from '@/components/reader/reader-webtoon-view';
 import { ReaderModeHint } from '@/components/reader/reader-mode-hint';
-import { IncognitoModeBanner } from '@/components/settings/incognito-mode-banner';
 import { useReaderChapterWindow } from '@/hooks/use-reader-chapter-window';
 import type { Chapter, Manga, Page } from '@/parsers/shared/types';
 import { getAppSettings } from '@/services/app-settings';
@@ -740,7 +739,6 @@ export function ReaderView({
         <ReaderNavBar visible={barsVisible} />
         <ReaderToolbar visible={barsVisible} />
         {modeHintVisible ? <ReaderModeHint mode={mode} /> : null}
-        <IncognitoModeBanner floating />
         <ReaderChapterSheet visible={chapterSheetOpen} onClose={() => setChapterSheetOpen(false)} />
         <ReaderSettingsSheet
           visible={readerSettingsOpen}
