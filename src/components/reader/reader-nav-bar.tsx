@@ -17,7 +17,7 @@ const ICON_SIZE = 26;
 
 export function ReaderNavBar({ visible }: ReaderNavBarProps) {
   const insets = useSafeAreaInsets();
-  const { chrome, actions, foregroundColor } = useReader();
+  const { chrome, actions, foregroundColor, chapter } = useReader();
 
   if (!visible) return null;
 
@@ -41,6 +41,11 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
           <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'center', fontWeight: '600' }}>
             {chrome.chapterTitle || chrome.mangaTitle}
           </ThemedText>
+          {chapter.chapterNumber ? (
+            <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'center', fontWeight: '600' }}>
+              {`#${chapter.chapterNumber}`}
+            </ThemedText>
+          ) : null}
         </View>
         <View style={styles.actions}>
           <GlassIconButton

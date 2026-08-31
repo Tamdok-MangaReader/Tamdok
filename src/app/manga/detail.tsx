@@ -219,7 +219,10 @@ export default function MangaDetailScreen() {
   const continueLabel = useMemo(() => {
     if (!readingTarget) return t('manga_start_reading');
     if (!readingTarget.hasHistory) return t('manga_start_reading');
-    return t('manga_continue_reading', { chapter: formatChapterLabel(readingTarget.chapter) });
+    const chapterNumber = readingTarget.chapter.chapterNumber;
+    return t('manga_continue_reading', {
+      chapter: `${chapterNumber && showChapterNumber ? `#${chapterNumber} - ` : ''}${formatChapterLabel(readingTarget.chapter)}`,
+    });
   }, [readingTarget]);
 
   const openChapter = useCallback(
