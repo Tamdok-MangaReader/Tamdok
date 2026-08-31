@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   StyleSheet,
   useWindowDimensions,
@@ -52,6 +53,12 @@ function isPageItem(item: StripListItem | undefined): item is StripPageItem {
   return item?.kind === 'page';
 }
 
+function isNearListEnd(event: NativeScrollEvent, screens = 1.2): boolean {
+  const viewport = Math.max(1, event.layoutMeasurement.height);
+  const distance = event.contentSize.height - event.contentOffset.y - viewport;
+  return distance <= viewport * screens;
+}
+
 export function ReaderWebtoonView({
   onLocationChange,
   onInteraction,
@@ -82,9 +89,10 @@ export function ReaderWebtoonView({
   const programmaticScrollRef = useRef(false);
   const visibleIndexRef = useRef(0);
   const visibleIdRef = useRef<string | null>(null);
-  const prevFirstIdRef = useRef<string | null>(null);
+  const prevStripItemsRef = useRef<StripListItem[]>([]);
   const lastTapAtRef = useRef(0);
   const userScrolledRef = useRef(false);
+  const canLoadNextRef = useRef(false);
   const originChapterKeyRef = useRef(chapter.key);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
@@ -240,6 +248,18 @@ export function ReaderWebtoonView({
     [pageCountForChapter],
   );
 
+  const shiftViewportBy = useCallback((delta: number) => {
+    if (Math.abs(delta) < 1) return;
+    const nextOffset = Math.max(0, lastOffsetYRef.current + delta);
+    lastOffsetYRef.current = nextOffset;
+    programmaticScrollRef.current = true;
+    listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+    if (seekClearTimerRef.current) clearTimeout(seekClearTimerRef.current);
+    seekClearTimerRef.current = setTimeout(() => {
+      programmaticScrollRef.current = false;
+    }, 80);
+  }, []);
+
   const scrollToGlobal = useCallback(
     (index: number, animated: boolean) => {
       const items = stripItemsRef.current;
@@ -356,38 +376,49 @@ export function ReaderWebtoonView({
           : readerPageFrameHeight(item, contentWidth, undefined, estimatedHeight);
     }
 
-    const firstId = stripItems[0]?.id ?? null;
-    const previousFirst = prevFirstIdRef.current;
-    prevFirstIdRef.current = firstId;
+    const previousItems = prevStripItemsRef.current;
+    prevStripItemsRef.current = stripItems;
+
     const anchorId = visibleIdRef.current;
     if (anchorId) {
       const index = stripItems.findIndex((item) => item.id === anchorId);
       if (index >= 0) visibleIndexRef.current = index;
     }
-    if (!previousFirst || !firstId || previousFirst === firstId) return;
+    if (previousItems.length === 0 || previousItems === stripItems) return;
 
-    let extra = 0;
-    for (const item of stripItems) {
-      if (item.id === previousFirst) break;
-      extra += heightForItem(item);
+    // Keep the same page on screen when chapters are prepended or dropped from the window.
+    const newAnchorIndex = anchorId ? stripItems.findIndex((item) => item.id === anchorId) : -1;
+    const oldAnchorIndex = anchorId ? previousItems.findIndex((item) => item.id === anchorId) : -1;
+    if (newAnchorIndex >= 0 && oldAnchorIndex >= 0) {
+      shiftViewportBy(offsetForIndex(newAnchorIndex, stripItems) - offsetForIndex(oldAnchorIndex, previousItems));
+      return;
     }
-    if (extra <= 0) return;
 
-    const nextOffset = lastOffsetYRef.current + extra;
-    lastOffsetYRef.current = nextOffset;
-    programmaticScrollRef.current = true;
-    listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
-    if (seekClearTimerRef.current) clearTimeout(seekClearTimerRef.current);
-    seekClearTimerRef.current = setTimeout(() => {
-      programmaticScrollRef.current = false;
-    }, 80);
-  }, [contentWidth, estimatedHeight, heightForItem, stripItems]);
+    const firstId = stripItems[0]?.id ?? null;
+    if (!firstId) return;
+    const newFirstInOld = previousItems.findIndex((item) => item.id === firstId);
+    if (newFirstInOld > 0) {
+      shiftViewportBy(-itemOffsetForIndex(newFirstInOld, previousItems));
+      return;
+    }
+    const oldFirstInNew = stripItems.findIndex((item) => item.id === previousItems[0]?.id);
+    if (oldFirstInNew > 0) {
+      shiftViewportBy(itemOffsetForIndex(oldFirstInNew, stripItems));
+    }
+  }, [contentWidth, estimatedHeight, itemOffsetForIndex, offsetForIndex, shiftViewportBy, stripItems]);
+
+  const requestNextChapter = useCallback(() => {
+    if (!userScrolledRef.current || !canLoadNextRef.current) return;
+    if (restoringRef.current || programmaticScrollRef.current) return;
+    canLoadNextRef.current = false;
+    actionsRef.current.loadAdjacentChapter('next');
+  }, []);
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const offsetY = event.nativeEvent.contentOffset.y;
-      lastOffsetYRef.current = offsetY;
       if (restoringRef.current || programmaticScrollRef.current) return;
+      lastOffsetYRef.current = offsetY;
       const items = stripItemsRef.current;
       const index = indexForOffset(offsetY, items);
       visibleIndexRef.current = index;
@@ -402,26 +433,23 @@ export function ReaderWebtoonView({
         );
       }
 
-      if (!userScrolledRef.current) return;
-      const item = items[index];
-      if (!item) return;
-      const last = segmentsRef.current[segmentsRef.current.length - 1];
-      if (isPageItem(item) && last && item.chapter.key === last.chapter.key && item.localIndex >= last.pages.length - 2) {
-        actionsRef.current.loadAdjacentChapter('next');
-      }
+      if (isNearListEnd(event.nativeEvent)) requestNextChapter();
     },
-    [indexForOffset, reportLocation],
+    [indexForOffset, reportLocation, requestNextChapter],
   );
 
   const handleScrollSettled = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    lastOffsetYRef.current = offsetY;
+    const nativeEvent = event.nativeEvent;
     const skip = restoringRef.current || programmaticScrollRef.current;
     programmaticScrollRef.current = false;
     if (skip || !userScrolledRef.current) return;
-    if (offsetY > headerHeightRef.current + 24) return;
-    actionsRef.current.loadAdjacentChapter('previous');
-  }, []);
+    lastOffsetYRef.current = nativeEvent.contentOffset.y;
+    if (nativeEvent.contentOffset.y <= headerHeightRef.current + 24) {
+      actionsRef.current.loadAdjacentChapter('previous');
+      return;
+    }
+    if (isNearListEnd(nativeEvent, 0.35)) requestNextChapter();
+  }, [requestNextChapter]);
 
   const handleTap = useCallback(
     (x: number, y: number) => {
@@ -472,6 +500,7 @@ export function ReaderWebtoonView({
 
   const handleScrollBegin = useCallback(() => {
     userScrolledRef.current = true;
+    canLoadNextRef.current = true;
     programmaticScrollRef.current = false;
     restoringRef.current = false;
     restoreDoneRef.current = true;
@@ -526,7 +555,11 @@ export function ReaderWebtoonView({
     </View>
   );
 
-  const chapterEnd = nextAfterWindow ? null : (
+  const chapterEnd = nextAfterWindow ? (
+    <View style={styles.nextFooter}>
+      <ActivityIndicator color={foregroundColor} />
+    </View>
+  ) : (
     <ReaderChapterBoundary
       kind='end'
       chapterLabel={lastChapterLabel}
@@ -547,9 +580,9 @@ export function ReaderWebtoonView({
         contentContainerStyle={styles.listContent}
         pagingEnabled={false}
         decelerationRate={mode === 'continuous' ? 'normal' : 'fast'}
-        initialNumToRender={2}
-        windowSize={3}
-        maxToRenderPerBatch={2}
+        initialNumToRender={4}
+        windowSize={7}
+        maxToRenderPerBatch={4}
         updateCellsBatchingPeriod={50}
         removeClippedSubviews
         extraData={`${debugShowPageNumbers ? 1 : 0}:${stripItems.length}:${contentWidth}:${headerHeight}:${heightTick}`}
@@ -565,6 +598,8 @@ export function ReaderWebtoonView({
         onScrollBeginDrag={handleScrollBegin}
         onScrollEndDrag={handleScrollSettled}
         onMomentumScrollEnd={handleScrollSettled}
+        onEndReached={requestNextChapter}
+        onEndReachedThreshold={1}
         onTouchStart={(event) => {
           const touch = event.nativeEvent.touches[0];
           if (touch) handleTouchStart(touch.pageX, touch.pageY);
@@ -673,5 +708,11 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  nextFooter: {
+    minHeight: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
   },
 });
