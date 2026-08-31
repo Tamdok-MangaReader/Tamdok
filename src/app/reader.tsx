@@ -1,17 +1,13 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Pressable, View, StyleSheet } from 'react-native';
 
 import { ReaderView } from '@/components/reader/reader-view';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
-import {
-  SourceCoverHeadersProvider,
-  useSourceCoverHeaders,
-  useSourceCoverHeadersReady,
-} from '@/context/source-cover-context';
+import { SourceCoverHeadersProvider, useSourceCoverHeaders, useSourceCoverHeadersReady } from '@/context/source-cover-context';
 import { useSources } from '@/context/sources-context';
 import { useSourceRunner } from '@/hooks/use-source-runner';
 import type { Chapter, Manga, Page } from '@/parsers/shared/types';
@@ -24,6 +20,7 @@ import { decodeMangaKey, mangaFromParams } from '@/utils/manga-route';
 import { findAdjacentChapter } from '@/utils/reader-chapters';
 import { filterRenderablePages } from '@/utils/reader-pages';
 import { prefetchReaderUrls, READER_PRELOAD_AHEAD } from '@/utils/reader-prefetch';
+import { useTheme } from '@/hooks/use-theme';
 
 function decodeParam(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -146,14 +143,10 @@ export default function MangaReaderScreen() {
   const [contentLoading, setContentLoading] = useState(true);
   const [contentError, setContentError] = useState<string | null>(null);
   const [statusBarHidden, setStatusBarHidden] = useState(false);
+  const { colors, radius } = useTheme();
 
   const manga = useMemo(() => {
-    const fromParams = mangaFromParams(
-      manifestSourceId,
-      mangaKey,
-      decodeParam(params.mangaTitle),
-      decodeParam(params.cover),
-    );
+    const fromParams = mangaFromParams(manifestSourceId, mangaKey, decodeParam(params.mangaTitle), decodeParam(params.cover));
     const cached = peekMangaDetailCache(manifestSourceId, mangaKey)?.manga;
     if (!cached) return fromParams;
     return {
@@ -164,9 +157,7 @@ export default function MangaReaderScreen() {
     };
   }, [manifestSourceId, mangaKey, params.cover, params.mangaTitle]);
   const chapter: Chapter = useMemo(() => {
-    const cached = peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters?.find(
-      (item) => item.key === chapterKey,
-    );
+    const cached = peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters?.find((item) => item.key === chapterKey);
     return cached ?? { key: chapterKey, title: decodeParam(params.chapterTitle) };
   }, [chapterKey, manifestSourceId, mangaKey, params.chapterTitle]);
 
@@ -248,10 +239,9 @@ export default function MangaReaderScreen() {
   useEffect(() => {
     if (!runner || chapters.length === 0) return;
 
-    const adjacent = [
-      findAdjacentChapter(chapters, chapterKey, 'previous', true),
-      findAdjacentChapter(chapters, chapterKey, 'next', true),
-    ].filter((item): item is Chapter => Boolean(item));
+    const adjacent = [findAdjacentChapter(chapters, chapterKey, 'previous', true), findAdjacentChapter(chapters, chapterKey, 'next', true)].filter(
+      (item): item is Chapter => Boolean(item),
+    );
 
     let cancelled = false;
     void (async () => {
@@ -270,14 +260,10 @@ export default function MangaReaderScreen() {
     };
   }, [chapterKey, chapters, manifestSourceId, manga, mangaKey, runner]);
 
-  const loadChapterPages = useCallback(
-    (target: Chapter) => loadPagesForChapter(manifestSourceId, manga, target, runner),
-    [manifestSourceId, manga, runner],
-  );
+  const loadChapterPages = useCallback((target: Chapter) => loadPagesForChapter(manifestSourceId, manga, target, runner), [manifestSourceId, manga, runner]);
 
   const combinedError = error ?? contentError;
-  const isLoading =
-    resumePage == null || (runnerLoading && pages.length === 0) || (contentLoading && pages.length === 0);
+  const isLoading = resumePage == null || (runnerLoading && pages.length === 0) || (contentLoading && pages.length === 0);
   const readerScreenOptions = useMemo(
     () => ({
       headerShown: false as const,
@@ -296,18 +282,62 @@ export default function MangaReaderScreen() {
     <>
       <Stack.Screen options={readerScreenOptions} />
       {combinedError && pages.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg }}>
+        <View style={styles.messageContainer}>
           <ThemedText variant='body' color='destructive'>
-            {combinedError}
+            {combinedError ? combinedError : 'Undefined error'}
           </ThemedText>
+          <View style={styles.buttons}>
+            <Pressable
+              style={({ pressed }) => [styles.refreshButton, { backgroundColor: colors.tint, borderRadius: radius.md }, pressed && styles.pressed]}
+              onPress={() => {
+                loadChapterPages(chapter);
+              }}
+              accessibilityRole='button'>
+              <ThemedText variant='headline' color='onTint'>
+                {t('manga_refresh')}
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.backButton, { backgroundColor: colors.destructive, borderRadius: radius.md }, pressed && styles.pressed]}
+              onPress={() => {
+                router.back();
+              }}
+              accessibilityRole='button'>
+              <ThemedText variant='headline' color='onTint'>
+                {t('back')}
+              </ThemedText>
+            </Pressable>
+          </View>
         </View>
       ) : isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}>
           <ActivityIndicator color='#fff' />
         </View>
       ) : pages.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={styles.messageContainer}>
           <EmptyState icon='images-outline' title={t('reader_no_pages')} />
+          <View style={styles.buttons}>
+            <Pressable
+              style={({ pressed }) => [styles.refreshButton, { backgroundColor: colors.tint, borderRadius: radius.md }, pressed && styles.pressed]}
+              onPress={() => {
+                loadChapterPages(chapter);
+              }}
+              accessibilityRole='button'>
+              <ThemedText variant='headline' color='onTint'>
+                {t('manga_refresh')}
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.backButton, { backgroundColor: colors.destructive, borderRadius: radius.md }, pressed && styles.pressed]}
+              onPress={() => {
+                router.back();
+              }}
+              accessibilityRole='button'>
+              <ThemedText variant='headline' color='onTint'>
+                {t('back')}
+              </ThemedText>
+            </Pressable>
+          </View>
         </View>
       ) : (
         <SourceCoverHeadersProvider source={source}>
@@ -326,3 +356,28 @@ export default function MangaReaderScreen() {
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  messageContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    gap: Spacing.xl,
+  },
+  buttons: {
+    width: '60%',
+    gap: Spacing.md,
+  },
+  refreshButton: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+});
