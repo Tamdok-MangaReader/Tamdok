@@ -1,15 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Switch,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -23,11 +15,7 @@ import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { useSources } from '@/context/sources-context';
 import { useTheme } from '@/hooks/use-theme';
-import {
-  loadSourceSettingFields,
-  setSourceSettingValue,
-  type SourceSettingField,
-} from '@/services/source-settings';
+import { loadSourceSettingFields, setSourceSettingValue, type SourceSettingField } from '@/services/source-settings';
 import { findInstalledSource } from '@/services/sources';
 
 const PRESS_SPRING = { damping: 14, stiffness: 320, mass: 0.6 };
@@ -92,23 +80,17 @@ export function InstalledSourceSettings({ sourceRouteId: routeId }: InstalledSou
     void refreshFields();
   }, [refreshFields]);
 
-  const updateField = async (
-    field: Exclude<SourceSettingField, { type: 'section' }>,
-    nextValue: boolean | string | string[],
-  ) => {
+  const updateField = async (field: Exclude<SourceSettingField, { type: 'section' }>, nextValue: boolean | string | string[]) => {
+    // TODO: Fix text blinking
+
     if (!source) return;
     await setSourceSettingValue(source.id, field.id, nextValue);
-    setFields((current) =>
-      current.map((item) => (item.id === field.id ? ({ ...item, value: nextValue } as SourceSettingField) : item)),
-    );
+    setFields((current) => current.map((item) => (item.id === field.id ? ({ ...item, value: nextValue } as SourceSettingField) : item)));
   };
 
   const confirmDelete = () => {
     if (!source) return;
-    Alert.alert(
-      t('sources_uninstall_title'),
-      t('sources_uninstall_confirm', { name: source.manifest.info.name }),
-      [
+    Alert.alert(t('sources_uninstall_title'), t('sources_uninstall_confirm', { name: source.manifest.info.name }), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('sources_uninstall_action'),
@@ -223,9 +205,7 @@ export function InstalledSourceSettings({ sourceRouteId: routeId }: InstalledSou
 
                             return (
                               <GlassSurface key={option.id} borderRadius={radius.pill} interactive>
-                                <Pressable
-                                  style={styles.pill}
-                                  onPress={() => void updateField(field, [...field.value, option.id])}>
+                                <Pressable style={styles.pill} onPress={() => void updateField(field, [...field.value, option.id])}>
                                   <ThemedText variant='subheadline' numberOfLines={1}>
                                     {option.label}
                                   </ThemedText>
@@ -324,10 +304,7 @@ export function InstalledSourceSettings({ sourceRouteId: routeId }: InstalledSou
         )}
 
         <GlassSurface borderRadius={radius.pill} style={styles.deleteButton} interactive glassStyle='clear'>
-          <Pressable
-            style={({ pressed }) => [styles.deleteButtonPressable, pressed && { opacity: 0.82 }]}
-            onPress={confirmDelete}
-            accessibilityRole='button'>
+          <Pressable style={({ pressed }) => [styles.deleteButtonPressable, pressed && { opacity: 0.82 }]} onPress={confirmDelete} accessibilityRole='button'>
             <ThemedText variant='headline' color='destructive'>
               {t('sources_uninstall_action')}
             </ThemedText>
@@ -508,12 +485,7 @@ function EditableListField({ field, colors, radius, isDark, isLast, onChange }: 
             scale.value = withSpring(1, PRESS_SPRING);
           }}
           accessibilityRole='button'>
-          <Reanimated.View
-            style={[
-              styles.listAddButton,
-              { borderRadius: radius.pill, backgroundColor: colors.tint },
-              addButtonStyle,
-            ]}>
+          <Reanimated.View style={[styles.listAddButton, { borderRadius: radius.pill, backgroundColor: colors.tint }, addButtonStyle]}>
             <ThemedText variant='subheadline' color='onTint'>
               {t('add')}
             </ThemedText>

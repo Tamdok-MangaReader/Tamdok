@@ -38,11 +38,11 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
           accessibilityLabel='Close'
         />
         <View style={styles.center}>
-          <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'center', fontWeight: '600' }}>
+          <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'left', fontWeight: '600' }}>
             {chrome.chapterTitle || chrome.mangaTitle}
           </ThemedText>
           {chapter.chapterNumber ? (
-            <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'center', fontWeight: '600' }}>
+            <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'left', fontWeight: '600' }}>
               {`#${chapter.chapterNumber}`}
             </ThemedText>
           ) : null}
