@@ -10,6 +10,12 @@
 </p>
 
 <p align="center">
+  <a href="https://apps.apple.com/tr/app/tamdok/id6802859539">
+    <img style="width: 150px;" src="https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0f/Available_on_the_App_Store_%28black%29_SVG.svg/3840px-Available_on_the_App_Store_%28black%29_SVG.svg.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail" alt="https://apps.apple.com/tr/app/tamdok/id6802859539" />
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/platform-iOS-000000?style=flat-square&logo=apple&logoColor=white" alt="iOS">
   <img src="https://img.shields.io/badge/runtime-Expo-000020?style=flat-square&logo=expo&logoColor=white" alt="Expo">
   <img src="https://img.shields.io/badge/sources-JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black" alt="JavaScript sources">
