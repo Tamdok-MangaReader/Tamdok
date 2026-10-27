@@ -1,10 +1,15 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import { LibraryMangaCover } from '@/components/manga/library-manga-cover';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import type { HomeScrollerEntry, Listing } from '@/parsers/shared/types';
-import { homeChapterLabel } from '@/utils/chapter-label';
+import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import type { HomeScrollerEntry, Listing } from "@/parsers/shared/types";
+import { homeChapterLabel } from "@/utils/chapter-label";
+import { StarRating } from "@/components/manga/star-rating";
+import {
+  parseMangaDescription,
+  parseRatingText,
+} from "@/utils/manga-description";
 
 type MangaScrollerProps = {
   title?: string;
@@ -34,37 +39,73 @@ export function MangaScroller({
       {(title || listing) && (
         <View style={styles.header}>
           <View style={styles.titles}>
-            {title ? <ThemedText variant='title2'>{title}</ThemedText> : null}
+            {title ? <ThemedText variant="title2">{title}</ThemedText> : null}
             {subtitle ? (
-              <ThemedText variant='footnote' color='secondaryLabel'>
+              <ThemedText variant="footnote" color="secondaryLabel">
                 {subtitle}
               </ThemedText>
             ) : null}
           </View>
           {listing && onPressSeeAll ? (
-            <ThemedText variant='callout' color='tint' onPress={() => onPressSeeAll(listing)}>
+            <ThemedText
+              variant="callout"
+              color="tint"
+              onPress={() => onPressSeeAll(listing)}
+            >
               See all
             </ThemedText>
           ) : null}
         </View>
       )}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroller}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scroller}
+      >
         {entries.map((entry) => {
           const chapterLabel = homeChapterLabel(entry.manga, entry.chapter);
+          const parsed = parseMangaDescription(entry.manga.description);
+          const rating = parseRatingText(
+            entry.manga.rating || parsed.ratingLine,
+          );
           return (
-            <View key={entry.manga.key} style={[styles.tile, { width: coverWidth }]}>
+            <View
+              key={entry.manga.key}
+              style={[styles.tile, { width: coverWidth }]}
+            >
               <LibraryMangaCover
                 sourceId={sourceId}
                 manga={entry.manga}
                 cover={entry.homeCover ?? entry.manga.cover}
                 width={coverWidth}
+                rating={undefined}
                 onPress={() => onPressManga(entry)}
               />
-              {chapterLabel ? (
-                <ThemedText variant='footnote' color='secondaryLabel' numberOfLines={1}>
-                  {chapterLabel}
-                </ThemedText>
-              ) : null}
+              <View style={styles.bottom}>
+                {rating ? (
+                  <View style={styles.ratingWrap}>
+                    <StarRating rating={rating} />
+                  </View>
+                ) : null}
+                {rating && chapterLabel ? (
+                  <ThemedText
+                    variant="footnote"
+                    color="secondaryLabel"
+                    numberOfLines={1}
+                  >
+                    |
+                  </ThemedText>
+                ) : null}
+                {chapterLabel ? (
+                  <ThemedText
+                    variant="footnote"
+                    color="secondaryLabel"
+                    numberOfLines={1}
+                  >
+                    {chapterLabel}
+                  </ThemedText>
+                ) : null}
+              </View>
             </View>
           );
         })}
@@ -78,9 +119,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
   },
   titles: {
@@ -93,5 +134,14 @@ const styles = StyleSheet.create({
   },
   tile: {
     gap: Spacing.xs,
+  },
+  bottom: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+    alignItems: "center",
+    alignContent: "center",
+  },
+  ratingWrap: {
+    paddingLeft: 2,
   },
 });

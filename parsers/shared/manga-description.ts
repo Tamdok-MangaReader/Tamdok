@@ -6,10 +6,15 @@ export type ParsedMangaDescription = {
 };
 
 /** Split libgroup-style markdown descriptions into summary / rating / alt title. */
-export function parseMangaDescription(description?: string): ParsedMangaDescription {
+export function parseMangaDescription(
+  description?: string,
+): ParsedMangaDescription {
   if (!description?.trim()) return {};
 
-  const blocks = description.split('\n\n').map((block) => block.trim()).filter(Boolean);
+  const blocks = description
+    .split("\n\n")
+    .map((block) => block.trim())
+    .filter(Boolean);
   let summary: string | undefined;
   let ratingLine: string | undefined;
   let altTitle: string | undefined;
@@ -17,13 +22,13 @@ export function parseMangaDescription(description?: string): ParsedMangaDescript
 
   for (const block of blocks) {
     if (/[★✮☆]/.test(block) && /\d[\d.]*/.test(block)) {
-      ratingLine = block.replace(/\s*\(голосов:.*\)$/i, '').trim();
+      ratingLine = block.replace(/\s*\(голосов:.*\)$/i, "").trim();
       continue;
     }
 
-    if (block.startsWith('Альтернативные названия:')) {
+    if (block.startsWith("Альтернативные названия:")) {
       const names = block
-        .replace(/^Альтернативные названия:<br\/?>/i, '')
+        .replace(/^Альтернативные названия:<br\/?>/i, "")
         .split(/<br\/?>|,\s*/)
         .map((name) => name.trim())
         .filter(Boolean);
@@ -33,7 +38,7 @@ export function parseMangaDescription(description?: string): ParsedMangaDescript
     }
 
     if (!summary) {
-      summary = block.replace(/<br\/?>/g, '\n').trim();
+      summary = block.replace(/<br\/?>/g, "\n").trim();
     }
   }
 
@@ -52,23 +57,45 @@ export function parseRatingText(text?: string): ParsedRating | null {
 
   const starMatch = text.match(/([★✮☆]+)/);
   const scoreMatch = text.match(/(\d+(?:\.\d+)?)/);
+
   if (!starMatch && !scoreMatch) return null;
 
-  const stars = starMatch?.[1] ?? '';
+  const scoreStr = scoreMatch?.[1];
   let filled = 0;
   let half = false;
   let empty = 0;
 
-  for (const char of stars) {
-    if (char === '★') filled += 1;
-    else if (char === '✮') half = true;
-    else if (char === '☆') empty += 1;
+  if (starMatch) {
+    const stars = starMatch[1];
+    for (const char of stars) {
+      if (char === "★") filled += 1;
+      else if (char === "✮") half = true;
+      else if (char === "☆") empty += 1;
+    }
+  } else if (scoreStr) {
+    let score = parseFloat(scoreStr);
+
+    if (score > 5) {
+      score = score / 2;
+    }
+
+    const boundedScore = Math.max(0, Math.min(5, score));
+    filled = Math.floor(boundedScore);
+    const remainder = boundedScore - filled;
+
+    if (remainder >= 0.25 && remainder < 0.75) {
+      half = true;
+    } else if (remainder >= 0.75) {
+      filled += 1;
+    }
+
+    empty = 5 - filled - (half ? 1 : 0);
   }
 
   return {
     filled,
     half,
     empty,
-    score: scoreMatch?.[1],
+    score: scoreStr,
   };
 }

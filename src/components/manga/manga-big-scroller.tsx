@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   NativeScrollEvent,
@@ -7,16 +7,19 @@ import {
   ScrollView,
   StyleSheet,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { LibraryMangaCover } from '@/components/manga/library-manga-cover';
-import { StarRating } from '@/components/manga/star-rating';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-import type { Manga } from '@/parsers/shared/types';
-import { homeChapterLabel } from '@/utils/chapter-label';
-import { parseMangaDescription, parseRatingText } from '@/utils/manga-description';
+import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
+import { StarRating } from "@/components/manga/star-rating";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import type { Manga } from "@/parsers/shared/types";
+import { homeChapterLabel } from "@/utils/chapter-label";
+import {
+  parseMangaDescription,
+  parseRatingText,
+} from "@/utils/manga-description";
 
 const DEFAULT_AUTO_SCROLL_SECONDS = 5;
 
@@ -40,15 +43,17 @@ export function MangaBigScroller({
   const { colors, radius } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
   const [page, setPage] = useState(0);
-  const cardWidth = Dimensions.get('window').width - Spacing.lg * 2;
+  const cardWidth = Dimensions.get("window").width - Spacing.lg * 2;
   const cardStep = cardWidth + Spacing.sm;
   const scrollInterval =
-    autoScrollInterval ?? (entries.length > 1 ? DEFAULT_AUTO_SCROLL_SECONDS : undefined);
+    autoScrollInterval ??
+    (entries.length > 1 ? DEFAULT_AUTO_SCROLL_SECONDS : undefined);
 
   const scrollToPage = useCallback(
     (nextPage: number) => {
       if (entries.length === 0) return;
-      const clamped = ((nextPage % entries.length) + entries.length) % entries.length;
+      const clamped =
+        ((nextPage % entries.length) + entries.length) % entries.length;
       scrollRef.current?.scrollTo({ x: clamped * cardStep, animated: true });
       setPage(clamped);
     },
@@ -79,9 +84,9 @@ export function MangaBigScroller({
     <View style={styles.section}>
       {(title || subtitle) && (
         <View style={styles.header}>
-          {title ? <ThemedText variant='title2'>{title}</ThemedText> : null}
+          {title ? <ThemedText variant="title2">{title}</ThemedText> : null}
           {subtitle ? (
-            <ThemedText variant='footnote' color='secondaryLabel'>
+            <ThemedText variant="footnote" color="secondaryLabel">
               {subtitle}
             </ThemedText>
           ) : null}
@@ -91,12 +96,13 @@ export function MangaBigScroller({
         ref={scrollRef}
         horizontal
         pagingEnabled={false}
-        decelerationRate='fast'
+        decelerationRate="fast"
         snapToInterval={cardStep}
-        snapToAlignment='start'
+        snapToAlignment="start"
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scroller}
-        onMomentumScrollEnd={onScrollEnd}>
+        onMomentumScrollEnd={onScrollEnd}
+      >
         {entries.map((manga) => (
           <BigMangaCard
             key={manga.key}
@@ -116,7 +122,10 @@ export function MangaBigScroller({
               key={entry.key}
               style={[
                 styles.dot,
-                { backgroundColor: index === page ? colors.tint : colors.tertiaryFill },
+                {
+                  backgroundColor:
+                    index === page ? colors.tint : colors.tertiaryFill,
+                },
               ]}
             />
           ))}
@@ -135,45 +144,89 @@ type BigMangaCardProps = {
   onPress: () => void;
 };
 
-function BigMangaCard({ manga, sourceId, width, borderRadius, placeholderColor, onPress }: BigMangaCardProps) {
+function BigMangaCard({
+  manga,
+  sourceId,
+  width,
+  borderRadius,
+  placeholderColor,
+  onPress,
+}: BigMangaCardProps) {
   const { colors, radius } = useTheme();
   const coverWidth = Math.round(width * 0.38);
   const coverHeight = Math.round(coverWidth * 1.45);
   const parsed = parseMangaDescription(manga.description);
-  const rating = parseRatingText(parsed.ratingLine);
-  const authors = manga.authors?.filter(Boolean).join(', ');
+  const rating = parseRatingText(manga.rating || parsed.ratingLine);
+  const authors = manga.authors?.filter(Boolean).join(", ");
   const tags = manga.tags?.slice(0, 6) ?? [];
-  const altTitles = (parsed.altTitles ?? []).filter((name) => name !== manga.title);
+  const altTitles = (parsed.altTitles ?? []).filter(
+    (name) => name !== manga.title,
+  );
   const chapterLabel = homeChapterLabel(manga, manga.chapters?.[0]);
 
   return (
-    <Pressable style={StyleSheet.flatten([styles.card, { width }])} onPress={onPress}>
+    <Pressable
+      style={StyleSheet.flatten([styles.card, { width }])}
+      onPress={onPress}
+    >
       <View style={styles.cardBody}>
-        <View style={[styles.coverWrap, { width: coverWidth, height: coverHeight, borderRadius, backgroundColor: placeholderColor }]}>
-          <LibraryMangaCover sourceId={sourceId} manga={manga} width={coverWidth} showTitleOverlay={false} />
+        <View
+          style={[
+            styles.coverWrap,
+            {
+              width: coverWidth,
+              height: coverHeight,
+              borderRadius,
+              backgroundColor: placeholderColor,
+            },
+          ]}
+        >
+          <LibraryMangaCover
+            sourceId={sourceId}
+            manga={manga}
+            width={coverWidth}
+            showTitleOverlay={false}
+          />
         </View>
         <View style={styles.info}>
-          <ThemedText variant='headline' numberOfLines={2}>
+          <ThemedText variant="headline" numberOfLines={2}>
             {manga.title}
           </ThemedText>
           {chapterLabel ? (
-            <ThemedText variant='footnote' color='secondaryLabel' numberOfLines={1}>
+            <ThemedText
+              variant="footnote"
+              color="secondaryLabel"
+              numberOfLines={1}
+            >
               {chapterLabel}
             </ThemedText>
           ) : null}
           {altTitles.length > 0 ? (
-            <ThemedText variant='subheadline' color='tertiaryLabel' numberOfLines={3}>
-              {altTitles.join(', ')}
+            <ThemedText
+              variant="subheadline"
+              color="tertiaryLabel"
+              numberOfLines={3}
+            >
+              {altTitles.join(", ")}
             </ThemedText>
           ) : null}
           {authors ? (
-            <ThemedText variant='subheadline' color='secondaryLabel' numberOfLines={2}>
+            <ThemedText
+              variant="subheadline"
+              color="secondaryLabel"
+              numberOfLines={2}
+            >
               {authors}
             </ThemedText>
           ) : null}
           {rating ? <StarRating rating={rating} /> : null}
           {parsed.summary ? (
-            <ThemedText variant='footnote' color='secondaryLabel' numberOfLines={5} style={styles.summary}>
+            <ThemedText
+              variant="footnote"
+              color="secondaryLabel"
+              numberOfLines={5}
+              style={styles.summary}
+            >
               {parsed.summary}
             </ThemedText>
           ) : null}
@@ -182,8 +235,21 @@ function BigMangaCard({ manga, sourceId, width, borderRadius, placeholderColor, 
       {tags.length > 0 ? (
         <View style={styles.tags}>
           {tags.map((tag) => (
-            <View key={tag} style={[styles.tagPill, { borderRadius: radius.pill, backgroundColor: colors.secondaryFill }]}>
-              <ThemedText variant='caption2' color='secondaryLabel' numberOfLines={1}>
+            <View
+              key={tag}
+              style={[
+                styles.tagPill,
+                {
+                  borderRadius: radius.pill,
+                  backgroundColor: colors.secondaryFill,
+                },
+              ]}
+            >
+              <ThemedText
+                variant="caption2"
+                color="secondaryLabel"
+                numberOfLines={1}
+              >
                 {tag}
               </ThemedText>
             </View>
@@ -210,14 +276,14 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   cardBody: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.md,
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   coverWrap: {
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   info: {
     flex: 1,
@@ -228,18 +294,18 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   tags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.xs,
   },
   tagPill: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    maxWidth: '100%',
+    maxWidth: "100%",
   },
   dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
     paddingTop: Spacing.xs,
   },

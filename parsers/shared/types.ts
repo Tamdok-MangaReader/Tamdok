@@ -1,8 +1,9 @@
-export type MangaStatus = 'unknown' | 'ongoing' | 'completed' | 'hiatus' | 'cancelled';
+export type MangaStatus =
+  "unknown" | "ongoing" | "completed" | "hiatus" | "cancelled";
 
-export type ContentRating = 'safe' | 'suggestive' | 'nsfw';
+export type ContentRating = "safe" | "suggestive" | "nsfw";
 
-export type Viewer = 'default' | 'rtl' | 'ltr' | 'webtoon' | 'vertical';
+export type Viewer = "default" | "rtl" | "ltr" | "webtoon" | "vertical";
 
 export type Manga = {
   key: string;
@@ -15,6 +16,7 @@ export type Manga = {
   tags?: string[];
   status?: MangaStatus;
   contentRating?: ContentRating;
+  rating?: string;
   viewer?: Viewer;
   chapters?: Chapter[];
   sourceId?: string;
@@ -54,22 +56,35 @@ export type MangaPageResult = {
 };
 
 export type FilterValue =
-  | { type: 'sort'; id: string; index: number; ascending: boolean }
-  | { type: 'select'; id: string; value: string }
-  | { type: 'multiSelect'; id: string; included: string[]; excluded?: string[]; matchAll?: boolean }
-  | { type: 'text'; id: string; value: string }
-  | { type: 'check'; id: string; value: boolean }
-  | { type: 'range'; id: string; from?: number; to?: number };
+  | { type: "sort"; id: string; index: number; ascending: boolean }
+  | { type: "select"; id: string; value: string }
+  | {
+      type: "multiSelect";
+      id: string;
+      included: string[];
+      excluded?: string[];
+      matchAll?: boolean;
+    }
+  | { type: "text"; id: string; value: string }
+  | { type: "check"; id: string; value: boolean }
+  | { type: "range"; id: string; from?: number; to?: number };
 
 export type Listing = {
   id: string;
   name?: string;
-  kind?: 'grid' | 'list';
+  kind?: "grid" | "list";
 };
 
-export type HomeComponentKind = 'scroller' | 'bigScroller' | 'mangaGrid' | 'mangaList' | 'mangaChapterList' | 'filters' | 'links';
+export type HomeComponentKind =
+  | "scroller"
+  | "bigScroller"
+  | "mangaGrid"
+  | "mangaList"
+  | "mangaChapterList"
+  | "filters"
+  | "links";
 
-export type HomeLink = Manga | { type: 'listing'; listing: Listing };
+export type HomeLink = Manga | { type: "listing"; listing: Listing };
 
 /** Aidoku home Filters row item. */
 export type HomeFilterItem = {
@@ -123,7 +138,7 @@ export type HomeLayout = {
 
 export type FilterDefinition =
   | {
-      type: 'sort';
+      type: "sort";
       id: string;
       title: string;
       options: string[];
@@ -133,7 +148,7 @@ export type FilterDefinition =
       canAscend?: boolean;
     }
   | {
-      type: 'select';
+      type: "select";
       id: string;
       title: string;
       options: { id: string; label: string }[];
@@ -141,7 +156,7 @@ export type FilterDefinition =
       hideFromHeader?: boolean;
     }
   | {
-      type: 'multiSelect';
+      type: "multiSelect";
       id: string;
       title: string;
       options: { id: string; label: string }[];
@@ -149,10 +164,22 @@ export type FilterDefinition =
       hideFromHeader?: boolean;
       canExclude?: boolean;
     }
-  | { type: 'text'; id: string; title: string; placeholder?: string; hideFromHeader?: boolean }
-  | { type: 'check'; id: string; title: string; default?: boolean; hideFromHeader?: boolean }
   | {
-      type: 'range';
+      type: "text";
+      id: string;
+      title: string;
+      placeholder?: string;
+      hideFromHeader?: boolean;
+    }
+  | {
+      type: "check";
+      id: string;
+      title: string;
+      default?: boolean;
+      hideFromHeader?: boolean;
+    }
+  | {
+      type: "range";
       id: string;
       title: string;
       min?: number;
@@ -170,25 +197,60 @@ export type TamdokSourceManifest = {
 };
 
 export type TamdokSettingDefinition =
-  | { type: 'section'; id: string; title: string }
+  | { type: "section"; id: string; title: string }
   | {
-      type: 'group';
+      type: "group";
       title: string;
       items: TamdokSettingFieldDefinition[];
     }
   | TamdokSettingFieldDefinition;
 
 export type TamdokSettingFieldDefinition =
-  | { type: 'switch'; id: string; title: string; default?: boolean; subtitle?: string }
-  | { type: 'select'; id: string; title: string; options: { id: string; label: string }[]; default?: string }
-  | { type: 'text'; id: string; title: string; default?: string; placeholder?: string; secure?: boolean }
-  | { type: 'link'; id: string; title: string; url: string };
+  | {
+      type: "switch";
+      id: string;
+      title: string;
+      default?: boolean;
+      subtitle?: string;
+    }
+  | {
+      type: "select";
+      id: string;
+      title: string;
+      options: { id: string; label: string }[];
+      default?: string;
+    }
+  | {
+      type: "text";
+      id: string;
+      title: string;
+      default?: string;
+      placeholder?: string;
+      secure?: boolean;
+    }
+  | { type: "link"; id: string; title: string; url: string };
 
 export type TamdokSourceModule = {
-  getSearchMangaList?: (params: SourceListParams, ctx: TamdokSourceContext) => Promise<MangaPageResult>;
-  getMangaList?: (listing: Listing, page: number, ctx: TamdokSourceContext) => Promise<MangaPageResult>;
-  getMangaUpdate?: (manga: Manga, needsDetails: boolean, needsChapters: boolean, ctx: TamdokSourceContext) => Promise<Manga>;
-  getPageList?: (manga: Manga, chapter: Chapter, ctx: TamdokSourceContext) => Promise<Page[]>;
+  getSearchMangaList?: (
+    params: SourceListParams,
+    ctx: TamdokSourceContext,
+  ) => Promise<MangaPageResult>;
+  getMangaList?: (
+    listing: Listing,
+    page: number,
+    ctx: TamdokSourceContext,
+  ) => Promise<MangaPageResult>;
+  getMangaUpdate?: (
+    manga: Manga,
+    needsDetails: boolean,
+    needsChapters: boolean,
+    ctx: TamdokSourceContext,
+  ) => Promise<Manga>;
+  getPageList?: (
+    manga: Manga,
+    chapter: Chapter,
+    ctx: TamdokSourceContext,
+  ) => Promise<Page[]>;
   getHome?: (ctx: TamdokSourceContext) => Promise<HomeLayout>;
   getListings?: (ctx: TamdokSourceContext) => Promise<Listing[]>;
   getFilters?: (ctx: TamdokSourceContext) => Promise<FilterDefinition[]>;
@@ -212,7 +274,7 @@ export type SourceManifest = {
   config?: Record<string, unknown>;
 };
 
-export type SourceKind = 'aidoku' | 'tamdok';
+export type SourceKind = "aidoku" | "tamdok";
 
 export type InstalledSource = {
   id: string;
@@ -264,7 +326,7 @@ export type TamdokResponse = {
   url: string;
   text: () => Promise<string>;
   json: <T>() => Promise<T>;
-  html: () => import('node-html-parser').HTMLElement;
+  html: () => import("node-html-parser").HTMLElement;
 };
 
 export type TamdokDefaults = {

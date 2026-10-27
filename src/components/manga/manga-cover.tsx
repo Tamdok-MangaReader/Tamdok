@@ -1,18 +1,22 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { SFSymbolIcon } from '@/components/ui/sf-symbol-icon';
-import { LongPressScalePressable } from '@/components/ui/long-press-scale-pressable';
-import { ThemedText } from '@/components/ui/themed-text';
-import { t } from '@/constants/locales';
-import { Spacing } from '@/constants/theme';
-import { useSourceCoverHeaders } from '@/context/source-cover-context';
-import { useTheme } from '@/hooks/use-theme';
-import { coverImageSource } from '@/utils/cover-image-source';
-import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
+import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
+import { LongPressScalePressable } from "@/components/ui/long-press-scale-pressable";
+import { ThemedText } from "@/components/ui/themed-text";
+import { StarRating } from "@/components/manga/star-rating";
+import { t } from "@/constants/locales";
+import { Spacing } from "@/constants/theme";
+import { useSourceCoverHeaders } from "@/context/source-cover-context";
+import { useTheme } from "@/hooks/use-theme";
+import { coverImageSource } from "@/utils/cover-image-source";
+import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
+import { ParsedRating } from "@/utils/manga-description";
 
 type MangaCoverProps = {
+  rating?: ParsedRating;
+  isRatingCompact?: boolean;
   title: string;
   cover?: string;
   width: number;
@@ -20,6 +24,8 @@ type MangaCoverProps = {
   unreadCount?: number;
   downloadedCount?: number;
   showBookmark?: boolean;
+  showStatus?: boolean;
+  mangaStatus?: string;
   scaleBadges?: boolean;
   showTitleOverlay?: boolean;
   updateFailed?: boolean;
@@ -31,13 +37,17 @@ export function MangaCover({
   title,
   cover,
   width,
+  rating,
   inLibrary = false,
   unreadCount = 0,
   downloadedCount = 0,
   showBookmark = true,
+  showStatus = false,
+  mangaStatus = "null",
   scaleBadges = false,
   showTitleOverlay = true,
   updateFailed = false,
+  isRatingCompact = true,
   onPress,
   onLongPress,
 }: MangaCoverProps) {
@@ -57,92 +67,175 @@ export function MangaCover({
     onLongPress,
     delayLongPress: 240,
     disabled: !onPress && !onLongPress,
-    accessibilityRole: (onPress || onLongPress ? 'button' : 'image') as 'button' | 'image',
+    accessibilityRole: (onPress || onLongPress ? "button" : "image") as
+      "button" | "image",
   };
 
   const coverBody = (
-      <View style={[styles.cover, { width, height, borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
-        {cover ? (
-          <Image
-            source={coverImageSource(cover, coverHeaders)}
-            style={StyleSheet.absoluteFill}
-            contentFit='cover'
-            recyclingKey={cover}
-            cachePolicy={IMAGE_CACHE_POLICY}
-            allowDownscaling
-            transition={0}
-          />
-        ) : (
-          <ThemedText variant='caption2' color='tertiaryLabel' style={styles.placeholder}>
-            {title.slice(0, 1)}
-          </ThemedText>
-        )}
+    <View
+      style={[
+        styles.cover,
+        {
+          width,
+          height,
+          borderRadius: radius.sm,
+          backgroundColor: colors.secondaryFill,
+        },
+      ]}
+    >
+      {cover ? (
+        <Image
+          source={coverImageSource(cover, coverHeaders)}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          recyclingKey={cover}
+          cachePolicy={IMAGE_CACHE_POLICY}
+          allowDownscaling
+          transition={0}
+        />
+      ) : (
+        <ThemedText
+          variant="caption2"
+          color="tertiaryLabel"
+          style={styles.placeholder}
+        >
+          {title.slice(0, 1)}
+        </ThemedText>
+      )}
 
+      <View style={styles.badges}>
         {showBookmark && inLibrary ? (
-          <View style={[styles.bookmarkBadge, { backgroundColor: colors.tint }]}>
-            <SFSymbolIcon name='bookmark.fill' size={11} color={colors.onTint} fallback='bookmark' />
-          </View>
-        ) : null}
-
-        {showUnread || showDownloaded ? (
-          <View style={[styles.countRow, { top: badgeInset, left: badgeInset, gap: Math.max(3, Math.round(4 * badgeScale)) }]}>
-            {showUnread ? (
-              <View
-                style={[
-                  styles.countBadge,
-                  styles.unreadBadge,
-                  {
-                    minWidth: badgeSize,
-                    height: badgeSize,
-                    borderRadius: badgeSize / 2,
-                    paddingHorizontal: badgePadding,
-                  },
-                ]}>
-                <Text style={[styles.countText, { fontSize: badgeFontSize }]}>{formatCount(unreadCount)}</Text>
-              </View>
-            ) : null}
-            {showDownloaded ? (
-              <View
-                style={[
-                  styles.countBadge,
-                  styles.downloadedBadge,
-                  {
-                    minWidth: badgeSize,
-                    height: badgeSize,
-                    borderRadius: badgeSize / 2,
-                    paddingHorizontal: badgePadding,
-                  },
-                ]}>
-                <Text style={[styles.countText, { fontSize: badgeFontSize }]}>{formatCount(downloadedCount)}</Text>
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {updateFailed ? (
           <View
-            style={styles.updateFailedBadge}
-            accessibilityRole='image'
-            accessibilityLabel={t('library_update_failed')}>
-            <SFSymbolIcon name='exclamationmark.triangle.fill' size={14} color='#FFFFFF' fallback='warning' />
-          </View>
-        ) : null}
-
-        {showTitleOverlay ? (
-          <>
-            <LinearGradient
-              colors={['rgba(0,0,0,0.01)', 'rgba(0,0,0,0.72)']}
-              style={styles.titleGradient}
-              pointerEvents='none'
+            style={[styles.bookmarkBadge, { backgroundColor: colors.tint }]}
+          >
+            <SFSymbolIcon
+              name="bookmark.fill"
+              size={11}
+              color={colors.onTint}
+              fallback="bookmark"
             />
-            <View style={[styles.titleWrap, updateFailed ? styles.titleWrapWithWarn : null]}>
-              <Text style={styles.title} numberOfLines={2} ellipsizeMode='tail'>
-                {title}
-              </Text>
-            </View>
-          </>
+          </View>
         ) : null}
       </View>
+
+      {showUnread || showDownloaded ? (
+        <View
+          style={[
+            styles.countRow,
+            {
+              top: badgeInset,
+              left: badgeInset,
+              gap: Math.max(3, Math.round(4 * badgeScale)),
+            },
+          ]}
+        >
+          {showUnread ? (
+            <View
+              style={[
+                styles.countBadge,
+                styles.unreadBadge,
+                {
+                  minWidth: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeSize / 2,
+                  paddingHorizontal: badgePadding,
+                },
+              ]}
+            >
+              <Text style={[styles.countText, { fontSize: badgeFontSize }]}>
+                {formatCount(unreadCount)}
+              </Text>
+            </View>
+          ) : null}
+          {showDownloaded ? (
+            <View
+              style={[
+                styles.countBadge,
+                styles.downloadedBadge,
+                {
+                  minWidth: badgeSize,
+                  height: badgeSize,
+                  borderRadius: badgeSize / 2,
+                  paddingHorizontal: badgePadding,
+                },
+              ]}
+            >
+              <Text style={[styles.countText, { fontSize: badgeFontSize }]}>
+                {formatCount(downloadedCount)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {updateFailed ? (
+        <View
+          style={styles.updateFailedBadge}
+          accessibilityRole="image"
+          accessibilityLabel={t("library_update_failed")}
+        >
+          <SFSymbolIcon
+            name="exclamationmark.triangle.fill"
+            size={14}
+            color="#FFFFFF"
+            fallback="warning"
+          />
+        </View>
+      ) : null}
+
+      {showStatus && !updateFailed ? (
+        <View
+          style={[
+            styles.statusBadge,
+            {
+              backgroundColor:
+                mangaStatus === "ongoing"
+                  ? "rgba(150,150,150,0.9)"
+                  : mangaStatus === "completed"
+                    ? "rgba(1,200,100,0.9)"
+                    : mangaStatus === "hiatus"
+                      ? "rgba(230,210,30,0.9)"
+                      : "rgba(255,40,20,0.9)",
+            },
+          ]}
+        >
+          <SFSymbolIcon
+            name={
+              mangaStatus === "ongoing"
+                ? "play.fill"
+                : mangaStatus === "completed"
+                  ? "checkmark"
+                  : mangaStatus === "hiatus"
+                    ? "pause.fill"
+                    : "xmark"
+            }
+            size={11}
+            color={mangaStatus === "ongoing" ? colors.white : colors.black}
+            fallback="bookmark"
+          />
+        </View>
+      ) : null}
+
+      {showTitleOverlay ? (
+        <>
+          <LinearGradient
+            colors={["rgba(0,0,0,0.01)", "rgba(0,0,0,0.72)"]}
+            style={styles.titleGradient}
+            pointerEvents="none"
+          />
+          <View
+            style={[
+              styles.titleWrap,
+              updateFailed ? styles.titleWrapWithWarn : null,
+            ]}
+          >
+            <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
+              {title}
+            </Text>
+          </View>
+        </>
+      ) : null}
+    </View>
   );
 
   if (onLongPress) {
@@ -153,11 +246,20 @@ export function MangaCover({
     );
   }
 
-  return <Pressable {...pressableProps}>{coverBody}</Pressable>;
+  return (
+    <Pressable {...pressableProps}>
+      {coverBody}
+      {rating ? (
+        <View style={styles.ratingWrap}>
+          <StarRating rating={rating} compact={isRatingCompact} />
+        </View>
+      ) : null}
+    </Pressable>
+  );
 }
 
 function formatCount(value: number): string {
-  if (value > 99) return '99+';
+  if (value > 99) return "99+";
   return String(value);
 }
 
@@ -173,31 +275,47 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   cover: {
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   placeholder: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
   },
-  bookmarkBadge: {
-    position: 'absolute',
+  badges: {
+    position: "absolute",
+    flexDirection: "column",
+    gap: Spacing.xs,
     top: Spacing.xs,
     right: Spacing.xs,
+    zIndex: 2,
+  },
+  bookmarkBadge: {
     width: 22,
     height: 22,
     borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 2,
   },
+  statusBadge: {
+    position: "absolute",
+    right: Spacing.xs,
+    bottom: Spacing.xs,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 3,
+  },
   countRow: {
-    position: 'absolute',
+    position: "absolute",
     top: Spacing.xs,
     left: Spacing.xs,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     zIndex: 2,
   },
@@ -206,42 +324,42 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   unreadBadge: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: "#FF3B30",
   },
   downloadedBadge: {
-    backgroundColor: '#007AFF',
+    backgroundColor: "#007AFF",
   },
   updateFailedBadge: {
-    position: 'absolute',
+    position: "absolute",
     right: Spacing.xs,
     bottom: Spacing.xs,
     width: 22,
     height: 22,
     borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF3B30',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF3B30",
     zIndex: 3,
   },
   countText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   titleGradient: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
-    height: '52%',
+    height: "52%",
     zIndex: 2,
   },
   titleWrap: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
@@ -253,9 +371,12 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.sm + 22 + Spacing.xs,
   },
   title: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
     lineHeight: 19,
-    fontWeight: '700',
+    fontWeight: "700",
+  },
+  ratingWrap: {
+    paddingHorizontal: 2,
   },
 });

@@ -43,24 +43,349 @@ var AidokuWasmHostBundle = (() => {
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
   var __publicField = (obj, key2, value) => __defNormalProp(obj, typeof key2 !== "symbol" ? key2 + "" : key2, value);
 
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/StyleSheet.js
-  var require_StyleSheet = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/StyleSheet.js"(exports) {
-      var CSSOM = {};
-      CSSOM.StyleSheet = function StyleSheet() {
-        this.parentStyleSheet = null;
+  // node_modules/.pnpm/@acemir+cssom@0.9.32/node_modules/@acemir/cssom/build/CSSOM.js
+  var require_CSSOM = __commonJS({
+    "node_modules/.pnpm/@acemir+cssom@0.9.32/node_modules/@acemir/cssom/build/CSSOM.js"(exports, module) {
+      var CSSOM = {
+        /**
+         * Creates and configures a new CSSOM instance with the specified options.
+         * 
+         * @param {Object} opts - Configuration options for the CSSOM instance
+         * @param {Object} [opts.globalObject] - Optional global object to be assigned to CSSOM objects prototype
+         * @returns {Object} A new CSSOM instance with the applied configuration
+         * @description
+         * This method creates a new instance of CSSOM and optionally
+         * configures CSSStyleSheet with a global object reference. When a globalObject is provided
+         * and CSSStyleSheet exists on the instance, it creates a new CSSStyleSheet constructor
+         * using a factory function and assigns the globalObject to its prototype's __globalObject property.
+         */
+        setup: function(opts) {
+          var instance = Object.create(this);
+          if (opts.globalObject) {
+            if (instance.CSSStyleSheet) {
+              var factoryCSSStyleSheet = createFunctionFactory(instance.CSSStyleSheet);
+              var CSSStyleSheet = factoryCSSStyleSheet();
+              CSSStyleSheet.prototype.__globalObject = opts.globalObject;
+              instance.CSSStyleSheet = CSSStyleSheet;
+            }
+          }
+          return instance;
+        }
       };
-      exports.StyleSheet = CSSOM.StyleSheet;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSRule.js
-  var require_CSSRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSRule.js"(exports) {
-      var CSSOM = {};
-      CSSOM.CSSRule = function CSSRule() {
+      function createFunctionFactory(fn) {
+        return function() {
+          var newFn = function() {
+            return fn.apply(this, arguments);
+          };
+          Object.setPrototypeOf(newFn, Object.getPrototypeOf(fn));
+          for (var key2 in fn) {
+            if (Object.prototype.hasOwnProperty.call(fn, key2)) {
+              newFn[key2] = fn[key2];
+            }
+          }
+          if (fn.prototype) {
+            newFn.prototype = Object.create(fn.prototype);
+          }
+          return newFn;
+        };
+      }
+      function getErrorConstructor(context, errorType) {
+        if (context.parentStyleSheet && context.parentStyleSheet.__globalObject && context.parentStyleSheet.__globalObject[errorType]) {
+          return context.parentStyleSheet.__globalObject[errorType];
+        }
+        if (context.__parentStyleSheet && context.__parentStyleSheet.__globalObject && context.__parentStyleSheet.__globalObject[errorType]) {
+          return context.__parentStyleSheet.__globalObject[errorType];
+        }
+        if (context.__globalObject && context.__globalObject[errorType]) {
+          return context.__globalObject[errorType];
+        }
+        return typeof global !== "undefined" && global[errorType] || typeof window !== "undefined" && window[errorType] || eval(errorType);
+      }
+      function createError(context2, errorType2, message, name) {
+        var ErrorConstructor = getErrorConstructor(context2, errorType2);
+        return new ErrorConstructor(message, name);
+      }
+      function throwError(context2, errorType2, message, name) {
+        throw createError(context2, errorType2, message, name);
+      }
+      function throwMissingArguments(context2, methodName, objectName, required, provided) {
+        required = required || 1;
+        provided = provided || 0;
+        var message = "Failed to execute '" + methodName + "' on '" + objectName + "': " + required + " argument" + (required > 1 ? "s" : "") + " required, but only " + provided + " present.";
+        throwError(context2, "TypeError", message);
+      }
+      function throwParseError(context2, methodName, objectName, rule, name) {
+        var message = "Failed to execute '" + methodName + "' on '" + objectName + "': Failed to parse the rule '" + rule + "'.";
+        throwError(context2, "DOMException", message, name || "SyntaxError");
+      }
+      function throwIndexError(context2, methodName, objectName, index, maxIndex, name) {
+        var message = "Failed to execute '" + methodName + "' on '" + objectName + "': The index provided (" + index + ") is larger than the maximum index (" + maxIndex + ").";
+        throwError(context2, "DOMException", message, name || "IndexSizeError");
+      }
+      var errorUtils = {
+        createError,
+        getErrorConstructor,
+        throwError,
+        throwMissingArguments,
+        throwParseError,
+        throwIndexError
+      };
+      var atKeyframesRegExp = /@(-(?:\w+-)+)?keyframes/g;
+      var beforeRulePortionRegExp = /{(?!.*{)|}(?!.*})|;(?!.*;)|\*\/(?!.*\*\/)/g;
+      var beforeRuleValidationRegExp = /^[\s{};]*(\*\/\s*)?$/;
+      var forwardRuleValidationRegExp = /(?:\s|\/\*|\{|\()/;
+      var forwardImportRuleValidationRegExp = /(?:\s|\/\*|'|")/;
+      var forwardRuleClosingBraceRegExp = /{[^{}]*}|}/;
+      var forwardRuleSemicolonAndOpeningBraceRegExp = /^.*?({|;)/;
+      var cssCustomIdentifierRegExp = /^(-?[_a-zA-Z]+(\.[_a-zA-Z]+)*[_a-zA-Z0-9-]*)$/;
+      var startsWithCombinatorRegExp = /^\s*[>+~]/;
+      var atPageRuleSelectorRegExp = /^([^\s:]+)?((?::\w+)*)$/;
+      var layerRegExp = /layer\(([^)]*)\)/;
+      var layerRuleNameRegExp = /^(-?[_a-zA-Z]+(\.[_a-zA-Z]+)*[_a-zA-Z0-9-]*)$/;
+      var doubleOrMoreSpacesRegExp = /\s{2,}/g;
+      var startsWithHexEscapeRegExp = /^\\[0-9a-fA-F]/;
+      var identStartCharRegExp = /[a-zA-Z_\u00A0-\uFFFF]/;
+      var identCharRegExp = /^[a-zA-Z0-9_\-\u00A0-\uFFFF\\]/;
+      var specialCharsNeedEscapeRegExp = /[!"#$%&'()*+,./:;<=>?@\[\\\]^`{|}~\s]/;
+      var combinatorOrSeparatorRegExp = /[\s>+~,()]/;
+      var afterHexEscapeSeparatorRegExp = /[\s>+~,(){}\[\]]/;
+      var trailingSpaceSeparatorRegExp = /[\s>+~,(){}]/;
+      var endsWithHexEscapeRegExp = /\\[0-9a-fA-F]{1,6}\s+$/;
+      var basicStylePropertyValueValidationRegExp = /:(?![^(]*\))(?=(?:[^'"]|'[^']*'|"[^"]*")*$)/;
+      var attributeSelectorContentRegExp = /^([^\s=~|^$*]+)\s*(~=|\|=|\^=|\$=|\*=|=)\s*(.+)$/;
+      var pseudoElementRegExp = /::[a-zA-Z][\w-]*|:(before|after|first-line|first-letter)(?![a-zA-Z0-9_-])/;
+      var invalidCombinatorLtGtRegExp = /<>/;
+      var invalidCombinatorDoubleGtRegExp = />>/;
+      var consecutiveCombinatorsRegExp = /[>+~]\s*[>+~]/;
+      var invalidSlottedRegExp = /(?:^|[\s>+~,\[])slotted\s*\(/i;
+      var invalidPartRegExp = /(?:^|[\s>+~,\[])part\s*\(/i;
+      var invalidCueRegExp = /(?:^|[\s>+~,\[])cue\s*\(/i;
+      var invalidCueRegionRegExp = /(?:^|[\s>+~,\[])cue-region\s*\(/i;
+      var invalidNestingPattern = /&(?![.\#\[:>\+~\s])[a-zA-Z]/;
+      var emptyPseudoClassRegExp = /:(?:is|not|where|has)\(\s*\)/;
+      var whitespaceNormalizationRegExp = /(['"])(?:\\.|[^\\])*?\1|(\r\n|\r|\n)/g;
+      var newlineRemovalRegExp = /\n/g;
+      var whitespaceAndDotRegExp = /[\s.]/;
+      var declarationOrOpenBraceRegExp = /[{;}]/;
+      var ampersandRegExp = /&/;
+      var hexEscapeSequenceRegExp = /^([0-9a-fA-F]{1,6})[ \t\r\n\f]?/;
+      var attributeCaseFlagRegExp = /^(.+?)\s+([is])$/i;
+      var prependedAmpersandRegExp = /^&\s+[:\\.]/;
+      var openBraceGlobalRegExp = /{/g;
+      var closeBraceGlobalRegExp = /}/g;
+      var scopePreludeSplitRegExp = /\s*\)\s*to\s+\(/;
+      var leadingWhitespaceRegExp = /^\s+/;
+      var doubleQuoteRegExp = /"/g;
+      var backslashRegExp = /\\/g;
+      var invalidMediaOperatorWithoutSpaceRegExp = /\)(and|or)\(/i;
+      var invalidMediaNotAfterOperatorRegExp = /\b(and|or)\s+not\b/i;
+      var invalidMediaNotIdentifierRegExp = /\)\s+not\(/i;
+      var invalidMediaNotAfterFeatureRegExp = /\)\s+not\s+/i;
+      var invalidMediaOperatorBetweenParensRegExp = /\)\s+(?!and\b|or\b)[a-z]+\s+\(/i;
+      var invalidMediaNotWithMediaTypeRegExp = /\bnot\s+[a-z][a-z0-9_-]*\s+\(/i;
+      var mediaFeatureColonRegExp = /(\(\s*)([^():]+):(\s*)([^()]*\))/g;
+      var identifierBeforeParenRegExp = /[a-z0-9_-]/i;
+      var mediaAndOperatorRegExp = /\s*\band\b\s*/gi;
+      var mediaOrOperatorRegExp = /\s*\bor\b\s*/gi;
+      var mediaNotOperatorStartRegExp = /^\s*not\s+(?=\S)/i;
+      var mediaNotOperatorRegExp = /\s+\bnot\s+(?=\S)/gi;
+      var regexPatterns = {
+        // Parsing patterns
+        atKeyframesRegExp,
+        beforeRulePortionRegExp,
+        beforeRuleValidationRegExp,
+        forwardRuleValidationRegExp,
+        forwardImportRuleValidationRegExp,
+        forwardRuleClosingBraceRegExp,
+        forwardRuleSemicolonAndOpeningBraceRegExp,
+        // Selector validation patterns
+        cssCustomIdentifierRegExp,
+        startsWithCombinatorRegExp,
+        atPageRuleSelectorRegExp,
+        // Parsing patterns used in CSSImportRule
+        layerRegExp,
+        layerRuleNameRegExp,
+        doubleOrMoreSpacesRegExp,
+        // Escape sequence and identifier patterns
+        startsWithHexEscapeRegExp,
+        identStartCharRegExp,
+        identCharRegExp,
+        specialCharsNeedEscapeRegExp,
+        combinatorOrSeparatorRegExp,
+        afterHexEscapeSeparatorRegExp,
+        trailingSpaceSeparatorRegExp,
+        endsWithHexEscapeRegExp,
+        // Basic style property value validation
+        basicStylePropertyValueValidationRegExp,
+        // Attribute selector patterns
+        attributeSelectorContentRegExp,
+        // Selector validation patterns
+        pseudoElementRegExp,
+        invalidCombinatorLtGtRegExp,
+        invalidCombinatorDoubleGtRegExp,
+        consecutiveCombinatorsRegExp,
+        invalidSlottedRegExp,
+        invalidPartRegExp,
+        invalidCueRegExp,
+        invalidCueRegionRegExp,
+        invalidNestingPattern,
+        emptyPseudoClassRegExp,
+        whitespaceNormalizationRegExp,
+        newlineRemovalRegExp,
+        whitespaceAndDotRegExp,
+        declarationOrOpenBraceRegExp,
+        ampersandRegExp,
+        hexEscapeSequenceRegExp,
+        attributeCaseFlagRegExp,
+        prependedAmpersandRegExp,
+        openBraceGlobalRegExp,
+        closeBraceGlobalRegExp,
+        scopePreludeSplitRegExp,
+        leadingWhitespaceRegExp,
+        doubleQuoteRegExp,
+        backslashRegExp,
+        // Media query validation patterns
+        invalidMediaOperatorWithoutSpaceRegExp,
+        invalidMediaNotAfterOperatorRegExp,
+        invalidMediaNotIdentifierRegExp,
+        invalidMediaNotAfterFeatureRegExp,
+        invalidMediaOperatorBetweenParensRegExp,
+        invalidMediaNotWithMediaTypeRegExp,
+        // Media query normalization patterns
+        mediaFeatureColonRegExp,
+        identifierBeforeParenRegExp,
+        mediaAndOperatorRegExp,
+        mediaOrOperatorRegExp,
+        mediaNotOperatorStartRegExp,
+        mediaNotOperatorRegExp
+      };
+      var indexedPropertyNameRegExp = /^(0|[1-9][0-9]*)$/;
+      CSSOM.CSSStyleDeclaration = function CSSStyleDeclaration2() {
+        this.length = 0;
         this.parentRule = null;
-        this.parentStyleSheet = null;
+        this._importants = {};
+      };
+      CSSOM.CSSStyleDeclaration.prototype = {
+        constructor: CSSOM.CSSStyleDeclaration,
+        /**
+         *
+         * @param {string} name
+         * @see http://www.w3.org/TR/DOM-Level-2-Style/css.html#CSS-CSSStyleDeclaration-getPropertyValue
+         * @return {string} the value of the property if it has been explicitly set for this declaration block.
+         * Returns the empty string if the property has not been set.
+         */
+        getPropertyValue: function(name) {
+          return this[name] || "";
+        },
+        /**
+         *
+         * @param {string} name
+         * @param {string} value
+         * @param {string} [priority=null] "important" or null
+         * @see http://www.w3.org/TR/DOM-Level-2-Style/css.html#CSS-CSSStyleDeclaration-setProperty
+         */
+        setProperty: function(name, value, priority, parseErrorHandler) {
+          if (name === "length" || name === "parentRule" || name === "_importants" || name === "__starts" || name in CSSOM.CSSStyleDeclaration.prototype || indexedPropertyNameRegExp.test(name)) {
+            return;
+          }
+          var basicStylePropertyValueValidationRegExp2 = regexPatterns.basicStylePropertyValueValidationRegExp;
+          if (basicStylePropertyValueValidationRegExp2.test(value)) {
+            parseErrorHandler && parseErrorHandler('Invalid CSSStyleDeclaration property (name = "' + name + '", value = "' + value + '")');
+          } else if (this[name]) {
+            var index = Array.prototype.indexOf.call(this, name);
+            if (index < 0) {
+              this[this.length] = name;
+              this.length++;
+            }
+            if (priority || !this._importants[name]) {
+              this.removeProperty(name);
+              this[this.length] = name;
+              this.length++;
+              this[name] = value + "";
+              this._importants[name] = priority;
+            }
+          } else {
+            this[this.length] = name;
+            this.length++;
+            this[name] = value + "";
+            this._importants[name] = priority;
+          }
+        },
+        /**
+         *
+         * @param {string} name
+         * @see http://www.w3.org/TR/DOM-Level-2-Style/css.html#CSS-CSSStyleDeclaration-removeProperty
+         * @return {string} the value of the property if it has been explicitly set for this declaration block.
+         * Returns the empty string if the property has not been set or the property name does not correspond to a known CSS property.
+         */
+        removeProperty: function(name) {
+          if (!(name in this)) {
+            return "";
+          }
+          var index = Array.prototype.indexOf.call(this, name);
+          if (index < 0) {
+            return "";
+          }
+          var prevValue = this[name];
+          this[name] = "";
+          Array.prototype.splice.call(this, index, 1);
+          return prevValue;
+        },
+        getPropertyCSSValue: function() {
+        },
+        /**
+         *
+         * @param {String} name
+         */
+        getPropertyPriority: function(name) {
+          return this._importants[name] || "";
+        },
+        /**
+         *   element.style.overflow = "auto"
+         *   element.style.getPropertyShorthand("overflow-x")
+         *   -> "overflow"
+         */
+        getPropertyShorthand: function() {
+        },
+        isPropertyImplicit: function() {
+        },
+        // Doesn't work in IE < 9
+        get cssText() {
+          var properties = [];
+          for (var i = 0, length = this.length; i < length; ++i) {
+            var name = this[i];
+            var value = this.getPropertyValue(name);
+            var priority = this.getPropertyPriority(name);
+            if (priority) {
+              priority = " !" + priority;
+            }
+            properties[i] = name + ": " + value + priority + ";";
+          }
+          return properties.join(" ");
+        },
+        set cssText(text) {
+          var i, name;
+          for (i = this.length; i--; ) {
+            name = this[i];
+            this[name] = "";
+          }
+          Array.prototype.splice.call(this, 0, this.length);
+          this._importants = {};
+          var dummyRule = CSSOM.parse("#bogus{" + text + "}").cssRules[0].style;
+          var length = dummyRule.length;
+          for (i = 0; i < length; ++i) {
+            name = dummyRule[i];
+            this.setProperty(dummyRule[i], dummyRule.getPropertyValue(name), dummyRule.getPropertyPriority(name));
+          }
+        }
+      };
+      try {
+        CSSOM.CSSStyleDeclaration = __require("cssstyle").CSSStyleDeclaration;
+      } catch (e) {
+      }
+      CSSOM.CSSRule = function CSSRule() {
+        this.__parentRule = null;
+        this.__parentStyleSheet = null;
       };
       CSSOM.CSSRule.UNKNOWN_RULE = 0;
       CSSOM.CSSRule.STYLE_RULE = 1;
@@ -79,214 +404,397 @@ var AidokuWasmHostBundle = (() => {
       CSSOM.CSSRule.FONT_FEATURE_VALUES_RULE = 14;
       CSSOM.CSSRule.VIEWPORT_RULE = 15;
       CSSOM.CSSRule.REGION_STYLE_RULE = 16;
-      CSSOM.CSSRule.prototype = {
-        constructor: CSSOM.CSSRule
-        //FIXME
+      CSSOM.CSSRule.CONTAINER_RULE = 17;
+      CSSOM.CSSRule.LAYER_BLOCK_RULE = 18;
+      CSSOM.CSSRule.STARTING_STYLE_RULE = 1002;
+      Object.defineProperties(CSSOM.CSSRule.prototype, {
+        constructor: { value: CSSOM.CSSRule },
+        cssRule: {
+          value: "",
+          configurable: true,
+          enumerable: true
+        },
+        cssText: {
+          get: function() {
+            return "";
+          },
+          set: function(cssText) {
+            return cssText;
+          }
+        },
+        parentRule: {
+          get: function() {
+            return this.__parentRule;
+          }
+        },
+        parentStyleSheet: {
+          get: function() {
+            return this.__parentStyleSheet;
+          }
+        },
+        UNKNOWN_RULE: { value: 0, enumerable: true },
+        // obsolet
+        STYLE_RULE: { value: 1, enumerable: true },
+        CHARSET_RULE: { value: 2, enumerable: true },
+        // obsolet
+        IMPORT_RULE: { value: 3, enumerable: true },
+        MEDIA_RULE: { value: 4, enumerable: true },
+        FONT_FACE_RULE: { value: 5, enumerable: true },
+        PAGE_RULE: { value: 6, enumerable: true },
+        KEYFRAMES_RULE: { value: 7, enumerable: true },
+        KEYFRAME_RULE: { value: 8, enumerable: true },
+        MARGIN_RULE: { value: 9, enumerable: true },
+        NAMESPACE_RULE: { value: 10, enumerable: true },
+        COUNTER_STYLE_RULE: { value: 11, enumerable: true },
+        SUPPORTS_RULE: { value: 12, enumerable: true },
+        DOCUMENT_RULE: { value: 13, enumerable: true },
+        FONT_FEATURE_VALUES_RULE: { value: 14, enumerable: true },
+        VIEWPORT_RULE: { value: 15, enumerable: true },
+        REGION_STYLE_RULE: { value: 16, enumerable: true },
+        CONTAINER_RULE: { value: 17, enumerable: true },
+        LAYER_BLOCK_RULE: { value: 18, enumerable: true },
+        STARTING_STYLE_RULE: { value: 1002, enumerable: true }
+      });
+      CSSOM.CSSRuleList = function CSSRuleList() {
+        var arr = new Array();
+        Object.setPrototypeOf(arr, CSSOM.CSSRuleList.prototype);
+        return arr;
       };
-      exports.CSSRule = CSSOM.CSSRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSStyleRule.js
-  var require_CSSStyleRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSStyleRule.js"(exports) {
-      var CSSOM = {
-        CSSStyleDeclaration: require_CSSStyleDeclaration().CSSStyleDeclaration,
-        CSSRule: require_CSSRule().CSSRule
+      CSSOM.CSSRuleList.prototype = Object.create(Array.prototype);
+      CSSOM.CSSRuleList.prototype.constructor = CSSOM.CSSRuleList;
+      CSSOM.CSSRuleList.prototype.item = function(index) {
+        return this[index] || null;
       };
-      CSSOM.CSSStyleRule = function CSSStyleRule() {
+      CSSOM.CSSNestedDeclarations = function CSSNestedDeclarations() {
         CSSOM.CSSRule.call(this);
-        this.selectorText = "";
-        this.style = new CSSOM.CSSStyleDeclaration();
-        this.style.parentRule = this;
+        this.__style = new CSSOM.CSSStyleDeclaration();
+        this.__style.parentRule = this;
       };
-      CSSOM.CSSStyleRule.prototype = new CSSOM.CSSRule();
+      CSSOM.CSSNestedDeclarations.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSNestedDeclarations.prototype.constructor = CSSOM.CSSNestedDeclarations;
+      Object.setPrototypeOf(CSSOM.CSSNestedDeclarations, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSNestedDeclarations.prototype, "type", {
+        value: 0,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSNestedDeclarations.prototype, "style", {
+        get: function() {
+          return this.__style;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            this.__style.cssText = value;
+          } else {
+            this.__style = value;
+          }
+        }
+      });
+      Object.defineProperty(CSSOM.CSSNestedDeclarations.prototype, "cssText", {
+        get: function() {
+          return this.style.cssText;
+        }
+      });
+      CSSOM.CSSGroupingRule = function CSSGroupingRule() {
+        CSSOM.CSSRule.call(this);
+        this.__cssRules = new CSSOM.CSSRuleList();
+      };
+      CSSOM.CSSGroupingRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSGroupingRule.prototype.constructor = CSSOM.CSSGroupingRule;
+      Object.setPrototypeOf(CSSOM.CSSGroupingRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSGroupingRule.prototype, "cssRules", {
+        get: function() {
+          return this.__cssRules;
+        }
+      });
+      CSSOM.CSSGroupingRule.prototype.insertRule = function insertRule(rule, index) {
+        if (rule === void 0 && index === void 0) {
+          errorUtils.throwMissingArguments(this, "insertRule", this.constructor.name);
+        }
+        if (index === void 0) {
+          index = 0;
+        }
+        index = Number(index);
+        if (index < 0) {
+          index = 4294967296 + index;
+        }
+        if (index > this.cssRules.length) {
+          errorUtils.throwIndexError(this, "insertRule", this.constructor.name, index, this.cssRules.length);
+        }
+        var ruleToParse = processedRuleToParse = String(rule);
+        ruleToParse = ruleToParse.trim().replace(/^\/\*[\s\S]*?\*\/\s*/, "");
+        var isNestedSelector = this.constructor.name === "CSSStyleRule";
+        if (isNestedSelector === false) {
+          var currentRule = this;
+          while (currentRule.parentRule) {
+            currentRule = currentRule.parentRule;
+            if (currentRule.constructor.name === "CSSStyleRule") {
+              isNestedSelector = true;
+              break;
+            }
+          }
+        }
+        if (isNestedSelector) {
+          processedRuleToParse = "s { n { } " + ruleToParse + "}";
+        }
+        var isScopeRule = this.constructor.name === "CSSScopeRule";
+        if (isScopeRule) {
+          if (isNestedSelector) {
+            processedRuleToParse = "s { @scope {" + ruleToParse + "}}";
+          } else {
+            processedRuleToParse = "@scope {" + ruleToParse + "}";
+          }
+        }
+        var parsedRules = new CSSOM.CSSRuleList();
+        CSSOM.parse(processedRuleToParse, {
+          styleSheet: this.parentStyleSheet,
+          cssRules: parsedRules
+        });
+        if (isScopeRule) {
+          if (isNestedSelector) {
+            parsedRules = parsedRules[0].cssRules[0].cssRules;
+          } else {
+            parsedRules = parsedRules[0].cssRules;
+          }
+        }
+        if (isNestedSelector) {
+          parsedRules = parsedRules[0].cssRules.slice(1);
+        }
+        if (parsedRules.length !== 1) {
+          if (isNestedSelector && parsedRules.length === 0 && ruleToParse.indexOf("@font-face") === 0) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Only conditional nested group rules, style rules, @scope rules, @apply rules, and nested declaration rules may be nested.",
+              "HierarchyRequestError"
+            );
+          } else {
+            errorUtils.throwParseError(this, "insertRule", this.constructor.name, ruleToParse, "SyntaxError");
+          }
+        }
+        var cssRule = parsedRules[0];
+        if (cssRule.constructor.name === "CSSNestedDeclarations" && cssRule.style.length === 0) {
+          errorUtils.throwParseError(this, "insertRule", this.constructor.name, ruleToParse, "SyntaxError");
+        }
+        if (cssRule.constructor.name === "CSSImportRule" || cssRule.constructor.name === "CSSNamespaceRule") {
+          var ruleKeyword = cssRule.constructor.name === "CSSImportRule" ? "@import" : "@namespace";
+          errorUtils.throwError(
+            this,
+            "DOMException",
+            "Failed to execute 'insertRule' on '" + this.constructor.name + "': '" + ruleKeyword + "' rules cannot be inserted inside a group rule.",
+            "HierarchyRequestError"
+          );
+        }
+        if (cssRule.constructor.name === "CSSLayerStatementRule") {
+          errorUtils.throwParseError(this, "insertRule", this.constructor.name, ruleToParse, "SyntaxError");
+        }
+        cssRule.__parentRule = this;
+        this.cssRules.splice(index, 0, cssRule);
+        return index;
+      };
+      CSSOM.CSSGroupingRule.prototype.deleteRule = function deleteRule(index) {
+        if (index === void 0) {
+          errorUtils.throwMissingArguments(this, "deleteRule", this.constructor.name);
+        }
+        index = Number(index);
+        if (index < 0) {
+          index = 4294967296 + index;
+        }
+        if (index >= this.cssRules.length) {
+          errorUtils.throwIndexError(this, "deleteRule", this.constructor.name, index, this.cssRules.length);
+        }
+        this.cssRules[index].__parentRule = null;
+        this.cssRules[index].__parentStyleSheet = null;
+        this.cssRules.splice(index, 1);
+      };
+      CSSOM.CSSCounterStyleRule = function CSSCounterStyleRule() {
+        CSSOM.CSSRule.call(this);
+        this.name = "";
+        this.__props = "";
+      };
+      CSSOM.CSSCounterStyleRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSCounterStyleRule.prototype.constructor = CSSOM.CSSCounterStyleRule;
+      Object.setPrototypeOf(CSSOM.CSSCounterStyleRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSCounterStyleRule.prototype, "type", {
+        value: 11,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSCounterStyleRule.prototype, "cssText", {
+        get: function() {
+          return "@counter-style " + this.name + " { " + this.__props + " }";
+        }
+      });
+      Object.defineProperty(CSSOM.CSSCounterStyleRule.prototype, "parse", {
+        value: function(cssText) {
+          var match = cssText.match(/@counter-style\s+([^\s{]+)\s*\{([^]*)\}/);
+          if (match) {
+            this.name = match[1];
+            var propsText = match[2];
+            this.__props = propsText.trim().replace(/\n/g, " ").replace(/(['"])(?:\\.|[^\\])*?\1|(\s{2,})/g, function(match2, quote) {
+              return quote ? match2 : " ";
+            });
+          }
+        }
+      });
+      CSSOM.CSSPropertyRule = function CSSPropertyRule() {
+        CSSOM.CSSRule.call(this);
+        this.__name = "";
+        this.__syntax = "";
+        this.__inherits = false;
+        this.__initialValue = null;
+      };
+      CSSOM.CSSPropertyRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSPropertyRule.prototype.constructor = CSSOM.CSSPropertyRule;
+      Object.setPrototypeOf(CSSOM.CSSPropertyRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "type", {
+        value: 0,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "cssText", {
+        get: function() {
+          var text = "@property " + this.name + " {";
+          if (this.syntax !== "") {
+            text += ' syntax: "' + this.syntax.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '";';
+          }
+          text += " inherits: " + (this.inherits ? "true" : "false") + ";";
+          if (this.initialValue !== null) {
+            text += " initial-value: " + this.initialValue + ";";
+          }
+          text += " }";
+          return text;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "name", {
+        get: function() {
+          return this.__name;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "syntax", {
+        get: function() {
+          return this.__syntax;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "inherits", {
+        get: function() {
+          return this.__inherits;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "initialValue", {
+        get: function() {
+          return this.__initialValue;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPropertyRule.prototype, "parse", {
+        value: function(cssText) {
+          var match = cssText.match(/@property\s+(--[^\s{]+)\s*\{([^]*)\}/);
+          if (!match) {
+            return false;
+          }
+          this.__name = match[1];
+          var bodyText = match[2];
+          var syntaxMatch = bodyText.match(/syntax\s*:\s*(['"])([^]*?)\1\s*;/);
+          if (!syntaxMatch) {
+            return false;
+          }
+          this.__syntax = syntaxMatch[2];
+          if (this.__syntax === "") {
+            return false;
+          }
+          var inheritsMatch = bodyText.match(/inherits\s*:\s*(true|false)\s*;/);
+          if (!inheritsMatch) {
+            return false;
+          }
+          this.__inherits = inheritsMatch[1] === "true";
+          var initialValueMatch = bodyText.match(/initial-value\s*:\s*([^;]+);/);
+          if (initialValueMatch) {
+            this.__initialValue = initialValueMatch[1].trim();
+          } else {
+            if (this.__syntax !== "*") {
+              return false;
+            }
+          }
+          return true;
+        }
+      });
+      CSSOM.CSSConditionRule = function CSSConditionRule() {
+        CSSOM.CSSGroupingRule.call(this);
+        this.__conditionText = "";
+      };
+      CSSOM.CSSConditionRule.prototype = Object.create(CSSOM.CSSGroupingRule.prototype);
+      CSSOM.CSSConditionRule.prototype.constructor = CSSOM.CSSConditionRule;
+      Object.setPrototypeOf(CSSOM.CSSConditionRule, CSSOM.CSSGroupingRule);
+      Object.defineProperty(CSSOM.CSSConditionRule.prototype, "conditionText", {
+        get: function() {
+          return this.__conditionText;
+        }
+      });
+      CSSOM.CSSStyleRule = function CSSStyleRule() {
+        CSSOM.CSSGroupingRule.call(this);
+        this.__selectorText = "";
+        this.__style = new CSSOM.CSSStyleDeclaration();
+        this.__style.parentRule = this;
+      };
+      CSSOM.CSSStyleRule.prototype = Object.create(CSSOM.CSSGroupingRule.prototype);
       CSSOM.CSSStyleRule.prototype.constructor = CSSOM.CSSStyleRule;
-      CSSOM.CSSStyleRule.prototype.type = 1;
+      Object.setPrototypeOf(CSSOM.CSSStyleRule, CSSOM.CSSGroupingRule);
+      Object.defineProperty(CSSOM.CSSStyleRule.prototype, "type", {
+        value: 1,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSStyleRule.prototype, "selectorText", {
+        get: function() {
+          return this.__selectorText;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            var endsWithHexEscapeRegExp2 = regexPatterns.endsWithHexEscapeRegExp;
+            var endsWithEscape = endsWithHexEscapeRegExp2.test(value);
+            var trimmedValue = endsWithEscape ? value.replace(/\s+$/, " ").trimStart() : value.trim();
+            if (trimmedValue === "") {
+              return;
+            }
+            this.__selectorText = trimmedValue;
+          }
+        },
+        configurable: true
+      });
+      Object.defineProperty(CSSOM.CSSStyleRule.prototype, "style", {
+        get: function() {
+          return this.__style;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            this.__style.cssText = value;
+          } else {
+            this.__style = value;
+          }
+        },
+        configurable: true
+      });
       Object.defineProperty(CSSOM.CSSStyleRule.prototype, "cssText", {
         get: function() {
           var text;
           if (this.selectorText) {
-            text = this.selectorText + " {" + this.style.cssText + "}";
+            var values = "";
+            if (this.cssRules.length) {
+              var valuesArr = [" {"];
+              this.style.cssText && valuesArr.push(this.style.cssText);
+              valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+                if (rule.cssText !== "") {
+                  acc.push(rule.cssText);
+                }
+                return acc;
+              }, []).join("\n  "));
+              values = valuesArr.join("\n  ") + "\n}";
+            } else {
+              values = " {" + (this.style.cssText ? " " + this.style.cssText : "") + " }";
+            }
+            text = this.selectorText + values;
           } else {
             text = "";
           }
           return text;
-        },
-        set: function(cssText) {
-          var rule = CSSOM.CSSStyleRule.parse(cssText);
-          this.style = rule.style;
-          this.selectorText = rule.selectorText;
         }
       });
-      CSSOM.CSSStyleRule.parse = function(ruleText) {
-        var i = 0;
-        var state = "selector";
-        var index;
-        var j = i;
-        var buffer = "";
-        var SIGNIFICANT_WHITESPACE = {
-          "selector": true,
-          "value": true
-        };
-        var styleRule = new CSSOM.CSSStyleRule();
-        var name, priority = "";
-        for (var character; character = ruleText.charAt(i); i++) {
-          switch (character) {
-            case " ":
-            case "	":
-            case "\r":
-            case "\n":
-            case "\f":
-              if (SIGNIFICANT_WHITESPACE[state]) {
-                switch (ruleText.charAt(i - 1)) {
-                  case " ":
-                  case "	":
-                  case "\r":
-                  case "\n":
-                  case "\f":
-                    break;
-                  default:
-                    buffer += " ";
-                    break;
-                }
-              }
-              break;
-            // String
-            case '"':
-              j = i + 1;
-              index = ruleText.indexOf('"', j) + 1;
-              if (!index) {
-                throw '" is missing';
-              }
-              buffer += ruleText.slice(i, index);
-              i = index - 1;
-              break;
-            case "'":
-              j = i + 1;
-              index = ruleText.indexOf("'", j) + 1;
-              if (!index) {
-                throw "' is missing";
-              }
-              buffer += ruleText.slice(i, index);
-              i = index - 1;
-              break;
-            // Comment
-            case "/":
-              if (ruleText.charAt(i + 1) === "*") {
-                i += 2;
-                index = ruleText.indexOf("*/", i);
-                if (index === -1) {
-                  throw new SyntaxError("Missing */");
-                } else {
-                  i = index + 1;
-                }
-              } else {
-                buffer += character;
-              }
-              break;
-            case "{":
-              if (state === "selector") {
-                styleRule.selectorText = buffer.trim();
-                buffer = "";
-                state = "name";
-              }
-              break;
-            case ":":
-              if (state === "name") {
-                name = buffer.trim();
-                buffer = "";
-                state = "value";
-              } else {
-                buffer += character;
-              }
-              break;
-            case "!":
-              if (state === "value" && ruleText.indexOf("!important", i) === i) {
-                priority = "important";
-                i += "important".length;
-              } else {
-                buffer += character;
-              }
-              break;
-            case ";":
-              if (state === "value") {
-                styleRule.style.setProperty(name, buffer.trim(), priority);
-                priority = "";
-                buffer = "";
-                state = "name";
-              } else {
-                buffer += character;
-              }
-              break;
-            case "}":
-              if (state === "value") {
-                styleRule.style.setProperty(name, buffer.trim(), priority);
-                priority = "";
-                buffer = "";
-              } else if (state === "name") {
-                break;
-              } else {
-                buffer += character;
-              }
-              state = "selector";
-              break;
-            default:
-              buffer += character;
-              break;
-          }
-        }
-        return styleRule;
-      };
-      exports.CSSStyleRule = CSSOM.CSSStyleRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSStyleSheet.js
-  var require_CSSStyleSheet = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSStyleSheet.js"(exports) {
-      var CSSOM = {
-        StyleSheet: require_StyleSheet().StyleSheet,
-        CSSStyleRule: require_CSSStyleRule().CSSStyleRule
-      };
-      CSSOM.CSSStyleSheet = function CSSStyleSheet() {
-        CSSOM.StyleSheet.call(this);
-        this.cssRules = [];
-      };
-      CSSOM.CSSStyleSheet.prototype = new CSSOM.StyleSheet();
-      CSSOM.CSSStyleSheet.prototype.constructor = CSSOM.CSSStyleSheet;
-      CSSOM.CSSStyleSheet.prototype.insertRule = function(rule, index) {
-        if (index < 0 || index > this.cssRules.length) {
-          throw new RangeError("INDEX_SIZE_ERR");
-        }
-        var cssRule = CSSOM.parse(rule).cssRules[0];
-        cssRule.parentStyleSheet = this;
-        this.cssRules.splice(index, 0, cssRule);
-        return index;
-      };
-      CSSOM.CSSStyleSheet.prototype.deleteRule = function(index) {
-        if (index < 0 || index >= this.cssRules.length) {
-          throw new RangeError("INDEX_SIZE_ERR");
-        }
-        this.cssRules.splice(index, 1);
-      };
-      CSSOM.CSSStyleSheet.prototype.toString = function() {
-        var result = "";
-        var rules = this.cssRules;
-        for (var i = 0; i < rules.length; i++) {
-          result += rules[i].cssText + "\n";
-        }
-        return result;
-      };
-      exports.CSSStyleSheet = CSSOM.CSSStyleSheet;
-      CSSOM.parse = require_parse().parse;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/MediaList.js
-  var require_MediaList = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/MediaList.js"(exports) {
-      var CSSOM = {};
       CSSOM.MediaList = function MediaList() {
         this.length = 0;
       };
@@ -302,10 +810,20 @@ var AidokuWasmHostBundle = (() => {
          * @param {string} value
          */
         set mediaText(value) {
-          var values = value.split(",");
-          var length = this.length = values.length;
-          for (var i = 0; i < length; i++) {
-            this[i] = values[i].trim();
+          if (typeof value === "string") {
+            var values = value.split(",").filter(function(text) {
+              return !!text;
+            });
+            var length = this.length = values.length;
+            for (var i = 0; i < length; i++) {
+              this[i] = values[i].trim();
+            }
+          } else if (value === null) {
+            var length = this.length;
+            for (var i = 0; i < length; i++) {
+              delete this[i];
+            }
+            this.length = 0;
           }
         },
         /**
@@ -325,39 +843,219 @@ var AidokuWasmHostBundle = (() => {
           if (index !== -1) {
             Array.prototype.splice.call(this, index, 1);
           }
+        },
+        item: function(index) {
+          return this[index] || null;
+        },
+        toString: function() {
+          return this.mediaText;
         }
       };
-      exports.MediaList = CSSOM.MediaList;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSImportRule.js
-  var require_CSSImportRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSImportRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule,
-        CSSStyleSheet: require_CSSStyleSheet().CSSStyleSheet,
-        MediaList: require_MediaList().MediaList
+      CSSOM.CSSMediaRule = function CSSMediaRule() {
+        CSSOM.CSSConditionRule.call(this);
+        this.__media = new CSSOM.MediaList();
       };
+      CSSOM.CSSMediaRule.prototype = Object.create(CSSOM.CSSConditionRule.prototype);
+      CSSOM.CSSMediaRule.prototype.constructor = CSSOM.CSSMediaRule;
+      Object.setPrototypeOf(CSSOM.CSSMediaRule, CSSOM.CSSConditionRule);
+      Object.defineProperty(CSSOM.CSSMediaRule.prototype, "type", {
+        value: 4,
+        writable: false
+      });
+      Object.defineProperties(CSSOM.CSSMediaRule.prototype, {
+        "media": {
+          get: function() {
+            return this.__media;
+          },
+          set: function(value) {
+            if (typeof value === "string") {
+              this.__media.mediaText = value;
+            } else {
+              this.__media = value;
+            }
+          },
+          configurable: true,
+          enumerable: true
+        },
+        "conditionText": {
+          get: function() {
+            return this.media.mediaText;
+          }
+        },
+        "cssText": {
+          get: function() {
+            var values = "";
+            var valuesArr = [" {"];
+            if (this.cssRules.length) {
+              valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+                if (rule.cssText !== "") {
+                  acc.push(rule.cssText);
+                }
+                return acc;
+              }, []).join("\n  "));
+            }
+            values = valuesArr.join("\n  ") + "\n}";
+            return "@media " + this.media.mediaText + values;
+          }
+        }
+      });
+      CSSOM.CSSContainerRule = function CSSContainerRule() {
+        CSSOM.CSSConditionRule.call(this);
+      };
+      CSSOM.CSSContainerRule.prototype = Object.create(CSSOM.CSSConditionRule.prototype);
+      CSSOM.CSSContainerRule.prototype.constructor = CSSOM.CSSContainerRule;
+      Object.setPrototypeOf(CSSOM.CSSContainerRule, CSSOM.CSSConditionRule);
+      Object.defineProperty(CSSOM.CSSContainerRule.prototype, "type", {
+        value: 17,
+        writable: false
+      });
+      Object.defineProperties(CSSOM.CSSContainerRule.prototype, {
+        "cssText": {
+          get: function() {
+            var values = "";
+            var valuesArr = [" {"];
+            if (this.cssRules.length) {
+              valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+                if (rule.cssText !== "") {
+                  acc.push(rule.cssText);
+                }
+                return acc;
+              }, []).join("\n  "));
+            }
+            values = valuesArr.join("\n  ") + "\n}";
+            return "@container " + this.conditionText + values;
+          }
+        },
+        "containerName": {
+          get: function() {
+            var parts = this.conditionText.trim().split(/\s+/);
+            if (parts.length > 1 && parts[0] !== "(" && !parts[0].startsWith("(")) {
+              return parts[0];
+            }
+            return "";
+          }
+        },
+        "containerQuery": {
+          get: function() {
+            var parts = this.conditionText.trim().split(/\s+/);
+            if (parts.length > 1 && parts[0] !== "(" && !parts[0].startsWith("(")) {
+              return parts.slice(1).join(" ");
+            }
+            return this.conditionText;
+          }
+        }
+      });
+      CSSOM.CSSSupportsRule = function CSSSupportsRule() {
+        CSSOM.CSSConditionRule.call(this);
+      };
+      CSSOM.CSSSupportsRule.prototype = Object.create(CSSOM.CSSConditionRule.prototype);
+      CSSOM.CSSSupportsRule.prototype.constructor = CSSOM.CSSSupportsRule;
+      Object.setPrototypeOf(CSSOM.CSSSupportsRule, CSSOM.CSSConditionRule);
+      Object.defineProperty(CSSOM.CSSSupportsRule.prototype, "type", {
+        value: 12,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSSupportsRule.prototype, "cssText", {
+        get: function() {
+          var values = "";
+          var valuesArr = [" {"];
+          if (this.cssRules.length) {
+            valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+              if (rule.cssText !== "") {
+                acc.push(rule.cssText);
+              }
+              return acc;
+            }, []).join("\n  "));
+          }
+          values = valuesArr.join("\n  ") + "\n}";
+          return "@supports " + this.conditionText + values;
+        }
+      });
       CSSOM.CSSImportRule = function CSSImportRule() {
         CSSOM.CSSRule.call(this);
-        this.href = "";
-        this.media = new CSSOM.MediaList();
-        this.styleSheet = new CSSOM.CSSStyleSheet();
+        this.__href = "";
+        this.__media = new CSSOM.MediaList();
+        this.__layerName = null;
+        this.__supportsText = null;
+        this.__styleSheet = new CSSOM.CSSStyleSheet();
       };
-      CSSOM.CSSImportRule.prototype = new CSSOM.CSSRule();
+      CSSOM.CSSImportRule.prototype = Object.create(CSSOM.CSSRule.prototype);
       CSSOM.CSSImportRule.prototype.constructor = CSSOM.CSSImportRule;
-      CSSOM.CSSImportRule.prototype.type = 3;
+      Object.setPrototypeOf(CSSOM.CSSImportRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "type", {
+        value: 3,
+        writable: false
+      });
       Object.defineProperty(CSSOM.CSSImportRule.prototype, "cssText", {
         get: function() {
           var mediaText = this.media.mediaText;
-          return "@import url(" + this.href + ")" + (mediaText ? " " + mediaText : "") + ";";
+          return '@import url("' + this.href.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '")' + (this.layerName !== null ? " layer" + (this.layerName && "(" + this.layerName + ")") : "") + (this.supportsText ? " supports(" + this.supportsText + ")" : "") + (mediaText ? " " + mediaText : "") + ";";
+        }
+      });
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "href", {
+        get: function() {
+          return this.__href;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "media", {
+        get: function() {
+          return this.__media;
         },
-        set: function(cssText) {
+        set: function(value) {
+          if (typeof value === "string") {
+            this.__media.mediaText = value;
+          } else {
+            this.__media = value;
+          }
+        }
+      });
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "layerName", {
+        get: function() {
+          return this.__layerName;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "supportsText", {
+        get: function() {
+          return this.__supportsText;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "styleSheet", {
+        get: function() {
+          return this.__styleSheet;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSImportRule.prototype, "parse", {
+        value: function(cssText) {
           var i = 0;
           var state = "";
           var buffer = "";
           var index;
+          var layerRegExp2 = regexPatterns.layerRegExp;
+          var layerRuleNameRegExp2 = regexPatterns.layerRuleNameRegExp;
+          var doubleOrMoreSpacesRegExp2 = regexPatterns.doubleOrMoreSpacesRegExp;
+          function extractSupportsContent(text) {
+            var supportsIndex = text.indexOf("supports(");
+            if (supportsIndex !== 0) {
+              return null;
+            }
+            var depth = 0;
+            var start = supportsIndex + "supports(".length;
+            var i2 = start;
+            for (; i2 < text.length; i2++) {
+              if (text[i2] === "(") {
+                depth++;
+              } else if (text[i2] === ")") {
+                if (depth === 0) {
+                  return {
+                    content: text.slice(start, i2),
+                    endIndex: i2
+                  };
+                }
+                depth--;
+              }
+            }
+            return null;
+          }
           for (var character; character = cssText.charAt(i); i++) {
             switch (character) {
               case " ":
@@ -379,6 +1077,9 @@ var AidokuWasmHostBundle = (() => {
                 }
                 break;
               case "u":
+                if (state === "media") {
+                  buffer += character;
+                }
                 if (state === "url" && cssText.indexOf("url(", i) === i) {
                   index = cssText.indexOf(")", i + 1);
                   if (index === -1) {
@@ -391,29 +1092,29 @@ var AidokuWasmHostBundle = (() => {
                       url = url.slice(1, -1);
                     }
                   }
-                  this.href = url;
+                  this.__href = url;
                   i = index;
                   state = "media";
                 }
                 break;
               case '"':
-                if (state === "url") {
+                if (state === "after-import" || state === "url") {
                   index = cssText.indexOf('"', i + 1);
                   if (!index) {
                     throw i + `: '"' not found`;
                   }
-                  this.href = cssText.slice(i + 1, index);
+                  this.__href = cssText.slice(i + 1, index);
                   i = index;
                   state = "media";
                 }
                 break;
               case "'":
-                if (state === "url") {
+                if (state === "after-import" || state === "url") {
                   index = cssText.indexOf("'", i + 1);
                   if (!index) {
                     throw i + `: "'" not found`;
                   }
-                  this.href = cssText.slice(i + 1, index);
+                  this.__href = cssText.slice(i + 1, index);
                   i = index;
                   state = "media";
                 }
@@ -421,7 +1122,34 @@ var AidokuWasmHostBundle = (() => {
               case ";":
                 if (state === "media") {
                   if (buffer) {
-                    this.media.mediaText = buffer.trim();
+                    var bufferTrimmed = buffer.trim();
+                    if (bufferTrimmed.indexOf("layer") === 0) {
+                      var layerMatch = bufferTrimmed.match(layerRegExp2);
+                      if (layerMatch) {
+                        var layerName = layerMatch[1].trim();
+                        if (layerName.match(layerRuleNameRegExp2) !== null) {
+                          this.__layerName = layerMatch[1].trim();
+                          bufferTrimmed = bufferTrimmed.replace(layerRegExp2, "").replace(doubleOrMoreSpacesRegExp2, " ").trim();
+                        } else {
+                          if (bufferTrimmed) {
+                            this.media.mediaText = bufferTrimmed;
+                            return;
+                          }
+                        }
+                      } else {
+                        this.__layerName = "";
+                        bufferTrimmed = bufferTrimmed.substring("layer".length).trim();
+                      }
+                    }
+                    var supportsResult = extractSupportsContent(bufferTrimmed);
+                    if (supportsResult) {
+                      this.__supportsText = supportsResult.content.trim();
+                      bufferTrimmed = bufferTrimmed.slice(0, 0) + bufferTrimmed.slice(supportsResult.endIndex + 1);
+                      bufferTrimmed = bufferTrimmed.replace(doubleOrMoreSpacesRegExp2, " ").trim();
+                    }
+                    if (bufferTrimmed) {
+                      this.media.mediaText = bufferTrimmed;
+                    }
                   }
                 }
                 break;
@@ -434,236 +1162,709 @@ var AidokuWasmHostBundle = (() => {
           }
         }
       });
-      exports.CSSImportRule = CSSOM.CSSImportRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSGroupingRule.js
-  var require_CSSGroupingRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSGroupingRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule
-      };
-      CSSOM.CSSGroupingRule = function CSSGroupingRule() {
+      CSSOM.CSSNamespaceRule = function CSSNamespaceRule() {
         CSSOM.CSSRule.call(this);
-        this.cssRules = [];
+        this.__prefix = "";
+        this.__namespaceURI = "";
       };
-      CSSOM.CSSGroupingRule.prototype = new CSSOM.CSSRule();
-      CSSOM.CSSGroupingRule.prototype.constructor = CSSOM.CSSGroupingRule;
-      CSSOM.CSSGroupingRule.prototype.insertRule = function insertRule(rule, index) {
-        if (index < 0 || index > this.cssRules.length) {
-          throw new RangeError("INDEX_SIZE_ERR");
+      CSSOM.CSSNamespaceRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSNamespaceRule.prototype.constructor = CSSOM.CSSNamespaceRule;
+      Object.setPrototypeOf(CSSOM.CSSNamespaceRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSNamespaceRule.prototype, "type", {
+        value: 10,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSNamespaceRule.prototype, "cssText", {
+        get: function() {
+          return "@namespace" + (this.prefix && " " + this.prefix) + ' url("' + this.namespaceURI + '");';
         }
-        var cssRule = CSSOM.parse(rule).cssRules[0];
-        cssRule.parentRule = this;
+      });
+      Object.defineProperty(CSSOM.CSSNamespaceRule.prototype, "prefix", {
+        get: function() {
+          return this.__prefix;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSNamespaceRule.prototype, "namespaceURI", {
+        get: function() {
+          return this.__namespaceURI;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSNamespaceRule.prototype, "parse", {
+        value: function(cssText) {
+          var newPrefix = "";
+          var newNamespaceURI = "";
+          var text = cssText.trim();
+          if (text.indexOf("@namespace") === 0) {
+            text = text.slice("@namespace".length).trim();
+          }
+          if (text.charAt(text.length - 1) === ";") {
+            text = text.slice(0, -1).trim();
+          }
+          var re = /^(?:([a-zA-Z_][a-zA-Z0-9_-]*)\s+)?(?:url\(\s*(?:(['"])(.*?)\2\s*|([^)]*?))\s*\)|(['"])(.*?)\5)$/;
+          var match = text.match(re);
+          if (match) {
+            if (match[1]) {
+              newPrefix = match[1];
+            }
+            if (typeof match[3] !== "undefined") {
+              newNamespaceURI = match[3];
+            } else if (typeof match[4] !== "undefined") {
+              newNamespaceURI = match[4].trim();
+            } else if (typeof match[6] !== "undefined") {
+              newNamespaceURI = match[6];
+            }
+            this.__prefix = newPrefix;
+            this.__namespaceURI = newNamespaceURI;
+          } else {
+            throw new DOMException("Invalid @namespace rule", "InvalidStateError");
+          }
+        }
+      });
+      CSSOM.CSSFontFaceRule = function CSSFontFaceRule() {
+        CSSOM.CSSRule.call(this);
+        this.__style = new CSSOM.CSSStyleDeclaration();
+        this.__style.parentRule = this;
+      };
+      CSSOM.CSSFontFaceRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSFontFaceRule.prototype.constructor = CSSOM.CSSFontFaceRule;
+      Object.setPrototypeOf(CSSOM.CSSFontFaceRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSFontFaceRule.prototype, "type", {
+        value: 5,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSFontFaceRule.prototype, "style", {
+        get: function() {
+          return this.__style;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            this.__style.cssText = value;
+          } else {
+            this.__style = value;
+          }
+        }
+      });
+      Object.defineProperty(CSSOM.CSSFontFaceRule.prototype, "cssText", {
+        get: function() {
+          return "@font-face {" + (this.style.cssText ? " " + this.style.cssText : "") + " }";
+        }
+      });
+      CSSOM.CSSHostRule = function CSSHostRule() {
+        CSSOM.CSSRule.call(this);
+        this.cssRules = new CSSOM.CSSRuleList();
+      };
+      CSSOM.CSSHostRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSHostRule.prototype.constructor = CSSOM.CSSHostRule;
+      Object.setPrototypeOf(CSSOM.CSSHostRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSHostRule.prototype, "type", {
+        value: 1001,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSHostRule.prototype, "cssText", {
+        get: function() {
+          var values = "";
+          var valuesArr = [" {"];
+          if (this.cssRules.length) {
+            valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+              if (rule.cssText !== "") {
+                acc.push(rule.cssText);
+              }
+              return acc;
+            }, []).join("\n  "));
+          }
+          values = valuesArr.join("\n  ") + "\n}";
+          return "@host" + values;
+        }
+      });
+      CSSOM.CSSStartingStyleRule = function CSSStartingStyleRule() {
+        CSSOM.CSSGroupingRule.call(this);
+      };
+      CSSOM.CSSStartingStyleRule.prototype = Object.create(CSSOM.CSSGroupingRule.prototype);
+      CSSOM.CSSStartingStyleRule.prototype.constructor = CSSOM.CSSStartingStyleRule;
+      Object.setPrototypeOf(CSSOM.CSSStartingStyleRule, CSSOM.CSSGroupingRule);
+      Object.defineProperty(CSSOM.CSSStartingStyleRule.prototype, "type", {
+        value: 1002,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSStartingStyleRule.prototype, "cssText", {
+        get: function() {
+          var values = "";
+          var valuesArr = [" {"];
+          if (this.cssRules.length) {
+            valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+              if (rule.cssText !== "") {
+                acc.push(rule.cssText);
+              }
+              return acc;
+            }, []).join("\n  "));
+          }
+          values = valuesArr.join("\n  ") + "\n}";
+          return "@starting-style" + values;
+        }
+      });
+      CSSOM.StyleSheet = function StyleSheet() {
+        this.__href = null;
+        this.__ownerNode = null;
+        this.__title = null;
+        this.__media = new CSSOM.MediaList();
+        this.__parentStyleSheet = null;
+        this.disabled = false;
+      };
+      Object.defineProperties(CSSOM.StyleSheet.prototype, {
+        type: {
+          get: function() {
+            return "text/css";
+          }
+        },
+        href: {
+          get: function() {
+            return this.__href;
+          }
+        },
+        ownerNode: {
+          get: function() {
+            return this.__ownerNode;
+          }
+        },
+        title: {
+          get: function() {
+            return this.__title;
+          }
+        },
+        media: {
+          get: function() {
+            return this.__media;
+          },
+          set: function(value) {
+            if (typeof value === "string") {
+              this.__media.mediaText = value;
+            } else {
+              this.__media = value;
+            }
+          }
+        },
+        parentStyleSheet: {
+          get: function() {
+            return this.__parentStyleSheet;
+          }
+        }
+      });
+      CSSOM.CSSStyleSheet = function CSSStyleSheet(opts) {
+        CSSOM.StyleSheet.call(this);
+        this.__constructed = true;
+        this.__cssRules = new CSSOM.CSSRuleList();
+        this.__ownerRule = null;
+        if (opts && typeof opts === "object") {
+          if (opts.baseURL && typeof opts.baseURL === "string") {
+            this.__baseURL = opts.baseURL;
+          }
+          if (opts.media && typeof opts.media === "string") {
+            this.media.mediaText = opts.media;
+          }
+          if (typeof opts.disabled === "boolean") {
+            this.disabled = opts.disabled;
+          }
+        }
+      };
+      CSSOM.CSSStyleSheet.prototype = Object.create(CSSOM.StyleSheet.prototype);
+      CSSOM.CSSStyleSheet.prototype.constructor = CSSOM.CSSStyleSheet;
+      Object.setPrototypeOf(CSSOM.CSSStyleSheet, CSSOM.StyleSheet);
+      Object.defineProperty(CSSOM.CSSStyleSheet.prototype, "cssRules", {
+        get: function() {
+          return this.__cssRules;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSStyleSheet.prototype, "rules", {
+        get: function() {
+          return this.__cssRules;
+        }
+      });
+      Object.defineProperty(CSSOM.CSSStyleSheet.prototype, "ownerRule", {
+        get: function() {
+          return this.__ownerRule;
+        }
+      });
+      CSSOM.CSSStyleSheet.prototype.insertRule = function(rule, index) {
+        if (rule === void 0 && index === void 0) {
+          errorUtils.throwMissingArguments(this, "insertRule", this.constructor.name);
+        }
+        if (index === void 0) {
+          index = 0;
+        }
+        index = Number(index);
+        if (index < 0) {
+          index = 4294967296 + index;
+        }
+        if (index > this.cssRules.length) {
+          errorUtils.throwIndexError(this, "insertRule", this.constructor.name, index, this.cssRules.length);
+        }
+        var ruleToParse = String(rule);
+        var parseErrors = [];
+        var parsedSheet = CSSOM.parse(ruleToParse, void 0, function(err2) {
+          parseErrors.push(err2);
+        });
+        if (parsedSheet.cssRules.length !== 1) {
+          errorUtils.throwParseError(this, "insertRule", this.constructor.name, ruleToParse, "SyntaxError");
+        }
+        var cssRule = parsedSheet.cssRules[0];
+        function findLastIndexOfConstructor(rules, constructorName) {
+          for (var i2 = rules.length - 1; i2 >= 0; i2--) {
+            if (rules[i2].constructor.name === constructorName) {
+              return i2;
+            }
+          }
+          return -1;
+        }
+        function findFirstNonConstructorIndex(rules, constructorNames) {
+          for (var i2 = 0; i2 < rules.length; i2++) {
+            if (constructorNames.indexOf(rules[i2].constructor.name) === -1) {
+              return i2;
+            }
+          }
+          return rules.length;
+        }
+        if (cssRule.constructor.name === "CSSImportRule") {
+          if (this.__constructed === true) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Can't insert @import rules into a constructed stylesheet.",
+              "SyntaxError"
+            );
+          }
+          var firstLayerIndex = findFirstNonConstructorIndex(this.cssRules, ["CSSImportRule"]);
+          if (firstLayerIndex < this.cssRules.length && this.cssRules[firstLayerIndex].constructor.name === "CSSLayerStatementRule" && index > firstLayerIndex) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Failed to insert the rule.",
+              "HierarchyRequestError"
+            );
+          }
+          var firstNonImportIndex = findFirstNonConstructorIndex(this.cssRules, ["CSSImportRule"]);
+          if (index > firstNonImportIndex && firstNonImportIndex < this.cssRules.length && this.cssRules[firstNonImportIndex].constructor.name !== "CSSLayerStatementRule") {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Failed to insert the rule.",
+              "HierarchyRequestError"
+            );
+          }
+        } else if (cssRule.constructor.name === "CSSNamespaceRule") {
+          var firstImportIndex = -1;
+          for (var i = 0; i < this.cssRules.length; i++) {
+            if (this.cssRules[i].constructor.name === "CSSImportRule") {
+              firstImportIndex = i;
+              break;
+            }
+          }
+          var firstNonImportNamespaceIndex = findFirstNonConstructorIndex(this.cssRules, [
+            "CSSLayerStatementRule",
+            "CSSImportRule",
+            "CSSNamespaceRule"
+          ]);
+          if (firstImportIndex !== -1 && index <= firstImportIndex) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Failed to insert the rule.",
+              "HierarchyRequestError"
+            );
+          }
+          if (firstNonImportNamespaceIndex < this.cssRules.length) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Failed to insert the rule.",
+              "InvalidStateError"
+            );
+          }
+          if (index > firstNonImportNamespaceIndex) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Failed to insert the rule.",
+              "HierarchyRequestError"
+            );
+          }
+        } else if (cssRule.constructor.name === "CSSLayerStatementRule") {
+        } else {
+          var firstNonSpecialRuleIndex = findFirstNonConstructorIndex(this.cssRules, [
+            "CSSLayerStatementRule",
+            "CSSImportRule",
+            "CSSNamespaceRule"
+          ]);
+          if (index < firstNonSpecialRuleIndex) {
+            errorUtils.throwError(
+              this,
+              "DOMException",
+              "Failed to execute 'insertRule' on '" + this.constructor.name + "': Failed to insert the rule.",
+              "HierarchyRequestError"
+            );
+          }
+          if (parseErrors.filter(function(error) {
+            return !error.isNested;
+          }).length !== 0) {
+            errorUtils.throwParseError(this, "insertRule", this.constructor.name, ruleToParse, "SyntaxError");
+          }
+        }
+        cssRule.__parentStyleSheet = this;
         this.cssRules.splice(index, 0, cssRule);
         return index;
       };
-      CSSOM.CSSGroupingRule.prototype.deleteRule = function deleteRule(index) {
-        if (index < 0 || index >= this.cssRules.length) {
-          throw new RangeError("INDEX_SIZE_ERR");
+      CSSOM.CSSStyleSheet.prototype.addRule = function(selector, styleBlock, index) {
+        if (index === void 0) {
+          index = this.cssRules.length;
         }
-        this.cssRules.splice(index, 1)[0].parentRule = null;
+        this.insertRule(selector + "{" + styleBlock + "}", index);
+        return -1;
       };
-      exports.CSSGroupingRule = CSSOM.CSSGroupingRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSConditionRule.js
-  var require_CSSConditionRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSConditionRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule,
-        CSSGroupingRule: require_CSSGroupingRule().CSSGroupingRule
-      };
-      CSSOM.CSSConditionRule = function CSSConditionRule() {
-        CSSOM.CSSGroupingRule.call(this);
-        this.cssRules = [];
-      };
-      CSSOM.CSSConditionRule.prototype = new CSSOM.CSSGroupingRule();
-      CSSOM.CSSConditionRule.prototype.constructor = CSSOM.CSSConditionRule;
-      CSSOM.CSSConditionRule.prototype.conditionText = "";
-      CSSOM.CSSConditionRule.prototype.cssText = "";
-      exports.CSSConditionRule = CSSOM.CSSConditionRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSMediaRule.js
-  var require_CSSMediaRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSMediaRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule,
-        CSSGroupingRule: require_CSSGroupingRule().CSSGroupingRule,
-        CSSConditionRule: require_CSSConditionRule().CSSConditionRule,
-        MediaList: require_MediaList().MediaList
-      };
-      CSSOM.CSSMediaRule = function CSSMediaRule() {
-        CSSOM.CSSConditionRule.call(this);
-        this.media = new CSSOM.MediaList();
-      };
-      CSSOM.CSSMediaRule.prototype = new CSSOM.CSSConditionRule();
-      CSSOM.CSSMediaRule.prototype.constructor = CSSOM.CSSMediaRule;
-      CSSOM.CSSMediaRule.prototype.type = 4;
-      Object.defineProperties(CSSOM.CSSMediaRule.prototype, {
-        "conditionText": {
-          get: function() {
-            return this.media.mediaText;
-          },
-          set: function(value) {
-            this.media.mediaText = value;
-          },
-          configurable: true,
-          enumerable: true
-        },
-        "cssText": {
-          get: function() {
-            var cssTexts = [];
-            for (var i = 0, length = this.cssRules.length; i < length; i++) {
-              cssTexts.push(this.cssRules[i].cssText);
+      CSSOM.CSSStyleSheet.prototype.deleteRule = function(index) {
+        if (index === void 0) {
+          errorUtils.throwMissingArguments(this, "deleteRule", this.constructor.name);
+        }
+        index = Number(index);
+        if (index < 0) {
+          index = 4294967296 + index;
+        }
+        if (index >= this.cssRules.length) {
+          errorUtils.throwIndexError(this, "deleteRule", this.constructor.name, index, this.cssRules.length);
+        }
+        if (this.cssRules[index]) {
+          if (this.cssRules[index].constructor.name == "CSSNamespaceRule") {
+            var shouldContinue = this.cssRules.every(function(rule) {
+              return ["CSSImportRule", "CSSLayerStatementRule", "CSSNamespaceRule"].indexOf(rule.constructor.name) !== -1;
+            });
+            if (!shouldContinue) {
+              errorUtils.throwError(this, "DOMException", "Failed to execute 'deleteRule' on '" + this.constructor.name + "': Failed to delete rule.", "InvalidStateError");
             }
-            return "@media " + this.media.mediaText + " {" + cssTexts.join("") + "}";
-          },
-          configurable: true,
-          enumerable: true
-        }
-      });
-      exports.CSSMediaRule = CSSOM.CSSMediaRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSSupportsRule.js
-  var require_CSSSupportsRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSSupportsRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule,
-        CSSGroupingRule: require_CSSGroupingRule().CSSGroupingRule,
-        CSSConditionRule: require_CSSConditionRule().CSSConditionRule
-      };
-      CSSOM.CSSSupportsRule = function CSSSupportsRule() {
-        CSSOM.CSSConditionRule.call(this);
-      };
-      CSSOM.CSSSupportsRule.prototype = new CSSOM.CSSConditionRule();
-      CSSOM.CSSSupportsRule.prototype.constructor = CSSOM.CSSSupportsRule;
-      CSSOM.CSSSupportsRule.prototype.type = 12;
-      Object.defineProperty(CSSOM.CSSSupportsRule.prototype, "cssText", {
-        get: function() {
-          var cssTexts = [];
-          for (var i = 0, length = this.cssRules.length; i < length; i++) {
-            cssTexts.push(this.cssRules[i].cssText);
           }
-          return "@supports " + this.conditionText + " {" + cssTexts.join("") + "}";
-        }
-      });
-      exports.CSSSupportsRule = CSSOM.CSSSupportsRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSFontFaceRule.js
-  var require_CSSFontFaceRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSFontFaceRule.js"(exports) {
-      var CSSOM = {
-        CSSStyleDeclaration: require_CSSStyleDeclaration().CSSStyleDeclaration,
-        CSSRule: require_CSSRule().CSSRule
-      };
-      CSSOM.CSSFontFaceRule = function CSSFontFaceRule() {
-        CSSOM.CSSRule.call(this);
-        this.style = new CSSOM.CSSStyleDeclaration();
-        this.style.parentRule = this;
-      };
-      CSSOM.CSSFontFaceRule.prototype = new CSSOM.CSSRule();
-      CSSOM.CSSFontFaceRule.prototype.constructor = CSSOM.CSSFontFaceRule;
-      CSSOM.CSSFontFaceRule.prototype.type = 5;
-      Object.defineProperty(CSSOM.CSSFontFaceRule.prototype, "cssText", {
-        get: function() {
-          return "@font-face {" + this.style.cssText + "}";
-        }
-      });
-      exports.CSSFontFaceRule = CSSOM.CSSFontFaceRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSHostRule.js
-  var require_CSSHostRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSHostRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule
-      };
-      CSSOM.CSSHostRule = function CSSHostRule() {
-        CSSOM.CSSRule.call(this);
-        this.cssRules = [];
-      };
-      CSSOM.CSSHostRule.prototype = new CSSOM.CSSRule();
-      CSSOM.CSSHostRule.prototype.constructor = CSSOM.CSSHostRule;
-      CSSOM.CSSHostRule.prototype.type = 1001;
-      Object.defineProperty(CSSOM.CSSHostRule.prototype, "cssText", {
-        get: function() {
-          var cssTexts = [];
-          for (var i = 0, length = this.cssRules.length; i < length; i++) {
-            cssTexts.push(this.cssRules[i].cssText);
+          if (this.cssRules[index].constructor.name == "CSSImportRule") {
+            this.cssRules[index].styleSheet.__parentStyleSheet = null;
           }
-          return "@host {" + cssTexts.join("") + "}";
+          this.cssRules[index].__parentStyleSheet = null;
         }
-      });
-      exports.CSSHostRule = CSSOM.CSSHostRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSKeyframeRule.js
-  var require_CSSKeyframeRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSKeyframeRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule,
-        CSSStyleDeclaration: require_CSSStyleDeclaration().CSSStyleDeclaration
+        this.cssRules.splice(index, 1);
       };
-      CSSOM.CSSKeyframeRule = function CSSKeyframeRule() {
-        CSSOM.CSSRule.call(this);
-        this.keyText = "";
-        this.style = new CSSOM.CSSStyleDeclaration();
-        this.style.parentRule = this;
-      };
-      CSSOM.CSSKeyframeRule.prototype = new CSSOM.CSSRule();
-      CSSOM.CSSKeyframeRule.prototype.constructor = CSSOM.CSSKeyframeRule;
-      CSSOM.CSSKeyframeRule.prototype.type = 8;
-      Object.defineProperty(CSSOM.CSSKeyframeRule.prototype, "cssText", {
-        get: function() {
-          return this.keyText + " {" + this.style.cssText + "} ";
+      CSSOM.CSSStyleSheet.prototype.removeRule = function(index) {
+        if (index === void 0) {
+          index = 0;
         }
-      });
-      exports.CSSKeyframeRule = CSSOM.CSSKeyframeRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSKeyframesRule.js
-  var require_CSSKeyframesRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSKeyframesRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule
+        this.deleteRule(index);
+      };
+      CSSOM.CSSStyleSheet.prototype.replace = function(text) {
+        var _Promise;
+        if (this.__globalObject && this.__globalObject["Promise"]) {
+          _Promise = this.__globalObject["Promise"];
+        } else {
+          _Promise = Promise;
+        }
+        var _setTimeout;
+        if (this.__globalObject && this.__globalObject["setTimeout"]) {
+          _setTimeout = this.__globalObject["setTimeout"];
+        } else {
+          _setTimeout = setTimeout;
+        }
+        var sheet = this;
+        return new _Promise(function(resolve, reject) {
+          if (!sheet.__constructed || sheet.__disallowModification) {
+            reject(errorUtils.createError(
+              sheet,
+              "DOMException",
+              "Failed to execute 'replaceSync' on '" + sheet.constructor.name + "': Not allowed.",
+              "NotAllowedError"
+            ));
+          }
+          sheet.__disallowModification = true;
+          _setTimeout(function() {
+            var rules = new CSSOM.CSSRuleList();
+            CSSOM.parse(text, { styleSheet: sheet, cssRules: rules });
+            var i = 0;
+            while (i < rules.length) {
+              if (rules[i].constructor.name === "CSSImportRule") {
+                rules.splice(i, 1);
+              } else {
+                i++;
+              }
+            }
+            sheet.__cssRules.splice.apply(sheet.__cssRules, [0, sheet.__cssRules.length].concat(rules));
+            delete sheet.__disallowModification;
+            resolve(sheet);
+          });
+        });
+      };
+      CSSOM.CSSStyleSheet.prototype.replaceSync = function(text) {
+        var sheet = this;
+        if (!sheet.__constructed || sheet.__disallowModification) {
+          errorUtils.throwError(
+            sheet,
+            "DOMException",
+            "Failed to execute 'replaceSync' on '" + sheet.constructor.name + "': Not allowed.",
+            "NotAllowedError"
+          );
+        }
+        var rules = new CSSOM.CSSRuleList();
+        CSSOM.parse(text, { styleSheet: sheet, cssRules: rules });
+        var i = 0;
+        while (i < rules.length) {
+          if (rules[i].constructor.name === "CSSImportRule") {
+            rules.splice(i, 1);
+          } else {
+            i++;
+          }
+        }
+        sheet.__cssRules.splice.apply(sheet.__cssRules, [0, sheet.__cssRules.length].concat(rules));
+      };
+      CSSOM.CSSStyleSheet.prototype.toString = function() {
+        var result = "";
+        var rules = this.cssRules;
+        for (var i = 0; i < rules.length; i++) {
+          result += rules[i].cssText + "\n";
+        }
+        return result;
       };
       CSSOM.CSSKeyframesRule = function CSSKeyframesRule() {
         CSSOM.CSSRule.call(this);
         this.name = "";
-        this.cssRules = [];
+        this.cssRules = new CSSOM.CSSRuleList();
+        this._setupIndexedAccess();
+        var self2 = this;
+        var originalPush = this.cssRules.push;
+        var originalSplice = this.cssRules.splice;
+        Object.defineProperty(this.cssRules, "push", {
+          value: function() {
+            var result = originalPush.apply(this, arguments);
+            self2._setupIndexedAccess();
+            return result;
+          },
+          writable: true,
+          enumerable: false,
+          configurable: true
+        });
+        Object.defineProperty(this.cssRules, "splice", {
+          value: function() {
+            var result = originalSplice.apply(this, arguments);
+            self2._setupIndexedAccess();
+            return result;
+          },
+          writable: true,
+          enumerable: false,
+          configurable: true
+        });
       };
-      CSSOM.CSSKeyframesRule.prototype = new CSSOM.CSSRule();
+      CSSOM.CSSKeyframesRule.prototype = Object.create(CSSOM.CSSRule.prototype);
       CSSOM.CSSKeyframesRule.prototype.constructor = CSSOM.CSSKeyframesRule;
-      CSSOM.CSSKeyframesRule.prototype.type = 7;
+      Object.setPrototypeOf(CSSOM.CSSKeyframesRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSKeyframesRule.prototype, "type", {
+        value: 7,
+        writable: false
+      });
       Object.defineProperty(CSSOM.CSSKeyframesRule.prototype, "cssText", {
+        get: function() {
+          var values = "";
+          var valuesArr = [" {"];
+          if (this.cssRules.length) {
+            valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+              if (rule.cssText !== "") {
+                acc.push(rule.cssText);
+              }
+              return acc;
+            }, []).join("\n  "));
+          }
+          values = valuesArr.join("\n  ") + "\n}";
+          var cssWideKeywords = ["initial", "inherit", "revert", "revert-layer", "unset", "none"];
+          var processedName = cssWideKeywords.includes(this.name) ? '"' + this.name + '"' : this.name;
+          return "@" + (this._vendorPrefix || "") + "keyframes " + processedName + values;
+        }
+      });
+      CSSOM.CSSKeyframesRule.prototype.appendRule = function appendRule(rule) {
+        if (arguments.length === 0) {
+          errorUtils.throwMissingArguments(this, "appendRule", "CSSKeyframesRule");
+        }
+        var parsedRule;
+        try {
+          var tempStyleSheet = CSSOM.parse("@keyframes temp { " + rule + " }");
+          if (tempStyleSheet.cssRules.length > 0 && tempStyleSheet.cssRules[0].cssRules.length > 0) {
+            parsedRule = tempStyleSheet.cssRules[0].cssRules[0];
+          } else {
+            throw new Error("Failed to parse keyframe rule");
+          }
+        } catch (e) {
+          errorUtils.throwParseError(this, "appendRule", "CSSKeyframesRule", rule);
+        }
+        parsedRule.__parentRule = this;
+        this.cssRules.push(parsedRule);
+      };
+      CSSOM.CSSKeyframesRule.prototype.deleteRule = function deleteRule(select) {
+        if (arguments.length === 0) {
+          errorUtils.throwMissingArguments(this, "deleteRule", "CSSKeyframesRule");
+        }
+        var normalizedSelect = this._normalizeKeyText(select);
+        for (var i = 0; i < this.cssRules.length; i++) {
+          var rule = this.cssRules[i];
+          if (this._normalizeKeyText(rule.keyText) === normalizedSelect) {
+            rule.__parentRule = null;
+            this.cssRules.splice(i, 1);
+            return;
+          }
+        }
+      };
+      CSSOM.CSSKeyframesRule.prototype.findRule = function findRule(select) {
+        if (arguments.length === 0) {
+          errorUtils.throwMissingArguments(this, "findRule", "CSSKeyframesRule");
+        }
+        var normalizedSelect = this._normalizeKeyText(select);
+        for (var i = this.cssRules.length - 1; i >= 0; i--) {
+          var rule = this.cssRules[i];
+          if (this._normalizeKeyText(rule.keyText) === normalizedSelect) {
+            return rule;
+          }
+        }
+        return null;
+      };
+      CSSOM.CSSKeyframesRule.prototype._normalizeKeyText = function _normalizeKeyText(keyText) {
+        if (!keyText) return "";
+        var normalized2 = keyText.toString().trim().toLowerCase();
+        if (normalized2 === "from") {
+          return "0%";
+        } else if (normalized2 === "to") {
+          return "100%";
+        }
+        return normalized2;
+      };
+      if (typeof Symbol !== "undefined" && Symbol.iterator) {
+        CSSOM.CSSKeyframesRule.prototype[Symbol.iterator] = function() {
+          var index = 0;
+          var cssRules = this.cssRules;
+          return {
+            next: function() {
+              if (index < cssRules.length) {
+                return { value: cssRules[index++], done: false };
+              } else {
+                return { done: true };
+              }
+            }
+          };
+        };
+      }
+      CSSOM.CSSKeyframesRule.prototype._setupIndexedAccess = function() {
+        for (var i = 0; i < 1e3; i++) {
+          if (this.hasOwnProperty(i)) {
+            delete this[i];
+          } else {
+            break;
+          }
+        }
+        for (var i = 0; i < this.cssRules.length; i++) {
+          (function(index) {
+            Object.defineProperty(this, index, {
+              get: function() {
+                return this.cssRules[index];
+              },
+              enumerable: false,
+              configurable: true
+            });
+          }).call(this, i);
+        }
+        Object.defineProperty(this, "length", {
+          get: function() {
+            return this.cssRules.length;
+          },
+          enumerable: false,
+          configurable: true
+        });
+      };
+      CSSOM.CSSKeyframeRule = function CSSKeyframeRule() {
+        CSSOM.CSSRule.call(this);
+        this.keyText = "";
+        this.__style = new CSSOM.CSSStyleDeclaration();
+        this.__style.parentRule = this;
+      };
+      CSSOM.CSSKeyframeRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSKeyframeRule.prototype.constructor = CSSOM.CSSKeyframeRule;
+      Object.setPrototypeOf(CSSOM.CSSKeyframeRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSKeyframeRule.prototype, "type", {
+        value: 8,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSKeyframeRule.prototype, "style", {
+        get: function() {
+          return this.__style;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            this.__style.cssText = value;
+          } else {
+            this.__style = value;
+          }
+        }
+      });
+      Object.defineProperty(CSSOM.CSSKeyframeRule.prototype, "cssText", {
+        get: function() {
+          return this.keyText + " {" + (this.style.cssText ? " " + this.style.cssText : "") + " }";
+        }
+      });
+      CSSOM.MatcherList = function MatcherList() {
+        this.length = 0;
+      };
+      CSSOM.MatcherList.prototype = {
+        constructor: CSSOM.MatcherList,
+        /**
+         * @return {string}
+         */
+        get matcherText() {
+          return Array.prototype.join.call(this, ", ");
+        },
+        /**
+         * @param {string} value
+         */
+        set matcherText(value) {
+          var values = value.split(",");
+          var length = this.length = values.length;
+          for (var i = 0; i < length; i++) {
+            this[i] = values[i].trim();
+          }
+        },
+        /**
+         * @param {string} matcher
+         */
+        appendMatcher: function(matcher) {
+          if (Array.prototype.indexOf.call(this, matcher) === -1) {
+            this[this.length] = matcher;
+            this.length++;
+          }
+        },
+        /**
+         * @param {string} matcher
+         */
+        deleteMatcher: function(matcher) {
+          var index = Array.prototype.indexOf.call(this, matcher);
+          if (index !== -1) {
+            Array.prototype.splice.call(this, index, 1);
+          }
+        }
+      };
+      CSSOM.CSSDocumentRule = function CSSDocumentRule() {
+        CSSOM.CSSRule.call(this);
+        this.matcher = new CSSOM.MatcherList();
+        this.cssRules = new CSSOM.CSSRuleList();
+      };
+      CSSOM.CSSDocumentRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSDocumentRule.prototype.constructor = CSSOM.CSSDocumentRule;
+      Object.setPrototypeOf(CSSOM.CSSDocumentRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSDocumentRule.prototype, "type", {
+        value: 10,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSDocumentRule.prototype, "cssText", {
         get: function() {
           var cssTexts = [];
           for (var i = 0, length = this.cssRules.length; i < length; i++) {
-            cssTexts.push("  " + this.cssRules[i].cssText);
+            cssTexts.push(this.cssRules[i].cssText);
           }
-          return "@" + (this._vendorPrefix || "") + "keyframes " + this.name + " { \n" + cssTexts.join("\n") + "\n}";
+          return "@-moz-document " + this.matcher.matcherText + " {" + (cssTexts.length ? "\n  " + cssTexts.join("\n  ") : "") + "\n}";
         }
       });
-      exports.CSSKeyframesRule = CSSOM.CSSKeyframesRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSValue.js
-  var require_CSSValue = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSValue.js"(exports) {
-      var CSSOM = {};
       CSSOM.CSSValue = function CSSValue() {
       };
       CSSOM.CSSValue.prototype = {
@@ -682,22 +1883,13 @@ var AidokuWasmHostBundle = (() => {
           return name;
         }
       };
-      exports.CSSValue = CSSOM.CSSValue;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSValueExpression.js
-  var require_CSSValueExpression = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSValueExpression.js"(exports) {
-      var CSSOM = {
-        CSSValue: require_CSSValue().CSSValue
-      };
       CSSOM.CSSValueExpression = function CSSValueExpression(token, idx) {
         this._token = token;
         this._idx = idx;
       };
-      CSSOM.CSSValueExpression.prototype = new CSSOM.CSSValue();
+      CSSOM.CSSValueExpression.prototype = Object.create(CSSOM.CSSValue.prototype);
       CSSOM.CSSValueExpression.prototype.constructor = CSSOM.CSSValueExpression;
+      Object.setPrototypeOf(CSSOM.CSSValueExpression, CSSOM.CSSValue);
       CSSOM.CSSValueExpression.prototype.parse = function() {
         var token = this._token, idx = this._idx;
         var character = "", expression = "", error = "", info, paren = [];
@@ -863,116 +2055,1493 @@ var AidokuWasmHostBundle = (() => {
         }
         return endIdx;
       };
-      exports.CSSValueExpression = CSSOM.CSSValueExpression;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/MatcherList.js
-  var require_MatcherList = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/MatcherList.js"(exports) {
-      var CSSOM = {};
-      CSSOM.MatcherList = function MatcherList() {
-        this.length = 0;
+      CSSOM.CSSScopeRule = function CSSScopeRule() {
+        CSSOM.CSSGroupingRule.call(this);
+        this.__start = null;
+        this.__end = null;
       };
-      CSSOM.MatcherList.prototype = {
-        constructor: CSSOM.MatcherList,
-        /**
-         * @return {string}
-         */
-        get matcherText() {
-          return Array.prototype.join.call(this, ", ");
+      CSSOM.CSSScopeRule.prototype = Object.create(CSSOM.CSSGroupingRule.prototype);
+      CSSOM.CSSScopeRule.prototype.constructor = CSSOM.CSSScopeRule;
+      Object.setPrototypeOf(CSSOM.CSSScopeRule, CSSOM.CSSGroupingRule);
+      Object.defineProperties(CSSOM.CSSScopeRule.prototype, {
+        type: {
+          value: 0,
+          writable: false
         },
-        /**
-         * @param {string} value
-         */
-        set matcherText(value) {
-          var values = value.split(",");
-          var length = this.length = values.length;
-          for (var i = 0; i < length; i++) {
-            this[i] = values[i].trim();
-          }
+        cssText: {
+          get: function() {
+            var values = "";
+            var valuesArr = [" {"];
+            if (this.cssRules.length) {
+              valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+                if (rule.cssText !== "") {
+                  acc.push(rule.cssText);
+                }
+                return acc;
+              }, []).join("\n  "));
+            }
+            values = valuesArr.join("\n  ") + "\n}";
+            return "@scope" + (this.start ? " (" + this.start + ")" : "") + (this.end ? " to (" + this.end + ")" : "") + values;
+          },
+          configurable: true,
+          enumerable: true
         },
-        /**
-         * @param {string} matcher
-         */
-        appendMatcher: function(matcher) {
-          if (Array.prototype.indexOf.call(this, matcher) === -1) {
-            this[this.length] = matcher;
-            this.length++;
+        start: {
+          get: function() {
+            return this.__start;
           }
         },
-        /**
-         * @param {string} matcher
-         */
-        deleteMatcher: function(matcher) {
-          var index = Array.prototype.indexOf.call(this, matcher);
-          if (index !== -1) {
-            Array.prototype.splice.call(this, index, 1);
+        end: {
+          get: function() {
+            return this.__end;
           }
-        }
-      };
-      exports.MatcherList = CSSOM.MatcherList;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSDocumentRule.js
-  var require_CSSDocumentRule = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSDocumentRule.js"(exports) {
-      var CSSOM = {
-        CSSRule: require_CSSRule().CSSRule,
-        MatcherList: require_MatcherList().MatcherList
-      };
-      CSSOM.CSSDocumentRule = function CSSDocumentRule() {
-        CSSOM.CSSRule.call(this);
-        this.matcher = new CSSOM.MatcherList();
-        this.cssRules = [];
-      };
-      CSSOM.CSSDocumentRule.prototype = new CSSOM.CSSRule();
-      CSSOM.CSSDocumentRule.prototype.constructor = CSSOM.CSSDocumentRule;
-      CSSOM.CSSDocumentRule.prototype.type = 10;
-      Object.defineProperty(CSSOM.CSSDocumentRule.prototype, "cssText", {
-        get: function() {
-          var cssTexts = [];
-          for (var i = 0, length = this.cssRules.length; i < length; i++) {
-            cssTexts.push(this.cssRules[i].cssText);
-          }
-          return "@-moz-document " + this.matcher.matcherText + " {" + cssTexts.join("") + "}";
         }
       });
-      exports.CSSDocumentRule = CSSOM.CSSDocumentRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/parse.js
-  var require_parse = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/parse.js"(exports) {
-      var CSSOM = {};
-      CSSOM.parse = function parse5(token) {
+      CSSOM.CSSLayerBlockRule = function CSSLayerBlockRule() {
+        CSSOM.CSSGroupingRule.call(this);
+        this.name = "";
+      };
+      CSSOM.CSSLayerBlockRule.prototype = Object.create(CSSOM.CSSGroupingRule.prototype);
+      CSSOM.CSSLayerBlockRule.prototype.constructor = CSSOM.CSSLayerBlockRule;
+      Object.setPrototypeOf(CSSOM.CSSLayerBlockRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSLayerBlockRule.prototype, "type", {
+        value: 18,
+        writable: false
+      });
+      Object.defineProperties(CSSOM.CSSLayerBlockRule.prototype, {
+        cssText: {
+          get: function() {
+            var values = "";
+            var valuesArr = [" {"];
+            if (this.cssRules.length) {
+              valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+                if (rule.cssText !== "") {
+                  acc.push(rule.cssText);
+                }
+                return acc;
+              }, []).join("\n  "));
+            }
+            values = valuesArr.join("\n  ") + "\n}";
+            return "@layer" + (this.name ? " " + this.name : "") + values;
+          }
+        }
+      });
+      CSSOM.CSSLayerStatementRule = function CSSLayerStatementRule() {
+        CSSOM.CSSRule.call(this);
+        this.nameList = [];
+      };
+      CSSOM.CSSLayerStatementRule.prototype = Object.create(CSSOM.CSSRule.prototype);
+      CSSOM.CSSLayerStatementRule.prototype.constructor = CSSOM.CSSLayerStatementRule;
+      Object.setPrototypeOf(CSSOM.CSSLayerStatementRule, CSSOM.CSSRule);
+      Object.defineProperty(CSSOM.CSSLayerStatementRule.prototype, "type", {
+        value: 0,
+        writable: false
+      });
+      Object.defineProperties(CSSOM.CSSLayerStatementRule.prototype, {
+        cssText: {
+          get: function() {
+            return "@layer " + this.nameList.join(", ") + ";";
+          }
+        }
+      });
+      CSSOM.CSSPageRule = function CSSPageRule() {
+        CSSOM.CSSGroupingRule.call(this);
+        this.__style = new CSSOM.CSSStyleDeclaration();
+        this.__style.parentRule = this;
+      };
+      CSSOM.CSSPageRule.prototype = Object.create(CSSOM.CSSGroupingRule.prototype);
+      CSSOM.CSSPageRule.prototype.constructor = CSSOM.CSSPageRule;
+      Object.setPrototypeOf(CSSOM.CSSPageRule, CSSOM.CSSGroupingRule);
+      Object.defineProperty(CSSOM.CSSPageRule.prototype, "type", {
+        value: 6,
+        writable: false
+      });
+      Object.defineProperty(CSSOM.CSSPageRule.prototype, "selectorText", {
+        get: function() {
+          return this.__selectorText;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            var trimmedValue = value.trim();
+            if (trimmedValue === "") {
+              this.__selectorText = "";
+              return;
+            }
+            var atPageRuleSelectorRegExp2 = regexPatterns.atPageRuleSelectorRegExp;
+            var cssCustomIdentifierRegExp2 = regexPatterns.cssCustomIdentifierRegExp;
+            var match = trimmedValue.match(atPageRuleSelectorRegExp2);
+            if (match) {
+              var pageName = match[1] || "";
+              var pseudoPages = match[2] || "";
+              if (pageName) {
+                if (!cssCustomIdentifierRegExp2.test(pageName)) {
+                  return;
+                }
+              }
+              if (pseudoPages) {
+                var pseudos2 = pseudoPages.split(":").filter(function(p) {
+                  return p;
+                });
+                var validPseudos = ["left", "right", "first", "blank"];
+                var allValid = true;
+                for (var j = 0; j < pseudos2.length; j++) {
+                  if (validPseudos.indexOf(pseudos2[j].toLowerCase()) === -1) {
+                    allValid = false;
+                    break;
+                  }
+                }
+                if (!allValid) {
+                  return;
+                }
+              }
+              this.__selectorText = pageName + pseudoPages.toLowerCase();
+            }
+          }
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPageRule.prototype, "style", {
+        get: function() {
+          return this.__style;
+        },
+        set: function(value) {
+          if (typeof value === "string") {
+            this.__style.cssText = value;
+          } else {
+            this.__style = value;
+          }
+        }
+      });
+      Object.defineProperty(CSSOM.CSSPageRule.prototype, "cssText", {
+        get: function() {
+          var values = "";
+          if (this.cssRules.length) {
+            var valuesArr = [" {"];
+            this.style.cssText && valuesArr.push(this.style.cssText);
+            valuesArr.push(this.cssRules.reduce(function(acc, rule) {
+              if (rule.cssText !== "") {
+                acc.push(rule.cssText);
+              }
+              return acc;
+            }, []).join("\n  "));
+            values = valuesArr.join("\n  ") + "\n}";
+          } else {
+            values = " {" + (this.style.cssText ? " " + this.style.cssText : "") + " }";
+          }
+          return "@page" + (this.selectorText ? " " + this.selectorText : "") + values;
+        }
+      });
+      CSSOM.parse = function parse5(token, opts, errorHandler) {
+        errorHandler = errorHandler === true ? console && console.error : errorHandler;
         var i = 0;
         var state = "before-selector";
         var index;
         var buffer = "";
         var valueParenthesisDepth = 0;
+        var hasUnmatchedQuoteInSelector = false;
         var SIGNIFICANT_WHITESPACE = {
+          "name": true,
+          "before-name": true,
           "selector": true,
           "value": true,
           "value-parenthesis": true,
           "atRule": true,
           "importRule-begin": true,
           "importRule": true,
+          "namespaceRule-begin": true,
+          "namespaceRule": true,
           "atBlock": true,
+          "containerBlock": true,
           "conditionBlock": true,
-          "documentRule-begin": true
+          "counterStyleBlock": true,
+          "propertyBlock": true,
+          "documentRule-begin": true,
+          "scopeBlock": true,
+          "layerBlock": true,
+          "pageBlock": true
         };
-        var styleSheet = new CSSOM.CSSStyleSheet();
-        var currentScope = styleSheet;
+        var styleSheet;
+        if (opts && opts.styleSheet) {
+          styleSheet = opts.styleSheet;
+        } else {
+          if (opts && opts.globalObject && opts.globalObject.CSSStyleSheet) {
+            styleSheet = new opts.globalObject.CSSStyleSheet();
+          } else {
+            styleSheet = new CSSOM.CSSStyleSheet();
+          }
+          styleSheet.__constructed = false;
+        }
+        var topScope;
+        if (opts && opts.cssRules) {
+          topScope = { cssRules: opts.cssRules };
+        } else {
+          topScope = styleSheet;
+        }
+        if (opts && opts.ownerNode) {
+          styleSheet.__ownerNode = opts.ownerNode;
+          var ownerNodeMedia = opts.ownerNode.media || opts.ownerNode.getAttribute && opts.ownerNode.getAttribute("media");
+          if (ownerNodeMedia) {
+            styleSheet.media.mediaText = ownerNodeMedia;
+          }
+          var ownerNodeTitle = opts.ownerNode.title || opts.ownerNode.getAttribute && opts.ownerNode.getAttribute("title");
+          if (ownerNodeTitle) {
+            styleSheet.__title = ownerNodeTitle;
+          }
+        }
+        if (opts && opts.ownerRule) {
+          styleSheet.__ownerRule = opts.ownerRule;
+        }
+        var currentScope = topScope;
         var parentRule;
         var ancestorRules = [];
-        var hasAncestors = false;
         var prevScope;
-        var name, priority = "", styleRule, mediaRule, supportsRule, importRule, fontFaceRule, keyframesRule, documentRule, hostRule;
-        var atKeyframesRegExp = /@(-(?:\w+-)+)?keyframes/g;
-        var parseError = function(message) {
+        var name, priority = "", styleRule, mediaRule, containerRule, counterStyleRule, propertyRule, supportsRule, importRule, fontFaceRule, keyframesRule, documentRule, hostRule, startingStyleRule, scopeRule, pageRule, layerBlockRule, layerStatementRule, nestedSelectorRule, namespaceRule;
+        var definedNamespacePrefixes = {};
+        var ruleIdCounter = 0;
+        var addedToParent = {};
+        var addedToTopScope = {};
+        var addedToCurrentScope = {};
+        function getRuleId(rule) {
+          if (!rule.__parseId) {
+            rule.__parseId = ++ruleIdCounter;
+          }
+          return rule.__parseId;
+        }
+        var lastValidationBoundary = 0;
+        var validationRegexCache = {};
+        function getValidationRegex(atRuleKey) {
+          if (!validationRegexCache[atRuleKey]) {
+            var sourceRuleRegExp = atRuleKey === "@import" ? forwardImportRuleValidationRegExp2 : forwardRuleValidationRegExp2;
+            validationRegexCache[atRuleKey] = new RegExp(atRuleKey + sourceRuleRegExp.source, sourceRuleRegExp.flags);
+          }
+          return validationRegexCache[atRuleKey];
+        }
+        var atKeyframesRegExp2 = regexPatterns.atKeyframesRegExp;
+        var beforeRulePortionRegExp2 = regexPatterns.beforeRulePortionRegExp;
+        var beforeRuleValidationRegExp2 = regexPatterns.beforeRuleValidationRegExp;
+        var forwardRuleValidationRegExp2 = regexPatterns.forwardRuleValidationRegExp;
+        var forwardImportRuleValidationRegExp2 = regexPatterns.forwardImportRuleValidationRegExp;
+        var regexBefore = new RegExp(beforeRulePortionRegExp2.source, beforeRulePortionRegExp2.flags);
+        var forwardRuleClosingBraceRegExp2 = regexPatterns.forwardRuleClosingBraceRegExp;
+        var forwardRuleSemicolonAndOpeningBraceRegExp2 = regexPatterns.forwardRuleSemicolonAndOpeningBraceRegExp;
+        var cssCustomIdentifierRegExp2 = regexPatterns.cssCustomIdentifierRegExp;
+        var startsWithCombinatorRegExp2 = regexPatterns.startsWithCombinatorRegExp;
+        var atPageRuleSelectorRegExp2 = regexPatterns.atPageRuleSelectorRegExp;
+        var startsWithHexEscapeRegExp2 = regexPatterns.startsWithHexEscapeRegExp;
+        var identStartCharRegExp2 = regexPatterns.identStartCharRegExp;
+        var identCharRegExp2 = regexPatterns.identCharRegExp;
+        var specialCharsNeedEscapeRegExp2 = regexPatterns.specialCharsNeedEscapeRegExp;
+        var combinatorOrSeparatorRegExp2 = regexPatterns.combinatorOrSeparatorRegExp;
+        var afterHexEscapeSeparatorRegExp2 = regexPatterns.afterHexEscapeSeparatorRegExp;
+        var trailingSpaceSeparatorRegExp2 = regexPatterns.trailingSpaceSeparatorRegExp;
+        var endsWithHexEscapeRegExp2 = regexPatterns.endsWithHexEscapeRegExp;
+        var attributeSelectorContentRegExp2 = regexPatterns.attributeSelectorContentRegExp;
+        var pseudoElementRegExp2 = regexPatterns.pseudoElementRegExp;
+        var invalidCombinatorLtGtRegExp2 = regexPatterns.invalidCombinatorLtGtRegExp;
+        var invalidCombinatorDoubleGtRegExp2 = regexPatterns.invalidCombinatorDoubleGtRegExp;
+        var consecutiveCombinatorsRegExp2 = regexPatterns.consecutiveCombinatorsRegExp;
+        var invalidSlottedRegExp2 = regexPatterns.invalidSlottedRegExp;
+        var invalidPartRegExp2 = regexPatterns.invalidPartRegExp;
+        var invalidCueRegExp2 = regexPatterns.invalidCueRegExp;
+        var invalidCueRegionRegExp2 = regexPatterns.invalidCueRegionRegExp;
+        var invalidNestingPattern2 = regexPatterns.invalidNestingPattern;
+        var emptyPseudoClassRegExp2 = regexPatterns.emptyPseudoClassRegExp;
+        var whitespaceNormalizationRegExp2 = regexPatterns.whitespaceNormalizationRegExp;
+        var newlineRemovalRegExp2 = regexPatterns.newlineRemovalRegExp;
+        var whitespaceAndDotRegExp2 = regexPatterns.whitespaceAndDotRegExp;
+        var declarationOrOpenBraceRegExp2 = regexPatterns.declarationOrOpenBraceRegExp;
+        var ampersandRegExp2 = regexPatterns.ampersandRegExp;
+        var hexEscapeSequenceRegExp2 = regexPatterns.hexEscapeSequenceRegExp;
+        var attributeCaseFlagRegExp2 = regexPatterns.attributeCaseFlagRegExp;
+        var prependedAmpersandRegExp2 = regexPatterns.prependedAmpersandRegExp;
+        var openBraceGlobalRegExp2 = regexPatterns.openBraceGlobalRegExp;
+        var closeBraceGlobalRegExp2 = regexPatterns.closeBraceGlobalRegExp;
+        var scopePreludeSplitRegExp2 = regexPatterns.scopePreludeSplitRegExp;
+        var leadingWhitespaceRegExp2 = regexPatterns.leadingWhitespaceRegExp;
+        var doubleQuoteRegExp2 = regexPatterns.doubleQuoteRegExp;
+        var backslashRegExp2 = regexPatterns.backslashRegExp;
+        var invalidMediaOperatorWithoutSpaceRegExp2 = regexPatterns.invalidMediaOperatorWithoutSpaceRegExp;
+        var invalidMediaNotAfterOperatorRegExp2 = regexPatterns.invalidMediaNotAfterOperatorRegExp;
+        var invalidMediaNotIdentifierRegExp2 = regexPatterns.invalidMediaNotIdentifierRegExp;
+        var invalidMediaNotAfterFeatureRegExp2 = regexPatterns.invalidMediaNotAfterFeatureRegExp;
+        var invalidMediaOperatorBetweenParensRegExp2 = regexPatterns.invalidMediaOperatorBetweenParensRegExp;
+        var invalidMediaNotWithMediaTypeRegExp2 = regexPatterns.invalidMediaNotWithMediaTypeRegExp;
+        var mediaFeatureColonRegExp2 = regexPatterns.mediaFeatureColonRegExp;
+        var identifierBeforeParenRegExp2 = regexPatterns.identifierBeforeParenRegExp;
+        var mediaAndOperatorRegExp2 = regexPatterns.mediaAndOperatorRegExp;
+        var mediaOrOperatorRegExp2 = regexPatterns.mediaOrOperatorRegExp;
+        var mediaNotOperatorStartRegExp2 = regexPatterns.mediaNotOperatorStartRegExp;
+        var mediaNotOperatorRegExp2 = regexPatterns.mediaNotOperatorRegExp;
+        function atRulesStatemenRegExpES5Alternative(ruleSlice) {
+          for (var i2 = 0; i2 < ruleSlice.length; i2++) {
+            var char = ruleSlice[i2];
+            if (char === ";" || char === "}") {
+              var sliceBefore = ruleSlice.substring(0, i2);
+              var openBraceIndex = sliceBefore.indexOf("{");
+              if (openBraceIndex === -1) {
+                var match = char;
+                var j = i2 + 1;
+                while (j < ruleSlice.length && /\s/.test(ruleSlice[j])) {
+                  match += ruleSlice[j];
+                  j++;
+                }
+                var matchObj = [match];
+                matchObj.index = i2;
+                matchObj.input = ruleSlice;
+                return matchObj;
+              }
+            }
+          }
+          return null;
+        }
+        function matchBalancedBlock(str, fromIndex) {
+          fromIndex = fromIndex || 0;
+          var openIndex = str.indexOf("{", fromIndex);
+          if (openIndex === -1) return null;
+          var depth = 0;
+          for (var i2 = openIndex; i2 < str.length; i2++) {
+            if (str[i2] === "{") {
+              depth++;
+            } else if (str[i2] === "}") {
+              depth--;
+              if (depth === 0) {
+                var matchedString = str.slice(openIndex, i2 + 1);
+                return {
+                  0: matchedString,
+                  index: openIndex,
+                  input: str
+                };
+              }
+            }
+          }
+          return null;
+        }
+        function ignoreBalancedBlock(i2, str, fromIndex) {
+          var ruleClosingMatch2 = matchBalancedBlock(str, fromIndex);
+          if (ruleClosingMatch2) {
+            var ignoreRange = ruleClosingMatch2.index + ruleClosingMatch2[0].length;
+            i2 += ignoreRange;
+            if (token.charAt(i2) === "}") {
+              i2 -= 1;
+            }
+          } else {
+            i2 += str.length;
+          }
+          return i2;
+        }
+        function parseScopePrelude(preludeContent) {
+          var parts = preludeContent.split(scopePreludeSplitRegExp2);
+          if (parts.length === 2) {
+            parts[0] = parts[0] + ")";
+            parts[1] = "(" + parts[1];
+          }
+          var hasStart = parts[0] && parts[0].charAt(0) === "(" && parts[0].charAt(parts[0].length - 1) === ")";
+          var hasEnd = parts[1] && parts[1].charAt(0) === "(" && parts[1].charAt(parts[1].length - 1) === ")";
+          var hasOnlyEnd = !hasStart && !hasEnd && parts[0].indexOf("to (") === 0 && parts[0].charAt(parts[0].length - 1) === ")";
+          var startSelector = "";
+          var endSelector = "";
+          if (hasStart) {
+            startSelector = parts[0].slice(1, -1).trim();
+          }
+          if (hasEnd) {
+            endSelector = parts[1].slice(1, -1).trim();
+          }
+          if (hasOnlyEnd) {
+            endSelector = parts[0].slice(4, -1).trim();
+          }
+          return {
+            startSelector,
+            endSelector,
+            hasStart,
+            hasEnd,
+            hasOnlyEnd
+          };
+        }
+        ;
+        function hasPseudoElement(selector2) {
+          return pseudoElementRegExp2.test(selector2);
+        }
+        ;
+        function validateBalancedSyntax(selector2, trackAttributes, useStack) {
+          var parenDepth = 0;
+          var bracketDepth = 0;
+          var inSingleQuote = false;
+          var inDoubleQuote = false;
+          var inAttr = false;
+          var stack = useStack ? [] : null;
+          for (var i2 = 0; i2 < selector2.length; i2++) {
+            var char = selector2[i2];
+            if (char === "\\") {
+              var escapeLen2 = getEscapeSequenceLength(selector2, i2);
+              if (escapeLen2 > 0) {
+                i2 += escapeLen2 - 1;
+                continue;
+              }
+            }
+            if (inSingleQuote) {
+              if (char === "'") {
+                inSingleQuote = false;
+              }
+            } else if (inDoubleQuote) {
+              if (char === '"') {
+                inDoubleQuote = false;
+              }
+            } else if (trackAttributes && inAttr) {
+              if (char === "]") {
+                inAttr = false;
+              } else if (char === "'") {
+                inSingleQuote = true;
+              } else if (char === '"') {
+                inDoubleQuote = true;
+              }
+            } else {
+              if (trackAttributes && char === "[") {
+                inAttr = true;
+              } else if (char === "'") {
+                inSingleQuote = true;
+              } else if (char === '"') {
+                inDoubleQuote = true;
+              } else if (char === "(") {
+                if (useStack) {
+                  stack.push("(");
+                } else {
+                  parenDepth++;
+                }
+              } else if (char === ")") {
+                if (useStack) {
+                  if (!stack.length || stack.pop() !== "(") {
+                    return false;
+                  }
+                } else {
+                  parenDepth--;
+                  if (parenDepth < 0) {
+                    return false;
+                  }
+                }
+              } else if (char === "[") {
+                bracketDepth++;
+              } else if (char === "]") {
+                bracketDepth--;
+                if (bracketDepth < 0) {
+                  return false;
+                }
+              }
+            }
+          }
+          if (useStack) {
+            return stack.length === 0 && bracketDepth === 0 && !inSingleQuote && !inDoubleQuote && !inAttr;
+          } else {
+            return parenDepth === 0 && bracketDepth === 0 && !inSingleQuote && !inDoubleQuote;
+          }
+        }
+        ;
+        function hasBasicSyntaxError(selector2) {
+          return !validateBalancedSyntax(selector2, false, false);
+        }
+        ;
+        function hasInvalidCombinators(selector2) {
+          if (invalidCombinatorLtGtRegExp2.test(selector2)) return true;
+          if (invalidCombinatorDoubleGtRegExp2.test(selector2)) return true;
+          if (consecutiveCombinatorsRegExp2.test(selector2)) return true;
+          return false;
+        }
+        ;
+        function hasInvalidPseudoSyntax(selector2) {
+          var invalidPatterns = [
+            invalidSlottedRegExp2,
+            invalidPartRegExp2,
+            invalidCueRegExp2,
+            invalidCueRegionRegExp2
+          ];
+          for (var i2 = 0; i2 < invalidPatterns.length; i2++) {
+            if (invalidPatterns[i2].test(selector2)) {
+              return true;
+            }
+          }
+          return false;
+        }
+        ;
+        function hasInvalidNestingSelector(selector2) {
+          return invalidNestingPattern2.test(selector2);
+        }
+        ;
+        function canAtRuleBeNested() {
+          if (currentScope === topScope) {
+            return true;
+          }
+          var hasStyleRuleInChain = false;
+          var hasValidParent = false;
+          if (currentScope.constructor.name === "CSSStyleRule") {
+            hasStyleRuleInChain = true;
+          } else if (currentScope instanceof CSSOM.CSSScopeRule || currentScope instanceof CSSOM.CSSConditionRule) {
+            hasValidParent = true;
+          }
+          if (!hasStyleRuleInChain) {
+            for (var j = 0; j < ancestorRules.length; j++) {
+              if (ancestorRules[j].constructor.name === "CSSStyleRule") {
+                hasStyleRuleInChain = true;
+                break;
+              }
+              if (ancestorRules[j] instanceof CSSOM.CSSScopeRule || ancestorRules[j] instanceof CSSOM.CSSConditionRule) {
+                hasValidParent = true;
+              }
+            }
+          }
+          return hasValidParent && !hasStyleRuleInChain;
+        }
+        function validateAtRule(atRuleKey, validCallback, cannotBeNested2) {
+          var isValid2 = false;
+          var ruleRegExp = getValidationRegex(atRuleKey);
+          var lookAheadLength = Math.min(100, token.length - i);
+          var ruleSlice = token.slice(i, i + lookAheadLength);
+          var shouldPerformCheck = cannotBeNested2 && currentScope !== topScope ? false : true;
+          if (shouldPerformCheck && ruleSlice.search(ruleRegExp) === 0) {
+            var searchStart = Math.max(0, lastValidationBoundary);
+            var beforeSlice = token.slice(searchStart, i);
+            var matches2 = beforeSlice.match(regexBefore);
+            var lastI = matches2 ? searchStart + beforeSlice.lastIndexOf(matches2[matches2.length - 1]) : searchStart;
+            var toCheckSlice = token.slice(lastI, i);
+            var checkedSlice = toCheckSlice.search(beforeRuleValidationRegExp2);
+            if (checkedSlice === 0) {
+              isValid2 = true;
+              lastValidationBoundary = lastI;
+            }
+          }
+          if (isValid2 && atRuleKey === "@scope") {
+            var openBraceIndex = ruleSlice.indexOf("{");
+            if (openBraceIndex !== -1) {
+              var rulePrelude = ruleSlice.slice(0, openBraceIndex).trim();
+              var preludeContent = rulePrelude.slice("@scope".length).trim();
+              if (preludeContent.length > 0) {
+                var parsedScopePrelude2 = parseScopePrelude(preludeContent);
+                var startSelector = parsedScopePrelude2.startSelector;
+                var endSelector = parsedScopePrelude2.endSelector;
+                var hasStart = parsedScopePrelude2.hasStart;
+                var hasEnd = parsedScopePrelude2.hasEnd;
+                var hasOnlyEnd = parsedScopePrelude2.hasOnlyEnd;
+                if (hasStart && startSelector === "" || hasEnd && endSelector === "" || hasOnlyEnd && endSelector === "") {
+                  isValid2 = false;
+                } else if (startSelector && hasPseudoElement(startSelector) || endSelector && hasPseudoElement(endSelector)) {
+                  isValid2 = false;
+                } else if (startSelector && hasBasicSyntaxError(startSelector) || endSelector && hasBasicSyntaxError(endSelector)) {
+                  isValid2 = false;
+                } else if (startSelector && hasInvalidCombinators(startSelector) || endSelector && hasInvalidCombinators(endSelector)) {
+                  isValid2 = false;
+                } else if (startSelector && hasInvalidPseudoSyntax(startSelector) || endSelector && hasInvalidPseudoSyntax(endSelector)) {
+                  isValid2 = false;
+                } else if (!hasStart && !hasOnlyEnd) {
+                  isValid2 = false;
+                }
+              }
+            }
+          }
+          if (isValid2 && atRuleKey === "@page") {
+            var openBraceIndex = ruleSlice.indexOf("{");
+            if (openBraceIndex !== -1) {
+              var rulePrelude = ruleSlice.slice(0, openBraceIndex).trim();
+              var preludeContent = rulePrelude.slice("@page".length).trim();
+              if (preludeContent.length > 0) {
+                var trimmedValue = preludeContent.trim();
+                if (trimmedValue !== "") {
+                  var match = trimmedValue.match(atPageRuleSelectorRegExp2);
+                  if (match) {
+                    var pageName = match[1] || "";
+                    var pseudoPages = match[2] || "";
+                    if (pageName) {
+                      if (!cssCustomIdentifierRegExp2.test(pageName)) {
+                        isValid2 = false;
+                      }
+                    }
+                    if (pseudoPages) {
+                      var pseudos2 = pseudoPages.split(":").filter(function(p) {
+                        return p;
+                      });
+                      var validPseudos = ["left", "right", "first", "blank"];
+                      var allValid = true;
+                      for (var j = 0; j < pseudos2.length; j++) {
+                        if (validPseudos.indexOf(pseudos2[j].toLowerCase()) === -1) {
+                          allValid = false;
+                          break;
+                        }
+                      }
+                      if (!allValid) {
+                        isValid2 = false;
+                      }
+                    }
+                  } else {
+                    isValid2 = false;
+                  }
+                }
+              }
+            }
+          }
+          if (!isValid2) {
+            var ruleStatementMatch = atRulesStatemenRegExpES5Alternative(ruleSlice);
+            if (ruleStatementMatch && currentScope !== topScope) {
+              var ignoreEnd = ruleStatementMatch[0].indexOf(";");
+              i += ruleStatementMatch.index + ignoreEnd;
+              return;
+            }
+            if (atRuleKey === "@layer") {
+              var ruleSemicolonAndOpeningBraceMatch = ruleSlice.match(forwardRuleSemicolonAndOpeningBraceRegExp2);
+              if (ruleSemicolonAndOpeningBraceMatch && ruleSemicolonAndOpeningBraceMatch[1] === ";") {
+                i += ruleSemicolonAndOpeningBraceMatch.index + ruleSemicolonAndOpeningBraceMatch[0].length;
+                state = "before-selector";
+                return;
+              }
+            }
+            i = ignoreBalancedBlock(i, ruleSlice);
+            state = "before-selector";
+          } else {
+            validCallback.call(this);
+          }
+        }
+        function isIdentStart(c) {
+          return /[a-zA-Z_\u00A0-\uFFFF]/.test(c);
+        }
+        function isIdentChar(c) {
+          return /[a-zA-Z0-9_\u00A0-\uFFFF\-]/.test(c);
+        }
+        function looseSelectorValidator(selector2) {
+          if (!selector2 || selector2.length === 0) {
+            return false;
+          }
+          var i2 = 0;
+          var len = selector2.length;
+          var hasMatchedComponent = false;
+          function skipEscape() {
+            if (i2 < len && selector2[i2] === "\\") {
+              var escapeLen2 = getEscapeSequenceLength(selector2, i2);
+              if (escapeLen2 > 0) {
+                i2 += escapeLen2;
+                return true;
+              }
+            }
+            return false;
+          }
+          function parseIdentifier() {
+            var start2 = i2;
+            while (i2 < len) {
+              if (skipEscape()) {
+                continue;
+              } else if (isIdentChar(selector2[i2])) {
+                i2++;
+              } else {
+                break;
+              }
+            }
+            return i2 > start2;
+          }
+          function parseNamespace() {
+            var start2 = i2;
+            if (i2 < len && selector2[i2] === "*") {
+              i2++;
+            } else if (i2 < len && (isIdentStart(selector2[i2]) || selector2[i2] === "\\")) {
+              parseIdentifier();
+            }
+            if (i2 < len && selector2[i2] === "|") {
+              i2++;
+              return true;
+            }
+            i2 = start2;
+            return false;
+          }
+          function parsePseudoArgs() {
+            if (i2 >= len || selector2[i2] !== "(") {
+              return false;
+            }
+            i2++;
+            var depth2 = 1;
+            var inString = false;
+            var stringChar = "";
+            while (i2 < len && depth2 > 0) {
+              var c = selector2[i2];
+              if (c === "\\" && i2 + 1 < len) {
+                i2 += 2;
+              } else if (!inString && (c === '"' || c === "'")) {
+                inString = true;
+                stringChar = c;
+                i2++;
+              } else if (inString && c === stringChar) {
+                inString = false;
+                i2++;
+              } else if (!inString && c === "(") {
+                depth2++;
+                i2++;
+              } else if (!inString && c === ")") {
+                depth2--;
+                i2++;
+              } else {
+                i2++;
+              }
+            }
+            return depth2 === 0;
+          }
+          while (i2 < len) {
+            var matched = false;
+            var start = i2;
+            while (i2 < len && /\s/.test(selector2[i2])) {
+              i2++;
+            }
+            if (i2 > start) {
+              hasMatchedComponent = true;
+              continue;
+            }
+            if (i2 < len && /[>+~]/.test(selector2[i2])) {
+              i2++;
+              hasMatchedComponent = true;
+              while (i2 < len && /\s/.test(selector2[i2])) {
+                i2++;
+              }
+              continue;
+            }
+            if (i2 < len && selector2[i2] === "&") {
+              i2++;
+              hasMatchedComponent = true;
+              matched = true;
+            } else if (i2 < len && selector2[i2] === ".") {
+              i2++;
+              if (parseIdentifier()) {
+                hasMatchedComponent = true;
+                matched = true;
+              }
+            } else if (i2 < len && selector2[i2] === "#") {
+              i2++;
+              if (parseIdentifier()) {
+                hasMatchedComponent = true;
+                matched = true;
+              }
+            } else if (i2 < len && selector2[i2] === ":") {
+              i2++;
+              if (i2 < len && selector2[i2] === ":") {
+                i2++;
+              }
+              if (parseIdentifier()) {
+                parsePseudoArgs();
+                hasMatchedComponent = true;
+                matched = true;
+              }
+            } else if (i2 < len && selector2[i2] === "[") {
+              i2++;
+              var depth = 1;
+              while (i2 < len && depth > 0) {
+                if (selector2[i2] === "\\") {
+                  i2 += 2;
+                } else if (selector2[i2] === "'") {
+                  i2++;
+                  while (i2 < len && selector2[i2] !== "'") {
+                    if (selector2[i2] === "\\") i2 += 2;
+                    else i2++;
+                  }
+                  if (i2 < len) i2++;
+                } else if (selector2[i2] === '"') {
+                  i2++;
+                  while (i2 < len && selector2[i2] !== '"') {
+                    if (selector2[i2] === "\\") i2 += 2;
+                    else i2++;
+                  }
+                  if (i2 < len) i2++;
+                } else if (selector2[i2] === "[") {
+                  depth++;
+                  i2++;
+                } else if (selector2[i2] === "]") {
+                  depth--;
+                  i2++;
+                } else {
+                  i2++;
+                }
+              }
+              if (depth === 0) {
+                hasMatchedComponent = true;
+                matched = true;
+              }
+            } else if (i2 < len && (isIdentStart(selector2[i2]) || selector2[i2] === "\\" || selector2[i2] === "*" || selector2[i2] === "|" || selector2[i2] === "-")) {
+              parseNamespace();
+              if (i2 < len && selector2[i2] === "*") {
+                i2++;
+                hasMatchedComponent = true;
+                matched = true;
+              } else if (i2 < len && (isIdentStart(selector2[i2]) || selector2[i2] === "\\" || selector2[i2] === "-")) {
+                if (parseIdentifier()) {
+                  hasMatchedComponent = true;
+                  matched = true;
+                }
+              }
+            }
+            if (!matched && i2 === start) {
+              return false;
+            }
+          }
+          return hasMatchedComponent;
+        }
+        function basicSelectorValidator(selector2) {
+          if (selector2.length > 1e4) {
+            return false;
+          }
+          if (!validateBalancedSyntax(selector2, true, true)) {
+            return false;
+          }
+          if (hasInvalidCombinators(selector2)) {
+            return false;
+          }
+          if (hasInvalidPseudoSyntax(selector2)) {
+            return false;
+          }
+          if (hasInvalidNestingSelector(selector2)) {
+            return false;
+          }
+          var noQuotesPseudos = ["lang", "dir", "nth-child", "nth-last-child", "nth-of-type", "nth-last-of-type"];
+          for (var idx = 0; idx < selector2.length; idx++) {
+            if (selector2[idx] === ":") {
+              var pseudoStart = idx;
+              idx++;
+              if (idx < selector2.length && selector2[idx] === ":") {
+                idx++;
+              }
+              var nameStart = idx;
+              while (idx < selector2.length && /[a-zA-Z0-9\-]/.test(selector2[idx])) {
+                idx++;
+              }
+              if (idx === nameStart) {
+                continue;
+              }
+              var pseudoName = selector2.substring(nameStart, idx).toLowerCase();
+              if (idx < selector2.length && selector2[idx] === "(") {
+                idx++;
+                var contentStart = idx;
+                var depth = 1;
+                while (idx < selector2.length && depth > 0) {
+                  if (selector2[idx] === "\\") {
+                    idx += 2;
+                  } else if (selector2[idx] === "(") {
+                    depth++;
+                    idx++;
+                  } else if (selector2[idx] === ")") {
+                    depth--;
+                    idx++;
+                  } else {
+                    idx++;
+                  }
+                }
+                if (depth === 0) {
+                  var pseudoContent = selector2.substring(contentStart, idx - 1);
+                  for (var j = 0; j < noQuotesPseudos.length; j++) {
+                    if (pseudoName === noQuotesPseudos[j] && /['"]/.test(pseudoContent)) {
+                      return false;
+                    }
+                  }
+                }
+              }
+            }
+          }
+          return looseSelectorValidator(selector2);
+        }
+        function extractPseudoClasses(selector2) {
+          var matches2 = [];
+          for (var i2 = 0; i2 < selector2.length; i2++) {
+            if (selector2[i2] === ":") {
+              var pseudoStart = i2;
+              i2++;
+              if (i2 < selector2.length && selector2[i2] === ":") {
+                i2++;
+              }
+              var nameStart = i2;
+              while (i2 < selector2.length && /[a-zA-Z\-]/.test(selector2[i2])) {
+                i2++;
+              }
+              if (i2 === nameStart) {
+                continue;
+              }
+              var pseudoName = selector2.substring(nameStart, i2);
+              if (i2 < selector2.length && selector2[i2] === "(") {
+                i2++;
+                var argsStart = i2;
+                var depth = 1;
+                var inSingleQuote = false;
+                var inDoubleQuote = false;
+                while (i2 < selector2.length && depth > 0) {
+                  var ch = selector2[i2];
+                  if (ch === "\\") {
+                    i2 += 2;
+                  } else if (ch === "'" && !inDoubleQuote) {
+                    inSingleQuote = !inSingleQuote;
+                    i2++;
+                  } else if (ch === '"' && !inSingleQuote) {
+                    inDoubleQuote = !inDoubleQuote;
+                    i2++;
+                  } else if (ch === "(" && !inSingleQuote && !inDoubleQuote) {
+                    depth++;
+                    i2++;
+                  } else if (ch === ")" && !inSingleQuote && !inDoubleQuote) {
+                    depth--;
+                    i2++;
+                  } else {
+                    i2++;
+                  }
+                }
+                if (depth === 0) {
+                  var pseudoArgs = selector2.substring(argsStart, i2 - 1);
+                  var fullMatch = selector2.substring(pseudoStart, i2);
+                  matches2.push([fullMatch, pseudoName, pseudoArgs, pseudoStart]);
+                }
+                i2--;
+              }
+            }
+          }
+          return matches2;
+        }
+        function parseAndSplitNestedSelectors(selector2) {
+          var depth = 0;
+          var buffer2 = "";
+          var parts = [];
+          var inSingleQuote = false;
+          var inDoubleQuote = false;
+          var i2, char;
+          for (i2 = 0; i2 < selector2.length; i2++) {
+            char = selector2.charAt(i2);
+            if (char === "\\" && i2 + 1 < selector2.length) {
+              buffer2 += char;
+              i2++;
+              buffer2 += selector2.charAt(i2);
+              continue;
+            }
+            if (char === "'" && !inDoubleQuote) {
+              inSingleQuote = !inSingleQuote;
+              buffer2 += char;
+            } else if (char === '"' && !inSingleQuote) {
+              inDoubleQuote = !inDoubleQuote;
+              buffer2 += char;
+            } else if (!inSingleQuote && !inDoubleQuote) {
+              if (char === "(") {
+                depth++;
+                buffer2 += char;
+              } else if (char === ")") {
+                depth--;
+                buffer2 += char;
+              } else if (char === "," && depth === 0) {
+                if (buffer2.trim()) {
+                  parts.push(buffer2.trim());
+                }
+                buffer2 = "";
+              } else {
+                buffer2 += char;
+              }
+            } else {
+              buffer2 += char;
+            }
+          }
+          var trimmed = buffer2.trim();
+          if (trimmed) {
+            var endsWithHexEscape = endsWithHexEscapeRegExp2.test(buffer2);
+            parts.push(endsWithHexEscape ? buffer2.replace(leadingWhitespaceRegExp2, "") : trimmed);
+          }
+          return parts;
+        }
+        var validatedSelectorsCache = {};
+        var selectorListPseudoClasses = {
+          "not": true,
+          "is": true,
+          "has": true,
+          "where": true
+        };
+        function validateSelector(selector2) {
+          if (validatedSelectorsCache.hasOwnProperty(selector2)) {
+            return validatedSelectorsCache[selector2];
+          }
+          var pseudoClassMatches = extractPseudoClasses(selector2);
+          for (var j = 0; j < pseudoClassMatches.length; j++) {
+            var pseudoClass = pseudoClassMatches[j][1];
+            if (selectorListPseudoClasses.hasOwnProperty(pseudoClass)) {
+              var nestedSelectors = parseAndSplitNestedSelectors(pseudoClassMatches[j][2]);
+              var hasAmpersand = false;
+              for (var k = 0; k < nestedSelectors.length; k++) {
+                if (ampersandRegExp2.test(nestedSelectors[k])) {
+                  hasAmpersand = true;
+                  break;
+                }
+              }
+              if (hasAmpersand) {
+                continue;
+              }
+              for (var i2 = 0; i2 < nestedSelectors.length; i2++) {
+                var nestedSelector = nestedSelectors[i2];
+                if (!validatedSelectorsCache.hasOwnProperty(nestedSelector)) {
+                  var nestedSelectorValidation = validateSelector(nestedSelector);
+                  validatedSelectorsCache[nestedSelector] = nestedSelectorValidation;
+                  if (!nestedSelectorValidation) {
+                    validatedSelectorsCache[selector2] = false;
+                    return false;
+                  }
+                } else if (!validatedSelectorsCache[nestedSelector]) {
+                  validatedSelectorsCache[selector2] = false;
+                  return false;
+                }
+              }
+            }
+          }
+          var basicSelectorValidation = basicSelectorValidator(selector2);
+          validatedSelectorsCache[selector2] = basicSelectorValidation;
+          return basicSelectorValidation;
+        }
+        function validateNamespaceSelector(selector2) {
+          var pipeIndex = -1;
+          var inAttr = false;
+          var inSingleQuote = false;
+          var inDoubleQuote = false;
+          for (var i2 = 0; i2 < selector2.length; i2++) {
+            var char = selector2[i2];
+            if (char === "\\") {
+              var escapeLen2 = getEscapeSequenceLength(selector2, i2);
+              if (escapeLen2 > 0) {
+                i2 += escapeLen2 - 1;
+                continue;
+              }
+            }
+            if (inSingleQuote) {
+              if (char === "'") {
+                inSingleQuote = false;
+              }
+            } else if (inDoubleQuote) {
+              if (char === '"') {
+                inDoubleQuote = false;
+              }
+            } else if (inAttr) {
+              if (char === "]") {
+                inAttr = false;
+              } else if (char === "'") {
+                inSingleQuote = true;
+              } else if (char === '"') {
+                inDoubleQuote = true;
+              }
+            } else {
+              if (char === "[") {
+                inAttr = true;
+              } else if (char === "|" && !inAttr) {
+                pipeIndex = i2;
+                break;
+              }
+            }
+          }
+          if (pipeIndex === -1) {
+            return true;
+          }
+          var namespacePrefix = selector2.substring(0, pipeIndex);
+          if (namespacePrefix === "*" || namespacePrefix === "") {
+            return true;
+          }
+          return definedNamespacePrefixes.hasOwnProperty(namespacePrefix);
+        }
+        function normalizeSelectorEscapes(selector2) {
+          var result = "";
+          var i2 = 0;
+          var nextChar = "";
+          var inIdentifier = false;
+          var inAttribute = false;
+          var attributeDepth = 0;
+          var needsEscapeForIdent = false;
+          var lastWasHexEscape = false;
+          while (i2 < selector2.length) {
+            var char = selector2[i2];
+            if (char === "[" && !inAttribute) {
+              inAttribute = true;
+              attributeDepth = 1;
+              result += char;
+              i2++;
+              needsEscapeForIdent = false;
+              inIdentifier = false;
+              lastWasHexEscape = false;
+              continue;
+            }
+            if (inAttribute) {
+              if (char === "[") attributeDepth++;
+              if (char === "]") {
+                attributeDepth--;
+                if (attributeDepth === 0) inAttribute = false;
+              }
+              if (char === "\\" && i2 + 1 < selector2.length) {
+                var escapeLen2 = getEscapeSequenceLength(selector2, i2);
+                result += selector2.substr(i2, escapeLen2);
+                i2 += escapeLen2;
+              } else {
+                result += char;
+                i2++;
+              }
+              lastWasHexEscape = false;
+              continue;
+            }
+            if (char === "\\") {
+              var escapeLen2 = getEscapeSequenceLength(selector2, i2);
+              if (escapeLen2 > 0) {
+                var escapeSeq = selector2.substr(i2, escapeLen2);
+                var decoded = decodeEscapeSequence(escapeSeq);
+                var wasHexEscape = startsWithHexEscapeRegExp2.test(escapeSeq);
+                var hadTerminatingSpace = wasHexEscape && escapeSeq[escapeLen2 - 1] === " ";
+                nextChar = selector2[i2 + escapeLen2] || "";
+                var needsEscape = false;
+                var useHexEscape = false;
+                if (needsEscapeForIdent) {
+                  if (isDigit(decoded)) {
+                    needsEscape = true;
+                    useHexEscape = true;
+                  } else if (decoded === "-") {
+                    var remainingSelector = selector2.substring(i2 + escapeLen2);
+                    var hasMoreIdentChars = remainingSelector && identCharRegExp2.test(remainingSelector[0]);
+                    needsEscape = !hasMoreIdentChars;
+                  } else if (!identStartCharRegExp2.test(decoded)) {
+                    needsEscape = true;
+                  }
+                } else {
+                  if (specialCharsNeedEscapeRegExp2.test(decoded)) {
+                    needsEscape = true;
+                  }
+                }
+                if (needsEscape) {
+                  if (useHexEscape) {
+                    var codePoint = decoded.charCodeAt(0);
+                    var hex = codePoint.toString(16);
+                    result += "\\" + hex;
+                    if (isHexDigit(nextChar) || !nextChar || afterHexEscapeSeparatorRegExp2.test(nextChar)) {
+                      result += " ";
+                      lastWasHexEscape = false;
+                    } else {
+                      lastWasHexEscape = true;
+                    }
+                  } else {
+                    result += "\\" + decoded;
+                    lastWasHexEscape = false;
+                  }
+                } else {
+                  if (lastWasHexEscape && !hadTerminatingSpace && isAlphanumeric(decoded)) {
+                    result += " ";
+                  }
+                  result += decoded;
+                  if (hadTerminatingSpace && (!nextChar || afterHexEscapeSeparatorRegExp2.test(nextChar))) {
+                    result += " ";
+                  }
+                  lastWasHexEscape = false;
+                }
+                i2 += escapeLen2;
+                needsEscapeForIdent = needsEscapeForIdent && decoded === "-";
+                inIdentifier = true;
+                continue;
+              }
+            }
+            if (char === "." || char === "#") {
+              result += char;
+              needsEscapeForIdent = true;
+              inIdentifier = false;
+              lastWasHexEscape = false;
+              i2++;
+            } else if (char === "-" && needsEscapeForIdent) {
+              result += char;
+              needsEscapeForIdent = true;
+              lastWasHexEscape = false;
+              i2++;
+            } else if (isDigit(char) && needsEscapeForIdent) {
+              var codePoint = char.charCodeAt(0);
+              var hex = codePoint.toString(16);
+              result += "\\" + hex;
+              nextChar = selector2[i2 + 1] || "";
+              if (isHexDigit(nextChar) || !nextChar || afterHexEscapeSeparatorRegExp2.test(nextChar)) {
+                result += " ";
+                lastWasHexEscape = false;
+              } else {
+                lastWasHexEscape = true;
+              }
+              needsEscapeForIdent = false;
+              inIdentifier = true;
+              i2++;
+            } else if (char === ":" || combinatorOrSeparatorRegExp2.test(char)) {
+              if (!(char === " " && lastWasHexEscape && result[result.length - 1] === " ")) {
+                result += char;
+              }
+              needsEscapeForIdent = false;
+              inIdentifier = false;
+              lastWasHexEscape = false;
+              i2++;
+            } else if (isLetter(char) && lastWasHexEscape) {
+              result += " " + char;
+              needsEscapeForIdent = false;
+              inIdentifier = true;
+              lastWasHexEscape = false;
+              i2++;
+            } else if (char === " " && lastWasHexEscape) {
+              nextChar = selector2[i2 + 1] || "";
+              if (!nextChar || trailingSpaceSeparatorRegExp2.test(nextChar)) {
+                result += char;
+              }
+              needsEscapeForIdent = false;
+              inIdentifier = false;
+              lastWasHexEscape = false;
+              i2++;
+            } else {
+              result += char;
+              needsEscapeForIdent = false;
+              inIdentifier = true;
+              lastWasHexEscape = false;
+              i2++;
+            }
+          }
+          return result;
+        }
+        function decodeEscapeSequencesInString(str) {
+          var result = "";
+          for (var i2 = 0; i2 < str.length; i2++) {
+            if (str[i2] === "\\" && i2 + 1 < str.length) {
+              var escapeLen2 = getEscapeSequenceLength(str, i2);
+              if (escapeLen2 > 0) {
+                var escapeSeq = str.substr(i2, escapeLen2);
+                var decoded = decodeEscapeSequence(escapeSeq);
+                result += decoded;
+                i2 += escapeLen2 - 1;
+                continue;
+              }
+            }
+            result += str[i2];
+          }
+          return result;
+        }
+        function decodeEscapeSequence(escapeSeq) {
+          if (escapeSeq.length < 2 || escapeSeq[0] !== "\\") {
+            return escapeSeq;
+          }
+          var content = escapeSeq.substring(1);
+          var hexMatch = content.match(hexEscapeSequenceRegExp2);
+          if (hexMatch) {
+            var codePoint = parseInt(hexMatch[1], 16);
+            if (codePoint > 65535) {
+              codePoint -= 65536;
+              var high = 55296 + (codePoint >> 10);
+              var low = 56320 + (codePoint & 1023);
+              return String.fromCharCode(high, low);
+            }
+            return String.fromCharCode(codePoint);
+          }
+          return content[0] || "";
+        }
+        function normalizeAttributeSelectors(selector2) {
+          var result = "";
+          var i2 = 0;
+          while (i2 < selector2.length) {
+            if (selector2[i2] === "[") {
+              result += "[";
+              i2++;
+              var attrContent = "";
+              var depth = 1;
+              while (i2 < selector2.length && depth > 0) {
+                if (selector2[i2] === "\\" && i2 + 1 < selector2.length) {
+                  attrContent += selector2.substring(i2, i2 + 2);
+                  i2 += 2;
+                  continue;
+                }
+                if (selector2[i2] === "[") depth++;
+                if (selector2[i2] === "]") {
+                  depth--;
+                  if (depth === 0) break;
+                }
+                attrContent += selector2[i2];
+                i2++;
+              }
+              var normalized2 = normalizeAttributeContent(attrContent);
+              if (normalized2 === null) {
+                return null;
+              }
+              result += normalized2;
+              if (i2 < selector2.length && selector2[i2] === "]") {
+                result += "]";
+                i2++;
+              }
+            } else {
+              result += selector2[i2];
+              i2++;
+            }
+          }
+          return result;
+        }
+        function processQuotedAttributeValue(trimmedValue, quoteChar, attrName, operator, flag) {
+          if (trimmedValue.length < 2) {
+            return null;
+          }
+          var i2 = 1;
+          var foundClose = false;
+          while (i2 < trimmedValue.length) {
+            if (trimmedValue[i2] === "\\" && i2 + 1 < trimmedValue.length) {
+              var escapeLen2 = getEscapeSequenceLength(trimmedValue, i2);
+              i2 += escapeLen2;
+              continue;
+            }
+            if (trimmedValue[i2] === quoteChar) {
+              foundClose = i2 === trimmedValue.length - 1;
+              break;
+            }
+            i2++;
+          }
+          if (!foundClose) {
+            return null;
+          }
+          var innerValue = trimmedValue.slice(1, -1);
+          var decodedValue = decodeEscapeSequencesInString(innerValue);
+          var escapedValue = decodedValue.replace(doubleQuoteRegExp2, '\\"');
+          return attrName + operator + '"' + escapedValue + '"' + (flag ? " " + flag : "");
+        }
+        function normalizeAttributeContent(content) {
+          var match = content.match(attributeSelectorContentRegExp2);
+          if (!match) {
+            return content;
+          }
+          var attrName = match[1];
+          var operator = match[2];
+          var valueAndFlag = match[3].trim();
+          var flagMatch = valueAndFlag.match(attributeCaseFlagRegExp2);
+          var value = flagMatch ? flagMatch[1] : valueAndFlag;
+          var flag = flagMatch ? flagMatch[2] : "";
+          var trimmedValue = value.trim();
+          var firstChar = trimmedValue[0];
+          if (firstChar === '"') {
+            return processQuotedAttributeValue(trimmedValue, '"', attrName, operator, flag);
+          }
+          if (firstChar === "'") {
+            return processQuotedAttributeValue(trimmedValue, "'", attrName, operator, flag);
+          }
+          var hasUnescapedSpecialChar = false;
+          for (var i2 = 0; i2 < trimmedValue.length; i2++) {
+            var char = trimmedValue[i2];
+            if (char === "\\" && i2 + 1 < trimmedValue.length) {
+              var escapeLen2 = getEscapeSequenceLength(trimmedValue, i2);
+              if (escapeLen2 > 0) {
+                i2 += escapeLen2 - 1;
+                continue;
+              }
+            }
+            if (specialCharsNeedEscapeRegExp2.test(char)) {
+              hasUnescapedSpecialChar = true;
+              break;
+            }
+          }
+          if (hasUnescapedSpecialChar) {
+            return null;
+          }
+          var decodedValue = decodeEscapeSequencesInString(trimmedValue);
+          var escapedValue = decodedValue.replace(backslashRegExp2, "\\\\").replace(doubleQuoteRegExp2, '\\"');
+          return attrName + operator + '"' + escapedValue + '"' + (flag ? " " + flag : "");
+        }
+        function processSelectorText(selectorText) {
+          var normalized2 = selectorText.replace(whitespaceNormalizationRegExp2, function(match, _, newline) {
+            if (newline) return " ";
+            return match;
+          });
+          normalized2 = normalizeSelectorEscapes(normalized2);
+          normalized2 = normalizeAttributeSelectors(normalized2);
+          if (normalized2 === null) {
+            return "";
+          }
+          return processNestedPseudoClasses(normalized2);
+        }
+        function processNestedPseudoClasses(selectorText, depth) {
+          if (typeof depth === "undefined") {
+            depth = 0;
+          }
+          if (depth > 10) {
+            return selectorText;
+          }
+          var pseudoClassMatches = extractPseudoClasses(selectorText);
+          if (pseudoClassMatches.length === 0) {
+            return selectorText;
+          }
+          var result = selectorText;
+          for (var j = pseudoClassMatches.length - 1; j >= 0; j--) {
+            var pseudoClass = pseudoClassMatches[j][1];
+            if (selectorListPseudoClasses.hasOwnProperty(pseudoClass)) {
+              var fullMatch = pseudoClassMatches[j][0];
+              var pseudoArgs = pseudoClassMatches[j][2];
+              var matchStart = pseudoClassMatches[j][3];
+              var nestedSelectorsRaw = parseAndSplitNestedSelectors(pseudoArgs);
+              var hasAmpersand = false;
+              for (var k = 0; k < nestedSelectorsRaw.length; k++) {
+                if (ampersandRegExp2.test(nestedSelectorsRaw[k])) {
+                  hasAmpersand = true;
+                  break;
+                }
+              }
+              if (hasAmpersand) {
+                continue;
+              }
+              var processedArgs = processNestedPseudoClasses(pseudoArgs, depth + 1);
+              var nestedSelectors = parseAndSplitNestedSelectors(processedArgs);
+              var validSelectors = [];
+              for (var i2 = 0; i2 < nestedSelectors.length; i2++) {
+                var nestedSelector = nestedSelectors[i2];
+                if (basicSelectorValidator(nestedSelector)) {
+                  validSelectors.push(nestedSelector);
+                }
+              }
+              var newArgs = validSelectors.join(", ");
+              var newPseudoClass = ":" + pseudoClass + "(" + newArgs + ")";
+              result = result.substring(0, matchStart) + newPseudoClass + result.substring(matchStart + fullMatch.length);
+            }
+          }
+          return result;
+          return normalized;
+        }
+        function hasNewlineInQuotedString(selectorText) {
+          for (var i2 = 0; i2 < selectorText.length; i2++) {
+            var char = selectorText[i2];
+            if (char === "'") {
+              i2++;
+              while (i2 < selectorText.length) {
+                if (selectorText[i2] === "\\" && i2 + 1 < selectorText.length) {
+                  i2 += 2;
+                  continue;
+                }
+                if (selectorText[i2] === "'") {
+                  break;
+                }
+                if (selectorText[i2] === "\r" || selectorText[i2] === "\n") {
+                  return true;
+                }
+                i2++;
+              }
+            } else if (char === '"') {
+              i2++;
+              while (i2 < selectorText.length) {
+                if (selectorText[i2] === "\\" && i2 + 1 < selectorText.length) {
+                  i2 += 2;
+                  continue;
+                }
+                if (selectorText[i2] === '"') {
+                  break;
+                }
+                if (selectorText[i2] === "\r" || selectorText[i2] === "\n") {
+                  return true;
+                }
+                i2++;
+              }
+            }
+          }
+          return false;
+        }
+        function isValidSelectorText(selectorText) {
+          if (!selectorText || selectorText.trim() === "") {
+            return false;
+          }
+          if (emptyPseudoClassRegExp2.test(selectorText)) {
+            return false;
+          }
+          if (hasNewlineInQuotedString(selectorText)) {
+            return false;
+          }
+          var selectors = parseAndSplitNestedSelectors(selectorText);
+          for (var i2 = 0; i2 < selectors.length; i2++) {
+            var selector2 = selectors[i2].trim();
+            if (!validateSelector(selector2) || !validateNamespaceSelector(selector2)) {
+              return false;
+            }
+          }
+          return true;
+        }
+        function pushToAncestorRules(rule) {
+          ancestorRules.push(rule);
+        }
+        function parseError(message, isNested) {
           var lines = token.substring(0, i).split("\n");
           var lineCount = lines.length;
           var charCount = lines.pop().length + 1;
@@ -980,9 +3549,155 @@ var AidokuWasmHostBundle = (() => {
           error.line = lineCount;
           error["char"] = charCount;
           error.styleSheet = styleSheet;
-          throw error;
-        };
+          error.isNested = !!isNested;
+          try {
+            throw error;
+          } catch (e) {
+            errorHandler && errorHandler(e);
+          }
+        }
+        ;
+        function handleUnmatchedQuoteInSelector(nextState) {
+          var ruleClosingMatch2 = token.slice(i).match(forwardRuleClosingBraceRegExp2);
+          if (ruleClosingMatch2) {
+            i += ruleClosingMatch2.index + ruleClosingMatch2[0].length - 1;
+          }
+          styleRule = null;
+          buffer = "";
+          hasUnmatchedQuoteInSelector = false;
+          state = nextState;
+        }
+        function isSelectorStartChar(char) {
+          return ".:#&*[\\".indexOf(char) !== -1;
+        }
+        function isWhitespaceChar(char) {
+          return " 	\n\r".indexOf(char) !== -1;
+        }
+        function isDigit(char) {
+          var code = char.charCodeAt(0);
+          return code >= 48 && code <= 57;
+        }
+        function isHexDigit(char) {
+          if (!char) return false;
+          var code = char.charCodeAt(0);
+          return code >= 48 && code <= 57 || // 0-9
+          code >= 65 && code <= 70 || // A-F
+          code >= 97 && code <= 102;
+        }
+        function isLetter(char) {
+          if (!char) return false;
+          var code = char.charCodeAt(0);
+          return code >= 65 && code <= 90 || // A-Z
+          code >= 97 && code <= 122;
+        }
+        function isAlphanumeric(char) {
+          var code = char.charCodeAt(0);
+          return code >= 48 && code <= 57 || // 0-9
+          code >= 65 && code <= 90 || // A-Z
+          code >= 97 && code <= 122;
+        }
+        function getEscapeSequenceLength(str, pos) {
+          if (str[pos] !== "\\" || pos + 1 >= str.length) {
+            return 0;
+          }
+          var nextChar = str[pos + 1];
+          if (isHexDigit(nextChar)) {
+            var hexLength = 1;
+            while (hexLength < 6 && pos + 1 + hexLength < str.length && isHexDigit(str[pos + 1 + hexLength])) {
+              hexLength++;
+            }
+            if (pos + 1 + hexLength < str.length && isWhitespaceChar(str[pos + 1 + hexLength])) {
+              return 1 + hexLength + 1;
+            }
+            return 1 + hexLength;
+          }
+          return 2;
+        }
+        function containsUnescaped(str, char) {
+          for (var i2 = 0; i2 < str.length; i2++) {
+            if (str[i2] === "\\") {
+              var escapeLen2 = getEscapeSequenceLength(str, i2);
+              if (escapeLen2 > 0) {
+                i2 += escapeLen2 - 1;
+                continue;
+              }
+            }
+            if (str[i2] === char) {
+              return true;
+            }
+          }
+          return false;
+        }
+        function isInvalidConditionText(text) {
+          return invalidMediaOperatorWithoutSpaceRegExp2.test(text) || invalidMediaNotAfterOperatorRegExp2.test(text) || invalidMediaNotIdentifierRegExp2.test(text) || invalidMediaNotAfterFeatureRegExp2.test(text) || invalidMediaOperatorBetweenParensRegExp2.test(text) || invalidMediaNotWithMediaTypeRegExp2.test(text);
+        }
+        function normalizeConditionText(text) {
+          if (isInvalidConditionText(text)) {
+            return "not all";
+          }
+          var result = text;
+          result = result.replace(mediaFeatureColonRegExp2, function(match, openParen, name2, spaces, rest) {
+            var beforeMatch = result.lastIndexOf(match);
+            var beforeParen = beforeMatch > 0 ? result.charAt(beforeMatch - 1) : "";
+            if (identifierBeforeParenRegExp2.test(beforeParen)) {
+              return match;
+            }
+            return openParen + name2 + ": " + rest;
+          });
+          result = result.replace(mediaAndOperatorRegExp2, " and ");
+          result = result.replace(mediaOrOperatorRegExp2, " or ");
+          result = result.replace(mediaNotOperatorStartRegExp2, "not ");
+          result = result.replace(mediaNotOperatorRegExp2, " not ");
+          return result.trim();
+        }
+        var endingIndex = token.length - 1;
+        var initialEndingIndex = endingIndex;
         for (var character; character = token.charAt(i); i++) {
+          if (i === endingIndex) {
+            switch (state) {
+              case "importRule":
+              case "namespaceRule":
+              case "layerBlock":
+                if (character !== ";") {
+                  token += ";";
+                  endingIndex += 1;
+                }
+                break;
+              case "value":
+                if (character !== "}") {
+                  if (character === ";") {
+                    token += "}";
+                  } else {
+                    token += ";";
+                  }
+                  endingIndex += 1;
+                  break;
+                }
+              case "name":
+              case "before-name":
+                if (character === "}") {
+                  token += " ";
+                } else {
+                  token += "}";
+                }
+                endingIndex += 1;
+                break;
+              case "before-selector":
+                if (character !== "}" && currentScope !== styleSheet) {
+                  token += "}";
+                  endingIndex += 1;
+                  break;
+                }
+            }
+          }
+          if (character === "\\" && i + 1 < token.length) {
+            var escapeLen = getEscapeSequenceLength(token, i);
+            if (escapeLen > 0) {
+              buffer += token.substr(i, escapeLen);
+              i += escapeLen - 1;
+              continue;
+            }
+          }
           switch (character) {
             case " ":
             case "	":
@@ -1000,8 +3715,14 @@ var AidokuWasmHostBundle = (() => {
                 index = token.indexOf('"', index) + 1;
                 if (!index) {
                   parseError('Unmatched "');
+                  if (state === "selector" || state === "atRule") {
+                    hasUnmatchedQuoteInSelector = true;
+                  }
                 }
               } while (token[index - 2] === "\\");
+              if (index === 0) {
+                break;
+              }
               buffer += token.slice(i, index);
               i = index - 1;
               switch (state) {
@@ -1010,6 +3731,15 @@ var AidokuWasmHostBundle = (() => {
                   break;
                 case "importRule-begin":
                   state = "importRule";
+                  if (i === endingIndex) {
+                    token += ";";
+                  }
+                  break;
+                case "namespaceRule-begin":
+                  state = "namespaceRule";
+                  if (i === endingIndex) {
+                    token += ";";
+                  }
                   break;
               }
               break;
@@ -1019,8 +3749,14 @@ var AidokuWasmHostBundle = (() => {
                 index = token.indexOf("'", index) + 1;
                 if (!index) {
                   parseError("Unmatched '");
+                  if (state === "selector" || state === "atRule") {
+                    hasUnmatchedQuoteInSelector = true;
+                  }
                 }
               } while (token[index - 2] === "\\");
+              if (index === 0) {
+                break;
+              }
               buffer += token.slice(i, index);
               i = index - 1;
               switch (state) {
@@ -1030,6 +3766,9 @@ var AidokuWasmHostBundle = (() => {
                 case "importRule-begin":
                   state = "importRule";
                   break;
+                case "namespaceRule-begin":
+                  state = "namespaceRule";
+                  break;
               }
               break;
             // Comment
@@ -1038,7 +3777,8 @@ var AidokuWasmHostBundle = (() => {
                 i += 2;
                 index = token.indexOf("*/", i);
                 if (index === -1) {
-                  parseError("Missing */");
+                  i = token.length - 1;
+                  buffer = "";
                 } else {
                   i = index + 1;
                 }
@@ -1049,52 +3789,151 @@ var AidokuWasmHostBundle = (() => {
                 buffer += " ";
                 state = "importRule";
               }
+              if (state === "namespaceRule-begin") {
+                buffer += " ";
+                state = "namespaceRule";
+              }
               break;
             // At-rule
             case "@":
+              if (nestedSelectorRule) {
+                if (styleRule && styleRule.constructor.name === "CSSNestedDeclarations") {
+                  currentScope.cssRules.push(styleRule);
+                }
+                if (styleRule !== nestedSelectorRule && nestedSelectorRule.parentRule && nestedSelectorRule.parentRule.constructor.name === "CSSStyleRule") {
+                  styleRule = nestedSelectorRule.parentRule;
+                }
+              }
               if (token.indexOf("@-moz-document", i) === i) {
-                state = "documentRule-begin";
-                documentRule = new CSSOM.CSSDocumentRule();
-                documentRule.__starts = i;
-                i += "-moz-document".length;
+                validateAtRule("@-moz-document", function() {
+                  state = "documentRule-begin";
+                  documentRule = new CSSOM.CSSDocumentRule();
+                  documentRule.__starts = i;
+                  i += "-moz-document".length;
+                });
                 buffer = "";
                 break;
               } else if (token.indexOf("@media", i) === i) {
-                state = "atBlock";
-                mediaRule = new CSSOM.CSSMediaRule();
-                mediaRule.__starts = i;
-                i += "media".length;
+                validateAtRule("@media", function() {
+                  state = "atBlock";
+                  mediaRule = new CSSOM.CSSMediaRule();
+                  mediaRule.__starts = i;
+                  i += "media".length;
+                });
+                buffer = "";
+                break;
+              } else if (token.indexOf("@container", i) === i) {
+                validateAtRule("@container", function() {
+                  state = "containerBlock";
+                  containerRule = new CSSOM.CSSContainerRule();
+                  containerRule.__starts = i;
+                  i += "container".length;
+                });
+                buffer = "";
+                break;
+              } else if (token.indexOf("@counter-style", i) === i) {
+                buffer = "";
+                var cannotBeNested = !canAtRuleBeNested();
+                validateAtRule("@counter-style", function() {
+                  state = "counterStyleBlock";
+                  counterStyleRule = new CSSOM.CSSCounterStyleRule();
+                  counterStyleRule.__starts = i;
+                  i += "counter-style".length;
+                }, cannotBeNested);
+                break;
+              } else if (token.indexOf("@property", i) === i) {
+                buffer = "";
+                var cannotBeNested = !canAtRuleBeNested();
+                validateAtRule("@property", function() {
+                  state = "propertyBlock";
+                  propertyRule = new CSSOM.CSSPropertyRule();
+                  propertyRule.__starts = i;
+                  i += "property".length;
+                }, cannotBeNested);
+                break;
+              } else if (token.indexOf("@scope", i) === i) {
+                validateAtRule("@scope", function() {
+                  state = "scopeBlock";
+                  scopeRule = new CSSOM.CSSScopeRule();
+                  scopeRule.__starts = i;
+                  i += "scope".length;
+                });
+                buffer = "";
+                break;
+              } else if (token.indexOf("@layer", i) === i) {
+                validateAtRule("@layer", function() {
+                  state = "layerBlock";
+                  layerBlockRule = new CSSOM.CSSLayerBlockRule();
+                  layerBlockRule.__starts = i;
+                  i += "layer".length;
+                });
+                buffer = "";
+                break;
+              } else if (token.indexOf("@page", i) === i) {
+                validateAtRule("@page", function() {
+                  state = "pageBlock";
+                  pageRule = new CSSOM.CSSPageRule();
+                  pageRule.__starts = i;
+                  i += "page".length;
+                });
                 buffer = "";
                 break;
               } else if (token.indexOf("@supports", i) === i) {
-                state = "conditionBlock";
-                supportsRule = new CSSOM.CSSSupportsRule();
-                supportsRule.__starts = i;
-                i += "supports".length;
+                validateAtRule("@supports", function() {
+                  state = "conditionBlock";
+                  supportsRule = new CSSOM.CSSSupportsRule();
+                  supportsRule.__starts = i;
+                  i += "supports".length;
+                });
                 buffer = "";
                 break;
               } else if (token.indexOf("@host", i) === i) {
-                state = "hostRule-begin";
-                i += "host".length;
-                hostRule = new CSSOM.CSSHostRule();
-                hostRule.__starts = i;
+                validateAtRule("@host", function() {
+                  state = "hostRule-begin";
+                  i += "host".length;
+                  hostRule = new CSSOM.CSSHostRule();
+                  hostRule.__starts = i;
+                });
+                buffer = "";
+                break;
+              } else if (token.indexOf("@starting-style", i) === i) {
+                validateAtRule("@starting-style", function() {
+                  state = "startingStyleRule-begin";
+                  i += "starting-style".length;
+                  startingStyleRule = new CSSOM.CSSStartingStyleRule();
+                  startingStyleRule.__starts = i;
+                });
                 buffer = "";
                 break;
               } else if (token.indexOf("@import", i) === i) {
-                state = "importRule-begin";
-                i += "import".length;
-                buffer += "@import";
+                buffer = "";
+                validateAtRule("@import", function() {
+                  state = "importRule-begin";
+                  i += "import".length;
+                  buffer += "@import";
+                }, true);
+                break;
+              } else if (token.indexOf("@namespace", i) === i) {
+                buffer = "";
+                validateAtRule("@namespace", function() {
+                  state = "namespaceRule-begin";
+                  i += "namespace".length;
+                  buffer += "@namespace";
+                }, true);
                 break;
               } else if (token.indexOf("@font-face", i) === i) {
-                state = "fontFaceRule-begin";
-                i += "font-face".length;
-                fontFaceRule = new CSSOM.CSSFontFaceRule();
-                fontFaceRule.__starts = i;
                 buffer = "";
+                var cannotBeNested = !canAtRuleBeNested();
+                validateAtRule("@font-face", function() {
+                  state = "fontFaceRule-begin";
+                  i += "font-face".length;
+                  fontFaceRule = new CSSOM.CSSFontFaceRule();
+                  fontFaceRule.__starts = i;
+                }, cannotBeNested);
                 break;
               } else {
-                atKeyframesRegExp.lastIndex = i;
-                var matchKeyframes = atKeyframesRegExp.exec(token);
+                atKeyframesRegExp2.lastIndex = i;
+                var matchKeyframes = atKeyframesRegExp2.exec(token);
                 if (matchKeyframes && matchKeyframes.index === i) {
                   state = "keyframesRule-begin";
                   keyframesRule = new CSSOM.CSSKeyframesRule();
@@ -1110,52 +3949,213 @@ var AidokuWasmHostBundle = (() => {
               buffer += character;
               break;
             case "{":
+              if (currentScope === topScope) {
+                nestedSelectorRule = null;
+              }
+              if (state === "before-selector") {
+                parseError("Unexpected {");
+                i = ignoreBalancedBlock(i, token.slice(i));
+                break;
+              }
               if (state === "selector" || state === "atRule") {
-                styleRule.selectorText = buffer.trim();
+                if (!nestedSelectorRule && containsUnescaped(buffer, ";")) {
+                  var ruleClosingMatch = token.slice(i).match(forwardRuleClosingBraceRegExp2);
+                  if (ruleClosingMatch) {
+                    styleRule = null;
+                    buffer = "";
+                    state = "before-selector";
+                    i += ruleClosingMatch.index + ruleClosingMatch[0].length;
+                    break;
+                  }
+                }
+                if (!styleRule) {
+                  styleRule = new CSSOM.CSSStyleRule();
+                  styleRule.__starts = i;
+                }
+                if (hasUnmatchedQuoteInSelector) {
+                  handleUnmatchedQuoteInSelector("before-selector");
+                  break;
+                }
+                var originalParentRule = parentRule;
+                if (parentRule) {
+                  styleRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                }
+                currentScope = parentRule = styleRule;
+                var processedSelectorText = processSelectorText(buffer.trim());
+                if (originalParentRule && originalParentRule.constructor.name === "CSSStyleRule") {
+                  styleRule.selectorText = parseAndSplitNestedSelectors(processedSelectorText).map(function(sel) {
+                    return sel.indexOf("&") === -1 || startsWithCombinatorRegExp2.test(sel) ? "& " + sel : sel;
+                  }).join(", ");
+                } else {
+                  styleRule.selectorText = parseAndSplitNestedSelectors(processedSelectorText).join(", ");
+                }
                 styleRule.style.__starts = i;
+                styleRule.__parentStyleSheet = styleSheet;
                 buffer = "";
                 state = "before-name";
               } else if (state === "atBlock") {
-                mediaRule.media.mediaText = buffer.trim();
+                mediaRule.media.mediaText = normalizeConditionText(buffer.trim());
                 if (parentRule) {
-                  ancestorRules.push(parentRule);
+                  mediaRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  if (parentRule.constructor.name === "CSSStyleRule" && !nestedSelectorRule) {
+                    nestedSelectorRule = parentRule;
+                  }
                 }
                 currentScope = parentRule = mediaRule;
-                mediaRule.parentStyleSheet = styleSheet;
+                pushToAncestorRules(mediaRule);
+                mediaRule.__parentStyleSheet = styleSheet;
+                if (!styleRule || styleRule.constructor.name !== "CSSStyleRule" || !styleRule.__parentRule) {
+                  styleRule = null;
+                }
                 buffer = "";
                 state = "before-selector";
-              } else if (state === "conditionBlock") {
-                supportsRule.conditionText = buffer.trim();
+              } else if (state === "containerBlock") {
+                containerRule.__conditionText = normalizeConditionText(buffer.trim());
                 if (parentRule) {
-                  ancestorRules.push(parentRule);
+                  containerRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  if (parentRule.constructor.name === "CSSStyleRule" && !nestedSelectorRule) {
+                    nestedSelectorRule = parentRule;
+                  }
+                }
+                currentScope = parentRule = containerRule;
+                pushToAncestorRules(containerRule);
+                containerRule.__parentStyleSheet = styleSheet;
+                styleRule = null;
+                buffer = "";
+                state = "before-selector";
+              } else if (state === "counterStyleBlock") {
+                var counterStyleName = buffer.trim().replace(newlineRemovalRegExp2, "");
+                var isValidCounterStyleName = counterStyleName.length > 0 && !whitespaceAndDotRegExp2.test(counterStyleName);
+                if (isValidCounterStyleName) {
+                  counterStyleRule.name = counterStyleName;
+                  if (parentRule) {
+                    counterStyleRule.__parentRule = parentRule;
+                  }
+                  counterStyleRule.__parentStyleSheet = styleSheet;
+                  styleRule = counterStyleRule;
+                }
+                buffer = "";
+              } else if (state === "propertyBlock") {
+                var propertyName = buffer.trim().replace(newlineRemovalRegExp2, "");
+                var isValidPropertyName = propertyName.indexOf("--") === 0;
+                if (isValidPropertyName) {
+                  propertyRule.__name = propertyName;
+                  if (parentRule) {
+                    propertyRule.__parentRule = parentRule;
+                  }
+                  propertyRule.__parentStyleSheet = styleSheet;
+                  styleRule = propertyRule;
+                }
+                buffer = "";
+              } else if (state === "conditionBlock") {
+                supportsRule.__conditionText = normalizeConditionText(buffer.trim());
+                if (parentRule) {
+                  supportsRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  if (parentRule.constructor.name === "CSSStyleRule" && !nestedSelectorRule) {
+                    nestedSelectorRule = parentRule;
+                  }
                 }
                 currentScope = parentRule = supportsRule;
-                supportsRule.parentStyleSheet = styleSheet;
+                pushToAncestorRules(supportsRule);
+                supportsRule.__parentStyleSheet = styleSheet;
+                styleRule = null;
                 buffer = "";
                 state = "before-selector";
+              } else if (state === "scopeBlock") {
+                var parsedScopePrelude = parseScopePrelude(buffer.trim());
+                if (parsedScopePrelude.hasStart) {
+                  scopeRule.__start = parsedScopePrelude.startSelector;
+                }
+                if (parsedScopePrelude.hasEnd) {
+                  scopeRule.__end = parsedScopePrelude.endSelector;
+                }
+                if (parsedScopePrelude.hasOnlyEnd) {
+                  scopeRule.__end = parsedScopePrelude.endSelector;
+                }
+                if (parentRule) {
+                  scopeRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  if (parentRule.constructor.name === "CSSStyleRule" && !nestedSelectorRule) {
+                    nestedSelectorRule = parentRule;
+                  }
+                }
+                currentScope = parentRule = scopeRule;
+                pushToAncestorRules(scopeRule);
+                scopeRule.__parentStyleSheet = styleSheet;
+                styleRule = null;
+                buffer = "";
+                state = "before-selector";
+              } else if (state === "layerBlock") {
+                layerBlockRule.name = buffer.trim();
+                var isValidName = layerBlockRule.name.length === 0 || layerBlockRule.name.match(cssCustomIdentifierRegExp2) !== null;
+                if (isValidName) {
+                  if (parentRule) {
+                    layerBlockRule.__parentRule = parentRule;
+                    pushToAncestorRules(parentRule);
+                    if (parentRule.constructor.name === "CSSStyleRule" && !nestedSelectorRule) {
+                      nestedSelectorRule = parentRule;
+                    }
+                  }
+                  currentScope = parentRule = layerBlockRule;
+                  pushToAncestorRules(layerBlockRule);
+                  layerBlockRule.__parentStyleSheet = styleSheet;
+                }
+                styleRule = null;
+                buffer = "";
+                state = "before-selector";
+              } else if (state === "pageBlock") {
+                pageRule.selectorText = buffer.trim();
+                if (parentRule) {
+                  pageRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                }
+                currentScope = parentRule = pageRule;
+                pageRule.__parentStyleSheet = styleSheet;
+                styleRule = pageRule;
+                buffer = "";
+                state = "before-name";
               } else if (state === "hostRule-begin") {
                 if (parentRule) {
-                  ancestorRules.push(parentRule);
+                  pushToAncestorRules(parentRule);
                 }
                 currentScope = parentRule = hostRule;
-                hostRule.parentStyleSheet = styleSheet;
+                pushToAncestorRules(hostRule);
+                hostRule.__parentStyleSheet = styleSheet;
+                buffer = "";
+                state = "before-selector";
+              } else if (state === "startingStyleRule-begin") {
+                if (parentRule) {
+                  startingStyleRule.__parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  if (parentRule.constructor.name === "CSSStyleRule" && !nestedSelectorRule) {
+                    nestedSelectorRule = parentRule;
+                  }
+                }
+                currentScope = parentRule = startingStyleRule;
+                pushToAncestorRules(startingStyleRule);
+                startingStyleRule.__parentStyleSheet = styleSheet;
+                styleRule = null;
                 buffer = "";
                 state = "before-selector";
               } else if (state === "fontFaceRule-begin") {
                 if (parentRule) {
-                  fontFaceRule.parentRule = parentRule;
+                  fontFaceRule.__parentRule = parentRule;
                 }
-                fontFaceRule.parentStyleSheet = styleSheet;
+                fontFaceRule.__parentStyleSheet = styleSheet;
                 styleRule = fontFaceRule;
                 buffer = "";
                 state = "before-name";
               } else if (state === "keyframesRule-begin") {
                 keyframesRule.name = buffer.trim();
                 if (parentRule) {
-                  ancestorRules.push(parentRule);
-                  keyframesRule.parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  keyframesRule.__parentRule = parentRule;
                 }
-                keyframesRule.parentStyleSheet = styleSheet;
+                keyframesRule.__parentStyleSheet = styleSheet;
                 currentScope = parentRule = keyframesRule;
                 buffer = "";
                 state = "keyframeRule-begin";
@@ -1168,20 +4168,73 @@ var AidokuWasmHostBundle = (() => {
               } else if (state === "documentRule-begin") {
                 documentRule.matcher.matcherText = buffer.trim();
                 if (parentRule) {
-                  ancestorRules.push(parentRule);
-                  documentRule.parentRule = parentRule;
+                  pushToAncestorRules(parentRule);
+                  documentRule.__parentRule = parentRule;
                 }
                 currentScope = parentRule = documentRule;
-                documentRule.parentStyleSheet = styleSheet;
+                pushToAncestorRules(documentRule);
+                documentRule.__parentStyleSheet = styleSheet;
                 buffer = "";
                 state = "before-selector";
+              } else if (state === "before-name" || state === "name") {
+                if (styleRule.constructor.name === "CSSFontFaceRule" || styleRule.constructor.name === "CSSKeyframeRule" || styleRule.constructor.name === "CSSPageRule" && parentRule === styleRule) {
+                  var ruleClosingMatch = token.slice(i).match(forwardRuleClosingBraceRegExp2);
+                  if (ruleClosingMatch) {
+                    i += ruleClosingMatch.index + ruleClosingMatch[0].length - 1;
+                    buffer = "";
+                    state = "before-name";
+                    break;
+                  }
+                }
+                if (styleRule.constructor.name === "CSSNestedDeclarations") {
+                  if (styleRule.style.length) {
+                    parentRule.cssRules.push(styleRule);
+                    styleRule.__parentRule = parentRule;
+                    styleRule.__parentStyleSheet = styleSheet;
+                    pushToAncestorRules(parentRule);
+                  } else {
+                    pushToAncestorRules(parentRule);
+                  }
+                } else {
+                  currentScope = parentRule = styleRule;
+                  pushToAncestorRules(parentRule);
+                  styleRule.__parentStyleSheet = styleSheet;
+                }
+                styleRule = new CSSOM.CSSStyleRule();
+                if (hasUnmatchedQuoteInSelector) {
+                  handleUnmatchedQuoteInSelector("before-name");
+                  break;
+                }
+                var processedSelectorText = processSelectorText(buffer.trim());
+                if (parentRule.constructor.name === "CSSScopeRule" || parentRule.constructor.name !== "CSSStyleRule" && parentRule.parentRule === null) {
+                  styleRule.selectorText = parseAndSplitNestedSelectors(processedSelectorText).join(", ");
+                } else {
+                  styleRule.selectorText = parseAndSplitNestedSelectors(processedSelectorText).map(function(sel) {
+                    return sel.indexOf("&") === -1 || startsWithCombinatorRegExp2.test(sel) ? "& " + sel : sel;
+                  }).join(", ");
+                }
+                styleRule.style.__starts = i - buffer.length;
+                styleRule.__parentRule = parentRule;
+                if (parentRule.constructor.name === "CSSStyleRule" || parentRule.constructor.name === "CSSScopeRule") {
+                  nestedSelectorRule = styleRule;
+                }
+                styleRule.__parentStyleSheet = styleSheet;
+                currentScope = parentRule = styleRule;
+                buffer = "";
+                state = "before-name";
               }
               break;
             case ":":
               if (state === "name") {
-                name = buffer.trim();
-                buffer = "";
-                state = "before-value";
+                var openBraceBeforeMatch = token.slice(i).match(declarationOrOpenBraceRegExp2);
+                var hasOpenBraceBefore = openBraceBeforeMatch && openBraceBeforeMatch[0] === "{";
+                if (hasOpenBraceBefore) {
+                  buffer += character;
+                } else {
+                  name = buffer.trim();
+                  buffer = "";
+                  state = "before-value";
+                }
               } else {
                 buffer += character;
               }
@@ -1225,8 +4278,14 @@ var AidokuWasmHostBundle = (() => {
               break;
             case ";":
               switch (state) {
+                case "before-value":
+                case "before-name":
+                  parseError("Unexpected ;");
+                  buffer = "";
+                  state = "before-name";
+                  break;
                 case "value":
-                  styleRule.style.setProperty(name, buffer.trim(), priority);
+                  styleRule.style.setProperty(name, buffer.trim(), priority, parseError);
                   priority = "";
                   buffer = "";
                   state = "before-name";
@@ -1236,10 +4295,74 @@ var AidokuWasmHostBundle = (() => {
                   state = "before-selector";
                   break;
                 case "importRule":
-                  importRule = new CSSOM.CSSImportRule();
-                  importRule.parentStyleSheet = importRule.styleSheet.parentStyleSheet = styleSheet;
-                  importRule.cssText = buffer + character;
-                  styleSheet.cssRules.push(importRule);
+                  var isValid = topScope.cssRules.length === 0 || topScope.cssRules.some(function(rule) {
+                    return ["CSSImportRule", "CSSLayerStatementRule"].indexOf(rule.constructor.name) !== -1;
+                  });
+                  if (isValid) {
+                    importRule = new CSSOM.CSSImportRule();
+                    if (opts && opts.globalObject && opts.globalObject.CSSStyleSheet) {
+                      importRule.__styleSheet = new opts.globalObject.CSSStyleSheet();
+                    }
+                    importRule.styleSheet.__constructed = false;
+                    importRule.__parentStyleSheet = importRule.styleSheet.__parentStyleSheet = styleSheet;
+                    importRule.parse(buffer + character);
+                    topScope.cssRules.push(importRule);
+                  }
+                  buffer = "";
+                  state = "before-selector";
+                  break;
+                case "namespaceRule":
+                  var isValid = topScope.cssRules.length === 0 || topScope.cssRules.every(function(rule) {
+                    return ["CSSImportRule", "CSSLayerStatementRule", "CSSNamespaceRule"].indexOf(rule.constructor.name) !== -1;
+                  });
+                  if (isValid) {
+                    try {
+                      var testNamespaceRule = new CSSOM.CSSNamespaceRule();
+                      testNamespaceRule.parse(buffer + character);
+                      namespaceRule = testNamespaceRule;
+                      namespaceRule.__parentStyleSheet = styleSheet;
+                      topScope.cssRules.push(namespaceRule);
+                      if (namespaceRule.prefix) {
+                        definedNamespacePrefixes[namespaceRule.prefix] = namespaceRule.namespaceURI;
+                      }
+                    } catch (e) {
+                      parseError(e.message);
+                    }
+                  }
+                  buffer = "";
+                  state = "before-selector";
+                  break;
+                case "layerBlock":
+                  var nameListStr = buffer.trim().split(",").map(function(name2) {
+                    return name2.trim();
+                  });
+                  var isInvalid = nameListStr.some(function(name2) {
+                    return name2.trim().match(cssCustomIdentifierRegExp2) === null;
+                  });
+                  var hasStyleRuleParent = false;
+                  if (parentRule) {
+                    var checkParent = parentRule;
+                    while (checkParent) {
+                      if (checkParent.constructor.name === "CSSStyleRule") {
+                        hasStyleRuleParent = true;
+                        break;
+                      }
+                      checkParent = checkParent.__parentRule;
+                    }
+                  }
+                  if (!isInvalid && !hasStyleRuleParent) {
+                    layerStatementRule = new CSSOM.CSSLayerStatementRule();
+                    layerStatementRule.__parentStyleSheet = styleSheet;
+                    layerStatementRule.__starts = layerBlockRule.__starts;
+                    layerStatementRule.__ends = i;
+                    layerStatementRule.nameList = nameListStr;
+                    if (parentRule) {
+                      layerStatementRule.__parentRule = parentRule;
+                      parentRule.cssRules.push(layerStatementRule);
+                    } else {
+                      topScope.cssRules.push(layerStatementRule);
+                    }
+                  }
                   buffer = "";
                   state = "before-selector";
                   break;
@@ -1249,50 +4372,185 @@ var AidokuWasmHostBundle = (() => {
               }
               break;
             case "}":
+              if (state === "counterStyleBlock") {
+                if (counterStyleRule.name) {
+                  counterStyleRule.parse("@counter-style " + counterStyleRule.name + " { " + buffer + " }");
+                  counterStyleRule.__ends = i + 1;
+                  if (counterStyleRule.__parentRule) {
+                    counterStyleRule.__parentRule.cssRules.push(counterStyleRule);
+                  } else {
+                    topScope.cssRules.push(counterStyleRule);
+                  }
+                }
+                if (counterStyleRule.__parentRule) {
+                  currentScope = counterStyleRule.__parentRule;
+                }
+                styleRule = null;
+                buffer = "";
+                state = "before-selector";
+                break;
+              }
+              if (state === "propertyBlock") {
+                if (propertyRule.__name) {
+                  var parseSuccess = propertyRule.parse("@property " + propertyRule.__name + " { " + buffer + " }");
+                  if (parseSuccess) {
+                    propertyRule.__ends = i + 1;
+                    if (propertyRule.__parentRule) {
+                      propertyRule.__parentRule.cssRules.push(propertyRule);
+                    } else {
+                      topScope.cssRules.push(propertyRule);
+                    }
+                  }
+                }
+                if (propertyRule.__parentRule) {
+                  currentScope = propertyRule.__parentRule;
+                }
+                styleRule = null;
+                buffer = "";
+                state = "before-selector";
+                break;
+              }
               switch (state) {
                 case "value":
-                  styleRule.style.setProperty(name, buffer.trim(), priority);
+                  styleRule.style.setProperty(name, buffer.trim(), priority, parseError);
                   priority = "";
                 /* falls through */
+                case "before-value":
                 case "before-name":
                 case "name":
                   styleRule.__ends = i + 1;
-                  if (parentRule) {
-                    styleRule.parentRule = parentRule;
+                  if (parentRule === styleRule) {
+                    parentRule = ancestorRules.pop();
                   }
-                  styleRule.parentStyleSheet = styleSheet;
-                  currentScope.cssRules.push(styleRule);
+                  if (parentRule) {
+                    styleRule.__parentRule = parentRule;
+                  }
+                  styleRule.__parentStyleSheet = styleSheet;
+                  if (currentScope === styleRule) {
+                    currentScope = parentRule || topScope;
+                  }
+                  if (styleRule.constructor.name === "CSSStyleRule" && !isValidSelectorText(styleRule.selectorText)) {
+                    if (styleRule === nestedSelectorRule) {
+                      nestedSelectorRule = null;
+                    }
+                    parseError('Invalid CSSStyleRule (selectorText = "' + styleRule.selectorText + '")', styleRule.parentRule !== null);
+                  } else {
+                    if (styleRule.parentRule) {
+                      styleRule.parentRule.cssRules.push(styleRule);
+                    } else {
+                      currentScope.cssRules.push(styleRule);
+                    }
+                  }
                   buffer = "";
                   if (currentScope.constructor === CSSOM.CSSKeyframesRule) {
                     state = "keyframeRule-begin";
                   } else {
                     state = "before-selector";
                   }
-                  break;
+                  if (styleRule.constructor.name === "CSSNestedDeclarations") {
+                    if (currentScope !== topScope) {
+                      if (currentScope.constructor.name === "CSSStyleRule" || currentScope.constructor.name === "CSSScopeRule") {
+                        nestedSelectorRule = currentScope;
+                      }
+                    }
+                    styleRule = null;
+                  } else {
+                    if (styleRule === nestedSelectorRule) {
+                      var selector = styleRule.selectorText && styleRule.selectorText.trim();
+                      var isPrependedAmpersand = selector && selector.match(prependedAmpersandRegExp2);
+                      var isGroupingRule = currentScope && currentScope instanceof CSSOM.CSSGroupingRule;
+                      if (!isPrependedAmpersand && isGroupingRule) {
+                        if (currentScope.constructor.name === "CSSStyleRule" || currentScope.constructor.name === "CSSScopeRule") {
+                          nestedSelectorRule = currentScope;
+                        }
+                      } else {
+                        nestedSelectorRule = null;
+                      }
+                    } else if (nestedSelectorRule && currentScope instanceof CSSOM.CSSGroupingRule) {
+                    }
+                    styleRule = null;
+                    break;
+                  }
                 case "keyframeRule-begin":
                 case "before-selector":
                 case "selector":
                   if (!parentRule) {
                     parseError("Unexpected }");
+                    var hasPreviousStyleRule = currentScope.cssRules.length && currentScope.cssRules[currentScope.cssRules.length - 1].constructor.name === "CSSStyleRule";
+                    if (hasPreviousStyleRule) {
+                      i = ignoreBalancedBlock(i, token.slice(i), 1);
+                    }
+                    break;
                   }
-                  hasAncestors = ancestorRules.length > 0;
                   while (ancestorRules.length > 0) {
                     parentRule = ancestorRules.pop();
-                    if (parentRule.constructor.name === "CSSMediaRule" || parentRule.constructor.name === "CSSSupportsRule") {
+                    if (parentRule === currentScope) {
+                      continue;
+                    }
+                    if (!(parentRule instanceof CSSOM.CSSGroupingRule && (parentRule.constructor.name !== "CSSStyleRule" || parentRule.__parentRule))) {
+                      continue;
+                    }
+                    var isClosingNestedSelectorContext = nestedSelectorRule && (currentScope === nestedSelectorRule || nestedSelectorRule.__parentRule === currentScope);
+                    if (isClosingNestedSelectorContext) {
+                      if (nestedSelectorRule.parentRule) {
+                        prevScope = nestedSelectorRule;
+                        currentScope = nestedSelectorRule.parentRule;
+                        var scopeId = getRuleId(prevScope);
+                        if (!addedToCurrentScope[scopeId]) {
+                          currentScope.cssRules.push(prevScope);
+                          addedToCurrentScope[scopeId] = true;
+                        }
+                        nestedSelectorRule = currentScope;
+                        break;
+                      } else {
+                        prevScope = currentScope;
+                        var actualParent = ancestorRules.length > 0 ? ancestorRules[ancestorRules.length - 1] : nestedSelectorRule;
+                        if (actualParent !== prevScope) {
+                          actualParent.cssRules.push(prevScope);
+                        }
+                        currentScope = actualParent;
+                        parentRule = actualParent;
+                        break;
+                      }
+                    } else {
                       prevScope = currentScope;
-                      currentScope = parentRule;
-                      currentScope.cssRules.push(prevScope);
+                      if (parentRule !== prevScope) {
+                        parentRule.cssRules.push(prevScope);
+                      }
                       break;
                     }
-                    if (ancestorRules.length === 0) {
-                      hasAncestors = false;
+                  }
+                  if (ancestorRules.length === 0 && currentScope.__parentRule && currentScope.__parentRule.cssRules) {
+                    var parentId = getRuleId(currentScope);
+                    if (!addedToParent[parentId]) {
+                      currentScope.__parentRule.cssRules.push(currentScope);
+                      addedToParent[parentId] = true;
                     }
                   }
-                  if (!hasAncestors) {
+                  if (ancestorRules.length === 0 && currentScope.parentRule == null) {
                     currentScope.__ends = i + 1;
-                    styleSheet.cssRules.push(currentScope);
-                    currentScope = styleSheet;
-                    parentRule = null;
+                    var topId = getRuleId(currentScope);
+                    if (currentScope !== topScope && !addedToTopScope[topId]) {
+                      topScope.cssRules.push(currentScope);
+                      addedToTopScope[topId] = true;
+                    }
+                    currentScope = topScope;
+                    if (nestedSelectorRule === parentRule) {
+                      var nestedSelectorTokenToCurrentSelectorToken = token.slice(nestedSelectorRule.__starts, i + 1);
+                      var openingBraceMatch = nestedSelectorTokenToCurrentSelectorToken.match(openBraceGlobalRegExp2);
+                      var closingBraceMatch = nestedSelectorTokenToCurrentSelectorToken.match(closeBraceGlobalRegExp2);
+                      var openingBraceLen = openingBraceMatch && openingBraceMatch.length;
+                      var closingBraceLen = closingBraceMatch && closingBraceMatch.length;
+                      if (openingBraceLen === closingBraceLen) {
+                        nestedSelectorRule.__ends = i + 1;
+                        nestedSelectorRule = null;
+                        parentRule = null;
+                      }
+                    } else {
+                      parentRule = null;
+                    }
+                  } else {
+                    currentScope = parentRule;
                   }
                   buffer = "";
                   state = "before-selector";
@@ -1303,8 +4561,37 @@ var AidokuWasmHostBundle = (() => {
               switch (state) {
                 case "before-selector":
                   state = "selector";
-                  styleRule = new CSSOM.CSSStyleRule();
-                  styleRule.__starts = i;
+                  if ((styleRule || scopeRule) && parentRule) {
+                    if (!isSelectorStartChar(character) && !isWhitespaceChar(character) && parentRule instanceof CSSOM.CSSGroupingRule) {
+                      state = "before-name";
+                      if (styleRule !== parentRule) {
+                        styleRule = new CSSOM.CSSNestedDeclarations();
+                        styleRule.__starts = i;
+                      }
+                    }
+                  } else if (nestedSelectorRule && parentRule && parentRule instanceof CSSOM.CSSGroupingRule) {
+                    if (isSelectorStartChar(character)) {
+                      styleRule = new CSSOM.CSSStyleRule();
+                      styleRule.__starts = i;
+                    } else if (!isWhitespaceChar(character)) {
+                      state = "before-name";
+                      if (parentRule.cssRules.length || nestedSelectorRule) {
+                        currentScope = parentRule;
+                        if (parentRule.constructor.name === "CSSStyleRule" || parentRule.constructor.name === "CSSScopeRule") {
+                          nestedSelectorRule = parentRule;
+                        }
+                        styleRule = new CSSOM.CSSNestedDeclarations();
+                        styleRule.__starts = i;
+                      } else {
+                        if (parentRule.constructor.name === "CSSStyleRule") {
+                          styleRule = parentRule;
+                        } else {
+                          styleRule = new CSSOM.CSSStyleRule();
+                          styleRule.__starts = i;
+                        }
+                      }
+                    }
+                  }
                   break;
                 case "before-name":
                   state = "name";
@@ -1315,160 +4602,28 @@ var AidokuWasmHostBundle = (() => {
                 case "importRule-begin":
                   state = "importRule";
                   break;
+                case "namespaceRule-begin":
+                  state = "namespaceRule";
+                  break;
               }
               buffer += character;
               break;
           }
+          if (i === initialEndingIndex && (currentScope !== topScope || ancestorRules.length > 0)) {
+            var needsClosing = ancestorRules.length;
+            if (currentScope !== topScope && ancestorRules.indexOf(currentScope) === -1) {
+              needsClosing += 1;
+            }
+            for (var closeIdx = 0; closeIdx < needsClosing; closeIdx++) {
+              token += "}";
+              endingIndex += 1;
+            }
+          }
+        }
+        if (buffer.trim() !== "") {
+          parseError("Unexpected end of input");
         }
         return styleSheet;
-      };
-      exports.parse = CSSOM.parse;
-      CSSOM.CSSStyleSheet = require_CSSStyleSheet().CSSStyleSheet;
-      CSSOM.CSSStyleRule = require_CSSStyleRule().CSSStyleRule;
-      CSSOM.CSSImportRule = require_CSSImportRule().CSSImportRule;
-      CSSOM.CSSGroupingRule = require_CSSGroupingRule().CSSGroupingRule;
-      CSSOM.CSSMediaRule = require_CSSMediaRule().CSSMediaRule;
-      CSSOM.CSSConditionRule = require_CSSConditionRule().CSSConditionRule;
-      CSSOM.CSSSupportsRule = require_CSSSupportsRule().CSSSupportsRule;
-      CSSOM.CSSFontFaceRule = require_CSSFontFaceRule().CSSFontFaceRule;
-      CSSOM.CSSHostRule = require_CSSHostRule().CSSHostRule;
-      CSSOM.CSSStyleDeclaration = require_CSSStyleDeclaration().CSSStyleDeclaration;
-      CSSOM.CSSKeyframeRule = require_CSSKeyframeRule().CSSKeyframeRule;
-      CSSOM.CSSKeyframesRule = require_CSSKeyframesRule().CSSKeyframesRule;
-      CSSOM.CSSValueExpression = require_CSSValueExpression().CSSValueExpression;
-      CSSOM.CSSDocumentRule = require_CSSDocumentRule().CSSDocumentRule;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSStyleDeclaration.js
-  var require_CSSStyleDeclaration = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/CSSStyleDeclaration.js"(exports) {
-      var CSSOM = {};
-      CSSOM.CSSStyleDeclaration = function CSSStyleDeclaration2() {
-        this.length = 0;
-        this.parentRule = null;
-        this._importants = {};
-      };
-      CSSOM.CSSStyleDeclaration.prototype = {
-        constructor: CSSOM.CSSStyleDeclaration,
-        /**
-         *
-         * @param {string} name
-         * @see http://www.w3.org/TR/DOM-Level-2-Style/css.html#CSS-CSSStyleDeclaration-getPropertyValue
-         * @return {string} the value of the property if it has been explicitly set for this declaration block.
-         * Returns the empty string if the property has not been set.
-         */
-        getPropertyValue: function(name) {
-          return this[name] || "";
-        },
-        /**
-         *
-         * @param {string} name
-         * @param {string} value
-         * @param {string} [priority=null] "important" or null
-         * @see http://www.w3.org/TR/DOM-Level-2-Style/css.html#CSS-CSSStyleDeclaration-setProperty
-         */
-        setProperty: function(name, value, priority) {
-          if (this[name]) {
-            var index = Array.prototype.indexOf.call(this, name);
-            if (index < 0) {
-              this[this.length] = name;
-              this.length++;
-            }
-          } else {
-            this[this.length] = name;
-            this.length++;
-          }
-          this[name] = value + "";
-          this._importants[name] = priority;
-        },
-        /**
-         *
-         * @param {string} name
-         * @see http://www.w3.org/TR/DOM-Level-2-Style/css.html#CSS-CSSStyleDeclaration-removeProperty
-         * @return {string} the value of the property if it has been explicitly set for this declaration block.
-         * Returns the empty string if the property has not been set or the property name does not correspond to a known CSS property.
-         */
-        removeProperty: function(name) {
-          if (!(name in this)) {
-            return "";
-          }
-          var index = Array.prototype.indexOf.call(this, name);
-          if (index < 0) {
-            return "";
-          }
-          var prevValue = this[name];
-          this[name] = "";
-          Array.prototype.splice.call(this, index, 1);
-          return prevValue;
-        },
-        getPropertyCSSValue: function() {
-        },
-        /**
-         *
-         * @param {String} name
-         */
-        getPropertyPriority: function(name) {
-          return this._importants[name] || "";
-        },
-        /**
-         *   element.style.overflow = "auto"
-         *   element.style.getPropertyShorthand("overflow-x")
-         *   -> "overflow"
-         */
-        getPropertyShorthand: function() {
-        },
-        isPropertyImplicit: function() {
-        },
-        // Doesn't work in IE < 9
-        get cssText() {
-          var properties = [];
-          for (var i = 0, length = this.length; i < length; ++i) {
-            var name = this[i];
-            var value = this.getPropertyValue(name);
-            var priority = this.getPropertyPriority(name);
-            if (priority) {
-              priority = " !" + priority;
-            }
-            properties[i] = name + ": " + value + priority + ";";
-          }
-          return properties.join(" ");
-        },
-        set cssText(text) {
-          var i, name;
-          for (i = this.length; i--; ) {
-            name = this[i];
-            this[name] = "";
-          }
-          Array.prototype.splice.call(this, 0, this.length);
-          this._importants = {};
-          var dummyRule = CSSOM.parse("#bogus{" + text + "}").cssRules[0].style;
-          var length = dummyRule.length;
-          for (i = 0; i < length; ++i) {
-            name = dummyRule[i];
-            this.setProperty(dummyRule[i], dummyRule.getPropertyValue(name), dummyRule.getPropertyPriority(name));
-          }
-        }
-      };
-      exports.CSSStyleDeclaration = CSSOM.CSSStyleDeclaration;
-      CSSOM.parse = require_parse().parse;
-    }
-  });
-
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/clone.js
-  var require_clone = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/clone.js"(exports) {
-      var CSSOM = {
-        CSSStyleSheet: require_CSSStyleSheet().CSSStyleSheet,
-        CSSRule: require_CSSRule().CSSRule,
-        CSSStyleRule: require_CSSStyleRule().CSSStyleRule,
-        CSSGroupingRule: require_CSSGroupingRule().CSSGroupingRule,
-        CSSConditionRule: require_CSSConditionRule().CSSConditionRule,
-        CSSMediaRule: require_CSSMediaRule().CSSMediaRule,
-        CSSSupportsRule: require_CSSSupportsRule().CSSSupportsRule,
-        CSSStyleDeclaration: require_CSSStyleDeclaration().CSSStyleDeclaration,
-        CSSKeyframeRule: require_CSSKeyframeRule().CSSKeyframeRule,
-        CSSKeyframesRule: require_CSSKeyframesRule().CSSKeyframesRule
       };
       CSSOM.clone = function clone(stylesheet) {
         var cloned = new CSSOM.CSSStyleSheet();
@@ -1483,11 +4638,9 @@ var AidokuWasmHostBundle = (() => {
           if (style) {
             var styleClone = ruleClone.style = new CSSOM.CSSStyleDeclaration();
             for (var j = 0, styleLength = style.length; j < styleLength; j++) {
-              var name = styleClone[j] = style[j];
-              styleClone[name] = style[name];
-              styleClone._importants[name] = style.getPropertyPriority(name);
+              var name = style[j];
+              styleClone.setProperty(name, style.getPropertyValue(name), style.getPropertyPriority(name));
             }
-            styleClone.length = style.length;
           }
           if (rule.hasOwnProperty("keyText")) {
             ruleClone.keyText = rule.keyText;
@@ -1498,8 +4651,23 @@ var AidokuWasmHostBundle = (() => {
           if (rule.hasOwnProperty("mediaText")) {
             ruleClone.mediaText = rule.mediaText;
           }
+          if (rule.hasOwnProperty("supportsText")) {
+            ruleClone.supports = rule.supports;
+          }
           if (rule.hasOwnProperty("conditionText")) {
             ruleClone.conditionText = rule.conditionText;
+          }
+          if (rule.hasOwnProperty("layerName")) {
+            ruleClone.layerName = rule.layerName;
+          }
+          if (rule.hasOwnProperty("href")) {
+            ruleClone.href = rule.href;
+          }
+          if (rule.hasOwnProperty("name")) {
+            ruleClone.name = rule.name;
+          }
+          if (rule.hasOwnProperty("nameList")) {
+            ruleClone.nameList = rule.nameList;
           }
           if (rule.hasOwnProperty("cssRules")) {
             ruleClone.cssRules = clone(rule).cssRules;
@@ -1507,41 +4675,12 @@ var AidokuWasmHostBundle = (() => {
         }
         return cloned;
       };
-      exports.clone = CSSOM.clone;
     }
   });
 
-  // node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/index.js
-  var require_lib = __commonJS({
-    "node_modules/.pnpm/cssom@0.5.0/node_modules/cssom/lib/index.js"(exports) {
-      "use strict";
-      exports.CSSStyleDeclaration = require_CSSStyleDeclaration().CSSStyleDeclaration;
-      exports.CSSRule = require_CSSRule().CSSRule;
-      exports.CSSGroupingRule = require_CSSGroupingRule().CSSGroupingRule;
-      exports.CSSConditionRule = require_CSSConditionRule().CSSConditionRule;
-      exports.CSSStyleRule = require_CSSStyleRule().CSSStyleRule;
-      exports.MediaList = require_MediaList().MediaList;
-      exports.CSSMediaRule = require_CSSMediaRule().CSSMediaRule;
-      exports.CSSSupportsRule = require_CSSSupportsRule().CSSSupportsRule;
-      exports.CSSImportRule = require_CSSImportRule().CSSImportRule;
-      exports.CSSFontFaceRule = require_CSSFontFaceRule().CSSFontFaceRule;
-      exports.CSSHostRule = require_CSSHostRule().CSSHostRule;
-      exports.StyleSheet = require_StyleSheet().StyleSheet;
-      exports.CSSStyleSheet = require_CSSStyleSheet().CSSStyleSheet;
-      exports.CSSKeyframesRule = require_CSSKeyframesRule().CSSKeyframesRule;
-      exports.CSSKeyframeRule = require_CSSKeyframeRule().CSSKeyframeRule;
-      exports.MatcherList = require_MatcherList().MatcherList;
-      exports.CSSDocumentRule = require_CSSDocumentRule().CSSDocumentRule;
-      exports.CSSValue = require_CSSValue().CSSValue;
-      exports.CSSValueExpression = require_CSSValueExpression().CSSValueExpression;
-      exports.parse = require_parse().parse;
-      exports.clone = require_clone().clone;
-    }
-  });
-
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/commonjs/canvas-shim.cjs
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/commonjs/canvas-shim.cjs
   var require_canvas_shim = __commonJS({
-    "node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/commonjs/canvas-shim.cjs"(exports, module) {
+    "node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/commonjs/canvas-shim.cjs"(exports2, module2) {
       var Canvas2 = class {
         constructor(width, height) {
           this.width = width;
@@ -1554,19 +4693,19 @@ var AidokuWasmHostBundle = (() => {
           return "";
         }
       };
-      module.exports = {
+      module2.exports = {
         createCanvas: (width, height) => new Canvas2(width, height)
       };
     }
   });
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/commonjs/canvas.cjs
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/commonjs/canvas.cjs
   var require_canvas = __commonJS({
-    "node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/commonjs/canvas.cjs"(exports, module) {
+    "node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/commonjs/canvas.cjs"(exports2, module2) {
       try {
-        module.exports = __require("canvas");
+        module2.exports = __require("canvas");
       } catch (fallback) {
-        module.exports = require_canvas_shim();
+        module2.exports = require_canvas_shim();
       }
     }
   });
@@ -3771,7 +6910,7 @@ var AidokuWasmHostBundle = (() => {
     };
   }
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/symbols.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/symbols.js
   var CHANGED = /* @__PURE__ */ Symbol("changed");
   var CLASS_LIST = /* @__PURE__ */ Symbol("classList");
   var CUSTOM_ELEMENTS = /* @__PURE__ */ Symbol("CustomElements");
@@ -7215,7 +10354,7 @@ var AidokuWasmHostBundle = (() => {
     return getFeed(parseDOM(feed, options));
   }
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/constants.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/constants.js
   var NODE_END = -1;
   var ELEMENT_NODE = 1;
   var ATTRIBUTE_NODE = 2;
@@ -7239,7 +10378,7 @@ var AidokuWasmHostBundle = (() => {
   var DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC = 32;
   var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/object.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/object.js
   var {
     assign,
     create,
@@ -7250,7 +10389,7 @@ var AidokuWasmHostBundle = (() => {
     setPrototypeOf
   } = Object;
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/utils.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/utils.js
   var $String = String;
   var getEnd = (node) => node.nodeType === ELEMENT_NODE ? node[END] : node;
   var ignoreCase = ({ ownerDocument }) => ownerDocument[MIME].ignoreCase;
@@ -7294,10 +10433,10 @@ var AidokuWasmHostBundle = (() => {
     return fragment;
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/shadow-roots.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/shadow-roots.js
   var shadowRoots = /* @__PURE__ */ new WeakMap();
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/custom-element-registry.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/custom-element-registry.js
   var reactive = false;
   var Classes = /* @__PURE__ */ new WeakMap();
   var customElements = /* @__PURE__ */ new WeakMap();
@@ -7449,7 +10588,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/parse-from-string.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/parse-from-string.js
   var { Parser: Parser2 } = esm_exports3;
   var notParsing = true;
   var append2 = (self2, node, active) => {
@@ -7544,7 +10683,7 @@ var AidokuWasmHostBundle = (() => {
     return document;
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/register-html-class.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/register-html-class.js
   var htmlClasses = /* @__PURE__ */ new Map();
   var registerHTMLClass = (names, Class) => {
     for (const name of [].concat(names)) {
@@ -7553,7 +10692,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/jsdon.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/jsdon.js
   var loopSegment = ({ [NEXT]: next, [END]: end }, json) => {
     while (next !== end) {
       switch (next.nodeType) {
@@ -7609,7 +10748,7 @@ var AidokuWasmHostBundle = (() => {
     loopSegment(element, json);
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/mutation-observer.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/mutation-observer.js
   var createRecord = (type, target, element, addedNodes, removedNodes, attributeName, oldValue) => ({
     type,
     target,
@@ -7765,7 +10904,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/attributes.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/attributes.js
   var emptyAttributes = /* @__PURE__ */ new Set([
     "allowfullscreen",
     "allowpaymentrequest",
@@ -7845,7 +10984,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/event-target.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/event-target.js
   var wm = /* @__PURE__ */ new WeakMap();
   function dispatch(event, listener) {
     if (typeof listener === "function")
@@ -7915,14 +11054,14 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/node-list.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/node-list.js
   var NodeList = class extends Array {
     item(i) {
       return i < this.length ? this[i] : null;
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/node.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/node.js
   var getParentNodeCount = ({ parentNode: parentNode2 }) => {
     let count = 0;
     while (parentNode2) {
@@ -8160,7 +11299,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/text-escaper.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/text-escaper.js
   var { replace } = "";
   var ca = /[<>&\xA0]/g;
   var esca = {
@@ -8172,7 +11311,7 @@ var AidokuWasmHostBundle = (() => {
   var pe = (m) => esca[m];
   var escape2 = (es) => replace.call(es, ca, pe);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/attr.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/attr.js
   var QUOTE = /"/g;
   var Attr = class _Attr extends Node2 {
     constructor(ownerDocument, name, value = "") {
@@ -8213,7 +11352,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/node.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/node.js
   var isConnected = ({ ownerDocument, parentNode: parentNode2 }) => {
     while (parentNode2) {
       if (parentNode2 === ownerDocument)
@@ -8248,7 +11387,7 @@ var AidokuWasmHostBundle = (() => {
     return next && (next.nodeType === NODE_END ? null : next);
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/mixin/non-document-type-child-node.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/mixin/non-document-type-child-node.js
   var nextElementSibling2 = (node) => {
     let next = nextSibling(node);
     while (next && next.nodeType !== ELEMENT_NODE)
@@ -8262,7 +11401,7 @@ var AidokuWasmHostBundle = (() => {
     return prev;
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/mixin/child-node.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/mixin/child-node.js
   var asFragment = (ownerDocument, nodes) => {
     const fragment = ownerDocument.createDocumentFragment();
     fragment.append(...nodes);
@@ -8311,7 +11450,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/character-data.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/character-data.js
   var CharacterData = class extends Node2 {
     constructor(ownerDocument, localName, nodeType, data) {
       super(ownerDocument, localName, nodeType);
@@ -8399,7 +11538,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/cdata-section.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/cdata-section.js
   var CDATASection = class _CDATASection extends CharacterData {
     constructor(ownerDocument, data = "") {
       super(ownerDocument, "#cdatasection", CDATA_SECTION_NODE, data);
@@ -8413,7 +11552,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/comment.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/comment.js
   var Comment3 = class _Comment extends CharacterData {
     constructor(ownerDocument, data = "") {
       super(ownerDocument, "#comment", COMMENT_NODE, data);
@@ -9085,26 +12224,38 @@ var AidokuWasmHostBundle = (() => {
     return filter2(Checks2["tag_type"](type), nodes, recurse, limit);
   }
 
-  // node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/escape.js
-  var xmlCodeMap2 = /* @__PURE__ */ new Map([
-    [34, "&quot;"],
-    [38, "&amp;"],
-    [39, "&apos;"],
-    [60, "&lt;"],
-    [62, "&gt;"]
-  ]);
-  var getCodePoint2 = typeof String.prototype.codePointAt === "function" ? (input, index) => input.codePointAt(index) : (
-    // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
-    (c, index) => (c.charCodeAt(index) & 64512) === 55296 ? (c.charCodeAt(index) - 55296) * 1024 + c.charCodeAt(index + 1) - 56320 + 65536 : c.charCodeAt(index)
-  );
+  // node_modules/.pnpm/entities@8.1.0/node_modules/entities/dist/escape.js
+  function getEscape(char) {
+    return char === 34 ? "&quot;" : char === 38 ? "&amp;" : char === 39 ? "&apos;" : char === 60 ? "&lt;" : char === 62 ? "&gt;" : "&nbsp;";
+  }
   var XML_BITSET_VALUE = 1342177476;
+  var xmlEncodeRegex = /["&'<>\u0080-\uFFFF]/g;
+  function isXmlEscapable(code) {
+    return code >= 128 || code >= 32 && code < 64 && (XML_BITSET_VALUE >>> code & 1) === 1;
+  }
   function encodeXML2(input) {
+    const { length } = input;
     let out;
     let last = 0;
-    const { length } = input;
-    for (let index = 0; index < length; index++) {
+    let index = 0;
+    while (index < length) {
       const char = input.charCodeAt(index);
-      if (char < 128 && ((XML_BITSET_VALUE >>> char & 1) === 0 || char >= 64 || char < 32)) {
+      if (!isXmlEscapable(char)) {
+        const bound = Math.min(index + 32, length);
+        let next = index + 1;
+        while (next < bound && !isXmlEscapable(input.charCodeAt(next))) {
+          next++;
+        }
+        if (next < bound) {
+          index = next;
+          continue;
+        }
+        if (next >= length)
+          break;
+        xmlEncodeRegex.lastIndex = next;
+        if (!xmlEncodeRegex.test(input))
+          break;
+        index = xmlEncodeRegex.lastIndex - 1;
         continue;
       }
       if (out === void 0)
@@ -9112,15 +12263,15 @@ var AidokuWasmHostBundle = (() => {
       else if (last !== index)
         out += input.substring(last, index);
       if (char < 64) {
-        out += xmlCodeMap2.get(char);
-        last = index + 1;
+        out += getEscape(char);
+        last = index += 1;
         continue;
       }
-      const cp = getCodePoint2(input, index);
+      const cp = input.codePointAt(index);
       out += `&#x${cp.toString(16)};`;
       if (cp !== char)
         index++;
-      last = index + 1;
+      last = index += 1;
     }
     if (out === void 0)
       return input;
@@ -9128,34 +12279,32 @@ var AidokuWasmHostBundle = (() => {
       out += input.substr(last);
     return out;
   }
-  function getEscaper2(regex, map2) {
-    return function escape4(data) {
-      let match;
-      let lastIndex = 0;
-      let result = "";
-      while (match = regex.exec(data)) {
-        if (lastIndex !== match.index) {
-          result += data.substring(lastIndex, match.index);
-        }
-        result += map2.get(match[0].charCodeAt(0));
-        lastIndex = match.index + 1;
-      }
-      return result + data.substring(lastIndex);
-    };
+  function escapeWithRegex(re, data) {
+    re.lastIndex = 0;
+    if (!re.test(data))
+      return data;
+    let out = "";
+    let last = 0;
+    do {
+      const index = re.lastIndex - 1;
+      if (last !== index)
+        out += data.substring(last, index);
+      const char = data.charCodeAt(index);
+      out += getEscape(char);
+      last = index + 1;
+    } while (re.test(data));
+    return out + data.substring(last);
   }
-  var escapeAttribute2 = /* @__PURE__ */ getEscaper2(/["&\u00A0]/g, /* @__PURE__ */ new Map([
-    [34, "&quot;"],
-    [38, "&amp;"],
-    [160, "&nbsp;"]
-  ]));
-  var escapeText2 = /* @__PURE__ */ getEscaper2(/[&<>\u00A0]/g, /* @__PURE__ */ new Map([
-    [38, "&amp;"],
-    [60, "&lt;"],
-    [62, "&gt;"],
-    [160, "&nbsp;"]
-  ]));
+  var attributeEscapeRegex = /["&\u{A0}]/gu;
+  function escapeAttribute2(data) {
+    return escapeWithRegex(attributeEscapeRegex, data);
+  }
+  var textEscapeRegex = /[&<>\u{A0}]/gu;
+  function escapeText2(data) {
+    return escapeWithRegex(textEscapeRegex, data);
+  }
 
-  // node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/index.js
+  // node_modules/.pnpm/entities@8.1.0/node_modules/entities/dist/index.js
   var EntityLevel2;
   (function(EntityLevel3) {
     EntityLevel3[EntityLevel3["XML"] = 0] = "XML";
@@ -10078,13 +13227,13 @@ var AidokuWasmHostBundle = (() => {
   }
   var nthOfRegex = /^(.+?)\s+of\s+(.+)$/is;
   function compileNth(reverse, ofType) {
-    return function nth(next, rule, options, context, compileToken2) {
+    return function nth(next, rule, options, context2, compileToken2) {
       const { adapter: adapter2, equals } = options;
       const ofMatch = ofType ? null : rule.match(nthOfRegex);
       const nthCheck2 = nthCheck(ofMatch ? ofMatch[1].trim() : rule);
       if (nthCheck2 === falseFunc)
         return falseFunc;
-      const ofSelector = ofMatch && compileToken2 ? compileToken2(parse(ofMatch[2].trim()), copyOptions(options), context) : void 0;
+      const ofSelector = ofMatch && compileToken2 ? compileToken2(parse(ofMatch[2].trim()), copyOptions(options), context2) : void 0;
       if (ofSelector === falseFunc)
         return falseFunc;
       if (nthCheck2 === trueFunc && !ofSelector) {
@@ -10141,15 +13290,15 @@ var AidokuWasmHostBundle = (() => {
     root(next, _rule, { adapter: adapter2 }) {
       return (element) => getElementParent(element, adapter2) === null && next(element);
     },
-    scope(next, rule, options, context) {
+    scope(next, rule, options, context2) {
       const { equals } = options;
-      if (!context || context.length === 0) {
+      if (!context2 || context2.length === 0) {
         return filters["root"](next, rule, options);
       }
-      if (context.length === 1) {
-        return (element) => equals(context[0], element) && next(element);
+      if (context2.length === 1) {
+        return (element) => equals(context2[0], element) && next(element);
       }
-      return (element) => context.includes(element) && next(element);
+      return (element) => context2.includes(element) && next(element);
     },
     lang(next, code, { adapter: adapter2 }) {
       const ranges = code.split(",").map((r) => r.trim()).filter((r) => r.length > 0).map((r) => r.replace(/^['"]|['"]$/g, "").toLowerCase().split("-"));
@@ -10351,8 +13500,8 @@ var AidokuWasmHostBundle = (() => {
   function hasDependsOnCurrentElement(selector) {
     return selector.some((sel) => sel.length > 0 && (isTraversal2(sel[0]) || sel.some(includesScopePseudo)));
   }
-  var is = (next, token, options, context, compileToken2) => {
-    const compiledToken = compileToken2(token, copyOptions(options), context);
+  var is = (next, token, options, context2, compileToken2) => {
+    const compiledToken = compileToken2(token, copyOptions(options), context2);
     return compiledToken === trueFunc ? next : compiledToken === falseFunc ? falseFunc : (element) => compiledToken(element) && next(element);
   };
   var subselects = {
@@ -10362,36 +13511,36 @@ var AidokuWasmHostBundle = (() => {
      */
     matches: is,
     where: is,
-    not(next, token, options, context, compileToken2) {
-      const compiledToken = compileToken2(token, copyOptions(options), context);
+    not(next, token, options, context2, compileToken2) {
+      const compiledToken = compileToken2(token, copyOptions(options), context2);
       return compiledToken === falseFunc ? next : compiledToken === trueFunc ? falseFunc : (element) => !compiledToken(element) && next(element);
     },
     has(next, subselect, options, _context, compileToken2) {
       const { adapter: adapter2 } = options;
       const copiedOptions = copyOptions(options);
       copiedOptions.relativeSelector = true;
-      const context = subselect.some((s) => s.some(isTraversal2)) ? (
+      const context2 = subselect.some((s) => s.some(isTraversal2)) ? (
         // Used as a placeholder. Will be replaced with the actual element.
         [PLACEHOLDER_ELEMENT]
       ) : void 0;
       const skipCache = hasDependsOnCurrentElement(subselect);
-      const compiled = compileToken2(subselect, copiedOptions, context);
+      const compiled = compileToken2(subselect, copiedOptions, context2);
       if (compiled === falseFunc) {
         return falseFunc;
       }
-      if (context && compiled !== trueFunc) {
+      if (context2 && compiled !== trueFunc) {
         return skipCache ? (element) => {
           if (!next(element)) {
             return false;
           }
-          context[0] = element;
+          context2[0] = element;
           const childs = adapter2.getChildren(element);
           return findOne3(compiled, compiled.shouldTestNextSiblings ? [
             ...childs,
             ...getNextSiblings(element, adapter2)
           ] : childs, options) !== null;
         } : cacheParentResults(next, options, (element) => {
-          context[0] = element;
+          context2[0] = element;
           return findOne3(compiled, adapter2.getChildren(element), options) !== null;
         });
       }
@@ -10401,13 +13550,13 @@ var AidokuWasmHostBundle = (() => {
   };
 
   // node_modules/.pnpm/css-select@7.0.0/node_modules/css-select/dist/pseudo-selectors/index.js
-  function compilePseudoSelector(next, selector, options, context, compileToken2) {
+  function compilePseudoSelector(next, selector, options, context2, compileToken2) {
     const { name, data } = selector;
     if (Array.isArray(data)) {
       if (!(name in subselects)) {
         throw new Error(`Unknown pseudo-class :${name}(${data})`);
       }
-      return subselects[name](next, data, options, context, compileToken2);
+      return subselects[name](next, data, options, context2, compileToken2);
     }
     const userPseudo = options.pseudos?.[name];
     const stringPseudo = typeof userPseudo === "string" ? userPseudo : aliases[name];
@@ -10416,14 +13565,14 @@ var AidokuWasmHostBundle = (() => {
         throw new Error(`Pseudo ${name} doesn't have any arguments`);
       }
       const alias = parse(stringPseudo);
-      return subselects["is"](next, alias, options, context, compileToken2);
+      return subselects["is"](next, alias, options, context2, compileToken2);
     }
     if (typeof userPseudo === "function") {
       verifyPseudoArguments(userPseudo, name, data, 1);
       return (element) => userPseudo(element, data) && next(element);
     }
     if (name in filters) {
-      return filters[name](next, data, options, context, compileToken2);
+      return filters[name](next, data, options, context2, compileToken2);
     }
     if (name in pseudos) {
       const pseudo = pseudos[name];
@@ -10434,7 +13583,7 @@ var AidokuWasmHostBundle = (() => {
   }
 
   // node_modules/.pnpm/css-select@7.0.0/node_modules/css-select/dist/general.js
-  function compileGeneralSelector(next, selector, options, context, compileToken2, hasExpensiveSubselector) {
+  function compileGeneralSelector(next, selector, options, context2, compileToken2, hasExpensiveSubselector) {
     const { adapter: adapter2, equals, cacheResults } = options;
     switch (selector.type) {
       case SelectorType.PseudoElement: {
@@ -10453,7 +13602,7 @@ var AidokuWasmHostBundle = (() => {
         return attributeRules[selector.action](next, selector, options);
       }
       case SelectorType.Pseudo: {
-        return compilePseudoSelector(next, selector, options, context, compileToken2);
+        return compilePseudoSelector(next, selector, options, context2, compileToken2);
       }
       // Tags
       case SelectorType.Tag: {
@@ -10581,8 +13730,8 @@ var AidokuWasmHostBundle = (() => {
     name: "scope",
     data: null
   };
-  function absolutize(token, { adapter: adapter2 }, context) {
-    const hasContext = !!context?.every((element) => element === PLACEHOLDER_ELEMENT || adapter2.isTag(element) && getElementParent(element, adapter2) !== null);
+  function absolutize(token, { adapter: adapter2 }, context2) {
+    const hasContext = !!context2?.every((element) => element === PLACEHOLDER_ELEMENT || adapter2.isTag(element) && getElementParent(element, adapter2) !== null);
     for (const t of token) {
       if (t.length > 0 && isTraversal2(t[0]) && t[0].type !== SelectorType.Descendant) {
       } else if (hasContext && !t.some(includesScopePseudo)) {
@@ -10597,9 +13746,9 @@ var AidokuWasmHostBundle = (() => {
     for (const rules of token) {
       sortRules(rules);
     }
-    const { context = compilationContext, rootFunc: rootFunction = trueFunc } = options;
-    const isArrayContext = Array.isArray(context);
-    const finalContext = context && (Array.isArray(context) ? context : [context]);
+    const { context: context2 = compilationContext, rootFunc: rootFunction = trueFunc } = options;
+    const isArrayContext = Array.isArray(context2);
+    const finalContext = context2 && (Array.isArray(context2) ? context2 : [context2]);
     if (options.relativeSelector !== false) {
       absolutize(token, options, finalContext);
     } else if (token.some((t) => t.length > 0 && isTraversal2(t[0]))) {
@@ -10653,13 +13802,13 @@ var AidokuWasmHostBundle = (() => {
     finalOptions.equals ?? (finalOptions.equals = finalOptions.adapter?.equals ?? defaultEquals);
     return finalOptions;
   }
-  function compile2(selector, options, context) {
+  function compile2(selector, options, context2) {
     const convertedOptions = convertOptionFormats(options);
-    const next = _compileUnsafe(selector, convertedOptions, context);
+    const next = _compileUnsafe(selector, convertedOptions, context2);
     return next === falseFunc ? falseFunc : (element) => convertedOptions.adapter.isTag(element) && next(element);
   }
-  function _compileUnsafe(selector, options, context) {
-    return compileToken(typeof selector === "string" ? parse(selector) : selector, convertOptionFormats(options), context);
+  function _compileUnsafe(selector, options, context2) {
+    return compileToken(typeof selector === "string" ? parse(selector) : selector, convertOptionFormats(options), context2);
   }
   function getSelectorFunction(searchFunction) {
     return function select(query2, elements, options) {
@@ -10692,13 +13841,13 @@ var AidokuWasmHostBundle = (() => {
     return (typeof query2 === "function" ? query2 : compile2(query2, options))(element);
   }
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/matches.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/matches.js
   var { isArray } = Array;
   var isTag5 = ({ nodeType }) => nodeType === ELEMENT_NODE;
   var existsOne3 = (test, elements) => elements.some(
     (element) => isTag5(element) && (test(element) || existsOne3(test, getChildren3(element)))
   );
-  var getAttributeValue3 = (element, name) => name === "class" ? element.classList.value : element.getAttribute(name);
+  var getAttributeValue3 = (element, name) => name === "class" ? element.getAttributeNode("class")?.value ?? null : element.getAttribute(name);
   var getChildren3 = ({ childNodes: childNodes2 }) => childNodes2;
   var getName3 = (element) => {
     const { localName } = element;
@@ -10786,7 +13935,7 @@ var AidokuWasmHostBundle = (() => {
     }
   );
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/text.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/text.js
   var Text4 = class _Text extends CharacterData {
     constructor(ownerDocument, data = "") {
       super(ownerDocument, "#text", TEXT_NODE, data);
@@ -10820,7 +13969,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/mixin/parent-node.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/mixin/parent-node.js
   var isNode = (node) => node instanceof Node2;
   var insert = (parentNode2, child, nodes) => {
     const { ownerDocument } = parentNode2;
@@ -11045,7 +14194,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/mixin/non-element-parent-node.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/mixin/non-element-parent-node.js
   var NonElementParentNode = class extends ParentNode {
     getElementById(id) {
       let { [NEXT]: next, [END]: end } = this;
@@ -11077,14 +14226,14 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/document-fragment.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/document-fragment.js
   var DocumentFragment = class extends NonElementParentNode {
     constructor(ownerDocument) {
       super(ownerDocument, "#document-fragment", DOCUMENT_FRAGMENT_NODE);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/document-type.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/document-type.js
   var DocumentType = class _DocumentType extends Node2 {
     constructor(ownerDocument, name, publicId = "", systemId = "") {
       super(ownerDocument, "#document-type", DOCUMENT_TYPE_NODE);
@@ -11116,7 +14265,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/mixin/inner-html.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/mixin/inner-html.js
   var getInnerHtml = (node) => node.childNodes.join("");
   var setInnerHtml = (node, html) => {
     const { ownerDocument } = node;
@@ -11140,7 +14289,7 @@ var AidokuWasmHostBundle = (() => {
   // node_modules/.pnpm/uhyphen@0.2.0/node_modules/uhyphen/esm/index.js
   var esm_default2 = (camel) => camel.replace(/(([A-Z0-9])([A-Z0-9][a-z]))|(([a-z0-9]+)([A-Z]))/g, "$2$5-$3$6").toLowerCase();
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/dom/string-map.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/dom/string-map.js
   var refs = /* @__PURE__ */ new WeakMap();
   var key = (name) => `data-${esm_default2(name)}`;
   var prop = (name) => name.slice(5).replace(/-([a-z])/g, (_, $1) => $1.toUpperCase());
@@ -11175,7 +14324,7 @@ var AidokuWasmHostBundle = (() => {
   };
   setPrototypeOf(DOMStringMap.prototype, null);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/dom/token-list.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/dom/token-list.js
   var { add } = Set.prototype;
   var addTokens = (self2, tokens) => {
     for (const token of tokens) {
@@ -11266,7 +14415,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/css-style-declaration.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/css-style-declaration.js
   var refs2 = /* @__PURE__ */ new WeakMap();
   var getKeys = (style) => [...style.keys()].filter((key2) => key2 !== PRIVATE);
   var updateKeys = (style) => {
@@ -11374,7 +14523,7 @@ var AidokuWasmHostBundle = (() => {
       this.push(`${key2}:${value}`);
   }
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/event.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/event.js
   var BUBBLING_PHASE = 3;
   var AT_TARGET = 2;
   var CAPTURING_PHASE = 1;
@@ -11438,7 +14587,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/named-node-map.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/named-node-map.js
   var NamedNodeMap = class extends Array {
     constructor(ownerElement) {
       super();
@@ -11472,7 +14621,7 @@ var AidokuWasmHostBundle = (() => {
     /* c8 ignore stop */
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/shadow-root.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/shadow-root.js
   var ShadowRoot = class extends NonElementParentNode {
     constructor(host) {
       super(host.ownerDocument, "#shadow-root", DOCUMENT_FRAGMENT_NODE);
@@ -11486,7 +14635,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/element.js
   var attributesHandler = {
     get(target, key2) {
       return key2 in target ? target[key2] : target.find(({ name }) => name === key2);
@@ -11947,7 +15096,7 @@ var AidokuWasmHostBundle = (() => {
     /* c8 ignore stop */
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/svg/element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/svg/element.js
   var classNames = /* @__PURE__ */ new WeakMap();
   var handler3 = {
     get(target, name) {
@@ -11992,7 +15141,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/facades.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/facades.js
   var illegalConstructor = () => {
     throw new TypeError("Illegal constructor");
   };
@@ -12065,7 +15214,7 @@ var AidokuWasmHostBundle = (() => {
     SVGElement: SVGElement2
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/element.js
   var Level0 = /* @__PURE__ */ new WeakMap();
   var level0 = {
     get(element, name) {
@@ -12609,7 +15758,7 @@ var AidokuWasmHostBundle = (() => {
     /* c8 ignore stop */
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/template-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/template-element.js
   var tagName = "template";
   var HTMLTemplateElement = class extends HTMLElement {
     constructor(ownerDocument) {
@@ -12627,14 +15776,14 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName, HTMLTemplateElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/html-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/html-element.js
   var HTMLHtmlElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "html") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/text-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/text-element.js
   var { toString } = HTMLElement.prototype;
   var TextElement = class extends HTMLElement {
     get innerHTML() {
@@ -12649,7 +15798,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/script-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/script-element.js
   var tagName2 = "script";
   var HTMLScriptElement = class extends TextElement {
     constructor(ownerDocument, localName = tagName2) {
@@ -12712,14 +15861,14 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName2, HTMLScriptElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/frame-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/frame-element.js
   var HTMLFrameElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "frame") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/i-frame-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/i-frame-element.js
   var tagName3 = "iframe";
   var HTMLIFrameElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName3) {
@@ -12772,29 +15921,29 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName3, HTMLIFrameElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/object-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/object-element.js
   var HTMLObjectElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "object") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/head-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/head-element.js
   var HTMLHeadElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "head") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/body-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/body-element.js
   var HTMLBodyElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "body") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/style-element.js
-  var import_cssom = __toESM(require_lib(), 1);
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/style-element.js
+  var import_cssom = __toESM(require_CSSOM(), 1);
   var tagName4 = "style";
   var HTMLStyleElement = class extends TextElement {
     constructor(ownerDocument, localName = tagName4) {
@@ -12832,7 +15981,7 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName4, HTMLStyleElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/time-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/time-element.js
   var HTMLTimeElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "time") {
       super(ownerDocument, localName);
@@ -12849,77 +15998,77 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass("time", HTMLTimeElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/field-set-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/field-set-element.js
   var HTMLFieldSetElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "fieldset") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/embed-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/embed-element.js
   var HTMLEmbedElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "embed") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/hr-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/hr-element.js
   var HTMLHRElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "hr") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/progress-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/progress-element.js
   var HTMLProgressElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "progress") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/paragraph-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/paragraph-element.js
   var HTMLParagraphElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "p") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/table-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/table-element.js
   var HTMLTableElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "table") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/frame-set-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/frame-set-element.js
   var HTMLFrameSetElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "frameset") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/li-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/li-element.js
   var HTMLLIElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "li") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/base-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/base-element.js
   var HTMLBaseElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "base") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/data-list-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/data-list-element.js
   var HTMLDataListElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "datalist") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/input-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/input-element.js
   var tagName5 = "input";
   var HTMLInputElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName5) {
@@ -12966,28 +16115,28 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName5, HTMLInputElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/param-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/param-element.js
   var HTMLParamElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "param") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/media-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/media-element.js
   var HTMLMediaElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "media") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/audio-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/audio-element.js
   var HTMLAudioElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "audio") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/heading-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/heading-element.js
   var tagName6 = "h1";
   var HTMLHeadingElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName6) {
@@ -12996,21 +16145,21 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass([tagName6, "h2", "h3", "h4", "h5", "h6"], HTMLHeadingElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/directory-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/directory-element.js
   var HTMLDirectoryElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "dir") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/quote-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/quote-element.js
   var HTMLQuoteElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "quote") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/canvas-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/canvas-element.js
   var import_canvas = __toESM(require_canvas(), 1);
   var { createCanvas } = import_canvas.default;
   var tagName7 = "canvas";
@@ -13042,14 +16191,14 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName7, HTMLCanvasElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/legend-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/legend-element.js
   var HTMLLegendElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "legend") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/option-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/option-element.js
   var tagName8 = "option";
   var HTMLOptionElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName8) {
@@ -13075,35 +16224,35 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName8, HTMLOptionElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/span-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/span-element.js
   var HTMLSpanElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "span") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/meter-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/meter-element.js
   var HTMLMeterElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "meter") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/video-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/video-element.js
   var HTMLVideoElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "video") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/table-cell-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/table-cell-element.js
   var HTMLTableCellElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "td") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/title-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/title-element.js
   var tagName9 = "title";
   var HTMLTitleElement = class extends TextElement {
     constructor(ownerDocument, localName = tagName9) {
@@ -13112,35 +16261,35 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName9, HTMLTitleElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/output-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/output-element.js
   var HTMLOutputElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "output") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/table-row-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/table-row-element.js
   var HTMLTableRowElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "tr") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/data-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/data-element.js
   var HTMLDataElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "data") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/menu-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/menu-element.js
   var HTMLMenuElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "menu") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/select-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/select-element.js
   var tagName10 = "select";
   var HTMLSelectElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName10) {
@@ -13178,14 +16327,14 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName10, HTMLSelectElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/br-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/br-element.js
   var HTMLBRElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "br") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/button-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/button-element.js
   var tagName11 = "button";
   var HTMLButtonElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName11) {
@@ -13214,28 +16363,28 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName11, HTMLButtonElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/map-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/map-element.js
   var HTMLMapElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "map") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/opt-group-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/opt-group-element.js
   var HTMLOptGroupElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "optgroup") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/d-list-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/d-list-element.js
   var HTMLDListElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "dl") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/text-area-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/text-area-element.js
   var tagName12 = "textarea";
   var HTMLTextAreaElement = class extends TextElement {
     constructor(ownerDocument, localName = tagName12) {
@@ -13276,21 +16425,21 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName12, HTMLTextAreaElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/font-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/font-element.js
   var HTMLFontElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "font") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/div-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/div-element.js
   var HTMLDivElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "div") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/link-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/link-element.js
   var tagName13 = "link";
   var HTMLLinkElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName13) {
@@ -13338,7 +16487,7 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName13, HTMLLinkElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/slot-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/slot-element.js
   var tagName14 = "slot";
   var HTMLSlotElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName14) {
@@ -13383,14 +16532,14 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName14, HTMLSlotElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/form-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/form-element.js
   var HTMLFormElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "form") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/image-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/image-element.js
   var tagName15 = "img";
   var HTMLImageElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName15) {
@@ -13443,21 +16592,21 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName15, HTMLImageElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/pre-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/pre-element.js
   var HTMLPreElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "pre") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/u-list-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/u-list-element.js
   var HTMLUListElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "ul") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/meta-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/meta-element.js
   var tagName16 = "meta";
   var HTMLMetaElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName16) {
@@ -13498,35 +16647,35 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName16, HTMLMetaElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/picture-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/picture-element.js
   var HTMLPictureElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "picture") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/area-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/area-element.js
   var HTMLAreaElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "area") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/o-list-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/o-list-element.js
   var HTMLOListElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "ol") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/table-caption-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/table-caption-element.js
   var HTMLTableCaptionElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "caption") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/anchor-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/anchor-element.js
   var tagName17 = "a";
   var HTMLAnchorElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName17) {
@@ -13568,35 +16717,35 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName17, HTMLAnchorElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/label-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/label-element.js
   var HTMLLabelElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "label") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/unknown-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/unknown-element.js
   var HTMLUnknownElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "unknown") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/mod-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/mod-element.js
   var HTMLModElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "mod") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/details-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/details-element.js
   var HTMLDetailsElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "details") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/source-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/source-element.js
   var tagName18 = "source";
   var HTMLSourceElement = class extends HTMLElement {
     constructor(ownerDocument, localName = tagName18) {
@@ -13631,21 +16780,21 @@ var AidokuWasmHostBundle = (() => {
   };
   registerHTMLClass(tagName18, HTMLSourceElement);
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/track-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/track-element.js
   var HTMLTrackElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "track") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/marquee-element.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/marquee-element.js
   var HTMLMarqueeElement = class extends HTMLElement {
     constructor(ownerDocument, localName = "marquee") {
       super(ownerDocument, localName);
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/html-classes.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/html-classes.js
   var HTMLClasses = {
     HTMLElement,
     HTMLTemplateElement,
@@ -13717,7 +16866,7 @@ var AidokuWasmHostBundle = (() => {
     HTMLMarqueeElement
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/mime.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/mime.js
   var voidElements3 = { test: () => true };
   var Mime = {
     "text/html": {
@@ -13747,7 +16896,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/custom-event.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/custom-event.js
   var CustomEvent = class extends GlobalEvent {
     constructor(type, eventInitDict = {}) {
       super(type, eventInitDict);
@@ -13755,7 +16904,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/input-event.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/input-event.js
   var InputEvent = class extends GlobalEvent {
     constructor(type, inputEventInit = {}) {
       super(type, inputEventInit);
@@ -13767,7 +16916,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/image.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/image.js
   var ImageClass = (ownerDocument) => (
     /**
      * @implements globalThis.Image
@@ -13789,7 +16938,7 @@ var AidokuWasmHostBundle = (() => {
     }
   );
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/range.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/range.js
   var deleteContents = ({ [START]: start, [END]: end }, fragment = null) => {
     setAdjacent(start[PREV], end[NEXT]);
     do {
@@ -13891,7 +17040,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/tree-walker.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/tree-walker.js
   var isOK = ({ nodeType }, mask) => {
     switch (nodeType) {
       case ELEMENT_NODE:
@@ -13931,7 +17080,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/interface/document.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/interface/document.js
   var query = (method, ownerDocument, selectors) => {
     let { [NEXT]: next, [END]: end } = ownerDocument;
     return method.call({ ownerDocument, [NEXT]: next, [END]: end }, selectors);
@@ -14172,7 +17321,7 @@ var AidokuWasmHostBundle = (() => {
     Document2
   ).prototype = Document2.prototype;
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/html/document.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/html/document.js
   var createHTMLElement = (ownerDocument, builtin, localName, options) => {
     if (!builtin && htmlClasses.has(localName)) {
       const Class = htmlClasses.get(localName);
@@ -14259,7 +17408,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/svg/document.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/svg/document.js
   var SVGDocument = class extends Document2 {
     constructor() {
       super("image/svg+xml");
@@ -14269,7 +17418,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/xml/document.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/xml/document.js
   var XMLDocument = class extends Document2 {
     constructor() {
       super("text/xml");
@@ -14279,7 +17428,7 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/dom/parser.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/dom/parser.js
   var DOMParser = class _DOMParser {
     /** @typedef {{ "text/html": HTMLDocument, "image/svg+xml": SVGDocument, "text/xml": XMLDocument }} MimeToDoc */
     /**
@@ -14306,10 +17455,10 @@ var AidokuWasmHostBundle = (() => {
     }
   };
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/shared/parse-json.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/shared/parse-json.js
   var { parse: parse4 } = JSON;
 
-  // node_modules/.pnpm/linkedom@0.18.13/node_modules/linkedom/esm/index.js
+  // node_modules/.pnpm/linkedom@0.18.14/node_modules/linkedom/esm/index.js
   var parseHTML = (html, globals = null) => new DOMParser().parseFromString(
     html,
     "text/html",
@@ -15564,8 +18713,8 @@ var AidokuWasmHostBundle = (() => {
         }
         if (page.content.type === "Url") {
           const url = postcardTupleString(page.content.value, 0);
-          const context = postcardTupleItem(page.content.value, 1);
-          const headers = context && typeof context === "object" && !Array.isArray(context) ? context : void 0;
+          const context2 = postcardTupleItem(page.content.value, 1);
+          const headers = context2 && typeof context2 === "object" && !Array.isArray(context2) ? context2 : void 0;
           return {
             url,
             thumbnail: page.thumbnail ?? void 0,

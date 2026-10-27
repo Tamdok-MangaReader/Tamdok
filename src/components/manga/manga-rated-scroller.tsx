@@ -1,12 +1,12 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import { LibraryMangaCover } from '@/components/manga/library-manga-cover';
-import { StarRating } from '@/components/manga/star-rating';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import type { HomeScrollerEntry, Listing } from '@/parsers/shared/types';
-import { homeChapterLabel } from '@/utils/chapter-label';
-import { parseRatingText } from '@/utils/manga-description';
+import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
+import { StarRating } from "@/components/manga/star-rating";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import type { HomeScrollerEntry, Listing } from "@/parsers/shared/types";
+import { homeChapterLabel } from "@/utils/chapter-label";
+import { parseRatingText } from "@/utils/manga-description";
 
 type MangaRatedScrollerProps = {
   title?: string;
@@ -36,26 +36,37 @@ export function MangaRatedScroller({
       {(title || listing) && (
         <View style={styles.header}>
           <View style={styles.titles}>
-            {title ? <ThemedText variant='title2'>{title}</ThemedText> : null}
+            {title ? <ThemedText variant="title2">{title}</ThemedText> : null}
             {subtitle ? (
-              <ThemedText variant='footnote' color='secondaryLabel'>
+              <ThemedText variant="footnote" color="secondaryLabel">
                 {subtitle}
               </ThemedText>
             ) : null}
           </View>
           {listing && onPressSeeAll ? (
-            <ThemedText variant='callout' color='tint' onPress={() => onPressSeeAll(listing)}>
+            <ThemedText
+              variant="callout"
+              color="tint"
+              onPress={() => onPressSeeAll(listing)}
+            >
               See all
             </ThemedText>
           ) : null}
         </View>
       )}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroller}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scroller}
+      >
         {entries.map((entry) => {
-          const rating = parseRatingText(entry.subtitle);
+          const rating = parseRatingText(entry.manga.rating || entry.subtitle);
           const chapterLabel = homeChapterLabel(entry.manga, entry.chapter);
           return (
-            <View key={entry.manga.key} style={[styles.tile, { width: coverWidth }]}>
+            <View
+              key={entry.manga.key}
+              style={[styles.tile, { width: coverWidth }]}
+            >
               <LibraryMangaCover
                 sourceId={sourceId}
                 manga={entry.manga}
@@ -64,7 +75,11 @@ export function MangaRatedScroller({
                 onPress={() => onPressManga(entry)}
               />
               {chapterLabel ? (
-                <ThemedText variant='footnote' color='secondaryLabel' numberOfLines={1}>
+                <ThemedText
+                  variant="footnote"
+                  color="secondaryLabel"
+                  numberOfLines={1}
+                >
                   {chapterLabel}
                 </ThemedText>
               ) : null}
@@ -73,7 +88,11 @@ export function MangaRatedScroller({
                   <StarRating rating={rating} compact />
                 </View>
               ) : entry.subtitle ? (
-                <ThemedText variant='caption2' color='secondaryLabel' numberOfLines={2}>
+                <ThemedText
+                  variant="caption2"
+                  color="secondaryLabel"
+                  numberOfLines={2}
+                >
                   {entry.subtitle}
                 </ThemedText>
               ) : null}
@@ -90,9 +109,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
   },
   titles: {
