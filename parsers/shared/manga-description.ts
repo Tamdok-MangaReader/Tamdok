@@ -26,6 +26,17 @@ export function parseMangaDescription(
       continue;
     }
 
+    if (block.startsWith("Alt titles:")) {
+      const names = block
+        .replace(/^Альтернативные названия:<br\/?>/i, "")
+        .split(/<br\/?>|,\s*/)
+        .map((name) => name.trim())
+        .filter(Boolean);
+      altTitles = names;
+      altTitle = names[0];
+      continue;
+    }
+
     if (block.startsWith("Альтернативные названия:")) {
       const names = block
         .replace(/^Альтернативные названия:<br\/?>/i, "")

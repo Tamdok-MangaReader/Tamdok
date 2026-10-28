@@ -1,10 +1,19 @@
-import type { TamdokRequest, TamdokResponse, TamdokSourceContext, TamdokSourceModule } from '../../shared/types';
-import { buildFetchHeaders } from '../../shared/fetch-headers';
-import { parse } from 'node-html-parser';
+import type {
+  TamdokRequest,
+  TamdokResponse,
+  TamdokSourceContext,
+  TamdokSourceModule,
+} from "../../shared/types";
+import { buildFetchHeaders } from "../../shared/fetch-headers";
+import { parse } from "node-html-parser";
 
-async function performRequest(url: string, init: RequestInit | undefined, sourceBaseUrl?: string): Promise<TamdokResponse> {
+async function performRequest(
+  url: string,
+  init: RequestInit | undefined,
+  sourceBaseUrl?: string,
+): Promise<TamdokResponse> {
   const initHeaders = headersFromInit(init?.headers);
-  const method = init?.method ?? 'GET';
+  const method = init?.method ?? "GET";
   const response = await fetch(url, {
     ...init,
     method,
@@ -15,8 +24,10 @@ async function performRequest(url: string, init: RequestInit | undefined, source
 
 export function createRequest(sourceBaseUrl?: string): TamdokRequest {
   return {
-    get: (url, init) => performRequest(url, { ...init, method: 'GET' }, sourceBaseUrl),
-    post: (url, init) => performRequest(url, { ...init, method: 'POST' }, sourceBaseUrl),
+    get: (url, init) =>
+      performRequest(url, { ...init, method: "GET" }, sourceBaseUrl),
+    post: (url, init) =>
+      performRequest(url, { ...init, method: "POST" }, sourceBaseUrl),
     fetch: (url, init) => performRequest(url, init, sourceBaseUrl),
   };
 }
@@ -49,14 +60,19 @@ async function createResponse(response: Response): Promise<TamdokResponse> {
 
 const defaultsStore = new Map<string, unknown>();
 
-export function hydrateTamdokDefaults(sourceId: string, settings: Record<string, unknown>): void {
+export function hydrateTamdokDefaults(
+  sourceId: string,
+  settings: Record<string, unknown>,
+): void {
   const prefix = `${sourceId}:`;
   for (const [key, value] of Object.entries(settings)) {
     defaultsStore.set(prefix + key, value);
   }
 }
 
-export function createDefaults(sourceId: string): TamdokSourceContext['defaults'] {
+export function createDefaults(
+  sourceId: string,
+): TamdokSourceContext["defaults"] {
   const prefix = `${sourceId}:`;
   return {
     get: <T>(key: string, fallback?: T) => {
@@ -69,7 +85,10 @@ export function createDefaults(sourceId: string): TamdokSourceContext['defaults'
   };
 }
 
-export function createSourceContext(sourceId: string, sourceBaseUrl?: string): TamdokSourceContext {
+export function createSourceContext(
+  sourceId: string,
+  sourceBaseUrl?: string,
+): TamdokSourceContext {
   return {
     sourceId,
     request: createRequest(sourceBaseUrl),
@@ -82,7 +101,11 @@ export type LoadedTamdokSource = {
   context: TamdokSourceContext;
 };
 
-export function createTamdokRunner(sourceId: string, module: TamdokSourceModule, sourceBaseUrl?: string): LoadedTamdokSource {
+export function createTamdokRunner(
+  sourceId: string,
+  module: TamdokSourceModule,
+  sourceBaseUrl?: string,
+): LoadedTamdokSource {
   return {
     module,
     context: createSourceContext(sourceId, sourceBaseUrl),

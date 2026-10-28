@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-import type { InstalledSource } from '@/parsers/shared/types';
-import type { SourceRunner } from '@/parsers/shared/source-runner';
-import { getOrCreateSourceRunner } from '@/services/sources';
+import type { InstalledSource } from "@/parsers/shared/types";
+import type { SourceRunner } from "@/parsers/shared/source-runner";
+import { getOrCreateSourceRunner } from "@/services/sources";
 
 export function useSourceRunner(source: InstalledSource | undefined) {
   const [runner, setRunner] = useState<SourceRunner | null>(null);
@@ -27,7 +27,9 @@ export function useSourceRunner(source: InstalledSource | undefined) {
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : String(loadError));
+          setError(
+            loadError instanceof Error ? loadError.message : String(loadError),
+          );
           setRunner(null);
         }
       })

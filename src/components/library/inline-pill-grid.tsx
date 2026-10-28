@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useMemo } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 
-import { GlassSurface } from '@/components/ui/glass-surface';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 
 export type InlinePillOption = {
   id: string;
@@ -19,7 +19,12 @@ type InlinePillGridProps = {
   preserveOrder?: boolean;
 };
 
-export function InlinePillGrid({ options, selectedId, onSelect, preserveOrder = false }: InlinePillGridProps) {
+export function InlinePillGrid({
+  options,
+  selectedId,
+  onSelect,
+  preserveOrder = false,
+}: InlinePillGridProps) {
   const { colors, radius } = useTheme();
 
   const orderedOptions = useMemo(() => {
@@ -37,11 +42,19 @@ export function InlinePillGrid({ options, selectedId, onSelect, preserveOrder = 
           return (
             <Pressable
               key={option.id}
-              style={[styles.pillActive, { borderRadius: radius.pill, backgroundColor: colors.tint }]}
+              style={[
+                styles.pillActive,
+                { borderRadius: radius.pill, backgroundColor: colors.tint },
+              ]}
               onPress={() => onSelect(option.id)}
-              accessibilityRole='button'
-              accessibilityState={{ selected: true }}>
-              <ThemedText variant='subheadline' color='onTint' numberOfLines={1}>
+              accessibilityRole="button"
+              accessibilityState={{ selected: true }}
+            >
+              <ThemedText
+                variant="subheadline"
+                color="onTint"
+                numberOfLines={1}
+              >
                 {option.label}
               </ThemedText>
             </Pressable>
@@ -50,8 +63,12 @@ export function InlinePillGrid({ options, selectedId, onSelect, preserveOrder = 
 
         return (
           <GlassSurface key={option.id} borderRadius={radius.pill} interactive>
-            <Pressable style={styles.pill} onPress={() => onSelect(option.id)} accessibilityRole='button'>
-              <ThemedText variant='subheadline' numberOfLines={1}>
+            <Pressable
+              style={styles.pill}
+              onPress={() => onSelect(option.id)}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="subheadline" numberOfLines={1}>
                 {option.label}
               </ThemedText>
             </Pressable>
@@ -68,12 +85,20 @@ type InlinePillToggleGridProps = {
   onToggle: (id: string) => void;
 };
 
-export function InlinePillToggleGrid({ options, selectedIds, onToggle }: InlinePillToggleGridProps) {
+export function InlinePillToggleGrid({
+  options,
+  selectedIds,
+  onToggle,
+}: InlinePillToggleGridProps) {
   const { colors, radius } = useTheme();
 
   const orderedOptions = useMemo(() => {
-    const selected = options.filter((option) => selectedIds.includes(option.id));
-    const unselected = options.filter((option) => !selectedIds.includes(option.id));
+    const selected = options.filter((option) =>
+      selectedIds.includes(option.id),
+    );
+    const unselected = options.filter(
+      (option) => !selectedIds.includes(option.id),
+    );
     return [...selected, ...unselected];
   }, [options, selectedIds]);
 
@@ -85,11 +110,19 @@ export function InlinePillToggleGrid({ options, selectedIds, onToggle }: InlineP
           return (
             <Pressable
               key={option.id}
-              style={[styles.pillActive, { borderRadius: radius.pill, backgroundColor: colors.tint }]}
+              style={[
+                styles.pillActive,
+                { borderRadius: radius.pill, backgroundColor: colors.tint },
+              ]}
               onPress={() => onToggle(option.id)}
-              accessibilityRole='button'
-              accessibilityState={{ selected: true }}>
-              <ThemedText variant='subheadline' color='onTint' numberOfLines={1}>
+              accessibilityRole="button"
+              accessibilityState={{ selected: true }}
+            >
+              <ThemedText
+                variant="subheadline"
+                color="onTint"
+                numberOfLines={1}
+              >
                 {option.label}
               </ThemedText>
             </Pressable>
@@ -98,8 +131,12 @@ export function InlinePillToggleGrid({ options, selectedIds, onToggle }: InlineP
 
         return (
           <GlassSurface key={option.id} borderRadius={radius.pill} interactive>
-            <Pressable style={styles.pill} onPress={() => onToggle(option.id)} accessibilityRole='button'>
-              <ThemedText variant='subheadline' numberOfLines={1}>
+            <Pressable
+              style={styles.pill}
+              onPress={() => onToggle(option.id)}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="subheadline" numberOfLines={1}>
                 {option.label}
               </ThemedText>
             </Pressable>
@@ -112,8 +149,8 @@ export function InlinePillToggleGrid({ options, selectedIds, onToggle }: InlineP
 
 const styles = StyleSheet.create({
   pillGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.sm,
   },
   pill: {

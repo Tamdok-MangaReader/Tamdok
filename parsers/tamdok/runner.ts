@@ -1,24 +1,37 @@
-import type { InstalledSource, TamdokSourceModule } from '../shared/types';
-import type { SourceRunner } from '../shared/source-runner';
-import { normalizeManga, normalizeMangaPageResult } from '../shared/normalize-manga';
-import { expandZipPages } from '../shared/zip-pages';
-import { readInstalledFilters, readInstalledScript } from '../shared/source-manager';
-import { createTamdokRunner, hydrateTamdokDefaults } from './runtime';
-import { getEffectiveSourceSettings } from '@/services/source-settings';
-import { resolveSourceBaseUrl } from '../shared/fetch-headers';
+import type { InstalledSource, TamdokSourceModule } from "../shared/types";
+import type { SourceRunner } from "../shared/source-runner";
+import {
+  normalizeManga,
+  normalizeMangaPageResult,
+} from "../shared/normalize-manga";
+import { expandZipPages } from "../shared/zip-pages";
+import {
+  readInstalledFilters,
+  readInstalledScript,
+} from "../shared/source-manager";
+import { createTamdokRunner, hydrateTamdokDefaults } from "./runtime";
+import { getEffectiveSourceSettings } from "@/services/source-settings";
+import { resolveSourceBaseUrl } from "../shared/fetch-headers";
 
-export async function createTamdokSourceRunner(source: InstalledSource): Promise<SourceRunner> {
+export async function createTamdokSourceRunner(
+  source: InstalledSource,
+): Promise<SourceRunner> {
   const script = await readInstalledScript(source);
   if (!script) {
-    throw new Error('Tamdok source script not found');
+    throw new Error("Tamdok source script not found");
   }
 
-  const moduleRef: { exports: { source?: TamdokSourceModule } } = { exports: {} };
-  const run = new Function('module', 'exports', script) as (module: typeof moduleRef, exports: typeof moduleRef.exports) => void;
+  const moduleRef: { exports: { source?: TamdokSourceModule } } = {
+    exports: {},
+  };
+  const run = new Function("module", "exports", script) as (
+    module: typeof moduleRef,
+    exports: typeof moduleRef.exports,
+  ) => void;
   run(moduleRef, moduleRef.exports);
   const mod = moduleRef.exports.source;
-  if (!mod || typeof mod !== 'object') {
-    throw new Error('Invalid Tamdok source module');
+  if (!mod || typeof mod !== "object") {
+    throw new Error("Invalid Tamdok source module");
   }
 
   const sourceBaseUrl = resolveSourceBaseUrl(source.manifest);
@@ -27,20 +40,32 @@ export async function createTamdokSourceRunner(source: InstalledSource): Promise
   hydrateTamdokDefaults(source.id, settings);
 
   return {
-    kind: 'tamdok',
+    kind: "tamdok",
     sourceId: source.id,
     getSearchMangaList: async (params) => {
       if (!module.getSearchMangaList) {
         return { entries: [], hasNextPage: false };
       }
-      return normalizeMangaPageResult(await module.getSearchMangaList(params, context));
+      return normalizeMangaPageResult(
+        await module.getSearchMangaList(params, context),
+      );
     },
     getMangaList: module.getMangaList
-      ? async (listing, page) => normalizeMangaPageResult(await module.getMangaList!(listing, page, context))
+      ? async (listing, page) =>
+          normalizeMangaPageResult(
+            await module.getMangaList!(listing, page, context),
+          )
       : undefined,
     getMangaUpdate: async (manga, needsDetails, needsChapters) => {
       if (!module.getMangaUpdate) return manga;
-      return normalizeManga(await module.getMangaUpdate(manga, needsDetails, needsChapters, context));
+      return normalizeManga(
+        await module.getMangaUpdate(
+          manga,
+          needsDetails,
+          needsChapters,
+          context,
+        ),
+      );
     },
     getPageList: async (manga, chapter) => {
       if (!module.getPageList) return [];

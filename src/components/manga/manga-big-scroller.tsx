@@ -159,7 +159,7 @@ function BigMangaCard({
   const rating = parseRatingText(manga.rating || parsed.ratingLine);
   const authors = manga.authors?.filter(Boolean).join(", ");
   const tags = manga.tags?.slice(0, 6) ?? [];
-  const altTitles = (parsed.altTitles ?? []).filter(
+  const altTitles = (manga.altTitles ?? parsed.altTitles ?? []).filter(
     (name) => name !== manga.title,
   );
   const chapterLabel = homeChapterLabel(manga, manga.chapters?.[0]);

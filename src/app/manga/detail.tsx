@@ -1,24 +1,50 @@
-import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as Haptics from 'expo-haptics';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Share, StyleSheet, View } from 'react-native';
+import {
+  Stack,
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import * as Haptics from "expo-haptics";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Share,
+  StyleSheet,
+  View,
+} from "react-native";
 
-import { MangaDetailHeaderLeft, MangaDetailHeaderRight } from '@/components/manga/manga-detail-header';
-import { MangaDetailView } from '@/components/manga/manga-detail-view';
-import { EmptyState } from '@/components/ui/empty-state';
-import { ScreenContent } from '@/components/ui/screen-content';
-import { t } from '@/constants/locales';
-import { Spacing } from '@/constants/theme';
-import { useSources } from '@/context/sources-context';
-import { SourceCoverHeadersProvider } from '@/context/source-cover-context';
-import { useMangaDataRefresh } from '@/hooks/use-manga-data';
-import { useMangaDetail } from '@/hooks/use-manga-detail';
-import { useSourceRunner } from '@/hooks/use-source-runner';
-import type { Chapter } from '@/parsers/shared/types';
-import { getMangaDownloads, queueChapterDownload, removeMangaDownloads, type DownloadEntry } from '@/services/downloads';
-import { processQueuedDownloads } from '@/services/download-processor';
-import { ALL_CATEGORY_ID, getLibraryCategories, getLibraryEntry, isInLibrary, toggleMangaLibraryCategory, type LibraryCategory } from '@/services/library';
+import {
+  MangaDetailHeaderLeft,
+  MangaDetailHeaderRight,
+} from "@/components/manga/manga-detail-header";
+import { MangaDetailView } from "@/components/manga/manga-detail-view";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ScreenContent } from "@/components/ui/screen-content";
+import { t } from "@/constants/locales";
+import { Spacing } from "@/constants/theme";
+import { useSources } from "@/context/sources-context";
+import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
+import { useMangaDataRefresh } from "@/hooks/use-manga-data";
+import { useMangaDetail } from "@/hooks/use-manga-detail";
+import { useSourceRunner } from "@/hooks/use-source-runner";
+import type { Chapter } from "@/parsers/shared/types";
+import {
+  getMangaDownloads,
+  queueChapterDownload,
+  removeMangaDownloads,
+  type DownloadEntry,
+} from "@/services/downloads";
+import { processQueuedDownloads } from "@/services/download-processor";
+import {
+  ALL_CATEGORY_ID,
+  getLibraryCategories,
+  getLibraryEntry,
+  isInLibrary,
+  toggleMangaLibraryCategory,
+  type LibraryCategory,
+} from "@/services/library";
 import {
   getMangaChapterProgress,
   markAllChaptersRead,
@@ -26,32 +52,36 @@ import {
   markChapterRead,
   markChapterUnread,
   type ChapterProgress,
-} from '@/services/manga-tracking';
-import { findInstalledSource, parseSourceRouteId, sourceRouteId } from '@/services/sources';
-import { chaptersOldestFirst, formatChapterLabel } from '@/utils/chapter-label';
-import { subscribeMangaData } from '@/utils/manga-events';
-import { mangaFromParams, readerHref } from '@/utils/manga-route';
-import { resolveMangaPageUrl } from '@/utils/manga-url';
-import { getAppSettings } from '@/services/app-settings';
-import { subscribeAppSettings } from '@/utils/app-settings-events';
+} from "@/services/manga-tracking";
+import {
+  findInstalledSource,
+  parseSourceRouteId,
+  sourceRouteId,
+} from "@/services/sources";
+import { chaptersOldestFirst, formatChapterLabel } from "@/utils/chapter-label";
+import { subscribeMangaData } from "@/utils/manga-events";
+import { mangaFromParams, readerHref } from "@/utils/manga-route";
+import { resolveMangaPageUrl } from "@/utils/manga-url";
+import { getAppSettings } from "@/services/app-settings";
+import { subscribeAppSettings } from "@/utils/app-settings-events";
 
 const styles = StyleSheet.create({
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
   refreshIndicator: {
     width: 28,
     height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
 function decodeParam(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
-  if (!raw) return '';
+  if (!raw) return "";
   try {
     return decodeURIComponent(raw);
   } catch {
@@ -66,20 +96,29 @@ function resolveReadingTarget(
   if (chapters.length === 0) return null;
 
   const ascending = [...chapters].reverse();
-  const resume = Object.values(progressMap).sort((a, b) => b.dateRead - a.dateRead)[0];
+  const resume = Object.values(progressMap).sort(
+    (a, b) => b.dateRead - a.dateRead,
+  )[0];
 
   if (!resume) {
     return { chapter: ascending[0]!, page: 0, hasHistory: false };
   }
 
-  const chapter = chapters.find((item) => item.key === resume.chapterKey) ?? ascending[0]!;
+  const chapter =
+    chapters.find((item) => item.key === resume.chapterKey) ?? ascending[0]!;
   const page = resume.page >= 0 && resume.page !== -1 ? resume.page : 0;
   return { chapter, page, hasHistory: true };
 }
 
 export default function MangaDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ sourceId: string; mangaKey: string; title?: string; cover?: string; url?: string }>();
+  const params = useLocalSearchParams<{
+    sourceId: string;
+    mangaKey: string;
+    title?: string;
+    cover?: string;
+    url?: string;
+  }>();
   const sourceRoute = decodeParam(params.sourceId);
   const mangaKey = decodeParam(params.mangaKey);
   const { installed } = useSources();
@@ -89,25 +128,52 @@ export default function MangaDetailScreen() {
   const { runner, error } = useSourceRunner(source);
   const refreshTick = useMangaDataRefresh();
   const initialManga = useMemo(
-    () => mangaFromParams(manifestSourceId, mangaKey, decodeParam(params.title), decodeParam(params.cover), decodeParam(params.url)),
+    () =>
+      mangaFromParams(
+        manifestSourceId,
+        mangaKey,
+        decodeParam(params.title),
+        decodeParam(params.cover),
+        decodeParam(params.url),
+      ),
     [manifestSourceId, mangaKey, params.title, params.cover, params.url],
   );
-  const { manga, isLoading, isRefreshing, loadError, hasCachedContent, refresh, dismissError } = useMangaDetail({
+  const {
+    manga,
+    isLoading,
+    isRefreshing,
+    loadError,
+    hasCachedContent,
+    refresh,
+    dismissError,
+  } = useMangaDetail({
     source,
     runner,
     initialManga,
     cacheSourceId,
   });
   const [inLibrary, setInLibraryState] = useState(false);
-  const [chapterProgressMap, setChapterProgressMap] = useState<Record<string, ChapterProgress>>({});
-  const [readChapterKeys, setReadChapterKeys] = useState<Set<string>>(new Set());
-  const [chapterDownloads, setChapterDownloads] = useState<Record<string, DownloadEntry>>({});
-  const [downloadedChapterKeys, setDownloadedChapterKeys] = useState<Set<string>>(new Set());
-  const [libraryCategories, setLibraryCategories] = useState<LibraryCategory[]>([]);
+  const [chapterProgressMap, setChapterProgressMap] = useState<
+    Record<string, ChapterProgress>
+  >({});
+  const [readChapterKeys, setReadChapterKeys] = useState<Set<string>>(
+    new Set(),
+  );
+  const [chapterDownloads, setChapterDownloads] = useState<
+    Record<string, DownloadEntry>
+  >({});
+  const [downloadedChapterKeys, setDownloadedChapterKeys] = useState<
+    Set<string>
+  >(new Set());
+  const [libraryCategories, setLibraryCategories] = useState<LibraryCategory[]>(
+    [],
+  );
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [chapterSelectMode, setChapterSelectMode] = useState(false);
-  const [selectedChapterKeys, setSelectedChapterKeys] = useState<Set<string>>(new Set());
+  const [selectedChapterKeys, setSelectedChapterKeys] = useState<Set<string>>(
+    new Set(),
+  );
   const [showBigMangaCover, setShowBigMangaCover] = useState(false);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
 
@@ -134,7 +200,11 @@ export default function MangaDetailScreen() {
   selectedChapterKeysRef.current = selectedChapterKeys;
   inLibraryRef.current = inLibrary;
 
-  const mangaPageUrl = useMemo(() => (source ? resolveMangaPageUrl(manga, source.manifest.info.url) : undefined), [manga, source]);
+  const mangaPageUrl = useMemo(
+    () =>
+      source ? resolveMangaPageUrl(manga, source.manifest.info.url) : undefined,
+    [manga, source],
+  );
 
   const loadSettings = useCallback(async () => {
     const [settings] = await Promise.all([getAppSettings()]);
@@ -146,7 +216,10 @@ export default function MangaDetailScreen() {
     void loadSettings();
   }, [loadSettings, refreshTick]);
 
-  useEffect(() => subscribeAppSettings(() => void loadSettings()), [loadSettings]);
+  useEffect(
+    () => subscribeAppSettings(() => void loadSettings()),
+    [loadSettings],
+  );
 
   const refreshDownloads = useCallback(async () => {
     const downloads = await getMangaDownloads(manifestSourceId, mangaKey);
@@ -155,7 +228,13 @@ export default function MangaDetailScreen() {
       nextMap[entry.chapterKey] = entry;
     }
     setChapterDownloads(nextMap);
-    setDownloadedChapterKeys(new Set(downloads.filter((entry) => entry.status === 'completed').map((entry) => entry.chapterKey)));
+    setDownloadedChapterKeys(
+      new Set(
+        downloads
+          .filter((entry) => entry.status === "completed")
+          .map((entry) => entry.chapterKey),
+      ),
+    );
   }, [manifestSourceId, mangaKey]);
 
   useEffect(() => {
@@ -210,18 +289,30 @@ export default function MangaDetailScreen() {
     };
   }, [refreshTick]);
 
-  const chapters = useMemo(() => [...(manga.chapters ?? [])].sort((a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0)), [manga.chapters]);
+  const chapters = useMemo(
+    () =>
+      [...(manga.chapters ?? [])].sort(
+        (a, b) => (b.chapterNumber ?? 0) - (a.chapterNumber ?? 0),
+      ),
+    [manga.chapters],
+  );
 
-  const chapterKeys = useMemo(() => chapters.map((chapter) => chapter.key), [chapters]);
+  const chapterKeys = useMemo(
+    () => chapters.map((chapter) => chapter.key),
+    [chapters],
+  );
 
-  const readingTarget = useMemo(() => resolveReadingTarget(chapters, chapterProgressMap), [chapters, chapterProgressMap]);
+  const readingTarget = useMemo(
+    () => resolveReadingTarget(chapters, chapterProgressMap),
+    [chapters, chapterProgressMap],
+  );
 
   const continueLabel = useMemo(() => {
-    if (!readingTarget) return t('manga_start_reading');
-    if (!readingTarget.hasHistory) return t('manga_start_reading');
+    if (!readingTarget) return t("manga_start_reading");
+    if (!readingTarget.hasHistory) return t("manga_start_reading");
     const chapterNumber = readingTarget.chapter.chapterNumber;
-    return t('manga_continue_reading', {
-      chapter: `${chapterNumber && showChapterNumber ? `#${chapterNumber} - ` : ''}${formatChapterLabel(readingTarget.chapter)}`,
+    return t("manga_continue_reading", {
+      chapter: `${chapterNumber && showChapterNumber ? `#${chapterNumber} - ` : ""}${formatChapterLabel(readingTarget.chapter)}`,
     });
   }, [readingTarget]);
 
@@ -230,7 +321,17 @@ export default function MangaDetailScreen() {
       if (!source) return;
       const saved = chapterProgressMap[chapter.key];
       const page = initialPage ?? (saved && saved.page >= 0 ? saved.page : 0);
-      router.navigate(readerHref(sourceRouteId(source), mangaKey, chapter.key, formatChapterLabel(chapter), manga.title, page, manga.cover));
+      router.navigate(
+        readerHref(
+          sourceRouteId(source),
+          mangaKey,
+          chapter.key,
+          formatChapterLabel(chapter),
+          manga.title,
+          page,
+          manga.cover,
+        ),
+      );
     },
     [chapterProgressMap, router, source, mangaKey, manga.title, manga.cover],
   );
@@ -288,7 +389,9 @@ export default function MangaDetailScreen() {
         delete next[chapter.key];
         return next;
       });
-      void markChapterUnread(manifestSourceId, mangaKey, chapter.key).then(() => refreshProgress());
+      void markChapterUnread(manifestSourceId, mangaKey, chapter.key).then(() =>
+        refreshProgress(),
+      );
     },
     [manifestSourceId, mangaKey, refreshProgress],
   );
@@ -300,11 +403,15 @@ export default function MangaDetailScreen() {
   const handleToggleCategory = useCallback(
     (categoryId: string) => {
       setSelectedCategoryIds((previous) => {
-        const next = previous.includes(categoryId) ? previous.filter((id) => id !== categoryId) : [...previous, categoryId];
+        const next = previous.includes(categoryId)
+          ? previous.filter((id) => id !== categoryId)
+          : [...previous, categoryId];
         return next;
       });
       setInLibraryState(true);
-      if (libraryCategories.some((category) => category.id !== ALL_CATEGORY_ID)) {
+      if (
+        libraryCategories.some((category) => category.id !== ALL_CATEGORY_ID)
+      ) {
         setLibraryPickerOpen(true);
       }
 
@@ -313,7 +420,9 @@ export default function MangaDetailScreen() {
       void toggleMangaLibraryCategory(manifestSourceId, mangaKey, categoryId, {
         title: manga.title,
         cover: manga.cover,
-        unreadCount: chapters.filter((chapter) => !readChapterKeys.has(chapter.key)).length,
+        unreadCount: chapters.filter(
+          (chapter) => !readChapterKeys.has(chapter.key),
+        ).length,
         downloadedCount: downloadedChapterKeys.size,
         knownChapterKeys: chapterKeys,
         status: manga.status,
@@ -325,7 +434,18 @@ export default function MangaDetailScreen() {
         }
       });
     },
-    [manifestSourceId, mangaKey, manga.title, manga.cover, manga.status, chapters, readChapterKeys, downloadedChapterKeys, chapterKeys, libraryCategories],
+    [
+      manifestSourceId,
+      mangaKey,
+      manga.title,
+      manga.cover,
+      manga.status,
+      chapters,
+      readChapterKeys,
+      downloadedChapterKeys,
+      chapterKeys,
+      libraryCategories,
+    ],
   );
 
   const handleOpenInBrowser = useCallback(() => {
@@ -335,7 +455,11 @@ export default function MangaDetailScreen() {
 
   const handleShare = useCallback(() => {
     if (!mangaPageUrl) return;
-    void Share.share({ message: mangaPageUrl, url: mangaPageUrl, title: manga.title });
+    void Share.share({
+      message: mangaPageUrl,
+      url: mangaPageUrl,
+      title: manga.title,
+    });
   }, [mangaPageUrl, manga.title]);
 
   const handleContinueReading = useCallback(() => {
@@ -350,7 +474,14 @@ export default function MangaDetailScreen() {
       cover: manga.cover,
     });
     await refreshProgress();
-  }, [manifestSourceId, mangaKey, chapterKeys, manga.title, manga.cover, refreshProgress]);
+  }, [
+    manifestSourceId,
+    mangaKey,
+    chapterKeys,
+    manga.title,
+    manga.cover,
+    refreshProgress,
+  ]);
 
   const handleMarkAllUnread = useCallback(async () => {
     await markAllChaptersUnread(manifestSourceId, mangaKey, chapterKeys);
@@ -359,7 +490,7 @@ export default function MangaDetailScreen() {
 
   const handleDownloadAll = useCallback(async () => {
     if (!inLibraryRef.current) {
-      Alert.alert(t('manga_download_requires_library'));
+      Alert.alert(t("manga_download_requires_library"));
       return;
     }
     for (const chapter of chaptersOldestFirst(chapters)) {
@@ -373,8 +504,15 @@ export default function MangaDetailScreen() {
     }
     void processQueuedDownloads(installed);
     await refreshDownloads();
-    Alert.alert(t('manga_download_all'), t('manga_download_all_queued'));
-  }, [chapters, installed, manifestSourceId, mangaKey, manga.title, refreshDownloads]);
+    Alert.alert(t("manga_download_all"), t("manga_download_all_queued"));
+  }, [
+    chapters,
+    installed,
+    manifestSourceId,
+    mangaKey,
+    manga.title,
+    refreshDownloads,
+  ]);
 
   const handleRemoveDownloads = useCallback(async () => {
     await removeMangaDownloads(manifestSourceId, mangaKey);
@@ -392,7 +530,7 @@ export default function MangaDetailScreen() {
     exitChapterSelectMode();
     if (selected.size === 0) return;
     if (!inLibraryRef.current) {
-      Alert.alert(t('manga_download_requires_library'));
+      Alert.alert(t("manga_download_requires_library"));
       return;
     }
 
@@ -408,8 +546,16 @@ export default function MangaDetailScreen() {
     }
     void processQueuedDownloads(installed);
     await refreshDownloads();
-    Alert.alert(t('manga_download_selected'), t('manga_download_all_queued'));
-  }, [chapters, installed, manifestSourceId, mangaKey, manga.title, exitChapterSelectMode, refreshDownloads]);
+    Alert.alert(t("manga_download_selected"), t("manga_download_all_queued"));
+  }, [
+    chapters,
+    installed,
+    manifestSourceId,
+    mangaKey,
+    manga.title,
+    exitChapterSelectMode,
+    refreshDownloads,
+  ]);
 
   const toggleChapterSelected = useCallback((chapter: Chapter) => {
     setSelectedChapterKeys((previous) => {
@@ -429,7 +575,15 @@ export default function MangaDetailScreen() {
     }
     await refreshProgress();
     exitChapterSelectMode();
-  }, [selectedChapterKeys, manifestSourceId, mangaKey, manga.title, manga.cover, refreshProgress, exitChapterSelectMode]);
+  }, [
+    selectedChapterKeys,
+    manifestSourceId,
+    mangaKey,
+    manga.title,
+    manga.cover,
+    refreshProgress,
+    exitChapterSelectMode,
+  ]);
 
   const handleBulkMarkUnread = useCallback(async () => {
     for (const chapterKey of selectedChapterKeys) {
@@ -437,7 +591,13 @@ export default function MangaDetailScreen() {
     }
     await refreshProgress();
     exitChapterSelectMode();
-  }, [selectedChapterKeys, manifestSourceId, mangaKey, refreshProgress, exitChapterSelectMode]);
+  }, [
+    selectedChapterKeys,
+    manifestSourceId,
+    mangaKey,
+    refreshProgress,
+    exitChapterSelectMode,
+  ]);
 
   handlersRef.current = {
     onCancelSelect: exitChapterSelectMode,
@@ -461,7 +621,7 @@ export default function MangaDetailScreen() {
       <View style={styles.headerActions}>
         {isRefreshing ? (
           <View style={styles.refreshIndicator}>
-            <ActivityIndicator size='small' />
+            <ActivityIndicator size="small" />
           </View>
         ) : null}
         <MangaDetailHeaderRight
@@ -475,7 +635,9 @@ export default function MangaDetailScreen() {
           onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
           onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
           onMarkSelectedRead={() => handlersRef.current.onMarkSelectedRead()}
-          onMarkSelectedUnread={() => handlersRef.current.onMarkSelectedUnread()}
+          onMarkSelectedUnread={() =>
+            handlersRef.current.onMarkSelectedUnread()
+          }
           onSelectAll={() => handlersRef.current.onSelectAll()}
           onDeselectAll={() => handlersRef.current.onDeselectAll()}
           onRefresh={() => handlersRef.current.onRefresh()}
@@ -485,40 +647,58 @@ export default function MangaDetailScreen() {
         />
       </View>
     ),
-    [chapterSelectMode, downloadedChapterKeys.size, inLibrary, isRefreshing, mangaPageUrl],
+    [
+      chapterSelectMode,
+      downloadedChapterKeys.size,
+      inLibrary,
+      isRefreshing,
+      mangaPageUrl,
+    ],
   );
 
   const headerLeft = useCallback(
     () => (
-      <MangaDetailHeaderLeft chapterSelectMode={chapterSelectMode} onBack={() => router.back()} onCancelSelect={() => handlersRef.current.onCancelSelect()} />
+      <MangaDetailHeaderLeft
+        chapterSelectMode={chapterSelectMode}
+        onBack={() => router.back()}
+        onCancelSelect={() => handlersRef.current.onCancelSelect()}
+      />
     ),
     [chapterSelectMode, router],
   );
 
   const screenOptions = useMemo(
     () => ({
-      title: chapterSelectMode ? t('manga_select_chapters') : manga.title,
+      title: chapterSelectMode ? t("manga_select_chapters") : manga.title,
       headerBackVisible: false as const,
       headerLeft,
       headerRight,
     }),
     [chapterSelectMode, headerLeft, headerRight, manga.title],
   );
-
   const combinedError = error ?? loadError;
   const hasDisplayContent =
-    hasCachedContent || Boolean(manga.title?.trim()) || Boolean(manga.cover) || Boolean(manga.description?.trim()) || (manga.chapters?.length ?? 0) > 0;
-  const showBlockingError = Boolean(combinedError) && !hasDisplayContent && !isLoading;
+    hasCachedContent ||
+    Boolean(manga.title?.trim()) ||
+    Boolean(manga.cover) ||
+    Boolean(manga.description?.trim()) ||
+    (manga.chapters?.length ?? 0) > 0;
+  const showBlockingError =
+    Boolean(combinedError) && !hasDisplayContent && !isLoading;
   const showInlineError = Boolean(combinedError) && !showBlockingError;
-  const showInitialLoading = isLoading && !hasCachedContent && !hasDisplayContent;
+  const showInitialLoading =
+    isLoading && !hasCachedContent && !hasDisplayContent;
   const showChapterLoading = isLoading && chapters.length === 0;
 
   if (!source) {
     return (
       <>
-        <Stack.Screen options={{ title: t('sources_not_found') }} />
+        <Stack.Screen options={{ title: t("sources_not_found") }} />
         <ScreenContent>
-          <EmptyState icon='alert-circle-outline' title={t('sources_not_found')} />
+          <EmptyState
+            icon="alert-circle-outline"
+            title={t("sources_not_found")}
+          />
         </ScreenContent>
       </>
     );
@@ -535,7 +715,11 @@ export default function MangaDetailScreen() {
           }}
         />
         <ScreenContent centerContent>
-          <EmptyState icon='alert-circle-outline' title={t('sources_load_error_title')} description={combinedError!} />
+          <EmptyState
+            icon="alert-circle-outline"
+            title={t("sources_load_error_title")}
+            description={combinedError!}
+          />
         </ScreenContent>
       </SourceCoverHeadersProvider>
     );

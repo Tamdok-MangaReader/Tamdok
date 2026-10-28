@@ -8,6 +8,7 @@ export type Viewer = "default" | "rtl" | "ltr" | "webtoon" | "vertical";
 export type Manga = {
   key: string;
   title: string;
+  altTitles?: string[];
   cover?: string;
   authors?: string[];
   artists?: string[];

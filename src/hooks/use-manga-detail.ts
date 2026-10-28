@@ -1,12 +1,26 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
-import { t } from '@/constants/locales';
-import { useAidokuSourceRequests } from '@/hooks/use-aidoku-source-requests';
-import type { InstalledSource, Manga } from '@/parsers/shared/types';
-import type { SourceRunner } from '@/parsers/shared/source-runner';
-import { isAidokuRequestCancelled } from '@/parsers/aidoku/wasm-bridge';
-import { peekMangaDetailCache, readMangaDetailCache, writeMangaDetailCache } from '@/services/manga-detail-cache';
-import { getLibraryEntry, syncLibraryEntryUnread, updateLibraryEntryMetadata } from '@/services/library';
+import { t } from "@/constants/locales";
+import { useAidokuSourceRequests } from "@/hooks/use-aidoku-source-requests";
+import type { InstalledSource, Manga } from "@/parsers/shared/types";
+import type { SourceRunner } from "@/parsers/shared/source-runner";
+import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
+import {
+  peekMangaDetailCache,
+  readMangaDetailCache,
+  writeMangaDetailCache,
+} from "@/services/manga-detail-cache";
+import {
+  getLibraryEntry,
+  syncLibraryEntryUnread,
+  updateLibraryEntryMetadata,
+} from "@/services/library";
 
 const MANGA_LOAD_TIMEOUT_MS = 45_000;
 
@@ -17,7 +31,10 @@ type UseMangaDetailOptions = {
   cacheSourceId: string;
 };
 
-function readCachedManga(cacheSourceId: string, mangaKey: string): MangaDetailCacheSnapshot | null {
+function readCachedManga(
+  cacheSourceId: string,
+  mangaKey: string,
+): MangaDetailCacheSnapshot | null {
   const cached = peekMangaDetailCache(cacheSourceId, mangaKey);
   if (!cached) return null;
   return {
@@ -33,20 +50,29 @@ type MangaDetailCacheSnapshot = {
   isLoading: boolean;
 };
 
-export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: UseMangaDetailOptions) {
+export function useMangaDetail({
+  source,
+  runner,
+  initialManga,
+  cacheSourceId,
+}: UseMangaDetailOptions) {
   const mangaKey = initialManga.key;
   const cachedSnapshot = readCachedManga(cacheSourceId, mangaKey);
-  const [manga, setManga] = useState<Manga>(cachedSnapshot?.manga ?? initialManga);
+  const [manga, setManga] = useState<Manga>(
+    cachedSnapshot?.manga ?? initialManga,
+  );
   const [isLoading, setIsLoading] = useState(cachedSnapshot?.isLoading ?? true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [hasCachedContent, setHasCachedContent] = useState(cachedSnapshot?.hasCachedContent ?? false);
+  const [hasCachedContent, setHasCachedContent] = useState(
+    cachedSnapshot?.hasCachedContent ?? false,
+  );
   const requestIdRef = useRef(0);
   const mangaRef = useRef(initialManga);
   mangaRef.current = manga;
 
   // Cancels in-flight Aidoku fetches when user navigates away from this source.
-  useAidokuSourceRequests(source?.id, source?.kind === 'aidoku');
+  useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
 
   useLayoutEffect(() => {
     requestIdRef.current += 1;
@@ -73,7 +99,8 @@ export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: 
         return;
       }
 
-      let hadCachedContent = peekMangaDetailCache(cacheSourceId, mangaKey) != null;
+      let hadCachedContent =
+        peekMangaDetailCache(cacheSourceId, mangaKey) != null;
 
       if (!options?.force) {
         const cached = await readMangaDetailCache(cacheSourceId, mangaKey);
@@ -115,7 +142,7 @@ export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: 
         if (requestId !== requestIdRef.current) return;
         timedOut = true;
         if (!hasDisplayedContent) {
-          setLoadError(t('source_home_timeout'));
+          setLoadError(t("source_home_timeout"));
           setIsLoading(false);
         }
         setIsRefreshing(false);
@@ -126,7 +153,9 @@ export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: 
         if (options?.force) {
           currentManga = mangaRef.current;
         } else if (hadCachedContent) {
-          currentManga = (await readMangaDetailCache(cacheSourceId, mangaKey))?.manga ?? mangaRef.current;
+          currentManga =
+            (await readMangaDetailCache(cacheSourceId, mangaKey))?.manga ??
+            mangaRef.current;
         }
 
         const updated = await runner.getMangaUpdate(currentManga, true, true);
@@ -146,7 +175,11 @@ export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: 
             status: updated.status,
             lastRefreshed: Date.now(),
           });
-          await syncLibraryEntryUnread(cacheSourceId, mangaKey, updated.chapters);
+          await syncLibraryEntryUnread(
+            cacheSourceId,
+            mangaKey,
+            updated.chapters,
+          );
         }
       } catch (error) {
         if (requestId !== requestIdRef.current || timedOut) return;
@@ -173,7 +206,8 @@ export function useMangaDetail({ source, runner, initialManga, cacheSourceId }: 
       }
     };
 
-    const hadCachedContent = peekMangaDetailCache(cacheSourceId, mangaKey) != null;
+    const hadCachedContent =
+      peekMangaDetailCache(cacheSourceId, mangaKey) != null;
     if (hadCachedContent) {
       const timer = setTimeout(run, 1);
       return () => {

@@ -157,7 +157,7 @@ export function MangaDetailView({
   const rating = parseRatingText(manga.rating || parsed.ratingLine);
   const authors = manga.authors?.filter(Boolean).join(", ");
   const artists = manga.artists?.filter(Boolean).join(", ");
-  const altTitles = (parsed.altTitles ?? []).filter(
+  const altTitles = (manga.altTitles ?? parsed.altTitles ?? []).filter(
     (name) => name !== manga.title,
   );
   const tags = manga.tags ?? [];
