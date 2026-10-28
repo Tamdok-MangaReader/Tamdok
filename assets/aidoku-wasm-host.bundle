@@ -6585,6 +6585,12 @@ var AidokuWasmHostBundle = (() => {
         ratingLine = block.replace(/\s*\(голосов:.*\)$/i, "").trim();
         continue;
       }
+      if (block.startsWith("Alt titles:")) {
+        const names = block.replace(/^Альтернативные названия:<br\/?>/i, "").split(/<br\/?>|,\s*/).map((name) => name.trim()).filter(Boolean);
+        altTitles = names;
+        altTitle = names[0];
+        continue;
+      }
       if (block.startsWith("\u0410\u043B\u044C\u0442\u0435\u0440\u043D\u0430\u0442\u0438\u0432\u043D\u044B\u0435 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u044F:")) {
         const names = block.replace(/^Альтернативные названия:<br\/?>/i, "").split(/<br\/?>|,\s*/).map((name) => name.trim()).filter(Boolean);
         altTitles = names;
