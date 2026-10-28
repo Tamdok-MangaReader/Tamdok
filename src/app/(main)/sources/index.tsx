@@ -280,6 +280,7 @@ export default function SourcesScreen() {
           title={source.manifest.info.name}
           subtitle={installedSourceSubtitle(source)}
           iconUri={source.iconUri}
+          rating={source.manifest.info.contentRating}
           showChevron
           updateAvailable={getSourceUpdate(source.id)?.availableVersion}
         />
@@ -298,6 +299,7 @@ export default function SourcesScreen() {
         subtitle={installedSourceSubtitle(source)}
         iconUri={source.iconUri}
         updateAvailable={getSourceUpdate(source.id)?.availableVersion}
+        rating={source.manifest.info.contentRating}
         trailing={
           drag ? (
             <Pressable
@@ -325,6 +327,7 @@ export default function SourcesScreen() {
           title={item.manifest.info.name}
           subtitle={installedSourceSubtitle(item)}
           iconUri={item.iconUri}
+          rating={item.manifest.info.contentRating}
           trailing={<View style={styles.reorderHandleSpacer} />}
         />
       </Card>

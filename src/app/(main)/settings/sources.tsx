@@ -374,7 +374,10 @@ export default function SettingsSourcesScreen() {
   const confirmAddRegistryFromDeepLinkRef = useRef(
     confirmAddRegistryFromDeepLink,
   );
-  confirmAddRegistryFromDeepLinkRef.current = confirmAddRegistryFromDeepLink;
+
+  useEffect(() => {
+    confirmAddRegistryFromDeepLinkRef.current = confirmAddRegistryFromDeepLink;
+  }, [confirmAddRegistryFromDeepLink]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -642,6 +645,7 @@ export default function SettingsSourcesScreen() {
                         update.availableVersion,
                       )}
                       iconUri={update.source.iconUri}
+                      rating={update.source.manifest.info.contentRating}
                       updateAvailable={update.availableVersion}
                       imageTransition={0}
                       trailing={
@@ -724,6 +728,7 @@ export default function SettingsSourcesScreen() {
                   update?.availableVersion,
                 )}
                 iconUri={item.source.iconUri}
+                rating={item.source.manifest.info.contentRating}
                 showChevron
                 updateAvailable={update?.availableVersion}
                 imageTransition={0}
@@ -900,6 +905,7 @@ export default function SettingsSourcesScreen() {
                 subtitle={registryEntrySubtitle(entry)}
                 iconUri={resolveRegistryIconUrl(registryUrl, entry)}
                 badge={kind}
+                rating={entry.contentRating}
                 imageTransition={0}
                 onPress={() => confirmInstallEntry(registryUrl, entry)}
               />

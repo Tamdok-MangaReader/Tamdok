@@ -23,6 +23,7 @@ type SourceListItemProps = {
   iconUri?: string;
   iconSource?: ImageSourcePropType;
   badge?: string;
+  rating: number;
   showChevron?: boolean;
   updateAvailable?: number;
   trailing?: React.ReactNode;
@@ -37,6 +38,7 @@ export const SourceListItem = memo(function SourceListItem({
   iconUri,
   iconSource,
   badge,
+  rating,
   showChevron,
   updateAvailable,
   trailing,
@@ -102,24 +104,46 @@ export const SourceListItem = memo(function SourceListItem({
           </ThemedText>
         )}
       </View>
-      {updateAvailable != null && (
-        <View
-          style={[
-            styles.updateBadge,
-            { backgroundColor: "#FF3B30", borderRadius: radius.pill },
-          ]}
-        >
-          <SFSymbolIcon
-            name="arrow.up.circle.fill"
-            size={12}
-            color="#FFFFFF"
-            fallback="arrow-up-circle"
-          />
-          <ThemedText variant="caption2" style={styles.updateBadgeText}>
-            v{updateAvailable}
-          </ThemedText>
-        </View>
-      )}
+      <View style={{ gap: Spacing.xs }}>
+        {updateAvailable != null && (
+          <View
+            style={[
+              styles.updateBadge,
+              { backgroundColor: "#FF3B30", borderRadius: radius.pill },
+            ]}
+          >
+            <SFSymbolIcon
+              name="arrow.up.circle.fill"
+              size={12}
+              color="#FFFFFF"
+              fallback="arrow-up-circle"
+            />
+            <ThemedText variant="caption2" style={styles.updateBadgeText}>
+              v{updateAvailable}
+            </ThemedText>
+          </View>
+        )}
+        {rating > 1 && (
+          <View
+            style={[
+              styles.updateBadge,
+              {
+                backgroundColor:
+                  rating === 3
+                    ? "#AA1A10"
+                    : rating === 2
+                      ? "#FF5A10"
+                      : "#1FAA10",
+                borderRadius: radius.pill,
+              },
+            ]}
+          >
+            <ThemedText variant="caption2" style={styles.updateBadgeText}>
+              {rating === 3 ? "nsfw" : rating === 2 ? "16+" : "safe"}
+            </ThemedText>
+          </View>
+        )}
+      </View>
       {badge && (
         <View
           style={[

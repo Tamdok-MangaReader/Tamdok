@@ -90,7 +90,6 @@ export async function getCookies(sourceId: string): Promise<JSON | null> {
   const stored = await SecureStore.getItemAsync(`source_cookies_${sourceId}`);
   if (!stored) return null;
   try {
-    console.log(JSON.parse(stored));
     return JSON.parse(stored);
   } catch {
     return null;
