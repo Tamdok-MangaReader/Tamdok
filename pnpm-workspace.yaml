@@ -2,3 +2,5 @@ allowBuilds:
   esbuild: true
   node-datachannel: true
   unrs-resolver: true
+minimumReleaseAgeExclude:
+  - expo-auth-session@58.0.15

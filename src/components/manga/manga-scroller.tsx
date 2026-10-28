@@ -65,6 +65,7 @@ export function MangaScroller({
         {entries.map((entry) => {
           const chapterLabel = homeChapterLabel(entry.manga, entry.chapter);
           const parsed = parseMangaDescription(entry.manga.description);
+          const isTitleBig = (chapterLabel?.length || 0) >= 10;
           const rating = parseRatingText(
             entry.manga.rating || parsed.ratingLine,
           );
@@ -81,13 +82,22 @@ export function MangaScroller({
                 rating={undefined}
                 onPress={() => onPressManga(entry)}
               />
-              <View style={styles.bottom}>
+              <View
+                style={[
+                  styles.bottom,
+                  !isTitleBig && {
+                    alignItems: "center",
+                    alignContent: "center",
+                    flexDirection: "row",
+                  },
+                ]}
+              >
                 {rating ? (
                   <View style={styles.ratingWrap}>
                     <StarRating rating={rating} />
                   </View>
                 ) : null}
-                {rating && chapterLabel ? (
+                {rating && chapterLabel && !isTitleBig ? (
                   <ThemedText
                     variant="footnote"
                     color="secondaryLabel"
@@ -136,10 +146,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   bottom: {
-    flexDirection: "row",
     gap: Spacing.xs,
-    alignItems: "center",
-    alignContent: "center",
   },
   ratingWrap: {
     paddingLeft: 2,

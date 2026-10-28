@@ -4,6 +4,7 @@ import type {
   TamdokSourceContext,
   TamdokSourceModule,
 } from "../../shared/types";
+import * as SecureStore from "expo-secure-store";
 import { buildFetchHeaders } from "../../shared/fetch-headers";
 import { parse } from "node-html-parser";
 
@@ -85,6 +86,17 @@ export function createDefaults(
   };
 }
 
+export async function getCookies(sourceId: string): Promise<JSON | null> {
+  const stored = await SecureStore.getItemAsync(`source_cookies_${sourceId}`);
+  if (!stored) return null;
+  try {
+    console.log(JSON.parse(stored));
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
 export function createSourceContext(
   sourceId: string,
   sourceBaseUrl?: string,
@@ -92,6 +104,7 @@ export function createSourceContext(
   return {
     sourceId,
     request: createRequest(sourceBaseUrl),
+    cookies: getCookies(sourceId),
     defaults: createDefaults(sourceId),
   };
 }

@@ -229,7 +229,8 @@ export type TamdokSettingFieldDefinition =
       placeholder?: string;
       secure?: boolean;
     }
-  | { type: "link"; id: string; title: string; url: string };
+  | { type: "link"; id: string; title: string; url: string }
+  | { type: "login"; id: string; title: string; url: string };
 
 export type TamdokSourceModule = {
   getSearchMangaList?: (
@@ -313,6 +314,7 @@ export type SourceListParams = {
 export type TamdokSourceContext = {
   request: TamdokRequest;
   defaults: TamdokDefaults;
+  cookies: Promise<JSON | null>;
   sourceId: string;
 };
 
