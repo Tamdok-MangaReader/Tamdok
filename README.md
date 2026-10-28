@@ -103,17 +103,17 @@ This app does not host manga. It talks to whatever catalogs you install. You are
 ## Development
 
 ```bash
-pnpm install
-pnpm ios
+npm install
+npm run run:ios
 ```
 
 Useful scripts:
 
-| Command                | What it does                            |
-| ---------------------- | --------------------------------------- |
-| `pnpm ios`             | Build and run on a connected iOS device |
-| `pnpm build:wasm-host` | Rebuild the Aidoku WASM host bundle     |
-| `pnpm lint`            | Lint                                    |
+| Command                   | What it does                            |
+| ------------------------- | --------------------------------------- |
+| `npm run run:ios`         | Build and run on a connected iOS device |
+| `npm run build:wasm-host` | Rebuild the Aidoku WASM host bundle     |
+| `npm run expo:lint`       | Lint                                    |
 
 Requires a recent Xcode / iOS toolchain (the project targets a current iOS SDK).
 
