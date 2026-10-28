@@ -19,6 +19,7 @@ import {
   StyleSheet,
   Switch,
   TextInput,
+  RefreshControl,
   View,
 } from "react-native";
 import { FlatList } from "react-native-gesture-handler";
@@ -491,6 +492,14 @@ export default function SettingsSourcesScreen() {
       },
     ],
     [openSourceSettings],
+  );
+
+  const refreshControl = (
+    <RefreshControl
+      refreshing={isCheckingUpdates}
+      onRefresh={refreshInBackground}
+      tintColor={colors.tint}
+    />
   );
 
   const installedActions = useCallback(
@@ -1012,6 +1021,7 @@ export default function SettingsSourcesScreen() {
             keyboardDismissMode="on-drag"
             initialNumToRender={8}
             maxToRenderPerBatch={6}
+            refreshControl={refreshControl}
             windowSize={7}
             updateCellsBatchingPeriod={50}
             removeClippedSubviews

@@ -23,7 +23,7 @@ type SourceListItemProps = {
   iconUri?: string;
   iconSource?: ImageSourcePropType;
   badge?: string;
-  rating: number;
+  rating?: number;
   showChevron?: boolean;
   updateAvailable?: number;
   trailing?: React.ReactNode;
