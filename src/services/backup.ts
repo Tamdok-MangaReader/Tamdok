@@ -1,20 +1,26 @@
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
-import { getAllPreferences, getValue, replacePreferences, setValue, storageKeys } from '@/constants/storage';
-import { registryEntryKind } from '@/parsers/aidoku/registry';
-import { listInstalledSources } from '@/parsers/shared/source-manager';
-import type { RegistryEntry, SourceKind } from '@/parsers/shared/types';
-import { invalidateLibraryCache } from '@/services/library';
+import {
+  getAllPreferences,
+  getValue,
+  replacePreferences,
+  setValue,
+  storageKeys,
+} from "@/constants/storage";
+import { registryEntryKind } from "@/parsers/aidoku/registry";
+import { listInstalledSources } from "@/parsers/shared/source-manager";
+import type { RegistryEntry, SourceKind } from "@/parsers/shared/types";
+import { invalidateLibraryCache } from "@/services/library";
 import {
   getRegistryUrls,
   getSourceIdentityKey,
   installFromRegistry,
   loadRegistryFromUrl,
-} from '@/services/sources';
-import { notifyAppSettingsChanged } from '@/utils/app-settings-events';
-import { notifyAppearanceChanged } from '@/utils/appearance-events';
-import { notifyMangaDataChanged } from '@/utils/manga-events';
+} from "@/services/sources";
+import { notifyAppSettingsChanged } from "@/utils/app-settings-events";
+import { notifyAppearanceChanged } from "@/utils/appearance-events";
+import { notifyMangaDataChanged } from "@/utils/manga-events";
 
 export type BackupSourceRef = {
   id: string;
@@ -36,7 +42,7 @@ export type BackupPayload = {
 };
 
 export type RestoreProgress = {
-  phase: 'preferences' | 'sources';
+  phase: "preferences" | "sources";
   current: number;
   total: number;
   sourceName?: string;
@@ -67,7 +73,11 @@ function pickRegistryEntry(
   registryUrl: string,
   entries: RegistryEntry[],
 ): RegistryEntry | null {
-  const exact = entries.find((entry) => entry.id === source.id && registryEntryKind(registryUrl, entry) === source.kind);
+  const exact = entries.find(
+    (entry) =>
+      entry.id === source.id &&
+      registryEntryKind(registryUrl, entry) === source.kind,
+  );
   if (exact) return exact;
 
   const sameId = entries.find((entry) => entry.id === source.id);
@@ -77,7 +87,9 @@ function pickRegistryEntry(
   return (
     entries.find((entry) => {
       const kind = registryEntryKind(registryUrl, entry);
-      return kind === source.kind && sourceIdentity(entry.id, kind) === identity;
+      return (
+        kind === source.kind && sourceIdentity(entry.id, kind) === identity
+      );
     }) ?? null
   );
 }
@@ -92,19 +104,24 @@ async function snapshotInstalledSources(): Promise<BackupSourceRef[]> {
   }));
 }
 
-export async function listBackups(): Promise<Array<{ name: string; uri: string; date: number }>> {
+export async function listBackups(): Promise<
+  Array<{ name: string; uri: string; date: number }>
+> {
   await ensureBackupDir();
   const files = await FileSystem.readDirectoryAsync(BACKUP_DIR);
   const backups = await Promise.all(
     files
-      .filter((file) => file.endsWith('.json'))
+      .filter((file) => file.endsWith(".json"))
       .map(async (file) => {
         const uri = `${BACKUP_DIR}${file}`;
         const info = await FileSystem.getInfoAsync(uri);
         return {
-          name: file.replace(/\.json$/, ''),
+          name: file.replace(/\.json$/, ""),
           uri,
-          date: info.exists && 'modificationTime' in info ? (info.modificationTime ?? 0) * 1000 : 0,
+          date:
+            info.exists && "modificationTime" in info
+              ? (info.modificationTime ?? 0) * 1000
+              : 0,
         };
       }),
   );
@@ -113,7 +130,14 @@ export async function listBackups(): Promise<Array<{ name: string; uri: string; 
 
 export async function createBackup(name?: string): Promise<string> {
   await ensureBackupDir();
-  const [library, mangaTracking, downloads, appSettings, preferences, installedSources] = await Promise.all([
+  const [
+    library,
+    mangaTracking,
+    downloads,
+    appSettings,
+    preferences,
+    installedSources,
+  ] = await Promise.all([
     getValue(storageKeys.LIBRARY, null),
     getValue(storageKeys.MANGA_TRACKING, null),
     getValue(storageKeys.DOWNLOADS, null),
@@ -139,19 +163,36 @@ export async function createBackup(name?: string): Promise<string> {
     installedSources,
   };
 
-  const fileName = `${payload.name.replace(/[^\w.-]+/g, '_')}.json`;
+  const fileName = `${payload.name.replace(/[^\w.-]+/g, "_")}.json`;
   const uri = `${BACKUP_DIR}${fileName}`;
   await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload, null, 2));
   return uri;
 }
 
 export async function shareBackup(uri: string): Promise<void> {
-  if (!(await Sharing.isAvailableAsync())) return;
-  await Sharing.shareAsync(uri, { mimeType: 'application/json', UTI: 'public.json' });
+  if (!(await Sharing.isAvailableAsync()) || !uri) return;
+  const tempUri = `${FileSystem.cacheDirectory}${uri.split("/").pop()}`;
+  try {
+    await FileSystem.copyAsync({
+      from: uri,
+      to: tempUri,
+    });
+
+    await Sharing.shareAsync(tempUri, {
+      mimeType: "application/json",
+      UTI: "public.json",
+    });
+  } catch (error) {
+    console.error("Backup share error:", error);
+  }
 }
 
 async function restorePreferences(payload: BackupPayload): Promise<void> {
-  if (payload.version >= 2 && payload.preferences && typeof payload.preferences === 'object') {
+  if (
+    payload.version >= 2 &&
+    payload.preferences &&
+    typeof payload.preferences === "object"
+  ) {
     const next = { ...payload.preferences };
     for (const key of SKIP_PREFERENCE_KEYS) {
       delete next[key];
@@ -160,10 +201,14 @@ async function restorePreferences(payload: BackupPayload): Promise<void> {
     return;
   }
 
-  if (payload.library != null) await setValue(storageKeys.LIBRARY, payload.library);
-  if (payload.mangaTracking != null) await setValue(storageKeys.MANGA_TRACKING, payload.mangaTracking);
-  if (payload.downloads != null) await setValue(storageKeys.DOWNLOADS, payload.downloads);
-  if (payload.appSettings != null) await setValue(storageKeys.APP_SETTINGS, payload.appSettings);
+  if (payload.library != null)
+    await setValue(storageKeys.LIBRARY, payload.library);
+  if (payload.mangaTracking != null)
+    await setValue(storageKeys.MANGA_TRACKING, payload.mangaTracking);
+  if (payload.downloads != null)
+    await setValue(storageKeys.DOWNLOADS, payload.downloads);
+  if (payload.appSettings != null)
+    await setValue(storageKeys.APP_SETTINGS, payload.appSettings);
 }
 
 async function reinstallSources(
@@ -176,7 +221,10 @@ async function reinstallSources(
   const catalogs = await Promise.all(
     registries.map(async (registry) => {
       try {
-        return { url: registry.url, sources: (await loadRegistryFromUrl(registry.url, true)).sources };
+        return {
+          url: registry.url,
+          sources: (await loadRegistryFromUrl(registry.url, true)).sources,
+        };
       } catch {
         return { url: registry.url, sources: [] as RegistryEntry[] };
       }
@@ -190,7 +238,7 @@ async function reinstallSources(
   for (let index = 0; index < sources.length; index += 1) {
     const source = sources[index]!;
     onProgress?.({
-      phase: 'sources',
+      phase: "sources",
       current: index + 1,
       total: sources.length,
       sourceName: source.name ?? source.id,
@@ -212,7 +260,10 @@ async function reinstallSources(
     }
 
     try {
-      const installedSource = await installFromRegistry(matched.url, matched.entry);
+      const installedSource = await installFromRegistry(
+        matched.url,
+        matched.entry,
+      );
       installedIds.add(installedSource.id);
     } catch {
       failed.push(source);
@@ -226,7 +277,7 @@ export async function restoreBackup(
   uri: string,
   onProgress?: (progress: RestoreProgress) => void,
 ): Promise<RestoreResult> {
-  onProgress?.({ phase: 'preferences', current: 0, total: 1 });
+  onProgress?.({ phase: "preferences", current: 0, total: 1 });
   const raw = await FileSystem.readAsStringAsync(uri);
   const payload = JSON.parse(raw) as BackupPayload;
   await restorePreferences(payload);
