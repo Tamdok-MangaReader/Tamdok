@@ -1,17 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
-import PagerView from 'react-native-pager-view';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  GestureDetector,
+  useTapGesture,
+  useNativeGesture,
+  useSimultaneousGestures,
+} from "react-native-gesture-handler";
+import PagerView from "react-native-pager-view";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ReaderChapterBoundary } from '@/components/reader/reader-chapter-boundary';
-import { ReaderQuickActions, type ReaderQuickActionAnchor } from '@/components/reader/reader-quick-actions';
-import { useReader } from '@/components/reader/reader-context';
-import { ReaderSpreadPage } from '@/components/reader/reader-spread-page';
-import { effectiveTapZoneGrid, tapActionAtPoint } from '@/utils/reader-tap-zones';
-import { findAdjacentChapter } from '@/utils/reader-chapters';
-import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
+import { ReaderChapterBoundary } from "@/components/reader/reader-chapter-boundary";
+import {
+  ReaderQuickActions,
+  type ReaderQuickActionAnchor,
+} from "@/components/reader/reader-quick-actions";
+import { useReader } from "@/components/reader/reader-context";
+import { ReaderSpreadPage } from "@/components/reader/reader-spread-page";
+import {
+  effectiveTapZoneGrid,
+  tapActionAtPoint,
+} from "@/utils/reader-tap-zones";
+import { findAdjacentChapter } from "@/utils/reader-chapters";
+import {
+  chapterTitleForDisplay,
+  formatChapterLabel,
+} from "@/utils/chapter-label";
 import {
   buildSpreads,
   defaultIsolatedPages,
@@ -20,8 +33,8 @@ import {
   pageIndexForSpread,
   spreadIndexForPage,
   usesDoublePageLayout,
-} from '@/utils/reader-spreads';
-import type { ReaderPage } from '@/utils/reader-pages';
+} from "@/utils/reader-spreads";
+import type { ReaderPage } from "@/utils/reader-pages";
 
 type ReaderPagedViewProps = {
   onPageChange: (index: number) => void;
@@ -32,36 +45,76 @@ type ReaderPagedViewProps = {
   onTogglePageOffset: () => void;
 };
 
-export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setPageRef, pageOffsetEnabled, onTogglePageOffset }: ReaderPagedViewProps) {
-  const { pages, settings, dictionarySettings, mode, backgroundColor, foregroundColor, coverHeaders, actions, chapter, chapters } = useReader();
+export function ReaderPagedView({
+  onPageChange,
+  onInteraction,
+  currentPage,
+  setPageRef,
+  pageOffsetEnabled,
+  onTogglePageOffset,
+}: ReaderPagedViewProps) {
+  const {
+    pages,
+    settings,
+    dictionarySettings,
+    mode,
+    backgroundColor,
+    foregroundColor,
+    coverHeaders,
+    actions,
+    chapter,
+    chapters,
+  } = useReader();
   const pagerRef = useRef<PagerView>(null);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const tapGrid = useMemo(() => effectiveTapZoneGrid(settings, mode), [settings, mode]);
-  const doublePages = usesDoublePageLayout(settings.pagedPageLayout, width, height);
-  const [isolatedPages, setIsolatedPages] = useState<Set<number>>(() => defaultIsolatedPages(pages, doublePages, pageOffsetEnabled));
-  const [quickActionsPage, setQuickActionsPage] = useState<ReaderPage | null>(null);
-  const [quickActionsAnchor, setQuickActionsAnchor] = useState<ReaderQuickActionAnchor | null>(null);
+  const tapGrid = useMemo(
+    () => effectiveTapZoneGrid(settings, mode),
+    [settings, mode],
+  );
+  const doublePages = usesDoublePageLayout(
+    settings.pagedPageLayout,
+    width,
+    height,
+  );
+
+  const [quickActionsPage, setQuickActionsPage] = useState<ReaderPage | null>(
+    null,
+  );
+  const [quickActionsAnchor, setQuickActionsAnchor] =
+    useState<ReaderQuickActionAnchor | null>(null);
   const [reloadKeys, setReloadKeys] = useState<Record<string, number>>({});
   const pagerIndexRef = useRef(0);
   const skipSelectRef = useRef(false);
   const currentPageRef = useRef(currentPage);
   const lastTapAtRef = useRef(0);
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  currentPageRef.current = currentPage;
-
   useEffect(() => {
-    setIsolatedPages(defaultIsolatedPages(pages, doublePages, pageOffsetEnabled));
-  }, [pages, doublePages, pageOffsetEnabled, settings.pagedPageLayout]);
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
 
-  const spreads = useMemo(() => buildSpreads(pages, doublePages, isolatedPages), [doublePages, isolatedPages, pages]);
+  const isolationKey = `${doublePages}:${pageOffsetEnabled}:${pages.map((p) => p.id).join(",")}`;
+  const [isolationKeyTracked, setIsolationKeyTracked] = useState(isolationKey);
+  const [isolatedPages, setIsolatedPages] = useState(() =>
+    defaultIsolatedPages(pages, doublePages, pageOffsetEnabled),
+  );
+
+  if (isolationKeyTracked !== isolationKey) {
+    setIsolationKeyTracked(isolationKey);
+    setIsolatedPages(
+      defaultIsolatedPages(pages, doublePages, pageOffsetEnabled),
+    );
+  }
+
+  const spreads = useMemo(
+    () => buildSpreads(pages, doublePages, isolatedPages),
+    [doublePages, isolatedPages, pages],
+  );
 
   // Map logical page index to pager spread index (pairs two pages on wide layouts).
-  const currentSpreadIndex = useMemo(() => Math.max(0, spreadIndexForPage(spreads, currentPage)), [currentPage, spreads]);
-
-  const handleTouchStart = useCallback((x: number, y: number) => {
-    touchStartRef.current = { x, y, time: Date.now() };
-  }, []);
+  const currentSpreadIndex = useMemo(
+    () => Math.max(0, spreadIndexForPage(spreads, currentPage)),
+    [currentPage, spreads],
+  );
 
   const goToSpread = useCallback(
     (spreadIndex: number, animated = settings.animatePageTransitions) => {
@@ -103,17 +156,17 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
       const now = Date.now();
       if (now - lastTapAtRef.current < 120) return;
       lastTapAtRef.current = now;
-      if (settings.tapZones === 'disabled') {
+      if (settings.tapZones === "disabled") {
         actions.toggleBars();
         return;
       }
       const action = tapActionAtPoint(tapGrid, x, y, width, height);
-      if (action === 'toggleBars' || action === 'none') {
-        if (action === 'toggleBars') actions.toggleBars();
+      if (action === "toggleBars" || action === "none") {
+        if (action === "toggleBars") actions.toggleBars();
         return;
       }
       onInteraction();
-      if (action === 'next') {
+      if (action === "next") {
         if (currentSpreadIndex >= spreads.length - 1) {
           actions.goNextChapter();
           return;
@@ -121,7 +174,7 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
         goToSpread(currentSpreadIndex + 1);
         return;
       }
-      if (action === 'previous') {
+      if (action === "previous") {
         if (currentSpreadIndex <= 0) {
           actions.goPrevious();
           return;
@@ -129,29 +182,18 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
         goToSpread(currentSpreadIndex - 1);
       }
     },
-    [actions, currentSpreadIndex, goToSpread, height, mode, onInteraction, settings.tapZones, spreads.length, tapGrid, width],
+    [
+      actions,
+      currentSpreadIndex,
+      goToSpread,
+      height,
+      onInteraction,
+      settings.tapZones,
+      spreads.length,
+      tapGrid,
+      width,
+    ],
   );
-
-  const handleTouchEnd = useCallback(
-    (x: number, y: number) => {
-      const start = touchStartRef.current;
-      touchStartRef.current = null;
-      if (!start) return;
-      const dt = Date.now() - start.time;
-      const dist = Math.hypot(x - start.x, y - start.y);
-      if (dt > 280 || dist > 14) return;
-      handleTap(x, y);
-    },
-    [handleTap],
-  );
-
-  const pageTapGesture = Gesture.Tap()
-    .maxDuration(250)
-    .maxDistance(14)
-    .onEnd((event, success) => {
-      if (!success) return;
-      runOnJS(handleTap)(event.absoluteX ?? event.x, event.absoluteY ?? event.y);
-    });
 
   const toggleIsolationForPage = useCallback(
     (pageIndex: number, isolated: boolean, manual = true) => {
@@ -173,35 +215,77 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
     if (head <= 0) return;
     const currentlyIsolated = isolatedPages.has(head);
     toggleIsolationForPage(head, !currentlyIsolated, true);
-  }, [doublePages, isolatedPages, onTogglePageOffset, pages, toggleIsolationForPage]);
+  }, [
+    doublePages,
+    isolatedPages,
+    onTogglePageOffset,
+    pages,
+    toggleIsolationForPage,
+  ]);
 
-  const offsetToggleGesture = Gesture.Tap()
-    .numberOfTaps(2)
-    .minPointers(2)
-    .maxDuration(300)
-    .enabled(doublePages)
-    .onEnd(() => {
-      runOnJS(handleOffsetToggle)();
-    });
+  const pageTapGesture = useTapGesture({
+    maxDuration: 250,
+    maxDistance: 14,
+    runOnJS: true,
+    onActivate: (event) => {
+      handleTap(event.absoluteX ?? event.x, event.absoluteY ?? event.y);
+    },
+  });
 
-  const nativePagerGesture = Gesture.Native();
-  const composedGestures = Gesture.Simultaneous(nativePagerGesture, offsetToggleGesture, pageTapGesture);
+  const offsetToggleGesture = useTapGesture({
+    numberOfTaps: 2,
+    minPointers: 2,
+    maxDuration: 300,
+    enabled: doublePages,
+    runOnJS: true,
+    onActivate: () => {
+      handleOffsetToggle();
+    },
+  });
 
-  const orientation = mode === 'vertical' ? 'vertical' : 'horizontal';
-  const layoutDirection = mode === 'rtl' ? 'rtl' : 'ltr';
+  const nativePagerGesture = useNativeGesture({});
+
+  const composedGestures = useSimultaneousGestures(
+    nativePagerGesture,
+    offsetToggleGesture,
+    pageTapGesture,
+  );
+
+  const orientation = mode === "vertical" ? "vertical" : "horizontal";
+  const layoutDirection = mode === "rtl" ? "rtl" : "ltr";
   const offscreenLimit = Math.max(1, Math.min(2, settings.pagesToPreload));
 
-  const chapterLabel = useMemo(() => chapterTitleForDisplay(chapter) || formatChapterLabel(chapter), [chapter]);
+  const chapterLabel = useMemo(
+    () => chapterTitleForDisplay(chapter) || formatChapterLabel(chapter),
+    [chapter],
+  );
   const nextChapter = useMemo(
-    () => findAdjacentChapter(chapters, chapter.key, 'next', settings.skipDuplicateChapters),
+    () =>
+      findAdjacentChapter(
+        chapters,
+        chapter.key,
+        "next",
+        settings.skipDuplicateChapters,
+      ),
     [chapter.key, chapters, settings.skipDuplicateChapters],
   );
   const previousChapter = useMemo(
-    () => findAdjacentChapter(chapters, chapter.key, 'previous', settings.skipDuplicateChapters),
+    () =>
+      findAdjacentChapter(
+        chapters,
+        chapter.key,
+        "previous",
+        settings.skipDuplicateChapters,
+      ),
     [chapter.key, chapters, settings.skipDuplicateChapters],
   );
-  const nextChapterLabel = nextChapter ? chapterTitleForDisplay(nextChapter) || formatChapterLabel(nextChapter) : null;
-  const previousChapterLabel = previousChapter ? chapterTitleForDisplay(previousChapter) || formatChapterLabel(previousChapter) : null;
+  const nextChapterLabel = nextChapter
+    ? chapterTitleForDisplay(nextChapter) || formatChapterLabel(nextChapter)
+    : null;
+  const previousChapterLabel = previousChapter
+    ? chapterTitleForDisplay(previousChapter) ||
+      formatChapterLabel(previousChapter)
+    : null;
 
   const openQuickActions = (page: ReaderPage, x: number, y: number) => {
     if (settings.disableQuickActions || !page.url) return;
@@ -237,23 +321,10 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
               if (!spread) return;
               onPageChange(spread.startPageIndex);
               onInteraction();
-            }}>
+            }}
+          >
             {spreads.map((spread, index) => (
-              <View
-                key={spread.id}
-                style={styles.page}
-                collapsable={false}
-                onTouchStart={(event) => {
-                  const touch = event.nativeEvent.touches[0];
-                  if (touch) handleTouchStart(touch.pageX, touch.pageY);
-                }}
-                onTouchEnd={(event) => {
-                  const touch = event.nativeEvent.changedTouches[0];
-                  if (touch) handleTouchEnd(touch.pageX, touch.pageY);
-                }}
-                onTouchCancel={() => {
-                  touchStartRef.current = null;
-                }}>
+              <View key={spread.id} style={styles.page} collapsable={false}>
                 <View style={styles.pageContent}>
                   {Math.abs(index - currentSpreadIndex) <= offscreenLimit ? (
                     <View style={styles.spread}>
@@ -263,10 +334,23 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
                         dictionarySettings={dictionarySettings}
                         coverHeaders={coverHeaders}
                         backgroundColor={backgroundColor}
-                        mode={mode === 'vertical' ? 'vertical' : mode === 'rtl' ? 'rtl' : 'ltr'}
+                        mode={
+                          mode === "vertical"
+                            ? "vertical"
+                            : mode === "rtl"
+                              ? "rtl"
+                              : "ltr"
+                        }
                         onSingleTap={handleTap}
-                        onLongPress={(page, x, y) => openQuickActions(page, x, y)}
-                        onDictionaryLookup={(page, x, y) => actions.lookupDictionary(page.url ?? '', x, y, { width, height })}
+                        onLongPress={(page, x, y) =>
+                          openQuickActions(page, x, y)
+                        }
+                        onDictionaryLookup={(page, x, y) =>
+                          actions.lookupDictionary(page.url ?? "", x, y, {
+                            width,
+                            height,
+                          })
+                        }
                         reloadKeys={reloadKeys}
                       />
                     </View>
@@ -277,13 +361,15 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
                   {index === 0 ? (
                     <View style={styles.startBoundary}>
                       <ReaderChapterBoundary
-                        kind='start'
+                        kind="start"
                         chapterLabel={chapterLabel}
                         previousChapterLabel={previousChapterLabel}
                         foregroundColor={foregroundColor}
                         safeInset={insets.top}
                         onPress={actions.toggleBars}
-                        onPrevious={previousChapter ? actions.goPrevious : undefined}
+                        onPrevious={
+                          previousChapter ? actions.goPrevious : undefined
+                        }
                       />
                     </View>
                   ) : null}
@@ -291,13 +377,15 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
                   {index === spreads.length - 1 ? (
                     <View style={styles.endBoundary}>
                       <ReaderChapterBoundary
-                        kind='end'
+                        kind="end"
                         chapterLabel={chapterLabel}
                         nextChapterLabel={nextChapterLabel}
                         foregroundColor={foregroundColor}
                         safeInset={insets.bottom}
                         onPress={actions.toggleBars}
-                        onContinue={nextChapter ? actions.goNextChapter : undefined}
+                        onContinue={
+                          nextChapter ? actions.goNextChapter : undefined
+                        }
                         compact
                       />
                     </View>
@@ -314,8 +402,18 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
         page={quickActionsPage}
         anchor={quickActionsAnchor}
         usesDoublePages={doublePages}
-        spreadPageIndex={quickActionsPage ? pages.findIndex((page) => page.id === quickActionsPage.id) : undefined}
-        isPageIsolated={quickActionsPage ? isolatedPages.has(pages.findIndex((page) => page.id === quickActionsPage.id)) : false}
+        spreadPageIndex={
+          quickActionsPage
+            ? pages.findIndex((page) => page.id === quickActionsPage.id)
+            : undefined
+        }
+        isPageIsolated={
+          quickActionsPage
+            ? isolatedPages.has(
+                pages.findIndex((page) => page.id === quickActionsPage.id),
+              )
+            : false
+        }
         canSetSinglePage={
           quickActionsPage
             ? isPagePairable(
@@ -337,7 +435,9 @@ export function ReaderPagedView({ onPageChange, onInteraction, currentPage, setP
         }}
         onToggleSinglePage={(isolated) => {
           if (!quickActionsPage) return;
-          const pageIndex = pages.findIndex((page) => page.id === quickActionsPage.id);
+          const pageIndex = pages.findIndex(
+            (page) => page.id === quickActionsPage.id,
+          );
           if (pageIndex < 0) return;
           toggleIsolationForPage(pageIndex, isolated, true);
         }}
@@ -361,19 +461,19 @@ const styles = StyleSheet.create({
   },
   pageContent: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   spread: {
     flex: 1,
   },
   startBoundary: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
   },
   endBoundary: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,

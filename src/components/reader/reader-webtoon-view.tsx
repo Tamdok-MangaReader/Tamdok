@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -7,28 +14,38 @@ import {
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ReaderChapterBoundary } from '@/components/reader/reader-chapter-boundary';
-import { ReaderQuickActions, type ReaderQuickActionAnchor } from '@/components/reader/reader-quick-actions';
-import { ReaderPageImage } from '@/components/reader/reader-page-image';
-import { useReader } from '@/components/reader/reader-context';
-import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
-import { findAdjacentChapter } from '@/utils/reader-chapters';
-import { prefetchReaderPagesAhead } from '@/utils/reader-prefetch';
-import { areReaderTapZonesEnabled, effectiveTapZoneGrid, tapActionAtPoint } from '@/utils/reader-tap-zones';
-import type { Chapter } from '@/parsers/shared/types';
-import { readerPageFrameHeight, type ReaderPage } from '@/utils/reader-pages';
+import { ReaderChapterBoundary } from "@/components/reader/reader-chapter-boundary";
+import {
+  ReaderQuickActions,
+  type ReaderQuickActionAnchor,
+} from "@/components/reader/reader-quick-actions";
+import { ReaderPageImage } from "@/components/reader/reader-page-image";
+import { useReader } from "@/components/reader/reader-context";
+import {
+  chapterTitleForDisplay,
+  formatChapterLabel,
+} from "@/utils/chapter-label";
+import { findAdjacentChapter } from "@/utils/reader-chapters";
+import { prefetchReaderPagesAhead } from "@/utils/reader-prefetch";
+import {
+  areReaderTapZonesEnabled,
+  effectiveTapZoneGrid,
+  tapActionAtPoint,
+} from "@/utils/reader-tap-zones";
+import type { Chapter } from "@/parsers/shared/types";
+import { readerPageFrameHeight, type ReaderPage } from "@/utils/reader-pages";
 
 type StripPageItem = ReaderPage & {
-  kind: 'page';
+  kind: "page";
   chapter: Chapter;
   localIndex: number;
 };
 
 type StripBreakItem = {
-  kind: 'break';
+  kind: "break";
   id: string;
   previous: Chapter;
   next: Chapter;
@@ -39,7 +56,11 @@ type StripListItem = StripPageItem | StripBreakItem;
 const CHAPTER_BREAK_HEIGHT = 280;
 
 type ReaderWebtoonViewProps = {
-  onLocationChange: (chapter: Chapter, pageIndex: number, pageCount: number) => void;
+  onLocationChange: (
+    chapter: Chapter,
+    pageIndex: number,
+    pageCount: number,
+  ) => void;
   onInteraction: () => void;
   currentPage: number;
   setPageRef: (goToPage: (index: number, animated?: boolean) => void) => void;
@@ -50,7 +71,7 @@ function chapterLabel(chapter: Chapter): string {
 }
 
 function isPageItem(item: StripListItem | undefined): item is StripPageItem {
-  return item?.kind === 'page';
+  return item?.kind === "page";
 }
 
 function isNearListEnd(event: NativeScrollEvent, screens = 1.2): boolean {
@@ -82,7 +103,10 @@ export function ReaderWebtoonView({
   const listRef = useRef<FlatList<StripListItem>>(null);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const tapGrid = useMemo(() => effectiveTapZoneGrid(settings, mode), [settings, mode]);
+  const tapGrid = useMemo(
+    () => effectiveTapZoneGrid(settings, mode),
+    [settings, mode],
+  );
   const resumeIndexRef = useRef(currentPage);
   const restoringRef = useRef(currentPage > 0);
   const restoreDoneRef = useRef(false);
@@ -96,7 +120,9 @@ export function ReaderWebtoonView({
   const originChapterKeyRef = useRef(chapter.key);
   const [headerHeight, setHeaderHeight] = useState(0);
   const headerHeightRef = useRef(0);
-  headerHeightRef.current = headerHeight;
+  useEffect(() => {
+    headerHeightRef.current = headerHeight;
+  }, [headerHeight]);
   const itemHeightsRef = useRef<Record<string, number>>({});
   const [heightTick, setHeightTick] = useState(0);
   const heightFlushRef = useRef<number | null>(null);
@@ -106,12 +132,15 @@ export function ReaderWebtoonView({
   const contentWidth = Math.max(
     1,
     width -
-      (settings.pillarbox && settings.pillarboxOrientation !== 'vertical'
+      (settings.pillarbox && settings.pillarboxOrientation !== "vertical"
         ? Math.round(settings.pillarboxAmount) * 2
         : 0),
   );
-  const [quickActionsPage, setQuickActionsPage] = useState<ReaderPage | null>(null);
-  const [quickActionsAnchor, setQuickActionsAnchor] = useState<ReaderQuickActionAnchor | null>(null);
+  const [quickActionsPage, setQuickActionsPage] = useState<ReaderPage | null>(
+    null,
+  );
+  const [quickActionsAnchor, setQuickActionsAnchor] =
+    useState<ReaderQuickActionAnchor | null>(null);
   const [reloadKeys, setReloadKeys] = useState<Record<string, number>>({});
 
   const segments = useMemo(
@@ -125,14 +154,19 @@ export function ReaderWebtoonView({
       if (segmentIndex > 0) {
         const previous = segments[segmentIndex - 1]!.chapter;
         items.push({
-          kind: 'break',
+          kind: "break",
           id: `break:${previous.key}:${segment.chapter.key}`,
           previous,
           next: segment.chapter,
         });
       }
       segment.pages.forEach((page, localIndex) => {
-        items.push({ ...page, kind: 'page', chapter: segment.chapter, localIndex });
+        items.push({
+          ...page,
+          kind: "page",
+          chapter: segment.chapter,
+          localIndex,
+        });
       });
     });
     return items;
@@ -142,12 +176,22 @@ export function ReaderWebtoonView({
   const segmentsRef = useRef(segments);
   const onLocationChangeRef = useRef(onLocationChange);
   const actionsRef = useRef(actions);
-  stripItemsRef.current = stripItems;
-  segmentsRef.current = segments;
-  onLocationChangeRef.current = onLocationChange;
-  actionsRef.current = actions;
+  useEffect(() => {
+    stripItemsRef.current = stripItems;
+  }, [stripItems]);
+  useEffect(() => {
+    segmentsRef.current = segments;
+  }, [segments]);
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  }, [onLocationChange]);
+  useEffect(() => {
+    actionsRef.current = actions;
+  }, [actions]);
   const coverHeadersRef = useRef(coverHeaders);
-  coverHeadersRef.current = coverHeaders;
+  useEffect(() => {
+    coverHeadersRef.current = coverHeaders;
+  }, [coverHeaders]);
   const lastPrefetchIndexRef = useRef(-1);
 
   const firstSegment = segments[0];
@@ -166,8 +210,13 @@ export function ReaderWebtoonView({
       if (!item) return estimatedHeight;
       const measured = itemHeightsRef.current[item.id];
       if (measured != null) return measured;
-      if (item.kind === 'break') return CHAPTER_BREAK_HEIGHT;
-      return readerPageFrameHeight(item, contentWidth, undefined, estimatedHeight);
+      if (item.kind === "break") return CHAPTER_BREAK_HEIGHT;
+      return readerPageFrameHeight(
+        item,
+        contentWidth,
+        undefined,
+        estimatedHeight,
+      );
     },
     [contentWidth, estimatedHeight],
   );
@@ -185,7 +234,8 @@ export function ReaderWebtoonView({
   );
 
   const offsetForIndex = useCallback(
-    (index: number, items: StripListItem[]) => headerHeightRef.current + itemOffsetForIndex(index, items),
+    (index: number, items: StripListItem[]) =>
+      headerHeightRef.current + itemOffsetForIndex(index, items),
     [itemOffsetForIndex],
   );
 
@@ -217,33 +267,64 @@ export function ReaderWebtoonView({
       const start = index >= 0 ? offsetForIndex(index, items) : 0;
       itemHeightsRef.current[id] = nextHeight;
       bumpHeights();
-      if (prevHeight == null || index < 0 || programmaticScrollRef.current || restoringRef.current) {
+      if (
+        prevHeight == null ||
+        index < 0 ||
+        programmaticScrollRef.current ||
+        restoringRef.current
+      ) {
         return;
       }
       if (start + prevHeight <= offsetY + 1) {
         const nextOffset = Math.max(0, offsetY + (nextHeight - prevHeight));
         lastOffsetYRef.current = nextOffset;
-        listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+        listRef.current?.scrollToOffset({
+          offset: nextOffset,
+          animated: false,
+        });
       }
     },
     [bumpHeights, offsetForIndex],
   );
 
-  const pageCountForChapter = useCallback((chapterKey: string, fallback: number) => {
-    return segmentsRef.current.find((segment) => segment.chapter.key === chapterKey)?.pages.length ?? fallback;
-  }, []);
+  const pageCountForChapter = useCallback(
+    (chapterKey: string, fallback: number) => {
+      return (
+        segmentsRef.current.find(
+          (segment) => segment.chapter.key === chapterKey,
+        )?.pages.length ?? fallback
+      );
+    },
+    [],
+  );
 
   const reportLocation = useCallback(
     (globalIndex: number) => {
       const item = stripItemsRef.current[globalIndex];
       if (!item) return;
-      if (item.kind === 'break') {
-        if (!userScrolledRef.current && item.next.key !== originChapterKeyRef.current) return;
-        onLocationChangeRef.current(item.next, 0, pageCountForChapter(item.next.key, 1));
+      if (item.kind === "break") {
+        if (
+          !userScrolledRef.current &&
+          item.next.key !== originChapterKeyRef.current
+        )
+          return;
+        onLocationChangeRef.current(
+          item.next,
+          0,
+          pageCountForChapter(item.next.key, 1),
+        );
         return;
       }
-      if (!userScrolledRef.current && item.chapter.key !== originChapterKeyRef.current) return;
-      onLocationChangeRef.current(item.chapter, item.localIndex, pageCountForChapter(item.chapter.key, item.localIndex + 1));
+      if (
+        !userScrolledRef.current &&
+        item.chapter.key !== originChapterKeyRef.current
+      )
+        return;
+      onLocationChangeRef.current(
+        item.chapter,
+        item.localIndex,
+        pageCountForChapter(item.chapter.key, item.localIndex + 1),
+      );
     },
     [pageCountForChapter],
   );
@@ -271,7 +352,7 @@ export function ReaderWebtoonView({
       visibleIdRef.current = items[clamped]?.id ?? null;
       lastPrefetchIndexRef.current = clamped;
       prefetchReaderPagesAhead(
-        items.map((item) => (item.kind === 'page' ? item : {})),
+        items.map((item) => (item.kind === "page" ? item : {})),
         clamped,
         coverHeadersRef.current,
       );
@@ -303,11 +384,14 @@ export function ReaderWebtoonView({
       const visible = items[visibleIndexRef.current];
       const chapterKey = isPageItem(visible)
         ? visible.chapter.key
-        : visible?.kind === 'break'
+        : visible?.kind === "break"
           ? visible.next.key
           : chapter.key;
       const global = items.findIndex(
-        (item) => item.kind === 'page' && item.chapter.key === chapterKey && item.localIndex === localIndex,
+        (item) =>
+          item.kind === "page" &&
+          item.chapter.key === chapterKey &&
+          item.localIndex === localIndex,
       );
       if (global < 0) return;
       scrollToGlobal(global, false);
@@ -321,7 +405,8 @@ export function ReaderWebtoonView({
 
   useEffect(() => {
     return () => {
-      if (heightFlushRef.current != null) cancelAnimationFrame(heightFlushRef.current);
+      if (heightFlushRef.current != null)
+        cancelAnimationFrame(heightFlushRef.current);
       if (seekClearTimerRef.current) clearTimeout(seekClearTimerRef.current);
     };
   }, []);
@@ -334,7 +419,9 @@ export function ReaderWebtoonView({
       if (items.length === 0) return false;
       const target = items.findIndex(
         (item) =>
-          item.kind === 'page' && item.chapter.key === chapter.key && item.localIndex === resumeIndexRef.current,
+          item.kind === "page" &&
+          item.chapter.key === chapter.key &&
+          item.localIndex === resumeIndexRef.current,
       );
       if (target < 0) return false;
       restoringRef.current = resumeIndexRef.current > 0;
@@ -371,9 +458,14 @@ export function ReaderWebtoonView({
     for (const item of stripItems) {
       if (itemHeightsRef.current[item.id] != null) continue;
       itemHeightsRef.current[item.id] =
-        item.kind === 'break'
+        item.kind === "break"
           ? CHAPTER_BREAK_HEIGHT
-          : readerPageFrameHeight(item, contentWidth, undefined, estimatedHeight);
+          : readerPageFrameHeight(
+              item,
+              contentWidth,
+              undefined,
+              estimatedHeight,
+            );
     }
 
     const previousItems = prevStripItemsRef.current;
@@ -387,31 +479,49 @@ export function ReaderWebtoonView({
     if (previousItems.length === 0 || previousItems === stripItems) return;
 
     // Keep the same page on screen when chapters are prepended or dropped from the window.
-    const newAnchorIndex = anchorId ? stripItems.findIndex((item) => item.id === anchorId) : -1;
-    const oldAnchorIndex = anchorId ? previousItems.findIndex((item) => item.id === anchorId) : -1;
+    const newAnchorIndex = anchorId
+      ? stripItems.findIndex((item) => item.id === anchorId)
+      : -1;
+    const oldAnchorIndex = anchorId
+      ? previousItems.findIndex((item) => item.id === anchorId)
+      : -1;
     if (newAnchorIndex >= 0 && oldAnchorIndex >= 0) {
-      shiftViewportBy(offsetForIndex(newAnchorIndex, stripItems) - offsetForIndex(oldAnchorIndex, previousItems));
+      shiftViewportBy(
+        offsetForIndex(newAnchorIndex, stripItems) -
+          offsetForIndex(oldAnchorIndex, previousItems),
+      );
       return;
     }
 
     const firstId = stripItems[0]?.id ?? null;
     if (!firstId) return;
-    const newFirstInOld = previousItems.findIndex((item) => item.id === firstId);
+    const newFirstInOld = previousItems.findIndex(
+      (item) => item.id === firstId,
+    );
     if (newFirstInOld > 0) {
       shiftViewportBy(-itemOffsetForIndex(newFirstInOld, previousItems));
       return;
     }
-    const oldFirstInNew = stripItems.findIndex((item) => item.id === previousItems[0]?.id);
+    const oldFirstInNew = stripItems.findIndex(
+      (item) => item.id === previousItems[0]?.id,
+    );
     if (oldFirstInNew > 0) {
       shiftViewportBy(itemOffsetForIndex(oldFirstInNew, stripItems));
     }
-  }, [contentWidth, estimatedHeight, itemOffsetForIndex, offsetForIndex, shiftViewportBy, stripItems]);
+  }, [
+    contentWidth,
+    estimatedHeight,
+    itemOffsetForIndex,
+    offsetForIndex,
+    shiftViewportBy,
+    stripItems,
+  ]);
 
   const requestNextChapter = useCallback(() => {
     if (!userScrolledRef.current || !canLoadNextRef.current) return;
     if (restoringRef.current || programmaticScrollRef.current) return;
     canLoadNextRef.current = false;
-    actionsRef.current.loadAdjacentChapter('next');
+    actionsRef.current.loadAdjacentChapter("next");
   }, []);
 
   const handleScroll = useCallback(
@@ -427,7 +537,7 @@ export function ReaderWebtoonView({
       if (index !== lastPrefetchIndexRef.current) {
         lastPrefetchIndexRef.current = index;
         prefetchReaderPagesAhead(
-          items.map((item) => (item.kind === 'page' ? item : {})),
+          items.map((item) => (item.kind === "page" ? item : {})),
           index,
           coverHeadersRef.current,
         );
@@ -438,50 +548,53 @@ export function ReaderWebtoonView({
     [indexForOffset, reportLocation, requestNextChapter],
   );
 
-  const handleScrollSettled = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const nativeEvent = event.nativeEvent;
-    const skip = restoringRef.current || programmaticScrollRef.current;
-    programmaticScrollRef.current = false;
-    if (skip || !userScrolledRef.current) return;
-    lastOffsetYRef.current = nativeEvent.contentOffset.y;
-    if (nativeEvent.contentOffset.y <= headerHeightRef.current + 24) {
-      actionsRef.current.loadAdjacentChapter('previous');
-      return;
-    }
-    if (isNearListEnd(nativeEvent, 0.35)) requestNextChapter();
-  }, [requestNextChapter]);
+  const handleScrollSettled = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nativeEvent = event.nativeEvent;
+      const skip = restoringRef.current || programmaticScrollRef.current;
+      programmaticScrollRef.current = false;
+      if (skip || !userScrolledRef.current) return;
+      lastOffsetYRef.current = nativeEvent.contentOffset.y;
+      if (nativeEvent.contentOffset.y <= headerHeightRef.current + 24) {
+        actionsRef.current.loadAdjacentChapter("previous");
+        return;
+      }
+      if (isNearListEnd(nativeEvent, 0.35)) requestNextChapter();
+    },
+    [requestNextChapter],
+  );
 
   const handleTap = useCallback(
     (x: number, y: number) => {
       const now = Date.now();
       if (now - lastTapAtRef.current < 120) return;
       lastTapAtRef.current = now;
-      if (settings.tapZones === 'disabled' || !areReaderTapZonesEnabled(mode)) {
+      if (settings.tapZones === "disabled" || !areReaderTapZonesEnabled(mode)) {
         actions.toggleBars();
         return;
       }
       const action = tapActionAtPoint(tapGrid, x, y, width, height);
-      if (action === 'toggleBars' || action === 'none') {
-        if (action === 'toggleBars') actions.toggleBars();
+      if (action === "toggleBars" || action === "none") {
+        if (action === "toggleBars") actions.toggleBars();
         return;
       }
       onInteraction();
-      if (action === 'next') {
+      if (action === "next") {
         const next = visibleIndexRef.current + 1;
         if (next < stripItems.length) {
           scrollToGlobal(next, settings.animatePageTransitions);
           return;
         }
-        actions.loadAdjacentChapter('next');
+        actions.loadAdjacentChapter("next");
         return;
       }
-      if (action === 'previous') {
+      if (action === "previous") {
         const previous = visibleIndexRef.current - 1;
         if (previous >= 0) {
           scrollToGlobal(previous, settings.animatePageTransitions);
           return;
         }
-        actions.loadAdjacentChapter('previous');
+        actions.loadAdjacentChapter("previous");
       }
     },
     [
@@ -507,35 +620,21 @@ export function ReaderWebtoonView({
     onInteraction();
   }, [onInteraction]);
 
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-
-  const handleTouchStart = useCallback((x: number, y: number) => {
-    touchStartRef.current = { x, y, time: Date.now() };
-  }, []);
-
-  const handleTouchEnd = useCallback(
-    (x: number, y: number) => {
-      const start = touchStartRef.current;
-      touchStartRef.current = null;
-      if (!start) return;
-      const dt = Date.now() - start.time;
-      const dist = Math.hypot(x - start.x, y - start.y);
-      if (dt > 280 || dist > 14) return;
-      handleTap(x, y);
-    },
-    [handleTap],
-  );
-
   const firstChapterLabel = useMemo(
-    () => (firstSegment ? chapterLabel(firstSegment.chapter) : ''),
+    () => (firstSegment ? chapterLabel(firstSegment.chapter) : ""),
     [firstSegment],
   );
   const lastChapterLabel = useMemo(
-    () => (lastSegment ? chapterLabel(lastSegment.chapter) : ''),
+    () => (lastSegment ? chapterLabel(lastSegment.chapter) : ""),
     [lastSegment],
   );
   const nextAfterWindow = lastSegment
-    ? findAdjacentChapter(chapters, lastSegment.chapter.key, 'next', settings.skipDuplicateChapters)
+    ? findAdjacentChapter(
+        chapters,
+        lastSegment.chapter.key,
+        "next",
+        settings.skipDuplicateChapters,
+      )
     : null;
 
   const chapterStart = (
@@ -544,9 +643,10 @@ export function ReaderWebtoonView({
         const nextHeight = event.nativeEvent.layout.height;
         headerHeightRef.current = nextHeight;
         setHeaderHeight(nextHeight);
-      }}>
+      }}
+    >
       <ReaderChapterBoundary
-        kind='start'
+        kind="start"
         chapterLabel={firstChapterLabel}
         foregroundColor={foregroundColor}
         safeInset={insets.top}
@@ -561,7 +661,7 @@ export function ReaderWebtoonView({
     </View>
   ) : (
     <ReaderChapterBoundary
-      kind='end'
+      kind="end"
       chapterLabel={lastChapterLabel}
       nextChapterLabel={null}
       foregroundColor={foregroundColor}
@@ -579,7 +679,7 @@ export function ReaderWebtoonView({
         style={styles.list}
         contentContainerStyle={styles.listContent}
         pagingEnabled={false}
-        decelerationRate={mode === 'continuous' ? 'normal' : 'fast'}
+        decelerationRate={mode === "continuous" ? "normal" : "fast"}
         initialNumToRender={4}
         windowSize={7}
         maxToRenderPerBatch={4}
@@ -600,34 +700,24 @@ export function ReaderWebtoonView({
         onMomentumScrollEnd={handleScrollSettled}
         onEndReached={requestNextChapter}
         onEndReachedThreshold={1}
-        onTouchStart={(event) => {
-          const touch = event.nativeEvent.touches[0];
-          if (touch) handleTouchStart(touch.pageX, touch.pageY);
-        }}
-        onTouchEnd={(event) => {
-          const touch = event.nativeEvent.changedTouches[0];
-          if (touch) handleTouchEnd(touch.pageX, touch.pageY);
-        }}
-        onTouchCancel={() => {
-          touchStartRef.current = null;
-        }}
         renderItem={({ item }) => {
-          if (item.kind === 'break') {
+          if (item.kind === "break") {
             return (
               <View
                 style={styles.chapterBreak}
                 onLayout={(event) => {
                   applyItemHeight(item.id, event.nativeEvent.layout.height);
-                }}>
+                }}
+              >
                 <ReaderChapterBoundary
-                  kind='end'
+                  kind="end"
                   chapterLabel={chapterLabel(item.previous)}
                   nextChapterLabel={chapterLabel(item.next)}
                   foregroundColor={foregroundColor}
                   onPress={actions.toggleBars}
                 />
                 <ReaderChapterBoundary
-                  kind='start'
+                  kind="start"
                   chapterLabel={chapterLabel(item.next)}
                   foregroundColor={foregroundColor}
                   onPress={actions.toggleBars}
@@ -639,7 +729,8 @@ export function ReaderWebtoonView({
           return (
             <View
               style={[styles.page, { width, height: heightForItem(item) }]}
-              key={`${item.id}-${reloadKeys[item.id] ?? 0}`}>
+              key={`${item.id}-${reloadKeys[item.id] ?? 0}`}
+            >
               <ReaderPageImage
                 page={item}
                 settings={settings}
@@ -650,19 +741,34 @@ export function ReaderWebtoonView({
                 pillarbox={settings.pillarbox}
                 pillarboxAmount={settings.pillarboxAmount}
                 pillarboxOrientation={settings.pillarboxOrientation}
-                layout='intrinsic'
+                layout="intrinsic"
                 containerWidth={width}
                 onMeasuredAspectRatio={(ratio) => {
-                  applyItemHeight(item.id, readerPageFrameHeight(item, contentWidth, ratio, estimatedHeight));
+                  applyItemHeight(
+                    item.id,
+                    readerPageFrameHeight(
+                      item,
+                      contentWidth,
+                      ratio,
+                      estimatedHeight,
+                    ),
+                  );
                 }}
                 onSingleTap={handleTap}
                 onLongPress={(x, y) => {
-                  if (settings.disableQuickActions || dictionarySettings.lookupGesture === 'long-press') return;
+                  if (
+                    settings.disableQuickActions ||
+                    dictionarySettings.lookupGesture === "long-press"
+                  )
+                    return;
                   setQuickActionsPage(item);
                   setQuickActionsAnchor({ x, y });
                 }}
                 onDictionaryLookup={(x, y) =>
-                  actions.lookupDictionary(item.url ?? '', x, y, { width, height })
+                  actions.lookupDictionary(item.url ?? "", x, y, {
+                    width,
+                    height,
+                  })
                 }
               />
             </View>
@@ -700,19 +806,19 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   page: {
-    width: '100%',
-    alignSelf: 'stretch',
-    overflow: 'hidden',
+    width: "100%",
+    alignSelf: "stretch",
+    overflow: "hidden",
   },
   chapterBreak: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   nextFooter: {
     minHeight: 72,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
   },
 });
