@@ -108,7 +108,8 @@ export default function SourceHomeScreen() {
     [listings, selectedTabId],
   );
 
-  const combinedError = runnerError ?? homeLoadError;
+  const err = runnerError ?? homeLoadError;
+  const combinedError = err?.includes("HTTP 403") ? "Try to disable VPN" : err;
   const showHome = selectedTabId === SOURCE_HOME_TAB_ID;
   const hasHomeContent = Boolean(home && home.components.length > 0);
   const showBlockingError =

@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { useAidokuSourceRequests } from '@/hooks/use-aidoku-source-requests';
-import type { HomeLayout, InstalledSource, Listing } from '@/parsers/shared/types';
-import type { SourceRunner } from '@/parsers/shared/source-runner';
-import { isAidokuRequestCancelled } from '@/parsers/aidoku/wasm-bridge';
-import { readSourceHomeCache, writeSourceHomeCache } from '@/services/source-home-cache';
-import { loadSourceHomeData } from '@/services/source-home-loader';
+import { useAidokuSourceRequests } from "@/hooks/use-aidoku-source-requests";
+import type {
+  HomeLayout,
+  InstalledSource,
+  Listing,
+} from "@/parsers/shared/types";
+import type { SourceRunner } from "@/parsers/shared/source-runner";
+import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
+import {
+  readSourceHomeCache,
+  writeSourceHomeCache,
+} from "@/services/source-home-cache";
+import { loadSourceHomeData } from "@/services/source-home-loader";
 
 const HOME_LOAD_TIMEOUT_MS = 90_000;
 const NHENTAI_HOME_LOAD_TIMEOUT_MS = 90_000;
-const NHENTAI_SOURCE_ID = 'multi.nhentai';
+const NHENTAI_SOURCE_ID = "multi.nhentai";
 
 type UseSourceHomeOptions = {
   source: InstalledSource | undefined;
@@ -25,7 +32,7 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
   const [hasCachedContent, setHasCachedContent] = useState(false);
   const requestIdRef = useRef(0);
 
-  useAidokuSourceRequests(source?.id, source?.kind === 'aidoku');
+  useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
 
   const fetchHome = useCallback(
     async (options?: { force?: boolean; fromPull?: boolean }) => {
@@ -56,7 +63,10 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
       }
 
       const requestId = ++requestIdRef.current;
-      const homeTimeoutMs = source.id === NHENTAI_SOURCE_ID ? NHENTAI_HOME_LOAD_TIMEOUT_MS : HOME_LOAD_TIMEOUT_MS;
+      const homeTimeoutMs =
+        source.id === NHENTAI_SOURCE_ID
+          ? NHENTAI_HOME_LOAD_TIMEOUT_MS
+          : HOME_LOAD_TIMEOUT_MS;
 
       if (hadCachedContent || options?.fromPull) {
         setIsRefreshing(true);
@@ -77,7 +87,11 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
       }, homeTimeoutMs);
 
       try {
-        const result = await loadSourceHomeData(runner, source, manifestListings);
+        const result = await loadSourceHomeData(
+          runner,
+          source,
+          manifestListings,
+        );
         if (requestId !== requestIdRef.current) return;
 
         setHome(result.home);
@@ -94,7 +108,7 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
         if (isAidokuRequestCancelled(error)) return;
         const message = error instanceof Error ? error.message : String(error);
         setLoadError(message);
-        if (!hadCachedContent && !timedOut) {
+        if (timedOut) {
           setHome({ components: [] });
           setListings(manifestListings);
         }
