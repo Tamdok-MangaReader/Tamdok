@@ -1,19 +1,34 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { AppState, type AppStateStatus } from "react-native";
 
-import type { InstalledSource, RegistryEntry, SourceRegistry } from '@/parsers/shared/types';
-import { clearAidokuWasmExportCache } from '@/parsers/aidoku/runner';
-import { clearSourceHomeCache } from '@/services/source-home-cache';
-import { runLibraryAutoRefreshIfNeeded } from '@/services/library-auto-refresh';
-import { initNotifications, notifyNewSourceUpdates } from '@/services/notifications';
+import type {
+  InstalledSource,
+  RegistryEntry,
+  SourceRegistry,
+} from "@/parsers/shared/types";
+import { clearAidokuWasmExportCache } from "@/parsers/aidoku/runner";
+import { clearSourceHomeCache } from "@/services/source-home-cache";
+import { runLibraryAutoRefreshIfNeeded } from "@/services/library-auto-refresh";
+import {
+  initNotifications,
+  notifyNewSourceUpdates,
+} from "@/services/notifications";
 import {
   buildCatalogIndex,
   type CatalogSourceEntry,
-} from '@/services/registry-catalog';
+} from "@/services/registry-catalog";
 import {
   findSourceUpdates,
   type SourceUpdateInfo,
-} from '@/services/source-updates';
+} from "@/services/source-updates";
 import {
   filterByNsfw,
   getInstalledSources,
@@ -38,7 +53,7 @@ import {
   unpinSource,
   type SourceLayout,
   type SourceRegistryList,
-} from '@/services/sources';
+} from "@/services/sources";
 
 type SourcesContextValue = {
   installed: InstalledSource[];
@@ -55,12 +70,18 @@ type SourcesContextValue = {
   refresh: () => Promise<void>;
   refreshInBackground: () => Promise<void>;
   installPackage: (data: Uint8Array, filename: string) => Promise<void>;
-  installRegistryEntry: (registryUrl: string, entry: RegistryEntry) => Promise<void>;
+  installRegistryEntry: (
+    registryUrl: string,
+    entry: RegistryEntry,
+  ) => Promise<void>;
   updateSource: (update: SourceUpdateInfo) => Promise<void>;
   uninstall: (source: InstalledSource) => Promise<void>;
   pinSource: (source: InstalledSource) => Promise<void>;
   unpinSource: (source: InstalledSource) => Promise<void>;
-  moveSource: (source: InstalledSource, direction: 'up' | 'down') => Promise<void>;
+  moveSource: (
+    source: InstalledSource,
+    direction: "up" | "down",
+  ) => Promise<void>;
   reorderSources: (sourceKeys: string[]) => Promise<void>;
   isPinned: (source: InstalledSource) => boolean;
   getSourceUpdate: (sourceId: string) => SourceUpdateInfo | undefined;
@@ -73,12 +94,89 @@ type SourcesContextValue = {
 
 const SourcesContext = createContext<SourcesContextValue | null>(null);
 
+const FOREGROUND_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
+const AUTO_REFRESH_POLL_MS = 15 * 60 * 1000;
+
+function sameInstalledSources(
+  a: InstalledSource[],
+  b: InstalledSource[],
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index]!;
+    const right = b[index]!;
+    if (left === right) continue;
+    if (
+      left.id !== right.id ||
+      left.kind !== right.kind ||
+      left.installPath !== right.installPath ||
+      left.iconUri !== right.iconUri ||
+      left.manifest.info.version !== right.manifest.info.version
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function sameSourceUpdates(
+  a: SourceUpdateInfo[],
+  b: SourceUpdateInfo[],
+): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (
+      a[index]!.sourceId !== b[index]!.sourceId ||
+      a[index]!.availableVersion !== b[index]!.availableVersion
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function sameLayout(a: SourceLayout, b: SourceLayout): boolean {
+  return (
+    a.order.length === b.order.length &&
+    a.pinned.length === b.pinned.length &&
+    a.order.every((key, index) => key === b.order[index]) &&
+    a.pinned.every((key, index) => key === b.pinned[index])
+  );
+}
+
 export function SourcesProvider({ children }: { children: React.ReactNode }) {
-  const [installed, setInstalled] = useState<InstalledSource[]>([]);
-  const [pendingUpdates, setPendingUpdates] = useState<SourceUpdateInfo[]>([]);
-  const [sourceLayout, setSourceLayout] = useState<SourceLayout>({ order: [], pinned: [] });
+  const [installed, setInstalledState] = useState<InstalledSource[]>([]);
+  const [pendingUpdates, setPendingUpdatesState] = useState<SourceUpdateInfo[]>(
+    [],
+  );
+  const [sourceLayout, setSourceLayoutState] = useState<SourceLayout>({
+    order: [],
+    pinned: [],
+  });
+  const installedRef = useRef<InstalledSource[]>([]);
+  const lastForegroundCheckRef = useRef(0);
+
+  const setInstalled = useCallback((next: InstalledSource[]) => {
+    setInstalledState((previous) =>
+      sameInstalledSources(previous, next) ? previous : next,
+    );
+  }, []);
+  const setPendingUpdates = useCallback((next: SourceUpdateInfo[]) => {
+    setPendingUpdatesState((previous) =>
+      sameSourceUpdates(previous, next) ? previous : next,
+    );
+  }, []);
+  const setSourceLayout = useCallback((next: SourceLayout) => {
+    setSourceLayoutState((previous) =>
+      sameLayout(previous, next) ? previous : next,
+    );
+  }, []);
   const [registries, setRegistries] = useState<SourceRegistryList[]>([]);
-  const [registryCatalogs, setRegistryCatalogs] = useState<Record<string, SourceRegistry | null>>({});
+  const [registryCatalogs, setRegistryCatalogs] = useState<
+    Record<string, SourceRegistry | null>
+  >({});
   const [showNsfw, setShowNsfwState] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
@@ -86,7 +184,10 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
   const backgroundCheckInFlight = useRef(false);
   const catalogsRef = useRef<Record<string, SourceRegistry | null>>({});
 
-  const installedIds = useMemo(() => new Set(installed.map((source) => source.id)), [installed]);
+  const installedIds = useMemo(
+    () => new Set(installed.map((source) => source.id)),
+    [installed],
+  );
 
   const catalogEntries = useMemo(
     () => buildCatalogIndex(registries, registryCatalogs, showNsfw),
@@ -105,7 +206,9 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       setPendingUpdates(updates);
 
       if (updates.length > 0) {
-        const nextLayout = await pinSources(updates.map((update) => update.source));
+        const nextLayout = await pinSources(
+          updates.map((update) => update.source),
+        );
         setSourceLayout(nextLayout);
         setInstalled(sortInstalledSources(sources, nextLayout));
       }
@@ -114,29 +217,40 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
         await notifyNewSourceUpdates(updates);
       }
     },
+    [setInstalled, setPendingUpdates, setSourceLayout],
+  );
+
+  const loadCatalogs = useCallback(
+    async (urls: SourceRegistryList[], force = false) => {
+      const catalogs: Record<string, SourceRegistry | null> = {
+        ...catalogsRef.current,
+      };
+
+      await Promise.all(
+        urls.map(async (item) => {
+          if (!force && catalogs[item.url]) return;
+          try {
+            catalogs[item.url] = await loadRegistryFromUrl(item.url, force);
+          } catch {
+            catalogs[item.url] = catalogs[item.url] ?? null;
+          }
+        }),
+      );
+
+      catalogsRef.current = catalogs;
+      return catalogs;
+    },
     [],
   );
 
-  const loadCatalogs = useCallback(async (urls: SourceRegistryList[], force = false) => {
-    const catalogs: Record<string, SourceRegistry | null> = { ...catalogsRef.current };
-
-    await Promise.all(
-      urls.map(async (item) => {
-        if (!force && catalogs[item.url]) return;
-        try {
-          catalogs[item.url] = await loadRegistryFromUrl(item.url, force);
-        } catch {
-          catalogs[item.url] = catalogs[item.url] ?? null;
-        }
-      }),
-    );
-
-    catalogsRef.current = catalogs;
-    return catalogs;
-  }, []);
-
   const hydrateCatalogs = useCallback(
-    async (urls: SourceRegistryList[], sources: InstalledSource[], nsfw: boolean, notify: boolean, force = false) => {
+    async (
+      urls: SourceRegistryList[],
+      sources: InstalledSource[],
+      nsfw: boolean,
+      notify: boolean,
+      force = false,
+    ) => {
       if (urls.length === 0) {
         setRegistryCatalogs({});
         catalogsRef.current = {};
@@ -149,7 +263,11 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
         const catalogs = await loadCatalogs(urls, force);
         setRegistryCatalogs(catalogs);
         const syncedRegistries = syncRegistriesWithCatalogs(urls, catalogs);
-        if (syncedRegistries.some((item, index) => item.name !== urls[index]?.name)) {
+        if (
+          syncedRegistries.some(
+            (item, index) => item.name !== urls[index]?.name,
+          )
+        ) {
           await setRegistryUrls(syncedRegistries);
           setRegistries(syncedRegistries);
           urls = syncedRegistries;
@@ -159,7 +277,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
         setIsCatalogLoading(false);
       }
     },
-    [applyUpdateCheck, loadCatalogs],
+    [applyUpdateCheck, loadCatalogs, setPendingUpdates],
   );
 
   const refresh = useCallback(async () => {
@@ -174,7 +292,10 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       const initialized = await initializeSources();
       sources = initialized.sources;
       layout = initialized.layout;
-      [urls, nsfw] = await Promise.all([getRegistryUrls(), getShowNsfwSources()]);
+      [urls, nsfw] = await Promise.all([
+        getRegistryUrls(),
+        getShowNsfwSources(),
+      ]);
       setInstalled(sources);
       setSourceLayout(layout);
       setRegistries(urls);
@@ -185,7 +306,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
 
     await hydrateCatalogs(urls, sources, nsfw, true, false);
     void hydrateCatalogs(urls, sources, nsfw, true, true);
-  }, [hydrateCatalogs]);
+  }, [hydrateCatalogs, setInstalled, setSourceLayout]);
 
   const refreshInBackground = useCallback(async () => {
     if (backgroundCheckInFlight.current) return;
@@ -206,47 +327,64 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       setIsCheckingUpdates(false);
       backgroundCheckInFlight.current = false;
     }
-  }, [hydrateCatalogs]);
+  }, [hydrateCatalogs, setInstalled, setSourceLayout]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   useEffect(() => {
-    const handleAppState = (state: AppStateStatus) => {
-      if (state === 'active') {
-        void refreshInBackground();
-        void runLibraryAutoRefreshIfNeeded(installed);
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppState);
-    return () => subscription.remove();
-  }, [installed, refreshInBackground]);
+    installedRef.current = installed;
+  }, [installed]);
 
   useEffect(() => {
-    if (installed.length === 0) return;
-    void runLibraryAutoRefreshIfNeeded(installed);
+    const handleAppState = (state: AppStateStatus) => {
+      if (state !== "active") return;
+      const now = Date.now();
+      if (
+        now - lastForegroundCheckRef.current >=
+        FOREGROUND_CHECK_MIN_INTERVAL_MS
+      ) {
+        lastForegroundCheckRef.current = now;
+        void refreshInBackground();
+      }
+      void runLibraryAutoRefreshIfNeeded(installedRef.current);
+    };
+
+    const subscription = AppState.addEventListener("change", handleAppState);
+    return () => subscription.remove();
+  }, [refreshInBackground]);
+
+  const hasInstalled = installed.length > 0;
+
+  useEffect(() => {
+    if (!hasInstalled) return;
+    void runLibraryAutoRefreshIfNeeded(installedRef.current);
     const timer = setInterval(() => {
-      void runLibraryAutoRefreshIfNeeded(installed);
-    }, 15 * 60 * 1000);
+      void runLibraryAutoRefreshIfNeeded(installedRef.current);
+    }, AUTO_REFRESH_POLL_MS);
     return () => clearInterval(timer);
-  }, [installed]);
+  }, [hasInstalled]);
 
   const filterRegistry = useCallback(
     (registry: SourceRegistry) => filterByNsfw(registry.sources, showNsfw),
     [showNsfw],
   );
 
-  const isInstalled = useCallback((id: string) => installedIds.has(id), [installedIds]);
+  const isInstalled = useCallback(
+    (id: string) => installedIds.has(id),
+    [installedIds],
+  );
 
   const isPinned = useCallback(
-    (source: InstalledSource) => isSourcePinned(source, sourceLayout, installed),
+    (source: InstalledSource) =>
+      isSourcePinned(source, sourceLayout, installed),
     [sourceLayout, installed],
   );
 
   const getSourceUpdate = useCallback(
-    (sourceId: string) => pendingUpdates.find((update) => update.sourceId === sourceId),
+    (sourceId: string) =>
+      pendingUpdates.find((update) => update.sourceId === sourceId),
     [pendingUpdates],
   );
 
@@ -314,7 +452,10 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       updateRegistries: async (urls) => {
         await setRegistryUrls(urls);
         setRegistries(urls);
-        const [sources, nsfw] = await Promise.all([getInstalledSources(), getShowNsfwSources()]);
+        const [sources, nsfw] = await Promise.all([
+          getInstalledSources(),
+          getShowNsfwSources(),
+        ]);
         await hydrateCatalogs(urls, sources, nsfw, false, false);
         void hydrateCatalogs(urls, sources, nsfw, false, true);
       },
@@ -341,16 +482,20 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       isInstalled,
       isPinned,
       getSourceUpdate,
+      setInstalled,
+      setSourceLayout,
     ],
   );
 
-  return <SourcesContext.Provider value={value}>{children}</SourcesContext.Provider>;
+  return (
+    <SourcesContext.Provider value={value}>{children}</SourcesContext.Provider>
+  );
 }
 
 export function useSources() {
   const context = useContext(SourcesContext);
   if (!context) {
-    throw new Error('useSources must be used within SourcesProvider');
+    throw new Error("useSources must be used within SourcesProvider");
   }
   return context;
 }

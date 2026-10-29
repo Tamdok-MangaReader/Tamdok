@@ -1,30 +1,46 @@
-import type { InstalledSource } from '@/parsers/shared/types';
-import { getLibraryUpdateSettings, LIBRARY_UPDATE_INTERVAL_MS } from '@/services/library';
-import { refreshLibraryEntries } from '@/services/library-refresh';
+import { AppState } from "react-native";
 
-let refreshInFlight = false;
+import type { InstalledSource } from "@/parsers/shared/types";
+import {
+  getLibraryUpdateSettings,
+  LIBRARY_UPDATE_INTERVAL_MS,
+} from "@/services/library";
+import {
+  BACKGROUND_ENTRY_TIMEOUT_MS,
+  BACKGROUND_REFRESH_BUDGET_MS,
+  isLibraryRefreshRunning,
+  refreshLibraryEntries,
+} from "@/services/library-refresh";
+import { getNotifyNewChapters } from "@/services/notifications";
 
-export async function runLibraryAutoRefreshIfNeeded(installed: InstalledSource[]): Promise<void> {
-  if (refreshInFlight || installed.length === 0) return;
+export async function runLibraryAutoRefreshIfNeeded(
+  installed: InstalledSource[],
+): Promise<void> {
+  if (installed.length === 0 || isLibraryRefreshRunning()) return;
 
-  const settings = await getLibraryUpdateSettings();
-  if (!settings.backgroundRefresh) return;
+  const [settings, notify] = await Promise.all([
+    getLibraryUpdateSettings(),
+    getNotifyNewChapters(),
+  ]);
+  if (!settings.backgroundRefresh && !notify) return;
 
   const intervalMs = LIBRARY_UPDATE_INTERVAL_MS[settings.updateInterval];
   if (intervalMs == null) return;
 
-  const now = Date.now();
-  const lastRefresh = settings.lastAutoRefreshAt ?? 0;
-  if (now - lastRefresh < intervalMs) return;
+  if (Date.now() - (settings.lastAutoRefreshAt ?? 0) < intervalMs) return;
 
-  if (settings.updateOnWifiOnly) {
-    // Wi-Fi detection is not wired yet; proceed for now.
-  }
+  const inBackground = AppState.currentState !== "active";
 
-  refreshInFlight = true;
-  try {
-    await refreshLibraryEntries(installed);
-  } finally {
-    refreshInFlight = false;
-  }
+  await refreshLibraryEntries(installed, undefined, undefined, {
+    automatic: true,
+    notify,
+    minAgeMs: intervalMs,
+    ...(inBackground
+      ? {
+          silent: true,
+          budgetMs: BACKGROUND_REFRESH_BUDGET_MS,
+          entryTimeoutMs: BACKGROUND_ENTRY_TIMEOUT_MS,
+        }
+      : {}),
+  });
 }

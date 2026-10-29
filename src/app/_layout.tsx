@@ -1,6 +1,13 @@
-import { Stack, ThemeProvider, useRouter, type Href } from "expo-router";
+import {
+  Stack,
+  ThemeProvider,
+  usePathname,
+  useRouter,
+  type Href,
+} from "expo-router";
 import * as Linking from "expo-linking";
-import { useEffect, useMemo, useState } from "react";
+import * as Notifications from "expo-notifications";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -26,6 +33,9 @@ import {
   subscribeWelcomeReplay,
 } from "@/utils/welcome-data-loader";
 import { installImageMemoryReclaimer } from "@/utils/image-memory";
+import { syncBackgroundLibraryUpdates } from "@/services/background-library-update";
+import { parseNewChapterResponse } from "@/services/notifications";
+import { mangaHref } from "@/utils/manga-route";
 
 export const unstable_settings = {
   initialRouteName: "(main)",
@@ -58,12 +68,42 @@ function navigateToRegistrySettings(
   }, 0);
 }
 
+const SOURCE_HOME_PATH = /^\/sources\/[^/]+$/;
+
+function isOverlayPath(pathname: string): boolean {
+  return pathname.startsWith("/manga") || pathname.startsWith("/reader");
+}
+
+function useRestoreSourceStack() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const lastTabPath = useRef<string | null>(null);
+  const returnPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isOverlayPath(pathname)) {
+      if (returnPath.current == null) returnPath.current = lastTabPath.current;
+      return;
+    }
+    const target = returnPath.current;
+    returnPath.current = null;
+    lastTabPath.current = pathname;
+    if (target && SOURCE_HOME_PATH.test(target) && pathname === "/sources") {
+      router.navigate(target as Href);
+    }
+  }, [pathname, router]);
+}
+
 function RootLayoutContent() {
   const backgroundColor = useThemeColor("systemBackground");
   const navigationTheme = useExpoRouterTheme();
   const [showWelcome, setShowWelcome] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
+  const handledNotificationRef = useRef<string | null>(null);
+
+  useRestoreSourceStack();
 
   const rootStackOptions = useMemo(
     () => ({ headerShown: false as const, freezeOnBlur: true as const }),
@@ -79,6 +119,27 @@ function RootLayoutContent() {
 
   useEffect(() => subscribeWelcomeReplay(() => setShowWelcome(true)), []);
   useEffect(() => installImageMemoryReclaimer(), []);
+
+  useEffect(() => {
+    if (isLoading || showWelcome) return;
+    void syncBackgroundLibraryUpdates();
+  }, [isLoading, showWelcome]);
+
+  useEffect(() => {
+    if (isLoading || showWelcome || !lastNotificationResponse) return;
+    const handledId = `${lastNotificationResponse.notification.request.identifier}:${lastNotificationResponse.notification.date}`;
+    if (handledNotificationRef.current === handledId) return;
+    const target = parseNewChapterResponse(lastNotificationResponse);
+    if (!target) return;
+    handledNotificationRef.current = handledId;
+    router.navigate(
+      mangaHref(target.routeId, {
+        key: target.mangaKey,
+        title: target.title,
+        cover: target.cover,
+      }),
+    );
+  }, [isLoading, lastNotificationResponse, router, showWelcome]);
 
   useEffect(() => {
     if (isLoading || showWelcome) return;

@@ -70,6 +70,7 @@
         }
       ],
       "expo-secure-store",
+      "expo-background-task",
       "expo-mail-composer",
       "expo-sharing",
       "expo-font",

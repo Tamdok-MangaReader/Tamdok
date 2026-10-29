@@ -117,6 +117,12 @@ function persist(): Promise<void> {
   return persistRunning;
 }
 
+export async function flushPreferences(): Promise<void> {
+  while (persistRunning) {
+    await persistRunning;
+  }
+}
+
 export async function setValue<T>(key: string, value: T): Promise<void> {
   const store = await ensureLoaded();
   const serialized = JSON.stringify(value);

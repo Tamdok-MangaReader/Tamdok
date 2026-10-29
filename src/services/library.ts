@@ -1,11 +1,18 @@
-import { getValue, setValue, storageKeys } from '@/constants/storage';
-import { peekMangaDetailCache } from '@/services/manga-detail-cache';
-import { getDownloads, getMangaDownloads, removeMangaDownloads } from '@/services/downloads';
-import { getMangaChapterProgress, type ChapterProgress } from '@/services/manga-tracking';
-import { notifyMangaDataChanged } from '@/utils/manga-events';
-import type { LibrarySortMode } from '@/services/app-settings';
+import { getValue, setValue, storageKeys } from "@/constants/storage";
+import { peekMangaDetailCache } from "@/services/manga-detail-cache";
+import {
+  getDownloads,
+  getMangaDownloads,
+  removeMangaDownloads,
+} from "@/services/downloads";
+import {
+  getMangaChapterProgress,
+  type ChapterProgress,
+} from "@/services/manga-tracking";
+import { notifyMangaDataChanged } from "@/utils/manga-events";
+import type { LibrarySortMode } from "@/services/app-settings";
 
-export const ALL_CATEGORY_ID = 'all';
+export const ALL_CATEGORY_ID = "all";
 
 export type LibraryCategory = {
   id: string;
@@ -13,7 +20,8 @@ export type LibraryCategory = {
   sortOrder: number;
 };
 
-export type LibraryUpdateInterval = 'never' | '1h' | '6h' | '12h' | '24h' | '48h';
+export type LibraryUpdateInterval =
+  "never" | "1h" | "6h" | "12h" | "24h" | "48h";
 
 export type LibraryEntry = {
   sourceId: string;
@@ -25,9 +33,10 @@ export type LibraryEntry = {
   unreadCount?: number;
   downloadedCount?: number;
   lastRefreshed?: number;
-  status?: 'unknown' | 'ongoing' | 'completed' | 'hiatus' | 'cancelled';
+  status?: "unknown" | "ongoing" | "completed" | "hiatus" | "cancelled";
   knownChapterKeys?: string[];
   updateFailed?: boolean;
+  lastAttemptAt?: number;
 };
 
 export type LibraryStore = {
@@ -46,7 +55,9 @@ export type LibraryStore = {
   lastAutoRefreshAt?: number;
 };
 
-const DEFAULT_CATEGORIES: LibraryCategory[] = [{ id: ALL_CATEGORY_ID, name: 'All', sortOrder: 0 }];
+const DEFAULT_CATEGORIES: LibraryCategory[] = [
+  { id: ALL_CATEGORY_ID, name: "All", sortOrder: 0 },
+];
 
 function entryKey(sourceId: string, mangaKey: string): string {
   return `${sourceId}:${mangaKey}`;
@@ -54,15 +65,24 @@ function entryKey(sourceId: string, mangaKey: string): string {
 
 export function chapterKeysForLibraryEntry(entry: LibraryEntry): string[] {
   if (entry.knownChapterKeys?.length) return entry.knownChapterKeys;
-  return peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters?.map((chapter) => chapter.key) ?? [];
+  return (
+    peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters?.map(
+      (chapter) => chapter.key,
+    ) ?? []
+  );
 }
 
 export function resolveLibraryUnreadCount(
-  entry: Pick<LibraryEntry, 'sourceId' | 'mangaKey' | 'unreadCount' | 'knownChapterKeys'>,
+  entry: Pick<
+    LibraryEntry,
+    "sourceId" | "mangaKey" | "unreadCount" | "knownChapterKeys"
+  >,
   readKeys?: Set<string>,
 ): number {
   const cachedKeys =
-    peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters?.map((chapter) => chapter.key) ?? [];
+    peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters?.map(
+      (chapter) => chapter.key,
+    ) ?? [];
   const known = entry.knownChapterKeys ?? [];
   const keys = cachedKeys.length >= known.length ? cachedKeys : known;
   if (keys.length === 0) return entry.unreadCount ?? 0;
@@ -86,14 +106,18 @@ export async function syncLibraryEntryUnread(
   );
   const cachedKeys =
     chapters?.map((chapter) => chapter.key) ??
-    peekMangaDetailCache(sourceId, mangaKey)?.manga.chapters?.map((chapter) => chapter.key) ??
+    peekMangaDetailCache(sourceId, mangaKey)?.manga.chapters?.map(
+      (chapter) => chapter.key,
+    ) ??
     [];
   const known = entry.knownChapterKeys ?? [];
   const keys = cachedKeys.length >= known.length ? cachedKeys : known;
   if (keys.length === 0) return;
 
   const unreadCount = keys.filter((key) => !readKeys.has(key)).length;
-  const keysChanged = keys.length !== known.length || keys.some((key, index) => known[index] !== key);
+  const keysChanged =
+    keys.length !== known.length ||
+    keys.some((key, index) => known[index] !== key);
   if (entry.unreadCount === unreadCount && !keysChanged) return;
 
   await updateLibraryEntryMetadata(sourceId, mangaKey, {
@@ -102,7 +126,12 @@ export async function syncLibraryEntryUnread(
   });
 }
 
-export const LIBRARY_SORT_MODES: LibrarySortMode[] = ['unread', 'title', 'recent', 'lastRead'];
+export const LIBRARY_SORT_MODES: LibrarySortMode[] = [
+  "unread",
+  "title",
+  "recent",
+  "lastRead",
+];
 
 function titleSortKey(title: string): string {
   return title.trim().toLocaleLowerCase();
@@ -116,21 +145,33 @@ export function sortLibraryEntries(
   const next = [...entries];
   next.sort((a, b) => {
     switch (sortMode) {
-      case 'title':
-        return titleSortKey(a.title).localeCompare(titleSortKey(b.title), undefined, { numeric: true, sensitivity: 'base' });
-      case 'recent':
+      case "title":
+        return titleSortKey(a.title).localeCompare(
+          titleSortKey(b.title),
+          undefined,
+          { numeric: true, sensitivity: "base" },
+        );
+      case "recent":
         return b.dateAdded - a.dateAdded;
-      case 'lastRead': {
+      case "lastRead": {
         const aRead = lastReadAt.get(entryKey(a.sourceId, a.mangaKey)) ?? 0;
         const bRead = lastReadAt.get(entryKey(b.sourceId, b.mangaKey)) ?? 0;
         if (aRead !== bRead) return bRead - aRead;
-        return titleSortKey(a.title).localeCompare(titleSortKey(b.title), undefined, { numeric: true, sensitivity: 'base' });
+        return titleSortKey(a.title).localeCompare(
+          titleSortKey(b.title),
+          undefined,
+          { numeric: true, sensitivity: "base" },
+        );
       }
-      case 'unread':
+      case "unread":
       default: {
         const unreadDiff = (b.unreadCount ?? 0) - (a.unreadCount ?? 0);
         if (unreadDiff !== 0) return unreadDiff;
-        return titleSortKey(a.title).localeCompare(titleSortKey(b.title), undefined, { numeric: true, sensitivity: 'base' });
+        return titleSortKey(a.title).localeCompare(
+          titleSortKey(b.title),
+          undefined,
+          { numeric: true, sensitivity: "base" },
+        );
       }
     }
   });
@@ -139,11 +180,18 @@ export function sortLibraryEntries(
 
 async function applyEntryBadges(
   entry: LibraryEntry,
-  meta?: Partial<Pick<LibraryEntry, 'unreadCount' | 'downloadedCount' | 'knownChapterKeys' | 'status'>>,
+  meta?: Partial<
+    Pick<
+      LibraryEntry,
+      "unreadCount" | "downloadedCount" | "knownChapterKeys" | "status"
+    >
+  >,
 ): Promise<void> {
   if (meta?.unreadCount !== undefined) entry.unreadCount = meta.unreadCount;
-  if (meta?.downloadedCount !== undefined) entry.downloadedCount = meta.downloadedCount;
-  if (meta?.knownChapterKeys !== undefined) entry.knownChapterKeys = meta.knownChapterKeys;
+  if (meta?.downloadedCount !== undefined)
+    entry.downloadedCount = meta.downloadedCount;
+  if (meta?.knownChapterKeys !== undefined)
+    entry.knownChapterKeys = meta.knownChapterKeys;
   if (meta?.status !== undefined) entry.status = meta.status;
 
   const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey);
@@ -151,13 +199,18 @@ async function applyEntryBadges(
   const cachedKeys = chapters.map((chapter) => chapter.key);
   const known = entry.knownChapterKeys ?? [];
   const needsUnread =
-    entry.unreadCount === undefined || (cachedKeys.length > 0 && cachedKeys.length !== known.length);
+    entry.unreadCount === undefined ||
+    (cachedKeys.length > 0 && cachedKeys.length !== known.length);
   const needsDownloads = entry.downloadedCount === undefined;
   if (!needsUnread && !needsDownloads) return;
 
   const [progress, downloads] = await Promise.all([
-    needsUnread ? getMangaChapterProgress(entry.sourceId, entry.mangaKey) : Promise.resolve({} as Record<string, ChapterProgress>),
-    needsDownloads ? getMangaDownloads(entry.sourceId, entry.mangaKey) : Promise.resolve([]),
+    needsUnread
+      ? getMangaChapterProgress(entry.sourceId, entry.mangaKey)
+      : Promise.resolve({} as Record<string, ChapterProgress>),
+    needsDownloads
+      ? getMangaDownloads(entry.sourceId, entry.mangaKey)
+      : Promise.resolve([]),
   ]);
 
   if (needsUnread && cachedKeys.length > 0) {
@@ -171,7 +224,9 @@ async function applyEntryBadges(
   }
 
   if (needsDownloads) {
-    entry.downloadedCount = downloads.filter((item) => item.status === 'completed').length;
+    entry.downloadedCount = downloads.filter(
+      (item) => item.status === "completed",
+    ).length;
   }
 
   if (entry.status === undefined && cached?.manga.status) {
@@ -187,7 +242,7 @@ function defaultStore(): LibraryStore {
     defaultCategoryId: ALL_CATEGORY_ID,
     excludedCategoryIds: [],
     updateOnWifiOnly: false,
-    updateInterval: '12h',
+    updateInterval: "12h",
     skipUnreadChapters: false,
     skipCompletedStatus: false,
     skipUnreadManga: false,
@@ -196,19 +251,43 @@ function defaultStore(): LibraryStore {
   };
 }
 
-function normalizeCategories(categories: LibraryCategory[], defaultCategoryId: string): LibraryCategory[] {
-  const allCategory: LibraryCategory = { id: ALL_CATEGORY_ID, name: 'All', sortOrder: 0 };
-  const userCategories = categories.filter((category) => category.id !== ALL_CATEGORY_ID);
+function normalizeCategories(
+  categories: LibraryCategory[],
+  defaultCategoryId: string,
+): LibraryCategory[] {
+  const allCategory: LibraryCategory = {
+    id: ALL_CATEGORY_ID,
+    name: "All",
+    sortOrder: 0,
+  };
+  const userCategories = categories.filter(
+    (category) => category.id !== ALL_CATEGORY_ID,
+  );
 
   if (defaultCategoryId === ALL_CATEGORY_ID) {
-    return [allCategory, ...userCategories.map((category, index) => ({ ...category, sortOrder: index + 1 }))];
+    return [
+      allCategory,
+      ...userCategories.map((category, index) => ({
+        ...category,
+        sortOrder: index + 1,
+      })),
+    ];
   }
 
   if (!categories.some((category) => category.id === ALL_CATEGORY_ID)) {
-    return [allCategory, ...userCategories.map((category, index) => ({ ...category, sortOrder: index + 1 }))];
+    return [
+      allCategory,
+      ...userCategories.map((category, index) => ({
+        ...category,
+        sortOrder: index + 1,
+      })),
+    ];
   }
 
-  return categories.map((category, index) => ({ ...category, sortOrder: index }));
+  return categories.map((category, index) => ({
+    ...category,
+    sortOrder: index,
+  }));
 }
 
 let memoryStore: LibraryStore | null = null;
@@ -229,10 +308,12 @@ async function readStore(): Promise<LibraryStore> {
   const merged = {
     ...defaultStore(),
     ...stored,
-    categories: stored.categories?.length ? stored.categories : DEFAULT_CATEGORIES,
+    categories: stored.categories?.length
+      ? stored.categories
+      : DEFAULT_CATEGORIES,
     excludedCategoryIds: stored.excludedCategoryIds ?? [],
     updateOnWifiOnly: stored.updateOnWifiOnly ?? false,
-    updateInterval: stored.updateInterval ?? '12h',
+    updateInterval: stored.updateInterval ?? "12h",
     skipUnreadChapters: stored.skipUnreadChapters ?? false,
     skipCompletedStatus: stored.skipCompletedStatus ?? false,
     skipUnreadManga: stored.skipUnreadManga ?? false,
@@ -240,17 +321,26 @@ async function readStore(): Promise<LibraryStore> {
     backgroundRefresh: stored.backgroundRefresh ?? false,
     lastAutoRefreshAt: stored.lastAutoRefreshAt,
   };
-  merged.categories = normalizeCategories(merged.categories, merged.defaultCategoryId);
+  merged.categories = normalizeCategories(
+    merged.categories,
+    merged.defaultCategoryId,
+  );
   memoryStore = merged;
   return memoryStore;
 }
 
 async function writeStore(store: LibraryStore): Promise<void> {
-  store.categories = normalizeCategories(store.categories, store.defaultCategoryId);
+  store.categories = normalizeCategories(
+    store.categories,
+    store.defaultCategoryId,
+  );
   memoryStore = {
     ...store,
     categories: store.categories.map((category) => ({ ...category })),
-    entries: store.entries.map((entry) => ({ ...entry, categoryIds: [...entry.categoryIds] })),
+    entries: store.entries.map((entry) => ({
+      ...entry,
+      categoryIds: [...entry.categoryIds],
+    })),
   };
   notifyMangaDataChanged();
   await setValue(storageKeys.LIBRARY, memoryStore);
@@ -260,9 +350,13 @@ export function isAllCategory(categoryId: string): boolean {
   return categoryId === ALL_CATEGORY_ID;
 }
 
-export function libraryCategoryCount(entries: LibraryEntry[], categoryId: string): number {
+export function libraryCategoryCount(
+  entries: LibraryEntry[],
+  categoryId: string,
+): number {
   if (isAllCategory(categoryId)) return entries.length;
-  return entries.filter((entry) => entry.categoryIds.includes(categoryId)).length;
+  return entries.filter((entry) => entry.categoryIds.includes(categoryId))
+    .length;
 }
 
 export function isAllCategoryLocked(defaultCategoryId: string): boolean {
@@ -307,7 +401,9 @@ export async function setDefaultCategoryId(categoryId: string): Promise<void> {
   await writeStore(store);
 }
 
-export async function addLibraryCategory(name: string): Promise<LibraryCategory> {
+export async function addLibraryCategory(
+  name: string,
+): Promise<LibraryCategory> {
   const store = await readStore();
   const category: LibraryCategory = {
     id: `cat_${Date.now()}`,
@@ -319,7 +415,10 @@ export async function addLibraryCategory(name: string): Promise<LibraryCategory>
   return category;
 }
 
-export async function renameLibraryCategory(categoryId: string, name: string): Promise<void> {
+export async function renameLibraryCategory(
+  categoryId: string,
+  name: string,
+): Promise<void> {
   if (isAllCategory(categoryId)) return;
   const store = await readStore();
   const category = store.categories.find((item) => item.id === categoryId);
@@ -344,9 +443,13 @@ export async function removeLibraryCategory(categoryId: string): Promise<void> {
   await writeStore(store);
 }
 
-export async function reorderLibraryCategories(orderedIds: string[]): Promise<void> {
+export async function reorderLibraryCategories(
+  orderedIds: string[],
+): Promise<void> {
   const store = await readStore();
-  const byId = new Map(store.categories.map((category) => [category.id, category]));
+  const byId = new Map(
+    store.categories.map((category) => [category.id, category]),
+  );
   const reordered: LibraryCategory[] = [];
   for (const id of orderedIds) {
     const category = byId.get(id);
@@ -357,41 +460,57 @@ export async function reorderLibraryCategories(orderedIds: string[]): Promise<vo
       reordered.push(category);
     }
   }
-  store.categories = reordered.map((category, index) => ({ ...category, sortOrder: index }));
+  store.categories = reordered.map((category, index) => ({
+    ...category,
+    sortOrder: index,
+  }));
   await writeStore(store);
 }
 
-export async function getLibraryEntries(categoryId?: string): Promise<LibraryEntry[]> {
+export async function getLibraryEntries(
+  categoryId?: string,
+): Promise<LibraryEntry[]> {
   const store = await readStore();
   const entries = [...store.entries].sort((a, b) => b.dateAdded - a.dateAdded);
   const downloads = await getDownloads();
   const downloadCounts = new Map<string, number>();
   for (const item of downloads) {
-    if (item.status !== 'completed') continue;
+    if (item.status !== "completed") continue;
     const key = entryKey(item.sourceId, item.mangaKey);
     downloadCounts.set(key, (downloadCounts.get(key) ?? 0) + 1);
   }
   const withCounts = entries.map((entry) => ({
     ...entry,
-    downloadedCount: downloadCounts.get(entryKey(entry.sourceId, entry.mangaKey)) ?? 0,
+    downloadedCount:
+      downloadCounts.get(entryKey(entry.sourceId, entry.mangaKey)) ?? 0,
   }));
   if (!categoryId || isAllCategory(categoryId)) return withCounts;
   return withCounts.filter((entry) => entry.categoryIds.includes(categoryId));
 }
 
-export async function isInLibrary(sourceId: string, mangaKey: string): Promise<boolean> {
+export async function isInLibrary(
+  sourceId: string,
+  mangaKey: string,
+): Promise<boolean> {
   const store = await readStore();
-  return store.entries.some((entry) => entryKey(entry.sourceId, entry.mangaKey) === entryKey(sourceId, mangaKey));
+  return store.entries.some(
+    (entry) =>
+      entryKey(entry.sourceId, entry.mangaKey) === entryKey(sourceId, mangaKey),
+  );
 }
 
 export async function addToLibrary(
-  entry: Pick<LibraryEntry, 'sourceId' | 'mangaKey' | 'title' | 'cover'>,
+  entry: Pick<LibraryEntry, "sourceId" | "mangaKey" | "title" | "cover">,
   categoryIds?: string[],
 ): Promise<void> {
   const store = await readStore();
   const key = entryKey(entry.sourceId, entry.mangaKey);
-  const existing = store.entries.find((item) => entryKey(item.sourceId, item.mangaKey) === key);
-  const normalizedCategories = (categoryIds ?? []).filter((id) => !isAllCategory(id));
+  const existing = store.entries.find(
+    (item) => entryKey(item.sourceId, item.mangaKey) === key,
+  );
+  const normalizedCategories = (categoryIds ?? []).filter(
+    (id) => !isAllCategory(id),
+  );
   const fallbackCategories =
     normalizedCategories.length > 0
       ? normalizedCategories
@@ -420,10 +539,15 @@ export async function addToLibrary(
   await writeStore(store);
 }
 
-export async function removeFromLibrary(sourceId: string, mangaKey: string): Promise<void> {
+export async function removeFromLibrary(
+  sourceId: string,
+  mangaKey: string,
+): Promise<void> {
   const store = await readStore();
   const key = entryKey(sourceId, mangaKey);
-  store.entries = store.entries.filter((entry) => entryKey(entry.sourceId, entry.mangaKey) !== key);
+  store.entries = store.entries.filter(
+    (entry) => entryKey(entry.sourceId, entry.mangaKey) !== key,
+  );
   await writeStore(store);
   await removeMangaDownloads(sourceId, mangaKey);
 }
@@ -435,28 +559,43 @@ export async function setLibraryCategories(
 ): Promise<void> {
   const store = await readStore();
   const key = entryKey(sourceId, mangaKey);
-  const entry = store.entries.find((item) => entryKey(item.sourceId, item.mangaKey) === key);
+  const entry = store.entries.find(
+    (item) => entryKey(item.sourceId, item.mangaKey) === key,
+  );
   if (!entry) return;
   entry.categoryIds = categoryIds.filter((id) => !isAllCategory(id));
   await writeStore(store);
 }
 
-export async function getLibraryEntry(sourceId: string, mangaKey: string): Promise<LibraryEntry | undefined> {
+export async function getLibraryEntry(
+  sourceId: string,
+  mangaKey: string,
+): Promise<LibraryEntry | undefined> {
   const store = await readStore();
-  return store.entries.find((entry) => entryKey(entry.sourceId, entry.mangaKey) === entryKey(sourceId, mangaKey));
+  return store.entries.find(
+    (entry) =>
+      entryKey(entry.sourceId, entry.mangaKey) === entryKey(sourceId, mangaKey),
+  );
 }
 
 export async function toggleMangaLibraryCategory(
   sourceId: string,
   mangaKey: string,
   categoryId: string,
-  meta: Pick<LibraryEntry, 'title' | 'cover'> &
-    Partial<Pick<LibraryEntry, 'unreadCount' | 'downloadedCount' | 'knownChapterKeys' | 'status'>>,
+  meta: Pick<LibraryEntry, "title" | "cover"> &
+    Partial<
+      Pick<
+        LibraryEntry,
+        "unreadCount" | "downloadedCount" | "knownChapterKeys" | "status"
+      >
+    >,
 ): Promise<{ inLibrary: boolean; categoryIds: string[] }> {
   if (isAllCategory(categoryId)) {
     const store = await readStore();
     const key = entryKey(sourceId, mangaKey);
-    let entry = store.entries.find((item) => entryKey(item.sourceId, item.mangaKey) === key);
+    let entry = store.entries.find(
+      (item) => entryKey(item.sourceId, item.mangaKey) === key,
+    );
 
     if (!entry) {
       entry = {
@@ -474,7 +613,9 @@ export async function toggleMangaLibraryCategory(
     }
 
     if (entry.categoryIds.length === 0) {
-      store.entries = store.entries.filter((item) => entryKey(item.sourceId, item.mangaKey) !== key);
+      store.entries = store.entries.filter(
+        (item) => entryKey(item.sourceId, item.mangaKey) !== key,
+      );
       await writeStore(store);
       await removeMangaDownloads(sourceId, mangaKey);
       return { inLibrary: false, categoryIds: [] };
@@ -489,7 +630,9 @@ export async function toggleMangaLibraryCategory(
 
   const store = await readStore();
   const key = entryKey(sourceId, mangaKey);
-  let entry = store.entries.find((item) => entryKey(item.sourceId, item.mangaKey) === key);
+  let entry = store.entries.find(
+    (item) => entryKey(item.sourceId, item.mangaKey) === key,
+  );
 
   if (!entry) {
     entry = {
@@ -509,7 +652,9 @@ export async function toggleMangaLibraryCategory(
   if (entry.categoryIds.includes(categoryId)) {
     entry.categoryIds = entry.categoryIds.filter((id) => id !== categoryId);
     if (entry.categoryIds.length === 0) {
-      store.entries = store.entries.filter((item) => entryKey(item.sourceId, item.mangaKey) !== key);
+      store.entries = store.entries.filter(
+        (item) => entryKey(item.sourceId, item.mangaKey) !== key,
+      );
       await writeStore(store);
       await removeMangaDownloads(sourceId, mangaKey);
       return { inLibrary: false, categoryIds: [] };
@@ -527,7 +672,7 @@ export async function toggleMangaLibraryCategory(
 export async function addMangaToLibraryWithCategories(
   sourceId: string,
   mangaKey: string,
-  meta: Pick<LibraryEntry, 'title' | 'cover'>,
+  meta: Pick<LibraryEntry, "title" | "cover">,
   categoryIds: string[],
 ): Promise<{ inLibrary: boolean; categoryIds: string[] }> {
   const store = await readStore();
@@ -541,7 +686,10 @@ export async function addMangaToLibraryWithCategories(
 
   await addToLibrary({ sourceId, mangaKey, ...meta }, fallbackCategories);
   const entry = await getLibraryEntry(sourceId, mangaKey);
-  return { inLibrary: true, categoryIds: entry?.categoryIds ?? fallbackCategories };
+  return {
+    inLibrary: true,
+    categoryIds: entry?.categoryIds ?? fallbackCategories,
+  };
 }
 
 export async function getExcludedCategoryIds(): Promise<string[]> {
@@ -549,13 +697,18 @@ export async function getExcludedCategoryIds(): Promise<string[]> {
   return [...store.excludedCategoryIds];
 }
 
-export async function isCategoryExcludedFromUpdates(categoryId: string): Promise<boolean> {
+export async function isCategoryExcludedFromUpdates(
+  categoryId: string,
+): Promise<boolean> {
   if (isAllCategory(categoryId)) return false;
   const store = await readStore();
   return store.excludedCategoryIds.includes(categoryId);
 }
 
-export async function setCategoryExcludedFromUpdates(categoryId: string, excluded: boolean): Promise<void> {
+export async function setCategoryExcludedFromUpdates(
+  categoryId: string,
+  excluded: boolean,
+): Promise<void> {
   if (isAllCategory(categoryId)) return;
   const store = await readStore();
   if (excluded) {
@@ -563,7 +716,9 @@ export async function setCategoryExcludedFromUpdates(categoryId: string, exclude
       store.excludedCategoryIds.push(categoryId);
     }
   } else {
-    store.excludedCategoryIds = store.excludedCategoryIds.filter((id) => id !== categoryId);
+    store.excludedCategoryIds = store.excludedCategoryIds.filter(
+      (id) => id !== categoryId,
+    );
   }
   await writeStore(store);
 }
@@ -582,14 +737,14 @@ export async function setUpdateOnWifiOnly(value: boolean): Promise<void> {
 export async function getLibraryUpdateSettings(): Promise<
   Pick<
     LibraryStore,
-    | 'updateInterval'
-    | 'skipUnreadChapters'
-    | 'skipCompletedStatus'
-    | 'skipUnreadManga'
-    | 'refreshMetadata'
-    | 'backgroundRefresh'
-    | 'updateOnWifiOnly'
-    | 'lastAutoRefreshAt'
+    | "updateInterval"
+    | "skipUnreadChapters"
+    | "skipCompletedStatus"
+    | "skipUnreadManga"
+    | "refreshMetadata"
+    | "backgroundRefresh"
+    | "updateOnWifiOnly"
+    | "lastAutoRefreshAt"
   >
 > {
   const store = await readStore();
@@ -609,82 +764,134 @@ export async function updateLibraryUpdateSettings(
   patch: Partial<
     Pick<
       LibraryStore,
-      | 'updateInterval'
-      | 'skipUnreadChapters'
-      | 'skipCompletedStatus'
-      | 'skipUnreadManga'
-      | 'refreshMetadata'
-      | 'backgroundRefresh'
-      | 'updateOnWifiOnly'
-      | 'lastAutoRefreshAt'
+      | "updateInterval"
+      | "skipUnreadChapters"
+      | "skipCompletedStatus"
+      | "skipUnreadManga"
+      | "refreshMetadata"
+      | "backgroundRefresh"
+      | "updateOnWifiOnly"
+      | "lastAutoRefreshAt"
     >
   >,
 ): Promise<void> {
   const store = await readStore();
   Object.assign(store, patch);
   await writeStore(store);
+  if ("backgroundRefresh" in patch || "updateInterval" in patch) {
+    void import("@/services/background-library-update").then((module) =>
+      module.syncBackgroundLibraryUpdates(),
+    );
+  }
 }
 
-export async function shouldRefreshLibraryEntry(entry: LibraryEntry): Promise<boolean> {
+export async function shouldRefreshLibraryEntry(
+  entry: LibraryEntry,
+): Promise<boolean> {
   const store = await readStore();
   if (entry.categoryIds.length > 0) {
-    const included = entry.categoryIds.some((categoryId) => !store.excludedCategoryIds.includes(categoryId));
+    const included = entry.categoryIds.some(
+      (categoryId) => !store.excludedCategoryIds.includes(categoryId),
+    );
     if (!included) return false;
   }
 
   if (store.skipUnreadChapters && (entry.unreadCount ?? 0) > 0) return false;
-  if (store.skipCompletedStatus && entry.status === 'completed') return false;
+  if (store.skipCompletedStatus && entry.status === "completed") return false;
 
   if (store.skipUnreadManga) {
-    const { getMangaChapterProgress, getMangaHistoryForEntry } = await import('@/services/manga-tracking');
+    const { getMangaChapterProgress, getMangaHistoryForEntry } =
+      await import("@/services/manga-tracking");
     const [progress, history] = await Promise.all([
       getMangaChapterProgress(entry.sourceId, entry.mangaKey),
       getMangaHistoryForEntry(entry.sourceId, entry.mangaKey),
     ]);
-    const hasRead = Object.values(progress).some((item) => item.page === -1) || history.length > 0;
+    const hasRead =
+      Object.values(progress).some((item) => item.page === -1) ||
+      history.length > 0;
     if (!hasRead) return false;
   }
 
   return true;
 }
 
+export type LibraryEntryMetadata = Partial<
+  Pick<
+    LibraryEntry,
+    | "title"
+    | "cover"
+    | "unreadCount"
+    | "downloadedCount"
+    | "lastRefreshed"
+    | "status"
+    | "knownChapterKeys"
+    | "updateFailed"
+    | "lastAttemptAt"
+  >
+>;
+
+function applyEntryMetadata(
+  entry: LibraryEntry,
+  metadata: LibraryEntryMetadata,
+): void {
+  if (metadata.title) entry.title = metadata.title;
+  if (metadata.cover !== undefined) entry.cover = metadata.cover;
+  if (metadata.unreadCount !== undefined)
+    entry.unreadCount = metadata.unreadCount;
+  if (metadata.downloadedCount !== undefined)
+    entry.downloadedCount = metadata.downloadedCount;
+  if (metadata.lastRefreshed !== undefined)
+    entry.lastRefreshed = metadata.lastRefreshed;
+  if (metadata.status !== undefined) entry.status = metadata.status;
+  if (metadata.knownChapterKeys !== undefined)
+    entry.knownChapterKeys = metadata.knownChapterKeys;
+  if (metadata.updateFailed !== undefined)
+    entry.updateFailed = metadata.updateFailed;
+  if (metadata.lastAttemptAt !== undefined)
+    entry.lastAttemptAt = metadata.lastAttemptAt;
+}
+
 export async function updateLibraryEntryMetadata(
   sourceId: string,
   mangaKey: string,
-  metadata: Partial<
-    Pick<
-      LibraryEntry,
-      | 'title'
-      | 'cover'
-      | 'unreadCount'
-      | 'downloadedCount'
-      | 'lastRefreshed'
-      | 'status'
-      | 'knownChapterKeys'
-      | 'updateFailed'
-    >
-  >,
+  metadata: LibraryEntryMetadata,
 ): Promise<void> {
-  const store = await readStore();
-  const key = entryKey(sourceId, mangaKey);
-  const entry = store.entries.find((item) => entryKey(item.sourceId, item.mangaKey) === key);
-  if (!entry) return;
-  if (metadata.title) entry.title = metadata.title;
-  if (metadata.cover !== undefined) entry.cover = metadata.cover;
-  if (metadata.unreadCount !== undefined) entry.unreadCount = metadata.unreadCount;
-  if (metadata.downloadedCount !== undefined) entry.downloadedCount = metadata.downloadedCount;
-  if (metadata.lastRefreshed !== undefined) entry.lastRefreshed = metadata.lastRefreshed;
-  if (metadata.status !== undefined) entry.status = metadata.status;
-  if (metadata.knownChapterKeys !== undefined) entry.knownChapterKeys = metadata.knownChapterKeys;
-  if (metadata.updateFailed !== undefined) entry.updateFailed = metadata.updateFailed;
-  await writeStore(store);
+  await updateLibraryEntriesMetadata([{ sourceId, mangaKey, metadata }]);
 }
 
-export const LIBRARY_UPDATE_INTERVAL_MS: Record<LibraryUpdateInterval, number | null> = {
+export async function updateLibraryEntriesMetadata(
+  updates: Array<{
+    sourceId: string;
+    mangaKey: string;
+    metadata: LibraryEntryMetadata;
+  }>,
+): Promise<void> {
+  if (updates.length === 0) return;
+  const store = await readStore();
+  const byKey = new Map(
+    store.entries.map((entry) => [
+      entryKey(entry.sourceId, entry.mangaKey),
+      entry,
+    ]),
+  );
+  let changed = false;
+  for (const update of updates) {
+    const entry = byKey.get(entryKey(update.sourceId, update.mangaKey));
+    if (!entry) continue;
+    applyEntryMetadata(entry, update.metadata);
+    changed = true;
+  }
+  if (changed) await writeStore(store);
+}
+
+export const LIBRARY_UPDATE_INTERVAL_MS: Record<
+  LibraryUpdateInterval,
+  number | null
+> = {
   never: null,
-  '1h': 60 * 60 * 1000,
-  '6h': 6 * 60 * 60 * 1000,
-  '12h': 12 * 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
-  '48h': 48 * 60 * 60 * 1000,
+  "1h": 60 * 60 * 1000,
+  "6h": 6 * 60 * 60 * 1000,
+  "12h": 12 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "48h": 48 * 60 * 60 * 1000,
 };
