@@ -16,6 +16,7 @@ type ReaderPageSliderProps = {
   totalPages: number;
   accentColor: string;
   labelColor: string;
+  inverted?: boolean;
   onSeek: (page: number) => void;
 };
 
@@ -27,6 +28,7 @@ export function ReaderPageSlider({
   currentPage,
   totalPages,
   accentColor,
+  inverted = false,
   onSeek,
 }: ReaderPageSliderProps) {
   const [sliding, setSliding] = useState(false);
@@ -39,6 +41,8 @@ export function ReaderPageSlider({
   const trackPageXSV = useSharedValue(0);
   const maxSV = useSharedValue(Math.max(0, totalPages - 1));
   const progressSV = useSharedValue(currentPage);
+  const invertedSV = useSharedValue(inverted);
+  const invertedRef = useRef(inverted);
 
   const currentPageRef = useRef(currentPage);
   useEffect(() => {
@@ -49,6 +53,11 @@ export function ReaderPageSlider({
   const max = Math.max(0, totalPages - 1);
   const displayPage = sliding ? slideValue : currentPage;
   const clamped = Math.min(Math.max(0, displayPage), max);
+
+  useEffect(() => {
+    invertedRef.current = inverted;
+    invertedSV.value = inverted;
+  }, [inverted, invertedSV]);
 
   useEffect(() => {
     maxSV.value = max;
@@ -63,10 +72,11 @@ export function ReaderPageSlider({
   const pageFromAbsoluteX = (absoluteX: number) => {
     const width = widthRef.current;
     if (width <= 0 || max <= 0) return 0;
-    const ratio = Math.min(
+    const raw = Math.min(
       1,
       Math.max(0, (absoluteX - trackPageXRef.current) / width),
     );
+    const ratio = invertedRef.current ? 1 - raw : raw;
     return Math.round(ratio * max);
   };
 
@@ -125,10 +135,11 @@ export function ReaderPageSlider({
       const trackWidth = widthSV.value;
       const maxPage = maxSV.value;
       const localX = event.absoluteX - trackPageXSV.value;
-      const ratio =
+      const raw =
         trackWidth <= 0 || maxPage <= 0
           ? 0
           : Math.min(1, Math.max(0, localX / trackWidth));
+      const ratio = invertedSV.value ? 1 - raw : raw;
       progressSV.value = Math.round(ratio * maxPage);
       scheduleOnRN(moveSlide, event.absoluteX);
     },
@@ -146,10 +157,10 @@ export function ReaderPageSlider({
     const width = widthSV.value;
     const maxPage = Math.max(1, maxSV.value);
     const travel = Math.max(0, width - THUMB_SIZE);
-    const x =
-      maxSV.value <= 0 ? travel / 2 : (progressSV.value / maxPage) * travel;
+    const ratio = maxSV.value <= 0 ? 0.5 : progressSV.value / maxPage;
+    const visual = invertedSV.value ? 1 - ratio : ratio;
     return {
-      transform: [{ translateX: x }],
+      transform: [{ translateX: visual * travel }],
     };
   });
 
@@ -158,14 +169,14 @@ export function ReaderPageSlider({
     [totalPages],
   );
 
+  const bubbleRatio =
+    max <= 0 ? 0.5 : inverted ? 1 - clamped / max : clamped / max;
+
   return (
     <View style={styles.root}>
       {sliding ? (
         <View
-          style={[
-            styles.bubbleWrap,
-            { left: `${(max <= 0 ? 0.5 : clamped / max) * 100}%` },
-          ]}
+          style={[styles.bubbleWrap, { left: `${bubbleRatio * 100}%` }]}
           pointerEvents="none"
         >
           <View style={styles.bubble}>
@@ -189,15 +200,13 @@ export function ReaderPageSlider({
             });
           }}
         >
-          <View style={styles.sections}>
+          <View style={[styles.sections, inverted && styles.sectionsReversed]}>
             {sections.map((index) => (
               <View
                 key={index}
                 style={[
                   styles.section,
                   {
-                    marginRight:
-                      index === sections.length - 1 ? 0 : SECTION_GAP,
                     backgroundColor:
                       index <= clamped ? accentColor : "rgba(255,255,255,0.22)",
                   },
@@ -243,8 +252,12 @@ const styles = StyleSheet.create({
     height: TRACK_HEIGHT,
     flexDirection: "row",
     alignItems: "stretch",
+    gap: SECTION_GAP,
     overflow: "hidden",
     borderRadius: 5,
+  },
+  sectionsReversed: {
+    flexDirection: "row-reverse",
   },
   section: {
     flex: 1,

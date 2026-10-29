@@ -1,6 +1,6 @@
-import { getValue, setValue, storageKeys } from '@/constants/storage';
-import { getAppSettings } from '@/services/app-settings';
-import { notifyMangaDataChanged } from '@/utils/manga-events';
+import { getValue, setValue, storageKeys } from "@/constants/storage";
+import { getAppSettings } from "@/services/app-settings";
+import { notifyMangaDataChanged } from "@/utils/manga-events";
 
 export type ChapterProgress = {
   sourceId: string;
@@ -26,7 +26,33 @@ type TrackingStore = {
   history: HistoryEntry[];
 };
 
-function chapterKey(sourceId: string, mangaKey: string, chapterKey: string): string {
+type HistoryMeta = Pick<
+  HistoryEntry,
+  "mangaTitle" | "chapterTitle" | "cover"
+> & {
+  notify?: boolean;
+};
+
+const NOTIFY_DELAY_MS = 80;
+const LIBRARY_SYNC_DELAY_MS = 150;
+
+let mutationTail: Promise<unknown> = Promise.resolve();
+let notifyTimer: ReturnType<typeof setTimeout> | null = null;
+const syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleNotify(): void {
+  if (notifyTimer) return;
+  notifyTimer = setTimeout(() => {
+    notifyTimer = null;
+    notifyMangaDataChanged();
+  }, NOTIFY_DELAY_MS);
+}
+
+function chapterKey(
+  sourceId: string,
+  mangaKey: string,
+  chapterKey: string,
+): string {
   return `${sourceId}:${mangaKey}:${chapterKey}`;
 }
 
@@ -50,27 +76,55 @@ function removeChapterHistory(
   );
 }
 
-function upsertChapterHistory(
-  store: TrackingStore,
-  entry: HistoryEntry,
-): void {
+function upsertChapterHistory(store: TrackingStore, entry: HistoryEntry): void {
   removeChapterHistory(store, entry.sourceId, entry.mangaKey, entry.chapterKey);
   store.history.unshift(entry);
 }
 
 async function readStore(): Promise<TrackingStore> {
-  return getValue<TrackingStore>(storageKeys.MANGA_TRACKING, { chapters: {}, history: [] });
+  const stored = await getValue<Partial<TrackingStore>>(
+    storageKeys.MANGA_TRACKING,
+    {},
+  );
+  return {
+    chapters: stored?.chapters ?? {},
+    history: Array.isArray(stored?.history) ? stored.history : [],
+  };
 }
 
-async function writeStore(store: TrackingStore, notify = true): Promise<void> {
-  await setValue(storageKeys.MANGA_TRACKING, store);
-  if (notify) notifyMangaDataChanged();
+function mutateStore(
+  apply: (store: TrackingStore) => boolean,
+  notify = true,
+): Promise<boolean> {
+  const run = mutationTail.then(async () => {
+    const store = await readStore();
+    if (!apply(store)) return false;
+    await setValue(storageKeys.MANGA_TRACKING, store);
+    if (notify) scheduleNotify();
+    return true;
+  });
+  mutationTail = run.catch(() => undefined);
+  return run;
 }
 
 async function trackingWritesDisabled(): Promise<boolean> {
   const settings = await getAppSettings();
-  // Incognito skips progress/history writes but reads still work.
   return settings.incognitoMode;
+}
+
+function scheduleLibraryUnreadSync(sourceId: string, mangaKey: string) {
+  const key = mangaHistoryKey(sourceId, mangaKey);
+  const existing = syncTimers.get(key);
+  if (existing) clearTimeout(existing);
+  syncTimers.set(
+    key,
+    setTimeout(() => {
+      syncTimers.delete(key);
+      void import("@/services/library")
+        .then((mod) => mod.syncLibraryEntryUnread(sourceId, mangaKey))
+        .catch(() => undefined);
+    }, LIBRARY_SYNC_DELAY_MS),
+  );
 }
 
 export async function getChapterProgress(
@@ -87,7 +141,11 @@ export async function isChapterRead(
   mangaKey: string,
   chapterKeyValue: string,
 ): Promise<boolean> {
-  const progress = await getChapterProgress(sourceId, mangaKey, chapterKeyValue);
+  const progress = await getChapterProgress(
+    sourceId,
+    mangaKey,
+    chapterKeyValue,
+  );
   return progress?.page === -1;
 }
 
@@ -106,8 +164,9 @@ export async function getMangaChapterProgress(
   return result;
 }
 
-/** Read chapter keys keyed by `sourceId:mangaKey`. */
-export async function getReadChapterKeysByManga(): Promise<Map<string, Set<string>>> {
+export async function getReadChapterKeysByManga(): Promise<
+  Map<string, Set<string>>
+> {
   const store = await readStore();
   const map = new Map<string, Set<string>>();
   for (const progress of Object.values(store.chapters)) {
@@ -120,23 +179,17 @@ export async function getReadChapterKeysByManga(): Promise<Map<string, Set<strin
   return map;
 }
 
-function scheduleLibraryUnreadSync(sourceId: string, mangaKey: string) {
-  void import('@/services/library')
-    .then((mod) => mod.syncLibraryEntryUnread(sourceId, mangaKey))
-    .catch(() => undefined);
-}
-
 export async function markChapterRead(
   sourceId: string,
   mangaKey: string,
   chapterKeyValue: string,
-  meta?: Pick<HistoryEntry, 'mangaTitle' | 'chapterTitle' | 'cover'> & { notify?: boolean },
+  meta?: HistoryMeta,
 ): Promise<void> {
   if (await trackingWritesDisabled()) return;
-  const store = await readStore();
   const now = Date.now();
-  const key = chapterKey(sourceId, mangaKey, chapterKeyValue);
-  const existing = store.chapters[key];
+  await mutateStore((store) => {
+    const key = chapterKey(sourceId, mangaKey, chapterKeyValue);
+    const existing = store.chapters[key];
     store.chapters[key] = {
       sourceId,
       mangaKey,
@@ -144,7 +197,6 @@ export async function markChapterRead(
       page: -1,
       dateRead: existing?.dateRead ?? now,
     };
-
     upsertChapterHistory(store, {
       sourceId,
       mangaKey,
@@ -155,8 +207,8 @@ export async function markChapterRead(
       dateRead: now,
       page: -1,
     });
-
-  await writeStore(store, meta?.notify !== false);
+    return true;
+  }, meta?.notify !== false);
   scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
@@ -165,10 +217,11 @@ export async function markChapterUnread(
   mangaKey: string,
   chapterKeyValue: string,
 ): Promise<void> {
-  const store = await readStore();
-  delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
-  removeChapterHistory(store, sourceId, mangaKey, chapterKeyValue);
-  await writeStore(store);
+  await mutateStore((store) => {
+    delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
+    removeChapterHistory(store, sourceId, mangaKey, chapterKeyValue);
+    return true;
+  });
   scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
@@ -176,48 +229,81 @@ export async function markAllChaptersRead(
   sourceId: string,
   mangaKey: string,
   chapterKeys: string[],
-  meta?: Pick<HistoryEntry, 'mangaTitle' | 'cover'>,
+  meta?: Pick<HistoryEntry, "mangaTitle" | "cover">,
 ): Promise<void> {
   if (chapterKeys.length === 0) return;
   if (await trackingWritesDisabled()) return;
-  const store = await readStore();
   const now = Date.now();
-  for (const chapterKeyValue of chapterKeys) {
-    store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)] = {
-      sourceId,
-      mangaKey,
-      chapterKey: chapterKeyValue,
-      page: -1,
-      dateRead: now,
-    };
-  }
-
-  store.history = store.history.filter((entry) => mangaHistoryKey(entry.sourceId, entry.mangaKey) !== mangaHistoryKey(sourceId, mangaKey));
-  for (let index = chapterKeys.length - 1; index >= 0; index -= 1) {
-    const chapterKeyValue = chapterKeys[index]!;
-    store.history.unshift({
-      sourceId,
-      mangaKey,
-      chapterKey: chapterKeyValue,
-      mangaTitle: meta?.mangaTitle ?? mangaKey,
-      cover: meta?.cover,
-      dateRead: now,
-    });
-  }
-
-  await writeStore(store);
-  scheduleLibraryUnreadSync(sourceId, mangaKey);
+  const changed = await mutateStore((store) => {
+    const fresh: HistoryEntry[] = [];
+    const touched = new Set<string>();
+    for (const chapterKeyValue of chapterKeys) {
+      if (touched.has(chapterKeyValue)) continue;
+      const key = chapterKey(sourceId, mangaKey, chapterKeyValue);
+      if (store.chapters[key]?.page === -1) continue;
+      touched.add(chapterKeyValue);
+      store.chapters[key] = {
+        sourceId,
+        mangaKey,
+        chapterKey: chapterKeyValue,
+        page: -1,
+        dateRead: now,
+      };
+      fresh.push({
+        sourceId,
+        mangaKey,
+        chapterKey: chapterKeyValue,
+        mangaTitle: meta?.mangaTitle ?? mangaKey,
+        cover: meta?.cover,
+        dateRead: now,
+        page: -1,
+      });
+    }
+    if (fresh.length === 0) return false;
+    store.history = [
+      ...fresh,
+      ...store.history.filter(
+        (entry) =>
+          !(
+            entry.sourceId === sourceId &&
+            entry.mangaKey === mangaKey &&
+            touched.has(entry.chapterKey)
+          ),
+      ),
+    ];
+    return true;
+  });
+  if (changed) scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
-export async function markAllChaptersUnread(sourceId: string, mangaKey: string, chapterKeys: string[]): Promise<void> {
-  const store = await readStore();
-  for (const chapterKeyValue of chapterKeys) {
-    delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
-  }
-  const historyKey = mangaHistoryKey(sourceId, mangaKey);
-  store.history = store.history.filter((entry) => mangaHistoryKey(entry.sourceId, entry.mangaKey) !== historyKey);
-  await writeStore(store);
-  scheduleLibraryUnreadSync(sourceId, mangaKey);
+export async function markAllChaptersUnread(
+  sourceId: string,
+  mangaKey: string,
+  chapterKeys: string[],
+): Promise<void> {
+  if (chapterKeys.length === 0) return;
+  const keySet = new Set(chapterKeys);
+  const changed = await mutateStore((store) => {
+    let didChange = false;
+    for (const chapterKeyValue of keySet) {
+      const key = chapterKey(sourceId, mangaKey, chapterKeyValue);
+      if (key in store.chapters) {
+        delete store.chapters[key];
+        didChange = true;
+      }
+    }
+    const before = store.history.length;
+    store.history = store.history.filter(
+      (entry) =>
+        !(
+          entry.sourceId === sourceId &&
+          entry.mangaKey === mangaKey &&
+          keySet.has(entry.chapterKey)
+        ),
+    );
+    return didChange || store.history.length !== before;
+  });
+  if (changed) scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
 export async function recordChapterProgress(
@@ -225,12 +311,12 @@ export async function recordChapterProgress(
   mangaKey: string,
   chapterKeyValue: string,
   page: number,
-  meta?: Pick<HistoryEntry, 'mangaTitle' | 'chapterTitle' | 'cover'> & { notify?: boolean },
+  meta?: HistoryMeta,
 ): Promise<void> {
   if (await trackingWritesDisabled()) return;
-  const store = await readStore();
   const now = Date.now();
-  const key = chapterKey(sourceId, mangaKey, chapterKeyValue);
+  await mutateStore((store) => {
+    const key = chapterKey(sourceId, mangaKey, chapterKeyValue);
     store.chapters[key] = {
       sourceId,
       mangaKey,
@@ -238,7 +324,6 @@ export async function recordChapterProgress(
       page,
       dateRead: now,
     };
-
     upsertChapterHistory(store, {
       sourceId,
       mangaKey,
@@ -249,21 +334,30 @@ export async function recordChapterProgress(
       dateRead: now,
       page,
     });
-
-  await writeStore(store, meta?.notify !== false);
+    return true;
+  }, meta?.notify !== false);
   if (page === -1) scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
-export async function getMangaHistoryForEntry(sourceId: string, mangaKey: string): Promise<HistoryEntry[]> {
+export async function getMangaHistoryForEntry(
+  sourceId: string,
+  mangaKey: string,
+): Promise<HistoryEntry[]> {
   const store = await readStore();
   const key = mangaHistoryKey(sourceId, mangaKey);
-  return store.history.filter((entry) => mangaHistoryKey(entry.sourceId, entry.mangaKey) === key);
+  return store.history.filter(
+    (entry) => mangaHistoryKey(entry.sourceId, entry.mangaKey) === key,
+  );
 }
 
-export async function getHistoryEntries(limit?: number): Promise<HistoryEntry[]> {
+export async function getHistoryEntries(
+  limit?: number,
+): Promise<HistoryEntry[]> {
   const store = await readStore();
   const historyKeys = new Set(
-    store.history.map((entry) => `${entry.sourceId}:${entry.mangaKey}:${entry.chapterKey}`),
+    store.history.map(
+      (entry) => `${entry.sourceId}:${entry.mangaKey}:${entry.chapterKey}`,
+    ),
   );
   const merged = [...store.history];
 
@@ -282,17 +376,29 @@ export async function getHistoryEntries(limit?: number): Promise<HistoryEntry[]>
 
   const coverByManga = new Map<string, string>();
   for (const entry of store.history) {
-    if (entry.cover) coverByManga.set(mangaHistoryKey(entry.sourceId, entry.mangaKey), entry.cover);
+    if (entry.cover) {
+      coverByManga.set(
+        mangaHistoryKey(entry.sourceId, entry.mangaKey),
+        entry.cover,
+      );
+    }
   }
 
-  const sorted = merged.sort((a, b) => b.dateRead - a.dateRead).map((entry) => {
-    const progress = store.chapters[chapterKey(entry.sourceId, entry.mangaKey, entry.chapterKey)];
-    return {
-      ...entry,
-      page: entry.page ?? progress?.page,
-      cover: entry.cover ?? coverByManga.get(mangaHistoryKey(entry.sourceId, entry.mangaKey)),
-    };
-  });
+  const sorted = merged
+    .sort((a, b) => b.dateRead - a.dateRead)
+    .map((entry) => {
+      const progress =
+        store.chapters[
+          chapterKey(entry.sourceId, entry.mangaKey, entry.chapterKey)
+        ];
+      return {
+        ...entry,
+        page: entry.page ?? progress?.page,
+        cover:
+          entry.cover ??
+          coverByManga.get(mangaHistoryKey(entry.sourceId, entry.mangaKey)),
+      };
+    });
   if (limit == null) return sorted;
   return sorted.slice(0, limit);
 }
@@ -302,21 +408,23 @@ export async function clearHistory(): Promise<void> {
 }
 
 export async function removeHistorySince(cutoffMs: number): Promise<void> {
-  const store = await readStore();
-  const removed = store.history.filter((entry) => entry.dateRead >= cutoffMs);
-  store.history = store.history.filter((entry) => entry.dateRead < cutoffMs);
+  await mutateStore((store) => {
+    const removed = store.history.filter((entry) => entry.dateRead >= cutoffMs);
+    store.history = store.history.filter((entry) => entry.dateRead < cutoffMs);
 
-  for (const entry of removed) {
-    delete store.chapters[chapterKey(entry.sourceId, entry.mangaKey, entry.chapterKey)];
-  }
-
-  for (const [key, progress] of Object.entries(store.chapters)) {
-    if (progress.dateRead >= cutoffMs) {
-      delete store.chapters[key];
+    for (const entry of removed) {
+      delete store.chapters[
+        chapterKey(entry.sourceId, entry.mangaKey, entry.chapterKey)
+      ];
     }
-  }
 
-  await writeStore(store);
+    for (const [key, progress] of Object.entries(store.chapters)) {
+      if (progress.dateRead >= cutoffMs) {
+        delete store.chapters[key];
+      }
+    }
+    return true;
+  });
 }
 
 export async function removeChapterFromHistory(
@@ -324,10 +432,11 @@ export async function removeChapterFromHistory(
   mangaKey: string,
   chapterKeyValue: string,
 ): Promise<void> {
-  const store = await readStore();
-  removeChapterHistory(store, sourceId, mangaKey, chapterKeyValue);
-  delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
-  await writeStore(store);
+  await mutateStore((store) => {
+    removeChapterHistory(store, sourceId, mangaKey, chapterKeyValue);
+    delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
+    return true;
+  });
 }
 
 export async function removeMangaHistoryGroup(
@@ -335,23 +444,21 @@ export async function removeMangaHistoryGroup(
   mangaKey: string,
   chapterKeys: string[],
 ): Promise<void> {
-  const store = await readStore();
   const chapterKeySet = new Set(chapterKeys);
-
-  store.history = store.history.filter(
-    (entry) =>
-      !(
-        entry.sourceId === sourceId &&
-        entry.mangaKey === mangaKey &&
-        chapterKeySet.has(entry.chapterKey)
-      ),
-  );
-
-  for (const chapterKeyValue of chapterKeys) {
-    delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
-  }
-
-  await writeStore(store);
+  await mutateStore((store) => {
+    store.history = store.history.filter(
+      (entry) =>
+        !(
+          entry.sourceId === sourceId &&
+          entry.mangaKey === mangaKey &&
+          chapterKeySet.has(entry.chapterKey)
+        ),
+    );
+    for (const chapterKeyValue of chapterKeys) {
+      delete store.chapters[chapterKey(sourceId, mangaKey, chapterKeyValue)];
+    }
+    return true;
+  });
 }
 
 export type MangaReadingResume = {
@@ -368,11 +475,13 @@ export async function getMangaReadingResume(
   const entries = Object.values(progress);
   if (entries.length === 0) return null;
 
-  const latest = [...entries].sort((a, b) => b.dateRead - a.dateRead)[0];
-  if (!latest) return null;
+  let latest = entries[0]!;
+  for (const entry of entries) {
+    if (entry.dateRead > latest.dateRead) latest = entry;
+  }
 
   return {
     chapterKey: latest.chapterKey,
-    page: latest.page >= 0 && latest.page !== -1 ? latest.page : 0,
+    page: latest.page >= 0 ? latest.page : 0,
   };
 }

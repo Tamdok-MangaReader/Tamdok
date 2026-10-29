@@ -1,5 +1,13 @@
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ActivityIndicator, Pressable, View, StyleSheet } from "react-native";
 
 import { ReaderView } from "@/components/reader/reader-view";
@@ -32,6 +40,8 @@ import {
 } from "@/utils/reader-prefetch";
 import { useTheme } from "@/hooks/use-theme";
 
+const PRELOAD_DELAY_MS = 600;
+
 function decodeParam(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return "";
@@ -42,9 +52,45 @@ function decodeParam(value: string | string[] | undefined): string {
   }
 }
 
-function prefetchPageImages(pages: Page[], headers?: Record<string, string>) {
+function samePages(a: Page[], b: Page[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (left !== right && JSON.stringify(left) !== JSON.stringify(right)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function sameChapters(a: Chapter[], b: Chapter[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (left === right) continue;
+    if (
+      left.key !== right.key ||
+      left.title !== right.title ||
+      left.chapterNumber !== right.chapterNumber ||
+      left.locked !== right.locked
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function prefetchPageImages(
+  pages: Page[],
+  headers?: Record<string, string>,
+  from = 0,
+) {
   prefetchReaderUrls(
-    pages.slice(0, READER_PRELOAD_AHEAD + 1).map((page) => page.url),
+    pages.slice(from, from + READER_PRELOAD_AHEAD + 1).map((page) => page.url),
     headers,
   );
 }
@@ -57,7 +103,6 @@ async function loadPagesForChapter(
     getPageList: (manga: Manga, chapter: Chapter) => Promise<Page[]>;
   } | null,
 ): Promise<Page[]> {
-  // Prefer offline downloads, then warm cache, then live source fetch.
   const localUrls = await getDownloadedPageUrls(
     sourceId,
     manga.key,
@@ -76,7 +121,60 @@ async function loadPagesForChapter(
   return nextPages;
 }
 
-function ReaderLoadedContent({
+function LoadingView() {
+  return (
+    <View style={styles.loading}>
+      <ActivityIndicator color="#fff" />
+    </View>
+  );
+}
+
+function ReaderMessage({
+  children,
+  onRefresh,
+}: {
+  children: ReactNode;
+  onRefresh: () => void;
+}) {
+  const { colors, radius } = useTheme();
+  const handleBack = useCallback(() => router.back(), []);
+
+  return (
+    <View style={styles.messageContainer}>
+      {children}
+      <View style={styles.buttons}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.refreshButton,
+            { backgroundColor: colors.tint, borderRadius: radius.md },
+            pressed && styles.pressed,
+          ]}
+          onPress={onRefresh}
+          accessibilityRole="button"
+        >
+          <ThemedText variant="headline" color="onTint">
+            {t("manga_refresh")}
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.backButton,
+            { backgroundColor: colors.destructive, borderRadius: radius.md },
+            pressed && styles.pressed,
+          ]}
+          onPress={handleBack}
+          accessibilityRole="button"
+        >
+          <ThemedText variant="headline" color="onTint">
+            {t("back")}
+          </ThemedText>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const ReaderLoadedContent = memo(function ReaderLoadedContent({
   sourceId,
   manga,
   chapter,
@@ -85,6 +183,7 @@ function ReaderLoadedContent({
   initialPage,
   loadChapterPages,
   onStatusBarHiddenChange,
+  startAtEnd,
 }: {
   sourceId: string;
   manga: Manga;
@@ -94,42 +193,52 @@ function ReaderLoadedContent({
   initialPage: number;
   loadChapterPages: (chapter: Chapter) => Promise<Page[]>;
   onStatusBarHiddenChange?: (hidden: boolean) => void;
+  startAtEnd: boolean;
 }) {
   const coverHeaders = useSourceCoverHeaders();
   const headersReady = useSourceCoverHeadersReady();
 
   useEffect(() => {
     if (!headersReady) return;
-    prefetchPageImages(pages, coverHeaders);
-  }, [coverHeaders, headersReady, pages]);
+    prefetchPageImages(pages, coverHeaders, initialPage);
+  }, [coverHeaders, headersReady, pages, initialPage]);
 
   useEffect(() => {
     if (!headersReady) return;
-    const nextChapter = findAdjacentChapter(
+    const next = findAdjacentChapter(chapters, chapter.key, "next", true);
+    const previous = findAdjacentChapter(
       chapters,
       chapter.key,
-      "next",
+      "previous",
       true,
     );
-    if (!nextChapter) return;
-    const cached = peekReaderPageCache(sourceId, manga.key, nextChapter.key);
-    if (cached) prefetchPageImages(cached, coverHeaders);
-  }, [chapter.key, chapters, coverHeaders, headersReady, manga.key, sourceId]);
+    if (!next && !previous) return;
 
-  if (!headersReady) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#000",
-        }}
-      >
-        <ActivityIndicator color="#fff" />
-      </View>
-    );
-  }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (next) {
+          try {
+            const nextPages = await loadChapterPages(next);
+            if (cancelled) return;
+            prefetchPageImages(nextPages, coverHeaders);
+          } catch {}
+        }
+        if (previous && !cancelled) {
+          try {
+            await loadChapterPages(previous);
+          } catch {}
+        }
+      })();
+    }, PRELOAD_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [chapter.key, chapters, coverHeaders, headersReady, loadChapterPages]);
+
+  if (!headersReady) return <LoadingView />;
 
   return (
     <ReaderView
@@ -144,7 +253,7 @@ function ReaderLoadedContent({
       onStatusBarHiddenChange={onStatusBarHiddenChange}
     />
   );
-}
+});
 
 export default function MangaReaderScreen() {
   const params = useLocalSearchParams<{
@@ -160,24 +269,29 @@ export default function MangaReaderScreen() {
   const mangaKey = decodeParam(params.mangaKey);
   const chapterKey = decodeMangaKey(decodeParam(params.chapterKey));
   const pageParam = decodeParam(params.page);
-  const pageFromRoute = pageParam === "" ? null : Number(pageParam);
+  const startAtEnd = pageParam === "last";
+  const pageFromRoute =
+    pageParam === "" || startAtEnd ? null : Number(pageParam);
   const { installed } = useSources();
   const source = findInstalledSource(installed, sourceRoute);
   const manifestSourceId = source?.id ?? sourceRoute;
   const { runner, error, isLoading: runnerLoading } = useSourceRunner(source);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
-  const [resumePage, setResumePage] = useState<number | null>(
-    pageFromRoute != null &&
-      Number.isFinite(pageFromRoute) &&
-      pageFromRoute >= 0
-      ? pageFromRoute
-      : null,
+  const [resumePage, setResumePage] = useState<number | null>(() =>
+    startAtEnd
+      ? 0
+      : pageFromRoute != null &&
+          Number.isFinite(pageFromRoute) &&
+          pageFromRoute >= 0
+        ? pageFromRoute
+        : null,
   );
   const [contentLoading, setContentLoading] = useState(true);
   const [contentError, setContentError] = useState<string | null>(null);
   const [statusBarHidden, setStatusBarHidden] = useState(false);
-  const { colors, radius } = useTheme();
+  const [reloadTick, setReloadTick] = useState(0);
+  const inflightRef = useRef(new Map<string, Promise<Page[]>>());
 
   const manga = useMemo(() => {
     const fromParams = mangaFromParams(
@@ -195,6 +309,7 @@ export default function MangaReaderScreen() {
       cover: fromParams.cover || cached.cover,
     };
   }, [manifestSourceId, mangaKey, params.cover, params.mangaTitle]);
+
   const chapter: Chapter = useMemo(() => {
     const cached = peekMangaDetailCache(
       manifestSourceId,
@@ -205,43 +320,46 @@ export default function MangaReaderScreen() {
     );
   }, [chapterKey, manifestSourceId, mangaKey, params.chapterTitle]);
 
+  const applyPages = useCallback((next: Page[]) => {
+    setPages((previous) => (samePages(previous, next) ? previous : next));
+  }, []);
+
+  const applyChapters = useCallback((next: Chapter[]) => {
+    setChapters((previous) => (sameChapters(previous, next) ? previous : next));
+  }, []);
+
+  useEffect(() => {
+    if (resumePage != null) return;
+    let cancelled = false;
+    getChapterProgress(manifestSourceId, mangaKey, chapterKey)
+      .then((progress) => {
+        if (!cancelled) {
+          setResumePage(progress && progress.page >= 0 ? progress.page : 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setResumePage(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [resumePage, manifestSourceId, mangaKey, chapterKey]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadContent() {
       setContentError(null);
 
-      if (resumePage == null) {
-        try {
-          const progress = await getChapterProgress(
-            manifestSourceId,
-            mangaKey,
-            chapterKey,
-          );
-          if (!cancelled) {
-            setResumePage(progress && progress.page >= 0 ? progress.page : 0);
-          }
-        } catch {
-          if (!cancelled) setResumePage(0);
-        }
-      }
-
-      const cachedChapters =
-        peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters ?? [];
-      if (cachedChapters.length > 0) {
-        setChapters(cachedChapters);
-      }
-
       const localUrls = await getDownloadedPageUrls(
         manifestSourceId,
         mangaKey,
         chapterKey,
       );
+      if (cancelled) return;
       if (localUrls?.length) {
-        if (!cancelled) {
-          setPages(localUrls.map((url) => ({ url })));
-          setContentLoading(false);
-        }
+        applyPages(localUrls.map((url) => ({ url })));
+        setContentLoading(false);
         return;
       }
 
@@ -251,16 +369,14 @@ export default function MangaReaderScreen() {
         chapterKey,
       );
       if (cachedPages?.length) {
-        if (!cancelled) {
-          setPages(cachedPages);
-          setContentLoading(false);
-        }
+        applyPages(cachedPages);
+        setContentLoading(false);
       } else {
         setContentLoading(true);
       }
 
       if (!runner) {
-        if (!cancelled && !cachedPages?.length) setContentLoading(false);
+        if (!cachedPages?.length) setContentLoading(false);
         return;
       }
 
@@ -269,7 +385,7 @@ export default function MangaReaderScreen() {
           await runner.getPageList(manga, chapter),
         );
         if (cancelled) return;
-        setPages(nextPages);
+        applyPages(nextPages);
         writeReaderPageCache(manifestSourceId, mangaKey, chapterKey, nextPages);
       } catch (loadError) {
         if (!cancelled && !cachedPages?.length) {
@@ -280,48 +396,75 @@ export default function MangaReaderScreen() {
       } finally {
         if (!cancelled) setContentLoading(false);
       }
-
-      if (cachedChapters.length === 0) {
-        try {
-          const detail = await runner.getMangaUpdate(manga, false, true);
-          if (!cancelled) setChapters(detail.chapters ?? []);
-        } catch {}
-      }
     }
 
     void loadContent();
     return () => {
       cancelled = true;
     };
-  }, [runner, manga, chapter, manifestSourceId, mangaKey, chapterKey]);
+  }, [
+    runner,
+    manga,
+    chapter,
+    manifestSourceId,
+    mangaKey,
+    chapterKey,
+    reloadTick,
+    applyPages,
+  ]);
+
+  const pagesReady = pages.length > 0;
 
   useEffect(() => {
-    if (!runner || chapters.length === 0) return;
-
-    const adjacent = [
-      findAdjacentChapter(chapters, chapterKey, "previous", true),
-      findAdjacentChapter(chapters, chapterKey, "next", true),
-    ].filter((item): item is Chapter => Boolean(item));
+    const cached =
+      peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters ?? [];
+    if (cached.length > 0) {
+      applyChapters(cached);
+      return;
+    }
+    if (!runner || (contentLoading && !pagesReady)) return;
 
     let cancelled = false;
-    void (async () => {
-      for (const item of adjacent) {
-        try {
-          await loadPagesForChapter(manifestSourceId, manga, item, runner);
-          if (cancelled) return;
-        } catch {}
-      }
-    })();
-
+    runner
+      .getMangaUpdate(manga, false, true)
+      .then((detail) => {
+        if (!cancelled) applyChapters(detail.chapters ?? []);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [chapterKey, chapters, manifestSourceId, manga, mangaKey, runner]);
+  }, [
+    runner,
+    manga,
+    manifestSourceId,
+    mangaKey,
+    contentLoading,
+    pagesReady,
+    applyChapters,
+  ]);
 
   const loadChapterPages = useCallback(
-    (target: Chapter) =>
-      loadPagesForChapter(manifestSourceId, manga, target, runner),
+    (target: Chapter) => {
+      const existing = inflightRef.current.get(target.key);
+      if (existing) return existing;
+      const promise = loadPagesForChapter(
+        manifestSourceId,
+        manga,
+        target,
+        runner,
+      ).finally(() => {
+        inflightRef.current.delete(target.key);
+      });
+      inflightRef.current.set(target.key, promise);
+      return promise;
+    },
     [manifestSourceId, manga, runner],
+  );
+
+  const handleRefresh = useCallback(
+    () => setReloadTick((value) => value + 1),
+    [],
   );
 
   const combinedError = error ?? contentError;
@@ -329,6 +472,7 @@ export default function MangaReaderScreen() {
     resumePage == null ||
     (runnerLoading && pages.length === 0) ||
     (contentLoading && pages.length === 0);
+
   const readerScreenOptions = useMemo(
     () => ({
       headerShown: false as const,
@@ -343,122 +487,60 @@ export default function MangaReaderScreen() {
     [statusBarHidden],
   );
 
+  let body: ReactNode;
+  if (combinedError && pages.length === 0) {
+    body = (
+      <ReaderMessage onRefresh={handleRefresh}>
+        <ThemedText variant="body" color="destructive">
+          {combinedError}
+        </ThemedText>
+      </ReaderMessage>
+    );
+  } else if (isLoading) {
+    body = <LoadingView />;
+  } else if (pages.length === 0) {
+    body = (
+      <ReaderMessage onRefresh={handleRefresh}>
+        <EmptyState icon="images-outline" title={t("reader_no_pages")} />
+      </ReaderMessage>
+    );
+  } else {
+    body = (
+      <SourceCoverHeadersProvider source={source}>
+        <ReaderLoadedContent
+          sourceId={manifestSourceId}
+          manga={manga}
+          chapter={chapter}
+          chapters={chapters}
+          pages={pages}
+          initialPage={
+            startAtEnd
+              ? Math.max(0, pages.length - 1)
+              : Math.min(resumePage ?? 0, Math.max(0, pages.length - 1))
+          }
+          startAtEnd={startAtEnd}
+          loadChapterPages={loadChapterPages}
+          onStatusBarHiddenChange={setStatusBarHidden}
+        />
+      </SourceCoverHeadersProvider>
+    );
+  }
+
   return (
     <>
       <Stack.Screen options={readerScreenOptions} />
-      {combinedError && pages.length === 0 ? (
-        <View style={styles.messageContainer}>
-          <ThemedText variant="body" color="destructive">
-            {combinedError ? combinedError : "Undefined error"}
-          </ThemedText>
-          <View style={styles.buttons}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.refreshButton,
-                { backgroundColor: colors.tint, borderRadius: radius.md },
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                loadChapterPages(chapter);
-              }}
-              accessibilityRole="button"
-            >
-              <ThemedText variant="headline" color="onTint">
-                {t("manga_refresh")}
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.backButton,
-                {
-                  backgroundColor: colors.destructive,
-                  borderRadius: radius.md,
-                },
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                router.back();
-              }}
-              accessibilityRole="button"
-            >
-              <ThemedText variant="headline" color="onTint">
-                {t("back")}
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      ) : isLoading ? (
-        <View
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#000",
-          }}
-        >
-          <ActivityIndicator color="#fff" />
-        </View>
-      ) : pages.length === 0 ? (
-        <View style={styles.messageContainer}>
-          <EmptyState icon="images-outline" title={t("reader_no_pages")} />
-          <View style={styles.buttons}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.refreshButton,
-                { backgroundColor: colors.tint, borderRadius: radius.md },
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                loadChapterPages(chapter);
-              }}
-              accessibilityRole="button"
-            >
-              <ThemedText variant="headline" color="onTint">
-                {t("manga_refresh")}
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.backButton,
-                {
-                  backgroundColor: colors.destructive,
-                  borderRadius: radius.md,
-                },
-                pressed && styles.pressed,
-              ]}
-              onPress={() => {
-                router.back();
-              }}
-              accessibilityRole="button"
-            >
-              <ThemedText variant="headline" color="onTint">
-                {t("back")}
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        <SourceCoverHeadersProvider source={source}>
-          <ReaderLoadedContent
-            sourceId={manifestSourceId}
-            manga={manga}
-            chapter={chapter}
-            chapters={chapters}
-            pages={pages}
-            initialPage={Math.min(
-              resumePage ?? 0,
-              Math.max(0, pages.length - 1),
-            )}
-            loadChapterPages={loadChapterPages}
-            onStatusBarHiddenChange={setStatusBarHidden}
-          />
-        </SourceCoverHeadersProvider>
-      )}
+      {body}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000",
+  },
   messageContainer: {
     flex: 1,
     alignItems: "center",

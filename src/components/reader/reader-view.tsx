@@ -1,40 +1,75 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRouter } from 'expo-router';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StatusBar, StyleSheet, useColorScheme, View, ActivityIndicator } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation, useRouter } from "expo-router";
+import * as ScreenOrientation from "expo-screen-orientation";
+import * as WebBrowser from "expo-web-browser";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
+import {
+  Platform,
+  StatusBar,
+  StyleSheet,
+  useColorScheme,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ReaderChapterSheet } from '@/components/reader/reader-chapter-sheet';
-import { ReaderDictionaryPopup } from '@/components/reader/reader-dictionary-popup';
-import { ReaderProvider, type ReaderActions, type ReaderChromeState } from '@/components/reader/reader-context';
-import { ReaderNavBar } from '@/components/reader/reader-nav-bar';
-import { ReaderPagedView } from '@/components/reader/reader-paged-view';
-import { ReaderSettingsSheet } from '@/components/reader/reader-settings-sheet';
-import { ReaderTextView } from '@/components/reader/reader-text-view';
-import { ReaderToolbar } from '@/components/reader/reader-toolbar';
-import { ReaderWebtoonView } from '@/components/reader/reader-webtoon-view';
-import { ReaderModeHint } from '@/components/reader/reader-mode-hint';
-import { useReaderChapterWindow } from '@/hooks/use-reader-chapter-window';
-import type { Chapter, Manga, Page } from '@/parsers/shared/types';
-import { getAppSettings } from '@/services/app-settings';
-import { removeChapterDownload } from '@/services/downloads';
-import { lookupWord, pickWordNearTap, type DictionaryEntry } from '@/services/dictionary-lookup';
-import { markChapterRead, recordChapterProgress, getChapterProgress } from '@/services/manga-tracking';
+import { ReaderChapterSheet } from "@/components/reader/reader-chapter-sheet";
+import { ReaderDictionaryPopup } from "@/components/reader/reader-dictionary-popup";
+import {
+  ReaderProvider,
+  type ReaderActions,
+  type ReaderChromeState,
+} from "@/components/reader/reader-context";
+import { ReaderNavBar } from "@/components/reader/reader-nav-bar";
+import { ReaderPagedView } from "@/components/reader/reader-paged-view";
+import { ReaderSettingsSheet } from "@/components/reader/reader-settings-sheet";
+import { ReaderTextView } from "@/components/reader/reader-text-view";
+import { ReaderToolbar } from "@/components/reader/reader-toolbar";
+import { ReaderWebtoonView } from "@/components/reader/reader-webtoon-view";
+import { ReaderModeHint } from "@/components/reader/reader-mode-hint";
+import { useReaderChapterWindow } from "@/hooks/use-reader-chapter-window";
+import type { Chapter, Manga, Page } from "@/parsers/shared/types";
+import { getAppSettings } from "@/services/app-settings";
+import { removeChapterDownload } from "@/services/downloads";
+import {
+  lookupWord,
+  pickWordNearTap,
+  type DictionaryEntry,
+} from "@/services/dictionary-lookup";
+import {
+  markChapterRead,
+  recordChapterProgress,
+  getChapterProgress,
+} from "@/services/manga-tracking";
 import {
   getMangaAutoResolvedMode,
   getMangaPageOffset,
   getMangaReadingMode,
   setMangaAutoResolvedMode,
   setMangaPageOffset,
-} from '@/services/reader-manga-settings';
-import { subscribeAppSettings } from '@/utils/app-settings-events';
-import { notifyMangaDataChanged } from '@/utils/manga-events';
-import { extractTextFromImage } from 'expo-text-extractor';
-import { chapterTitleForDisplay, formatChapterLabel } from '@/utils/chapter-label';
-import { findAdjacentChapter, findAdjacentChapterWithSkipped } from '@/utils/reader-chapters';
-import { readerBackgroundColor, readerForegroundColor } from '@/utils/reader-colors';
+} from "@/services/reader-manga-settings";
+import { subscribeAppSettings } from "@/utils/app-settings-events";
+import { notifyMangaDataChanged } from "@/utils/manga-events";
+import { extractTextFromImage } from "expo-text-extractor";
+import {
+  chapterTitleForDisplay,
+  formatChapterLabel,
+} from "@/utils/chapter-label";
+import {
+  findAdjacentChapter,
+  findAdjacentChapterWithSkipped,
+} from "@/utils/reader-chapters";
+import {
+  readerBackgroundColor,
+  readerForegroundColor,
+} from "@/utils/reader-colors";
 import {
   inferReadingModeFromImageSizes,
   inferReadingModeFromManga,
@@ -44,14 +79,28 @@ import {
   pickAutoReadingMode,
   resolveReadingMode,
   shouldInferModeFromImages,
-} from '@/utils/reader-mode';
-import { materializeReaderPages, buildReaderPages, probeReaderImageDimensions, type ReaderPage } from '@/utils/reader-pages';
-import { prefetchReaderPagesAhead } from '@/utils/reader-prefetch';
-import { clearDecodedImageCache } from '@/utils/image-memory';
-import type { ResolvedReadingMode } from '@/services/app-settings';
+} from "@/utils/reader-mode";
+import {
+  materializeReaderPages,
+  buildReaderPages,
+  probeReaderImageDimensions,
+  type ReaderPage,
+} from "@/utils/reader-pages";
+import { prefetchReaderPagesAhead } from "@/utils/reader-prefetch";
+import { clearDecodedImageCache } from "@/utils/image-memory";
+import type { ResolvedReadingMode } from "@/services/app-settings";
 
 const BARS_IDLE_HIDE_MS = 12_000;
 const MODE_HINT_MS = 2_200;
+
+type AppSettings = Awaited<ReturnType<typeof getAppSettings>>;
+type ReaderSettings = AppSettings["reader"];
+type DictionarySettings = AppSettings["dictionary"];
+type ReaderValue = ComponentProps<typeof ReaderProvider>["value"];
+type PageSetter = (index: number, animated?: boolean) => void;
+type ModeChangeHandler = NonNullable<
+  ComponentProps<typeof ReaderSettingsSheet>["onMangaReadingModeChange"]
+>;
 
 type ReaderViewProps = {
   sourceId: string;
@@ -63,13 +112,21 @@ type ReaderViewProps = {
   coverHeaders?: Record<string, string>;
   loadChapterPages?: (chapter: Chapter) => Promise<Page[]>;
   onStatusBarHiddenChange?: (hidden: boolean) => void;
+  startAtEnd?: boolean;
 };
 
-// Native stack reads statusBarHidden from screen options; Android still uses StatusBar API.
-function applyStatusBarHidden(navigation: { setOptions: (options: object) => void }, hidden: boolean) {
+function keepIfEqual<T>(previous: T | null, next: T): T {
+  if (previous === null || previous === next) return next;
+  return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+}
+
+function applyStatusBarHidden(
+  navigation: { setOptions: (options: object) => void },
+  hidden: boolean,
+) {
   navigation.setOptions({
     statusBarHidden: hidden,
-    statusBarAnimation: 'fade',
+    statusBarAnimation: "fade",
     autoHideHomeIndicator: hidden,
   });
 }
@@ -84,15 +141,21 @@ export function ReaderView({
   coverHeaders,
   loadChapterPages,
   onStatusBarHiddenChange,
+  startAtEnd,
 }: ReaderViewProps) {
   const router = useRouter();
   const navigation = useNavigation();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const [settings, setSettings] = useState<Awaited<ReturnType<typeof getAppSettings>>['reader'] | null>(null);
-  const [dictionarySettings, setDictionarySettings] = useState<Awaited<ReturnType<typeof getAppSettings>>['dictionary'] | null>(null);
-  const [mangaModeOverride, setMangaModeOverride] = useState<Awaited<ReturnType<typeof getMangaReadingMode>>>(null);
-  const [mangaPageOffsetOverride, setMangaPageOffsetOverride] = useState<boolean | null>(null);
+  const [settings, setSettings] = useState<ReaderSettings | null>(null);
+  const [dictionarySettings, setDictionarySettings] =
+    useState<DictionarySettings | null>(null);
+  const [mangaModeOverride, setMangaModeOverride] =
+    useState<Awaited<ReturnType<typeof getMangaReadingMode>>>(null);
+  const [mangaPageOffsetOverride, setMangaPageOffsetOverride] = useState<
+    boolean | null
+  >(null);
+  const [prefsLoadedFor, setPrefsLoadedFor] = useState<string | null>(null);
   const [incognito, setIncognito] = useState(false);
   const [debugShowPageNumbers, setDebugShowPageNumbers] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -100,6 +163,13 @@ export function ReaderView({
   const [barsVisible, setBarsVisible] = useState(true);
   const [modeHintVisible, setModeHintVisible] = useState(false);
   const barsIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const endPlacedRef = useRef<number | null>(null);
+
+  const EMPTY_READER_PAGES: ReaderPage[] = [];
+
+  const prefsKey = `${sourceId}:${manga.key}`;
+  const prefsReady = prefsLoadedFor === prefsKey;
 
   const clearBarsIdleTimer = useCallback(() => {
     if (!barsIdleTimerRef.current) return;
@@ -125,109 +195,170 @@ export function ReaderView({
     else clearBarsIdleTimer();
     return clearBarsIdleTimer;
   }, [barsVisible, clearBarsIdleTimer, scheduleBarsIdleHide]);
+
   const [chapterSheetOpen, setChapterSheetOpen] = useState(false);
   const [readerSettingsOpen, setReaderSettingsOpen] = useState(false);
-  const [readerPages, setReaderPages] = useState<ReaderPage[]>([]);
-  const [lockedAutoMode, setLockedAutoMode] = useState<ResolvedReadingMode | null>(null);
-  const [rememberedAutoMode, setRememberedAutoMode] = useState<ResolvedReadingMode | null | undefined>(undefined);
+  const [builtPages, setBuiltPages] = useState<{
+    key: string;
+    pages: ReaderPage[];
+  }>({
+    key: "",
+    pages: EMPTY_READER_PAGES,
+  });
+  const readerPages =
+    builtPages.key === chapter.key ? builtPages.pages : EMPTY_READER_PAGES;
+  const [lockedAutoMode, setLockedAutoMode] =
+    useState<ResolvedReadingMode | null>(null);
+  const [rememberedAutoMode, setRememberedAutoMode] = useState<
+    ResolvedReadingMode | null | undefined
+  >(undefined);
   const autoLockedRef = useRef(false);
   const [chaptersToMark, setChaptersToMark] = useState<Chapter[]>([chapter]);
-  const [dictionaryEntry, setDictionaryEntry] = useState<DictionaryEntry | null>(null);
+  const [dictionaryEntry, setDictionaryEntry] =
+    useState<DictionaryEntry | null>(null);
   const [dictionaryLoading, setDictionaryLoading] = useState(false);
   const [dictionaryVisible, setDictionaryVisible] = useState(false);
-  const goToPageRef = useRef<(index: number, animated?: boolean) => void>(() => {});
+  const goToPageRef = useRef<PageSetter>(() => {});
   const restorePageRef = useRef(initialPage);
   const currentPageRef = useRef(currentPage);
   const activeChapterRef = useRef(activeChapter);
   const pageCountRef = useRef(0);
-  const persistProgressRef = useRef<(targetChapter: Chapter, pageIndex: number, pageCount: number, notify?: boolean) => Promise<void>>(async () => {});
+  const deleteAfterReadingRef = useRef(false);
+  const persistProgressRef = useRef<
+    (
+      targetChapter: Chapter,
+      pageIndex: number,
+      pageCount: number,
+      notify?: boolean,
+    ) => Promise<void>
+  >(async () => {});
   currentPageRef.current = currentPage;
   activeChapterRef.current = activeChapter;
+
+  useEffect(() => {
+    const placed = endPlacedRef.current;
+    if (placed == null || readerPages.length === 0) return;
+    const last = readerPages.length - 1;
+    if (last === placed) return;
+    if (currentPageRef.current !== placed) {
+      endPlacedRef.current = null;
+      return;
+    }
+    endPlacedRef.current = last;
+    setCurrentPage(last);
+    goToPageRef.current(last, false);
+  }, [readerPages]);
 
   useEffect(() => {
     setActiveChapter(chapter);
     setCurrentPage(initialPage);
     restorePageRef.current = initialPage;
+    endPlacedRef.current = startAtEnd ? initialPage : null;
     const timer = setTimeout(() => {
       restorePageRef.current = 0;
     }, 500);
     return () => clearTimeout(timer);
-  }, [chapter.key, initialPage]);
+  }, [chapter.key, initialPage, startAtEnd]);
 
-  const pageOffsetEnabled = mangaPageOffsetOverride ?? settings?.pagedPageOffset ?? false;
+  const pageOffsetEnabled =
+    mangaPageOffsetOverride ?? settings?.pagedPageOffset ?? false;
+
+  const loadAppSettings = useCallback(async () => {
+    const value = await getAppSettings();
+    setSettings((previous) => keepIfEqual(previous, value.reader));
+    setDictionarySettings((previous) =>
+      keepIfEqual(previous, value.dictionary),
+    );
+    setIncognito(value.incognitoMode);
+    setDebugShowPageNumbers(value.debug.showReaderPageNumbers);
+    deleteAfterReadingRef.current = value.downloads.deleteAfterReading;
+  }, []);
 
   useEffect(() => {
-    void getAppSettings().then((value) => {
-      setSettings(value.reader);
-      setDictionarySettings(value.dictionary);
-      setIncognito(value.incognitoMode);
-      setDebugShowPageNumbers(value.debug.showReaderPageNumbers);
+    void loadAppSettings();
+    return subscribeAppSettings(() => {
+      void loadAppSettings();
     });
-    void getMangaReadingMode(sourceId, manga.key).then(setMangaModeOverride);
-    void getMangaPageOffset(sourceId, manga.key).then(setMangaPageOffsetOverride);
+  }, [loadAppSettings]);
+
+  useEffect(() => {
+    let cancelled = false;
     setRememberedAutoMode(undefined);
-    void getMangaAutoResolvedMode(sourceId, manga.key).then(setRememberedAutoMode);
-    const unsubscribe = subscribeAppSettings(() => {
-      void getAppSettings().then((value) => {
-        setSettings(value.reader);
-        setDictionarySettings(value.dictionary);
-        setIncognito(value.incognitoMode);
-        setDebugShowPageNumbers(value.debug.showReaderPageNumbers);
-      });
+    void Promise.all([
+      getMangaReadingMode(sourceId, manga.key).catch(() => null),
+      getMangaPageOffset(sourceId, manga.key).catch(() => null),
+      getMangaAutoResolvedMode(sourceId, manga.key).catch(() => null),
+    ]).then(([modeOverride, pageOffset, autoMode]) => {
+      if (cancelled) return;
+      setMangaModeOverride(modeOverride);
+      setMangaPageOffsetOverride(pageOffset);
+      setRememberedAutoMode(autoMode);
+      setPrefsLoadedFor(prefsKey);
     });
-    return unsubscribe;
-  }, [manga.key, sourceId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [manga.key, sourceId, prefsKey]);
 
   useEffect(() => {
     setChaptersToMark([chapter]);
   }, [chapter.key]);
 
+  const orientation = settings?.orientation;
+
   useEffect(() => {
-    if (!settings) return;
+    if (!orientation) return;
 
     async function applyOrientation() {
-      switch (settings!.orientation) {
-        case 'portrait':
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-          break;
-        case 'landscape':
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-          break;
-        case 'device':
-        default:
-          await ScreenOrientation.unlockAsync();
-          break;
-      }
+      try {
+        switch (orientation) {
+          case "portrait":
+            await ScreenOrientation.lockAsync(
+              ScreenOrientation.OrientationLock.PORTRAIT_UP,
+            );
+            break;
+          case "landscape":
+            await ScreenOrientation.lockAsync(
+              ScreenOrientation.OrientationLock.LANDSCAPE,
+            );
+            break;
+          case "device":
+          default:
+            await ScreenOrientation.unlockAsync();
+            break;
+        }
+      } catch {}
     }
 
     void applyOrientation();
     return () => {
-      void ScreenOrientation.unlockAsync();
+      void ScreenOrientation.unlockAsync().catch(() => {});
     };
-  }, [settings]);
+  }, [orientation]);
 
-  const statusBarHidden = Boolean(settings?.hideStatusBarWithMenu) && !barsVisible;
+  const statusBarHidden =
+    Boolean(settings?.hideStatusBarWithMenu) && !barsVisible;
 
   useEffect(() => {
     onStatusBarHiddenChange?.(statusBarHidden);
   }, [onStatusBarHiddenChange, statusBarHidden]);
 
   useEffect(() => {
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === "ios") {
       applyStatusBarHidden(navigation, statusBarHidden);
       return;
     }
-    StatusBar.setHidden(statusBarHidden, 'fade');
+    StatusBar.setHidden(statusBarHidden, "fade");
     navigation.setOptions({ navigationBarHidden: statusBarHidden });
   }, [navigation, statusBarHidden]);
 
   useEffect(() => {
     return () => {
-      if (Platform.OS === 'ios') {
+      if (Platform.OS === "ios") {
         applyStatusBarHidden(navigation, false);
         return;
       }
-      StatusBar.setHidden(false, 'fade');
+      StatusBar.setHidden(false, "fade");
       navigation.setOptions({ navigationBarHidden: false });
     };
   }, [navigation]);
@@ -235,18 +366,27 @@ export function ReaderView({
   useEffect(() => {
     if (!settings) return;
     let cancelled = false;
-    setReaderPages(buildReaderPages(pages, settings, chapter.key));
-    void materializeReaderPages(pages, settings, chapter.key, coverHeaders).then((built) => {
-      if (!cancelled) setReaderPages(built);
+    setBuiltPages({
+      key: chapter.key,
+      pages: buildReaderPages(pages, settings, chapter.key),
     });
-
+    void materializeReaderPages(
+      pages,
+      settings,
+      chapter.key,
+      coverHeaders,
+    ).then((built) => {
+      if (!cancelled) setBuiltPages({ key: chapter.key, pages: built });
+    });
     return () => {
       cancelled = true;
     };
   }, [chapter.key, coverHeaders, pages, settings]);
 
   const fromManga = useMemo(() => inferReadingModeFromManga(manga), [manga]);
-  const wantsAuto = settings ? shouldInferModeFromImages(settings, mangaModeOverride) : false;
+  const wantsAuto = settings
+    ? shouldInferModeFromImages(settings, mangaModeOverride)
+    : false;
 
   useEffect(() => {
     autoLockedRef.current = false;
@@ -265,33 +405,50 @@ export function ReaderView({
       if (persist) void setMangaAutoResolvedMode(sourceId, manga.key, mode);
     };
 
-    const rememberedStrip = rememberedAutoMode === 'continuous' || rememberedAutoMode === 'webtoon';
+    const rememberedStrip =
+      rememberedAutoMode === "continuous" || rememberedAutoMode === "webtoon";
     if (rememberedStrip) {
       commit(rememberedAutoMode, false);
       return;
     }
 
-    if (fromManga === 'continuous') {
-      commit('continuous', true);
+    if (fromManga === "continuous") {
+      commit("continuous", true);
       return;
     }
 
     const probePages = pagesForAutoModeProbe(pages);
     const knownSizes = probePages
-      .map((page) => (page.width && page.height && page.width > 0 && page.height > 0 ? { width: page.width, height: page.height } : null))
-      .filter((item): item is { width: number; height: number } => item != null);
-    const fromKnown = knownSizes.length > 0 ? inferReadingModeFromImageSizes(knownSizes) : null;
-    if (fromKnown?.confident && fromKnown.mode === 'continuous') {
-      commit('continuous', true);
+      .map((page) =>
+        page.width && page.height && page.width > 0 && page.height > 0
+          ? { width: page.width, height: page.height }
+          : null,
+      )
+      .filter(
+        (item): item is { width: number; height: number } => item != null,
+      );
+    const fromKnown =
+      knownSizes.length > 0 ? inferReadingModeFromImageSizes(knownSizes) : null;
+    if (fromKnown?.confident && fromKnown.mode === "continuous") {
+      commit("continuous", true);
       return;
     }
 
     const samples = probePages
-      .map((page) => ({ url: page.url, headers: { ...coverHeaders, ...page.headers } }))
-      .filter((item): item is { url: string; headers: Record<string, string> } => Boolean(item.url));
+      .map((page) => ({
+        url: page.url,
+        headers: { ...coverHeaders, ...page.headers },
+      }))
+      .filter(
+        (item): item is { url: string; headers: Record<string, string> } =>
+          Boolean(item.url),
+      );
     if (pages.length === 0) return;
     if (samples.length === 0) {
-      commit(pickAutoReadingMode(fromManga, fromKnown), Boolean(fromKnown?.confident || fromManga === 'webtoon'));
+      commit(
+        pickAutoReadingMode(fromManga, fromKnown),
+        Boolean(fromKnown?.confident || fromManga === "webtoon"),
+      );
       return;
     }
 
@@ -301,7 +458,8 @@ export function ReaderView({
     const consider = (sizes: Array<{ width: number; height: number }>) => {
       if (cancelled || autoLockedRef.current) return;
       const inferred = inferReadingModeFromImageSizes(sizes);
-      if (inferred.mode === 'continuous' && inferred.confident) commit('continuous', true);
+      if (inferred.mode === "continuous" && inferred.confident)
+        commit("continuous", true);
     };
 
     void (async () => {
@@ -329,30 +487,49 @@ export function ReaderView({
     return () => {
       cancelled = true;
     };
-  }, [coverHeaders, fromManga, manga.key, pages, rememberedAutoMode, settings, sourceId, wantsAuto]);
+  }, [
+    coverHeaders,
+    fromManga,
+    manga.key,
+    pages,
+    rememberedAutoMode,
+    settings,
+    sourceId,
+    wantsAuto,
+  ]);
 
-  const resolvedBase = useMemo(() => (settings ? resolveReadingMode(settings, mangaModeOverride, manga) : 'rtl'), [settings, mangaModeOverride, manga]);
-  const autoPending = Boolean(wantsAuto && (lockedAutoMode == null || rememberedAutoMode === undefined));
-  const mode = wantsAuto ? (lockedAutoMode ?? fromManga ?? 'rtl') : resolvedBase;
+  const resolvedBase = useMemo(
+    () =>
+      settings ? resolveReadingMode(settings, mangaModeOverride, manga) : "rtl",
+    [settings, mangaModeOverride, manga],
+  );
+  const autoPending = Boolean(
+    wantsAuto && (lockedAutoMode == null || rememberedAutoMode === undefined),
+  );
+  const mode = wantsAuto
+    ? (lockedAutoMode ?? fromManga ?? "rtl")
+    : resolvedBase;
   const stripEnabled = isStripMode(mode);
 
   useEffect(() => {
-    if (!settings || autoPending) return;
+    if (!settings || !prefsReady || autoPending) return;
     setModeHintVisible(true);
     const timer = setTimeout(() => setModeHintVisible(false), MODE_HINT_MS);
     return () => clearTimeout(timer);
-  }, [autoPending, mode, settings]);
+  }, [autoPending, mode, prefsReady, settings]);
 
   useEffect(() => {
     navigation.setOptions({
       gestureEnabled: stripEnabled,
       fullScreenGestureEnabled: stripEnabled,
-      gestureDirection: 'horizontal',
+      gestureDirection: "horizontal",
     });
   }, [navigation, stripEnabled]);
+
   const { segments, loadAdjacent } = useReaderChapterWindow({
-    enabled: stripEnabled,
+    enabled: stripEnabled && prefsReady,
     routeChapter: chapter,
+    activeChapterKey: activeChapter.key,
     chapters,
     initialPages: readerPages,
     settings,
@@ -360,14 +537,29 @@ export function ReaderView({
     loadChapterPages,
     requestHeaders: coverHeaders,
   });
+
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+
   const activePages = useMemo(
-    () => segments.find((segment) => segment.chapter.key === activeChapter.key)?.pages ?? readerPages,
+    () =>
+      segments.find((segment) => segment.chapter.key === activeChapter.key)
+        ?.pages ?? readerPages,
     [activeChapter.key, readerPages, segments],
   );
   pageCountRef.current = activePages.length;
   const isText = useMemo(() => isTextChapter(pages), [pages]);
-  const backgroundColor = useMemo(() => (settings ? readerBackgroundColor(settings.backgroundColor, colorScheme) : '#000000'), [colorScheme, settings]);
-  const foregroundColor = useMemo(() => readerForegroundColor(backgroundColor), [backgroundColor]);
+  const backgroundColor = useMemo(
+    () =>
+      settings
+        ? readerBackgroundColor(settings.backgroundColor, colorScheme)
+        : "#000000",
+    [colorScheme, settings],
+  );
+  const foregroundColor = useMemo(
+    () => readerForegroundColor(backgroundColor),
+    [backgroundColor],
+  );
 
   const markChaptersInQueue = useCallback(
     async (chaptersList: Chapter[]) => {
@@ -387,7 +579,12 @@ export function ReaderView({
   );
 
   const persistProgress = useCallback(
-    async (targetChapter: Chapter, pageIndex: number, pageCount: number, notify = true) => {
+    async (
+      targetChapter: Chapter,
+      pageIndex: number,
+      pageCount: number,
+      notify = true,
+    ) => {
       const historyMeta = {
         mangaTitle: manga.title,
         chapterTitle: formatChapterLabel(targetChapter),
@@ -395,37 +592,76 @@ export function ReaderView({
         notify,
       };
       const isLastPage = pageCount > 0 && pageIndex >= pageCount - 1;
-      const existing = await getChapterProgress(sourceId, manga.key, targetChapter.key);
+      const existing = await getChapterProgress(
+        sourceId,
+        manga.key,
+        targetChapter.key,
+      );
       const alreadyRead = existing?.page === -1;
       if (alreadyRead && !isLastPage) {
-        await recordChapterProgress(sourceId, manga.key, targetChapter.key, -1, { ...historyMeta, notify });
+        await recordChapterProgress(
+          sourceId,
+          manga.key,
+          targetChapter.key,
+          -1,
+          { ...historyMeta, notify },
+        );
         return;
       }
       if (isLastPage) {
         if (settings?.markDuplicateChapters) {
-          await markChaptersInQueue(chaptersToMark.some((item) => item.key === targetChapter.key) ? chaptersToMark : [targetChapter, ...chaptersToMark]);
+          await markChaptersInQueue(
+            chaptersToMark.some((item) => item.key === targetChapter.key)
+              ? chaptersToMark
+              : [targetChapter, ...chaptersToMark],
+          );
         } else {
-          await markChapterRead(sourceId, manga.key, targetChapter.key, historyMeta);
+          await markChapterRead(
+            sourceId,
+            manga.key,
+            targetChapter.key,
+            historyMeta,
+          );
         }
-        const nextChapter = findAdjacentChapter(chapters, targetChapter.key, 'next', settings?.skipDuplicateChapters ?? true);
+        const nextChapter = findAdjacentChapter(
+          chapters,
+          targetChapter.key,
+          "next",
+          settings?.skipDuplicateChapters ?? true,
+        );
         if (nextChapter) {
-          const nextProgress = await getChapterProgress(sourceId, manga.key, nextChapter.key);
+          const nextProgress = await getChapterProgress(
+            sourceId,
+            manga.key,
+            nextChapter.key,
+          );
           if (nextProgress?.page !== -1) {
-            await recordChapterProgress(sourceId, manga.key, nextChapter.key, nextProgress && nextProgress.page >= 0 ? nextProgress.page : 0, {
-              mangaTitle: manga.title,
-              chapterTitle: formatChapterLabel(nextChapter),
-              cover: manga.cover,
-              notify,
-            });
+            await recordChapterProgress(
+              sourceId,
+              manga.key,
+              nextChapter.key,
+              nextProgress && nextProgress.page >= 0 ? nextProgress.page : 0,
+              {
+                mangaTitle: manga.title,
+                chapterTitle: formatChapterLabel(nextChapter),
+                cover: manga.cover,
+                notify,
+              },
+            );
           }
         }
-        const appSettings = await getAppSettings();
-        if (appSettings.downloads.deleteAfterReading) {
+        if (deleteAfterReadingRef.current) {
           await removeChapterDownload(sourceId, manga.key, targetChapter.key);
         }
         return;
       }
-      await recordChapterProgress(sourceId, manga.key, targetChapter.key, pageIndex, historyMeta);
+      await recordChapterProgress(
+        sourceId,
+        manga.key,
+        targetChapter.key,
+        pageIndex,
+        historyMeta,
+      );
     },
     [
       chapters,
@@ -442,26 +678,47 @@ export function ReaderView({
   persistProgressRef.current = persistProgress;
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingPersistRef = useRef<{ chapter: Chapter; page: number; count: number } | null>(null);
+  const pendingPersistRef = useRef<{
+    chapter: Chapter;
+    page: number;
+    count: number;
+  } | null>(null);
 
-  const schedulePersist = useCallback((targetChapter: Chapter, pageIndex: number, pageCount: number) => {
-    pendingPersistRef.current = { chapter: targetChapter, page: pageIndex, count: pageCount };
-    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-    persistTimerRef.current = setTimeout(() => {
-      persistTimerRef.current = null;
-      const pending = pendingPersistRef.current;
-      pendingPersistRef.current = null;
-      if (!pending) return;
-      void persistProgressRef.current(pending.chapter, pending.page, pending.count, false);
-    }, 900);
-  }, []);
+  const schedulePersist = useCallback(
+    (targetChapter: Chapter, pageIndex: number, pageCount: number) => {
+      pendingPersistRef.current = {
+        chapter: targetChapter,
+        page: pageIndex,
+        count: pageCount,
+      };
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = setTimeout(() => {
+        persistTimerRef.current = null;
+        const pending = pendingPersistRef.current;
+        pendingPersistRef.current = null;
+        if (!pending) return;
+        void persistProgressRef.current(
+          pending.chapter,
+          pending.page,
+          pending.count,
+          false,
+        );
+      }, 900);
+    },
+    [],
+  );
 
   const openedChapterKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (activePages.length === 0) return;
     if (openedChapterKeyRef.current === chapter.key) return;
     openedChapterKeyRef.current = chapter.key;
-    void persistProgressRef.current(activeChapterRef.current, currentPageRef.current, activePages.length, false);
+    void persistProgressRef.current(
+      activeChapterRef.current,
+      currentPageRef.current,
+      activePages.length,
+      false,
+    );
   }, [activePages.length, chapter.key]);
 
   useEffect(() => {
@@ -477,7 +734,12 @@ export function ReaderView({
       const pending = pendingPersistRef.current;
       pendingPersistRef.current = null;
       void persistProgressRef
-        .current(pending?.chapter ?? activeChapterRef.current, pending?.page ?? currentPageRef.current, pending?.count ?? pageCountRef.current, false)
+        .current(
+          pending?.chapter ?? activeChapterRef.current,
+          pending?.page ?? currentPageRef.current,
+          pending?.count ?? pageCountRef.current,
+          false,
+        )
         .then(() => {
           setTimeout(() => notifyMangaDataChanged(), 400);
         });
@@ -493,25 +755,44 @@ export function ReaderView({
   const handleLocationChange = useCallback(
     (nextChapter: Chapter, pageIndex: number, pageCount: number) => {
       const restoringTo = restorePageRef.current;
-      if (nextChapter.key === chapter.key && restoringTo > 0 && pageIndex === 0 && pageIndex !== restoringTo) {
+      if (
+        nextChapter.key === chapter.key &&
+        restoringTo > 0 &&
+        pageIndex === 0 &&
+        pageIndex !== restoringTo
+      ) {
         return;
       }
-      if (nextChapter.key === chapter.key && restoringTo > 0 && pageIndex === restoringTo) {
+      if (
+        nextChapter.key === chapter.key &&
+        restoringTo > 0 &&
+        pageIndex === restoringTo
+      ) {
         restorePageRef.current = 0;
       }
 
       const previous = activeChapterRef.current;
       if (previous.key !== nextChapter.key) {
-        const movingForward = findAdjacentChapter(chapters, previous.key, 'next', true)?.key === nextChapter.key;
+        const movingForward =
+          findAdjacentChapter(chapters, previous.key, "next", true)?.key ===
+          nextChapter.key;
         if (movingForward) {
-          const previousCount = segments.find((segment) => segment.chapter.key === previous.key)?.pages.length ?? 0;
+          const previousCount =
+            segmentsRef.current.find(
+              (segment) => segment.chapter.key === previous.key,
+            )?.pages.length ?? 0;
           if (previousCount > 0) {
             if (persistTimerRef.current) {
               clearTimeout(persistTimerRef.current);
               persistTimerRef.current = null;
             }
             pendingPersistRef.current = null;
-            void persistProgress(previous, previousCount - 1, previousCount, false);
+            void persistProgress(
+              previous,
+              previousCount - 1,
+              previousCount,
+              false,
+            );
           }
         }
         setActiveChapter(nextChapter);
@@ -520,23 +801,31 @@ export function ReaderView({
       setCurrentPage(pageIndex);
       schedulePersist(nextChapter, pageIndex, pageCount);
     },
-    [chapter.key, chapters, persistProgress, schedulePersist, segments],
+    [chapter.key, chapters, persistProgress, schedulePersist],
   );
 
   const handlePageChange = useCallback(
     (index: number) => {
-      handleLocationChange(activeChapterRef.current, index, pageCountRef.current);
+      handleLocationChange(
+        activeChapterRef.current,
+        index,
+        pageCountRef.current,
+      );
     },
     [handleLocationChange],
   );
 
+  const setPageRef = useCallback((fn: PageSetter) => {
+    goToPageRef.current = fn;
+  }, []);
+
   const navigateChapter = useCallback(
-    (nextChapter: Chapter, extraToMark: Chapter[] = []) => {
+    (nextChapter: Chapter, extraToMark: Chapter[] = [], openAtEnd = false) => {
       if (settings?.markDuplicateChapters && extraToMark.length > 0) {
         void markChaptersInQueue(extraToMark);
       }
       router.replace({
-        pathname: '/reader',
+        pathname: "/reader",
         params: {
           sourceId,
           mangaKey: encodeURIComponent(manga.key),
@@ -544,35 +833,72 @@ export function ReaderView({
           chapterTitle: formatChapterLabel(nextChapter),
           mangaTitle: manga.title,
           ...(manga.cover ? { cover: manga.cover } : {}),
+          ...(openAtEnd ? { page: "last" } : {}),
         },
       });
     },
-    [markChaptersInQueue, manga.cover, manga.key, manga.title, router, settings?.markDuplicateChapters, sourceId],
+    [
+      markChaptersInQueue,
+      manga.cover,
+      manga.key,
+      manga.title,
+      router,
+      settings?.markDuplicateChapters,
+      sourceId,
+    ],
   );
 
   const goNextChapter = useCallback(() => {
     if (stripEnabled) {
-      void loadAdjacent('next');
+      void loadAdjacent("next");
       return;
     }
-    const result = findAdjacentChapterWithSkipped(chapters, activeChapterRef.current.key, 'next', settings?.skipDuplicateChapters ?? true);
+    const result = findAdjacentChapterWithSkipped(
+      chapters,
+      activeChapterRef.current.key,
+      "next",
+      settings?.skipDuplicateChapters ?? true,
+    );
     if (!result.chapter) return;
-    const toMark = settings?.markDuplicateChapters ? result.skippedDuplicates : [];
+    const toMark = settings?.markDuplicateChapters
+      ? result.skippedDuplicates
+      : [];
     setChaptersToMark([result.chapter, ...toMark]);
     navigateChapter(result.chapter, toMark);
-  }, [chapters, loadAdjacent, navigateChapter, settings?.markDuplicateChapters, settings?.skipDuplicateChapters, stripEnabled]);
+  }, [
+    chapters,
+    loadAdjacent,
+    navigateChapter,
+    settings?.markDuplicateChapters,
+    settings?.skipDuplicateChapters,
+    stripEnabled,
+  ]);
 
   const goPreviousChapter = useCallback(() => {
     if (stripEnabled) {
-      void loadAdjacent('previous');
+      void loadAdjacent("previous");
       return;
     }
-    const result = findAdjacentChapterWithSkipped(chapters, activeChapterRef.current.key, 'previous', settings?.skipDuplicateChapters ?? true);
+    const result = findAdjacentChapterWithSkipped(
+      chapters,
+      activeChapterRef.current.key,
+      "previous",
+      settings?.skipDuplicateChapters ?? true,
+    );
     if (!result.chapter) return;
-    const toMark = settings?.markDuplicateChapters ? result.skippedDuplicates : [];
+    const toMark = settings?.markDuplicateChapters
+      ? result.skippedDuplicates
+      : [];
     setChaptersToMark([result.chapter, ...toMark]);
-    navigateChapter(result.chapter, toMark);
-  }, [chapters, loadAdjacent, navigateChapter, settings?.markDuplicateChapters, settings?.skipDuplicateChapters, stripEnabled]);
+    navigateChapter(result.chapter, toMark, true);
+  }, [
+    chapters,
+    loadAdjacent,
+    navigateChapter,
+    settings?.markDuplicateChapters,
+    settings?.skipDuplicateChapters,
+    stripEnabled,
+  ]);
 
   const goNext = useCallback(() => {
     if (currentPage < activePages.length - 1) {
@@ -596,27 +922,61 @@ export function ReaderView({
     void setMangaPageOffset(sourceId, manga.key, next);
   }, [manga.key, pageOffsetEnabled, sourceId]);
 
+  const dictionaryEnabled = dictionarySettings?.enable;
+
   const lookupDictionary = useCallback(
-    async (pageUrl: string, x: number, y: number, layout: { width: number; height: number }) => {
-      if (!dictionarySettings?.enable || !pageUrl) return;
+    async (
+      pageUrl: string,
+      x: number,
+      y: number,
+      layout: { width: number; height: number },
+    ) => {
+      if (!dictionaryEnabled || !pageUrl) return;
       setDictionaryVisible(true);
       setDictionaryLoading(true);
       setDictionaryEntry(null);
       try {
         const lines = await extractTextFromImage(pageUrl);
-        const word = pickWordNearTap(lines.join(' '), x, y, layout.width, layout.height);
+        const word = pickWordNearTap(
+          lines.join(" "),
+          x,
+          y,
+          layout.width,
+          layout.height,
+        );
         if (!word) {
           setDictionaryEntry(null);
           return;
         }
         const entry = await lookupWord(word);
         setDictionaryEntry(entry);
+      } catch {
+        setDictionaryEntry(null);
       } finally {
         setDictionaryLoading(false);
       }
     },
-    [dictionarySettings?.enable],
+    [dictionaryEnabled],
   );
+
+  const closeChapterSheet = useCallback(() => setChapterSheetOpen(false), []);
+  const closeReaderSettings = useCallback(
+    () => setReaderSettingsOpen(false),
+    [],
+  );
+  const closeDictionary = useCallback(() => setDictionaryVisible(false), []);
+
+  const handleMangaReadingModeChange = useCallback<ModeChangeHandler>(
+    (nextMode) => {
+      setMangaModeOverride(nextMode === "default" ? null : nextMode);
+      if (nextMode !== "default" && nextMode !== "auto") {
+        setRememberedAutoMode(nextMode);
+      }
+    },
+    [],
+  );
+
+  const activeChapterUrl = activeChapter.url;
 
   const actions: ReaderActions = useMemo(
     () => ({
@@ -634,9 +994,10 @@ export function ReaderView({
         router.back();
       },
       openChapterUrl: () => {
-        if (activeChapter.url) void WebBrowser.openBrowserAsync(activeChapter.url);
+        if (activeChapterUrl)
+          void WebBrowser.openBrowserAsync(activeChapterUrl);
       },
-      openSettings: () => router.navigate('/settings/reader'),
+      openSettings: () => router.navigate("/settings/reader"),
       openReaderSettings: () => setReaderSettingsOpen(true),
       selectChapter: (nextChapter) => navigateChapter(nextChapter),
       lookupDictionary,
@@ -644,56 +1005,111 @@ export function ReaderView({
         void loadAdjacent(direction);
       },
     }),
-    [activeChapter.url, goNext, goNextChapter, goPrevious, loadAdjacent, lookupDictionary, navigateChapter, router],
+    [
+      activeChapterUrl,
+      goNext,
+      goNextChapter,
+      goPrevious,
+      loadAdjacent,
+      lookupDictionary,
+      navigateChapter,
+      router,
+    ],
   );
 
-  const chrome: ReaderChromeState = {
-    barsVisible,
-    currentPage,
-    totalPages: activePages.length,
-    pagesRemaining: Math.max(0, activePages.length - currentPage - 1),
-    chapterTitle: chapterTitleForDisplay(activeChapter) || formatChapterLabel(activeChapter),
-    mangaTitle: manga.title,
-    incognito,
-  };
+  const totalPages = activePages.length;
+  const chrome: ReaderChromeState = useMemo(
+    () => ({
+      barsVisible,
+      currentPage,
+      totalPages,
+      pagesRemaining: Math.max(0, totalPages - currentPage - 1),
+      chapterTitle:
+        chapterTitleForDisplay(activeChapter) ||
+        formatChapterLabel(activeChapter),
+      mangaTitle: manga.title,
+      incognito,
+    }),
+    [
+      activeChapter,
+      barsVisible,
+      currentPage,
+      incognito,
+      manga.title,
+      totalPages,
+    ],
+  );
 
-  if (!settings || !dictionarySettings || autoPending || (!isText && pages.length > 0 && readerPages.length === 0)) {
+  const providerValue = useMemo<ReaderValue | null>(() => {
+    if (!settings || !dictionarySettings) return null;
+    return {
+      manga,
+      chapter: activeChapter,
+      chapters,
+      pages: activePages,
+      settings,
+      dictionarySettings,
+      mode,
+      isText,
+      backgroundColor,
+      foregroundColor,
+      coverHeaders,
+      chrome,
+      actions,
+      chapterUrl: activeChapterUrl,
+      stripSegments: segments,
+      debugShowPageNumbers,
+    };
+  }, [
+    actions,
+    activeChapter,
+    activeChapterUrl,
+    activePages,
+    backgroundColor,
+    chapters,
+    chrome,
+    coverHeaders,
+    debugShowPageNumbers,
+    dictionarySettings,
+    foregroundColor,
+    isText,
+    manga,
+    mode,
+    segments,
+    settings,
+  ]);
+
+  if (
+    !settings ||
+    !dictionarySettings ||
+    !providerValue ||
+    !prefsReady ||
+    autoPending ||
+    (!isText && pages.length > 0 && readerPages.length === 0)
+  ) {
     return (
-      <View style={[styles.root, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator color='#fff' />
+      <View style={[styles.root, styles.loading]}>
+        <ActivityIndicator color="#fff" />
       </View>
     );
   }
 
   return (
-    <ReaderProvider
-      value={{
-        manga,
-        chapter: activeChapter,
-        chapters,
-        pages: activePages,
-        settings,
-        dictionarySettings,
-        mode,
-        isText,
-        backgroundColor,
-        foregroundColor,
-        coverHeaders,
-        chrome,
-        actions,
-        chapterUrl: activeChapter.url,
-        stripSegments: segments,
-        debugShowPageNumbers,
-      }}>
+    <ReaderProvider value={providerValue}>
       <View style={[styles.root, { backgroundColor }]}>
-        {Platform.OS === 'android' ? <StatusBar hidden={statusBarHidden} animated barStyle='light-content' backgroundColor={backgroundColor} /> : null}
+        {Platform.OS === "android" ? (
+          <StatusBar
+            hidden={statusBarHidden}
+            animated
+            barStyle="light-content"
+            backgroundColor={backgroundColor}
+          />
+        ) : null}
         {isText ? (
           <ReaderTextView
             currentPage={currentPage}
             onPageChange={handlePageChange}
-            setPageRef={(fn) => {
-              goToPageRef.current = fn;
-            }}
+            setPageRef={setPageRef}
           />
         ) : stripEnabled ? (
           <ReaderWebtoonView
@@ -701,9 +1117,7 @@ export function ReaderView({
             currentPage={currentPage}
             onLocationChange={handleLocationChange}
             onInteraction={hideBars}
-            setPageRef={(fn) => {
-              goToPageRef.current = fn;
-            }}
+            setPageRef={setPageRef}
           />
         ) : (
           <ReaderPagedView
@@ -711,9 +1125,7 @@ export function ReaderView({
             currentPage={currentPage}
             onPageChange={handlePageChange}
             onInteraction={hideBars}
-            setPageRef={(fn) => {
-              goToPageRef.current = fn;
-            }}
+            setPageRef={setPageRef}
             pageOffsetEnabled={pageOffsetEnabled}
             onTogglePageOffset={togglePageOffset}
           />
@@ -722,16 +1134,24 @@ export function ReaderView({
         {barsVisible ? (
           <>
             <LinearGradient
-              pointerEvents='none'
-              colors={['#000000', 'rgba(0,0,0,0.45)', 'transparent']}
+              pointerEvents="none"
+              colors={["#000000", "rgba(0,0,0,0.45)", "transparent"]}
               locations={[0, 0.55, 1]}
-              style={[styles.edgeFade, styles.edgeFadeTop, { height: insets.top + 96 }]}
+              style={[
+                styles.edgeFade,
+                styles.edgeFadeTop,
+                { height: insets.top + 96 },
+              ]}
             />
             <LinearGradient
-              pointerEvents='none'
-              colors={['transparent', 'rgba(0,0,0,0.45)', '#000000']}
+              pointerEvents="none"
+              colors={["transparent", "rgba(0,0,0,0.45)", "#000000"]}
               locations={[0, 0.45, 1]}
-              style={[styles.edgeFade, styles.edgeFadeBottom, { height: insets.bottom + 96 }]}
+              style={[
+                styles.edgeFade,
+                styles.edgeFadeBottom,
+                { height: insets.bottom + 96 },
+              ]}
             />
           </>
         ) : null}
@@ -739,18 +1159,16 @@ export function ReaderView({
         <ReaderNavBar visible={barsVisible} />
         <ReaderToolbar visible={barsVisible} />
         {modeHintVisible ? <ReaderModeHint mode={mode} /> : null}
-        <ReaderChapterSheet visible={chapterSheetOpen} onClose={() => setChapterSheetOpen(false)} />
+        <ReaderChapterSheet
+          visible={chapterSheetOpen}
+          onClose={closeChapterSheet}
+        />
         <ReaderSettingsSheet
           visible={readerSettingsOpen}
           sourceId={sourceId}
           mangaReadingMode={mangaModeOverride}
-          onClose={() => setReaderSettingsOpen(false)}
-          onMangaReadingModeChange={(nextMode) => {
-            setMangaModeOverride(nextMode === 'default' ? null : nextMode);
-            if (nextMode !== 'default' && nextMode !== 'auto') {
-              setRememberedAutoMode(nextMode);
-            }
-          }}
+          onClose={closeReaderSettings}
+          onMangaReadingModeChange={handleMangaReadingModeChange}
         />
         <ReaderDictionaryPopup
           visible={dictionaryVisible}
@@ -759,7 +1177,7 @@ export function ReaderView({
           displayMode={dictionarySettings.displayMode}
           popupWidth={dictionarySettings.popupWidth}
           popupHeight={dictionarySettings.popupHeight}
-          onClose={() => setDictionaryVisible(false)}
+          onClose={closeDictionary}
         />
       </View>
     </ReaderProvider>
@@ -770,8 +1188,13 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  loading: {
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   edgeFade: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
   },

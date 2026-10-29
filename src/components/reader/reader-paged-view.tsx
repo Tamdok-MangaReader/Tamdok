@@ -1,5 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import {
   GestureDetector,
   useTapGesture,
@@ -45,6 +57,10 @@ type ReaderPagedViewProps = {
   onTogglePageOffset: () => void;
 };
 
+type LeaveDirection = "previous" | "next";
+
+const LEAVE_GUARD_MS = 1500;
+
 export function ReaderPagedView({
   onPageChange,
   onInteraction,
@@ -84,15 +100,29 @@ export function ReaderPagedView({
   const [quickActionsAnchor, setQuickActionsAnchor] =
     useState<ReaderQuickActionAnchor | null>(null);
   const [reloadKeys, setReloadKeys] = useState<Record<string, number>>({});
-  const pagerIndexRef = useRef(0);
+  const pagerIndexRef = useRef(-1);
+  const pagerKeyRef = useRef<string | null>(null);
   const skipSelectRef = useRef(false);
   const currentPageRef = useRef(currentPage);
   const lastTapAtRef = useRef(0);
+  const leavingRef = useRef(false);
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     currentPageRef.current = currentPage;
   }, [currentPage]);
 
-  const isolationKey = `${doublePages}:${pageOffsetEnabled}:${pages.map((p) => p.id).join(",")}`;
+  useEffect(() => {
+    return () => {
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    };
+  }, []);
+
+  const pageIdsKey = useMemo(
+    () => pages.map((page) => page.id).join(","),
+    [pages],
+  );
+  const isolationKey = `${doublePages}:${pageOffsetEnabled}:${pageIdsKey}`;
   const [isolationKeyTracked, setIsolationKeyTracked] = useState(isolationKey);
   const [isolatedPages, setIsolatedPages] = useState(() =>
     defaultIsolatedPages(pages, doublePages, pageOffsetEnabled),
@@ -110,25 +140,90 @@ export function ReaderPagedView({
     [doublePages, isolatedPages, pages],
   );
 
-  // Map logical page index to pager spread index (pairs two pages on wide layouts).
   const currentSpreadIndex = useMemo(
     () => Math.max(0, spreadIndexForPage(spreads, currentPage)),
     [currentPage, spreads],
   );
 
+  const chapterLabel = useMemo(
+    () => chapterTitleForDisplay(chapter) || formatChapterLabel(chapter),
+    [chapter],
+  );
+  const nextChapter = useMemo(
+    () =>
+      findAdjacentChapter(
+        chapters,
+        chapter.key,
+        "next",
+        settings.skipDuplicateChapters,
+      ),
+    [chapter.key, chapters, settings.skipDuplicateChapters],
+  );
+  const previousChapter = useMemo(
+    () =>
+      findAdjacentChapter(
+        chapters,
+        chapter.key,
+        "previous",
+        settings.skipDuplicateChapters,
+      ),
+    [chapter.key, chapters, settings.skipDuplicateChapters],
+  );
+  const nextChapterLabel = nextChapter
+    ? chapterTitleForDisplay(nextChapter) || formatChapterLabel(nextChapter)
+    : null;
+  const previousChapterLabel = previousChapter
+    ? chapterTitleForDisplay(previousChapter) ||
+      formatChapterLabel(previousChapter)
+    : null;
+
+  const orientation = mode === "vertical" ? "vertical" : "horizontal";
+  const layoutDirection = mode === "rtl" ? "rtl" : "ltr";
+  const pageMode =
+    mode === "vertical" ? "vertical" : mode === "rtl" ? "rtl" : "ltr";
+  const offscreenLimit = Math.max(1, Math.min(2, settings.pagesToPreload));
+
+  const lead = previousChapter ? 1 : 0;
+  const endPosition = lead + spreads.length;
+  const pagerKey = `${chapter.key}:${orientation}:${layoutDirection}:${lead}`;
+
+  if (pagerKeyRef.current !== pagerKey) {
+    pagerKeyRef.current = pagerKey;
+    pagerIndexRef.current = currentSpreadIndex + lead;
+    skipSelectRef.current = false;
+  }
+
+  const leaveTo = useCallback(
+    (direction: LeaveDirection) => {
+      if (leavingRef.current) return;
+      if (direction === "next" ? !nextChapter : !previousChapter) return;
+      leavingRef.current = true;
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = setTimeout(() => {
+        leavingRef.current = false;
+      }, LEAVE_GUARD_MS);
+      if (direction === "next") actions.goNextChapter();
+      else actions.goPrevious();
+    },
+    [actions, nextChapter, previousChapter],
+  );
+
   const goToSpread = useCallback(
     (spreadIndex: number, animated = settings.animatePageTransitions) => {
       const clamped = Math.max(0, Math.min(spreads.length - 1, spreadIndex));
-      skipSelectRef.current = true;
-      pagerIndexRef.current = clamped;
-      if (animated) {
-        pagerRef.current?.setPage(clamped);
-      } else {
-        pagerRef.current?.setPageWithoutAnimation?.(clamped);
+      const position = clamped + lead;
+      if (position !== pagerIndexRef.current) {
+        skipSelectRef.current = true;
+        pagerIndexRef.current = position;
+        if (animated) {
+          pagerRef.current?.setPage(position);
+        } else {
+          pagerRef.current?.setPageWithoutAnimation?.(position);
+        }
       }
       onPageChange(pageIndexForSpread(spreads, clamped));
     },
-    [onPageChange, settings.animatePageTransitions, spreads],
+    [lead, onPageChange, settings.animatePageTransitions, spreads],
   );
 
   const goToPage = useCallback(
@@ -145,11 +240,12 @@ export function ReaderPagedView({
   useEffect(() => {
     const spreadIndex = spreadIndexForPage(spreads, currentPageRef.current);
     if (spreadIndex < 0 || spreadIndex >= spreads.length) return;
-    if (spreadIndex === pagerIndexRef.current) return;
+    const position = spreadIndex + lead;
+    if (position === pagerIndexRef.current) return;
     skipSelectRef.current = true;
-    pagerIndexRef.current = spreadIndex;
-    pagerRef.current?.setPageWithoutAnimation?.(spreadIndex);
-  }, [spreads]);
+    pagerIndexRef.current = position;
+    pagerRef.current?.setPageWithoutAnimation?.(position);
+  }, [lead, spreads]);
 
   const handleTap = useCallback(
     (x: number, y: number) => {
@@ -166,17 +262,32 @@ export function ReaderPagedView({
         return;
       }
       onInteraction();
+      const position = pagerIndexRef.current;
       if (action === "next") {
+        if (position < lead) {
+          goToSpread(0);
+          return;
+        }
+        if (position >= endPosition) return;
         if (currentSpreadIndex >= spreads.length - 1) {
-          actions.goNextChapter();
+          if (nextChapter) {
+            leaveTo("next");
+            return;
+          }
+          pagerRef.current?.setPage(endPosition);
           return;
         }
         goToSpread(currentSpreadIndex + 1);
         return;
       }
       if (action === "previous") {
+        if (position >= endPosition) {
+          goToSpread(spreads.length - 1);
+          return;
+        }
+        if (position < lead) return;
         if (currentSpreadIndex <= 0) {
-          actions.goPrevious();
+          if (previousChapter) leaveTo("previous");
           return;
         }
         goToSpread(currentSpreadIndex - 1);
@@ -185,9 +296,14 @@ export function ReaderPagedView({
     [
       actions,
       currentSpreadIndex,
+      endPosition,
       goToSpread,
       height,
+      lead,
+      leaveTo,
+      nextChapter,
       onInteraction,
+      previousChapter,
       settings.tapZones,
       spreads.length,
       tapGrid,
@@ -196,7 +312,7 @@ export function ReaderPagedView({
   );
 
   const toggleIsolationForPage = useCallback(
-    (pageIndex: number, isolated: boolean, manual = true) => {
+    (pageIndex: number, isolated: boolean, _manual = true) => {
       setIsolatedPages((current) => {
         const next = new Set(current);
         if (isolated) next.add(pageIndex);
@@ -251,148 +367,180 @@ export function ReaderPagedView({
     pageTapGesture,
   );
 
-  const orientation = mode === "vertical" ? "vertical" : "horizontal";
-  const layoutDirection = mode === "rtl" ? "rtl" : "ltr";
-  const offscreenLimit = Math.max(1, Math.min(2, settings.pagesToPreload));
+  const handlePageSelected = useCallback(
+    (event: { nativeEvent: { position: number } }) => {
+      const position = event.nativeEvent.position;
+      if (skipSelectRef.current) {
+        skipSelectRef.current = false;
+        pagerIndexRef.current = position;
+        return;
+      }
+      if (pagerIndexRef.current === position) return;
+      pagerIndexRef.current = position;
+      if (position < lead) {
+        onInteraction();
+        leaveTo("previous");
+        return;
+      }
+      if (position >= endPosition) {
+        if (nextChapter) {
+          onInteraction();
+          leaveTo("next");
+        }
+        return;
+      }
+      const spread = spreads[position - lead];
+      if (!spread) return;
+      onPageChange(spread.startPageIndex);
+      onInteraction();
+    },
+    [
+      endPosition,
+      lead,
+      leaveTo,
+      nextChapter,
+      onInteraction,
+      onPageChange,
+      spreads,
+    ],
+  );
 
-  const chapterLabel = useMemo(
-    () => chapterTitleForDisplay(chapter) || formatChapterLabel(chapter),
-    [chapter],
+  const openQuickActions = useCallback(
+    (page: ReaderPage, x: number, y: number) => {
+      if (settings.disableQuickActions || !page.url) return;
+      setQuickActionsPage(page);
+      setQuickActionsAnchor({ x, y });
+    },
+    [settings.disableQuickActions],
   );
-  const nextChapter = useMemo(
-    () =>
-      findAdjacentChapter(
-        chapters,
-        chapter.key,
-        "next",
-        settings.skipDuplicateChapters,
-      ),
-    [chapter.key, chapters, settings.skipDuplicateChapters],
-  );
-  const previousChapter = useMemo(
-    () =>
-      findAdjacentChapter(
-        chapters,
-        chapter.key,
-        "previous",
-        settings.skipDuplicateChapters,
-      ),
-    [chapter.key, chapters, settings.skipDuplicateChapters],
-  );
-  const nextChapterLabel = nextChapter
-    ? chapterTitleForDisplay(nextChapter) || formatChapterLabel(nextChapter)
-    : null;
-  const previousChapterLabel = previousChapter
-    ? chapterTitleForDisplay(previousChapter) ||
-      formatChapterLabel(previousChapter)
-    : null;
 
-  const openQuickActions = (page: ReaderPage, x: number, y: number) => {
-    if (settings.disableQuickActions || !page.url) return;
-    setQuickActionsPage(page);
-    setQuickActionsAnchor({ x, y });
-  };
+  const handleDictionaryLookup = useCallback(
+    (page: ReaderPage, x: number, y: number) =>
+      actions.lookupDictionary(page.url ?? "", x, y, { width, height }),
+    [actions, height, width],
+  );
+
+  const handleCloseQuickActions = useCallback(() => {
+    setQuickActionsPage(null);
+    setQuickActionsAnchor(null);
+  }, []);
+
+  const quickActionsPageIndex = quickActionsPage
+    ? pages.findIndex((page) => page.id === quickActionsPage.id)
+    : -1;
+
+  const rootStyle = useMemo(
+    () => [styles.root, { backgroundColor }],
+    [backgroundColor],
+  );
+
+  const pagerChildren: ReactElement[] = [];
+
+  if (lead > 0) {
+    pagerChildren.push(
+      <View key="chapter-start-page" style={styles.page} collapsable={false}>
+        <View style={styles.edgePage}>
+          <ActivityIndicator color={foregroundColor} />
+        </View>
+      </View>,
+    );
+  }
+
+  spreads.forEach((spread, index) => {
+    pagerChildren.push(
+      <View key={spread.id} style={styles.page} collapsable={false}>
+        <View style={styles.pageContent}>
+          {Math.abs(index - currentSpreadIndex) <= offscreenLimit ? (
+            <View style={styles.spread}>
+              <ReaderSpreadPage
+                pages={spread.pages}
+                settings={settings}
+                dictionarySettings={dictionarySettings}
+                coverHeaders={coverHeaders}
+                backgroundColor={backgroundColor}
+                mode={pageMode}
+                onSingleTap={handleTap}
+                onLongPress={openQuickActions}
+                onDictionaryLookup={handleDictionaryLookup}
+                reloadKeys={reloadKeys}
+              />
+            </View>
+          ) : (
+            <View style={styles.spread} />
+          )}
+
+          {index === 0 ? (
+            <View style={styles.startBoundary}>
+              <ReaderChapterBoundary
+                kind="start"
+                chapterLabel={chapterLabel}
+                previousChapterLabel={previousChapterLabel}
+                foregroundColor={foregroundColor}
+                safeInset={insets.top}
+                onPress={actions.toggleBars}
+                onPrevious={
+                  previousChapter ? () => leaveTo("previous") : undefined
+                }
+              />
+            </View>
+          ) : null}
+
+          {index === spreads.length - 1 && nextChapter ? (
+            <View style={styles.endBoundary}>
+              <ReaderChapterBoundary
+                kind="end"
+                chapterLabel={chapterLabel}
+                nextChapterLabel={nextChapterLabel}
+                foregroundColor={foregroundColor}
+                safeInset={insets.bottom}
+                onPress={actions.toggleBars}
+                onContinue={() => leaveTo("next")}
+                compact
+              />
+            </View>
+          ) : null}
+        </View>
+      </View>,
+    );
+  });
+
+  pagerChildren.push(
+    <View key="chapter-end-page" style={styles.page} collapsable={false}>
+      <View style={styles.edgePage}>
+        {nextChapter ? (
+          <ActivityIndicator color={foregroundColor} />
+        ) : (
+          <ReaderChapterBoundary
+            kind="end"
+            chapterLabel={chapterLabel}
+            nextChapterLabel={null}
+            foregroundColor={foregroundColor}
+            safeInset={insets.bottom}
+            onPress={actions.toggleBars}
+          />
+        )}
+      </View>
+    </View>,
+  );
 
   return (
-    <View style={[styles.root, { backgroundColor }]}>
+    <View style={rootStyle}>
       <GestureDetector gesture={composedGestures}>
         <View style={styles.pagerWrap}>
           <PagerView
             ref={pagerRef}
-            key={`${chapter.key}:${orientation}:${layoutDirection}`}
+            key={pagerKey}
             style={styles.pager}
-            initialPage={currentSpreadIndex}
+            initialPage={currentSpreadIndex + lead}
             orientation={orientation}
             layoutDirection={layoutDirection}
             overdrag
             offscreenPageLimit={offscreenLimit}
             scrollEnabled
             pageMargin={settings.pagedPageOffset && doublePages ? 12 : 0}
-            onPageSelected={(event) => {
-              const position = event.nativeEvent.position;
-              if (skipSelectRef.current) {
-                skipSelectRef.current = false;
-                pagerIndexRef.current = position;
-                return;
-              }
-              if (pagerIndexRef.current === position) return;
-              pagerIndexRef.current = position;
-              const spread = spreads[position];
-              if (!spread) return;
-              onPageChange(spread.startPageIndex);
-              onInteraction();
-            }}
+            onPageSelected={handlePageSelected}
           >
-            {spreads.map((spread, index) => (
-              <View key={spread.id} style={styles.page} collapsable={false}>
-                <View style={styles.pageContent}>
-                  {Math.abs(index - currentSpreadIndex) <= offscreenLimit ? (
-                    <View style={styles.spread}>
-                      <ReaderSpreadPage
-                        pages={spread.pages}
-                        settings={settings}
-                        dictionarySettings={dictionarySettings}
-                        coverHeaders={coverHeaders}
-                        backgroundColor={backgroundColor}
-                        mode={
-                          mode === "vertical"
-                            ? "vertical"
-                            : mode === "rtl"
-                              ? "rtl"
-                              : "ltr"
-                        }
-                        onSingleTap={handleTap}
-                        onLongPress={(page, x, y) =>
-                          openQuickActions(page, x, y)
-                        }
-                        onDictionaryLookup={(page, x, y) =>
-                          actions.lookupDictionary(page.url ?? "", x, y, {
-                            width,
-                            height,
-                          })
-                        }
-                        reloadKeys={reloadKeys}
-                      />
-                    </View>
-                  ) : (
-                    <View style={styles.spread} />
-                  )}
-
-                  {index === 0 ? (
-                    <View style={styles.startBoundary}>
-                      <ReaderChapterBoundary
-                        kind="start"
-                        chapterLabel={chapterLabel}
-                        previousChapterLabel={previousChapterLabel}
-                        foregroundColor={foregroundColor}
-                        safeInset={insets.top}
-                        onPress={actions.toggleBars}
-                        onPrevious={
-                          previousChapter ? actions.goPrevious : undefined
-                        }
-                      />
-                    </View>
-                  ) : null}
-
-                  {index === spreads.length - 1 ? (
-                    <View style={styles.endBoundary}>
-                      <ReaderChapterBoundary
-                        kind="end"
-                        chapterLabel={chapterLabel}
-                        nextChapterLabel={nextChapterLabel}
-                        foregroundColor={foregroundColor}
-                        safeInset={insets.bottom}
-                        onPress={actions.toggleBars}
-                        onContinue={
-                          nextChapter ? actions.goNextChapter : undefined
-                        }
-                        compact
-                      />
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            ))}
+            {pagerChildren}
           </PagerView>
         </View>
       </GestureDetector>
@@ -402,30 +550,16 @@ export function ReaderPagedView({
         page={quickActionsPage}
         anchor={quickActionsAnchor}
         usesDoublePages={doublePages}
-        spreadPageIndex={
-          quickActionsPage
-            ? pages.findIndex((page) => page.id === quickActionsPage.id)
-            : undefined
-        }
+        spreadPageIndex={quickActionsPage ? quickActionsPageIndex : undefined}
         isPageIsolated={
-          quickActionsPage
-            ? isolatedPages.has(
-                pages.findIndex((page) => page.id === quickActionsPage.id),
-              )
-            : false
+          quickActionsPage ? isolatedPages.has(quickActionsPageIndex) : false
         }
         canSetSinglePage={
           quickActionsPage
-            ? isPagePairable(
-                pages,
-                pages.findIndex((page) => page.id === quickActionsPage.id),
-              )
+            ? isPagePairable(pages, quickActionsPageIndex)
             : false
         }
-        onClose={() => {
-          setQuickActionsPage(null);
-          setQuickActionsAnchor(null);
-        }}
+        onClose={handleCloseQuickActions}
         onReload={() => {
           if (!quickActionsPage) return;
           setReloadKeys((current) => ({
@@ -434,12 +568,8 @@ export function ReaderPagedView({
           }));
         }}
         onToggleSinglePage={(isolated) => {
-          if (!quickActionsPage) return;
-          const pageIndex = pages.findIndex(
-            (page) => page.id === quickActionsPage.id,
-          );
-          if (pageIndex < 0) return;
-          toggleIsolationForPage(pageIndex, isolated, true);
+          if (!quickActionsPage || quickActionsPageIndex < 0) return;
+          toggleIsolationForPage(quickActionsPageIndex, isolated, true);
         }}
       />
     </View>
@@ -465,6 +595,11 @@ const styles = StyleSheet.create({
   },
   spread: {
     flex: 1,
+  },
+  edgePage: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   startBoundary: {
     position: "absolute",
