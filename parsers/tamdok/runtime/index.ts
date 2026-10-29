@@ -5,7 +5,7 @@ import type {
   TamdokSourceModule,
 } from "../../shared/types";
 import * as SecureStore from "expo-secure-store";
-import { buildFetchHeaders } from "../../shared/fetch-headers";
+import { sharedFetch } from "../../shared/http";
 import { parse } from "node-html-parser";
 
 async function performRequest(
@@ -15,12 +15,21 @@ async function performRequest(
 ): Promise<TamdokResponse> {
   const initHeaders = headersFromInit(init?.headers);
   const method = init?.method ?? "GET";
-  const response = await fetch(url, {
-    ...init,
+  const passthrough: Record<string, unknown> = { ...init };
+  delete passthrough.headers;
+  delete passthrough.method;
+  delete passthrough.body;
+  delete passthrough.signal;
+  const result = await sharedFetch({
+    url,
     method,
-    headers: buildFetchHeaders(url, initHeaders, sourceBaseUrl),
+    headers: initHeaders,
+    body: init?.body,
+    signal: init?.signal,
+    sourceBaseUrl,
+    passthrough: passthrough as RequestInit,
   });
-  return createResponse(response);
+  return createResponse(result);
 }
 
 export function createRequest(sourceBaseUrl?: string): TamdokRequest {
@@ -48,11 +57,15 @@ function headersFromInit(headers?: HeadersInit): Record<string, string> {
   return headers;
 }
 
-async function createResponse(response: Response): Promise<TamdokResponse> {
-  const textBody = await response.text();
+function createResponse(result: {
+  status: number;
+  url: string;
+  body: string;
+}): TamdokResponse {
+  const textBody = result.body;
   return {
-    status: response.status,
-    url: response.url,
+    status: result.status,
+    url: result.url,
     text: async () => textBody,
     json: async <T>() => JSON.parse(textBody) as T,
     html: () => parse(textBody),
@@ -68,6 +81,13 @@ export function hydrateTamdokDefaults(
   const prefix = `${sourceId}:`;
   for (const [key, value] of Object.entries(settings)) {
     defaultsStore.set(prefix + key, value);
+  }
+}
+
+export function clearTamdokDefaults(sourceId: string): void {
+  const prefix = `${sourceId}:`;
+  for (const key of [...defaultsStore.keys()]) {
+    if (key.startsWith(prefix)) defaultsStore.delete(key);
   }
 }
 

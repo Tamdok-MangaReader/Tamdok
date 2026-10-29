@@ -16,7 +16,7 @@ import type { AccentColorId } from '@/constants/accent-colors';
 import type { AppIconId } from '@/constants/app-icons';
 import { useAppearance } from '@/context/appearance-context';
 import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
-import { getAppSettings, MangaScreenSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
+import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 
 const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
@@ -30,12 +30,16 @@ export default function AppearanceScreen() {
   const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
   const [showBigMangaCover, setShowBigMangaCover] = useState(false);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
+  const [showStatusBadge, setShowStatusBadge] = useState(true);
+  const [showRating, setShowRating] = useState(true);
 
   const load = useCallback(async () => {
     const settings = await getAppSettings();
     setGridSize(settings.libraryDisplay.gridSize);
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
     setShowChapterNumber(settings.mangaScreen.showChapterNumber);
+    setShowStatusBadge(settings.coverDisplay.showStatusBadge);
+    setShowRating(settings.coverDisplay.showRating);
   }, []);
 
   useEffect(() => {
@@ -51,6 +55,14 @@ export default function AppearanceScreen() {
     void getAppSettings().then((settings) =>
       updateAppSettings({
         mangaScreen: { ...settings.mangaScreen, ...next },
+      }),
+    );
+  };
+
+  const updateCoverDisplaySettings = (next: Partial<CoverDisplaySettings>) => {
+    void getAppSettings().then((settings) =>
+      updateAppSettings({
+        coverDisplay: { ...settings.coverDisplay, ...next },
       }),
     );
   };
@@ -158,6 +170,31 @@ export default function AppearanceScreen() {
           <ThemedText variant='footnote' color='secondaryLabel'>
             {t('library_grid_size_hint')}
           </ThemedText>
+        </Card>
+
+        <SectionLabel>{t('appearance_covers_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('appearance_show_status')}
+            hint={t('appearance_show_status_hint')}
+            value={showStatusBadge}
+            onChange={(value) => {
+              setShowStatusBadge(value);
+              updateCoverDisplaySettings({ showStatusBadge: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_show_rating')}
+            hint={t('appearance_show_rating_hint')}
+            value={showRating}
+            onChange={(value) => {
+              setShowRating(value);
+              updateCoverDisplaySettings({ showRating: value });
+            }}
+            isLast
+          />
         </Card>
 
         <SectionLabel>{t('library_manga_screen_section')}</SectionLabel>

@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { StarRating } from "@/components/manga/star-rating";
+import { useCoverDisplay } from "@/hooks/use-cover-display";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import type { HomeScrollerEntry, Listing } from "@/parsers/shared/types";
@@ -29,6 +30,7 @@ export function MangaRatedScroller({
   onPressManga,
   onPressSeeAll,
 }: MangaRatedScrollerProps) {
+  const { showRating } = useCoverDisplay();
   if (entries.length === 0) return null;
 
   return (
@@ -60,7 +62,9 @@ export function MangaRatedScroller({
         contentContainerStyle={styles.scroller}
       >
         {entries.map((entry) => {
-          const rating = parseRatingText(entry.manga.rating || entry.subtitle);
+          const rating = showRating
+            ? parseRatingText(entry.manga.rating || entry.subtitle)
+            : null;
           const chapterLabel = homeChapterLabel(entry.manga, entry.chapter);
           return (
             <View

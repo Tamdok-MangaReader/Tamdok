@@ -26,6 +26,12 @@ export class LruMap<V> {
     this.values.delete(key);
   }
 
+  deleteWhere(predicate: (key: string) => boolean): void {
+    for (const key of [...this.values.keys()]) {
+      if (predicate(key)) this.values.delete(key);
+    }
+  }
+
   clear(): void {
     this.values.clear();
   }

@@ -46,6 +46,10 @@ export function createNetImports(env: WasmEnv) {
           };
         });
 
+        const slotByRid = new Map<number, number>();
+        rids.forEach((rid, index) => {
+          if (!slotByRid.has(rid)) slotByRid.set(rid, index);
+        });
         const errors: number[] = new Array(rids.length);
         let wasError = false;
 
@@ -55,7 +59,7 @@ export function createNetImports(env: WasmEnv) {
 
         for (const item of prepared) {
           if ('error' in item) {
-            const index = rids.indexOf(item.rid);
+            const index = slotByRid.get(item.rid) ?? 0;
             errors[index] = item.error;
             wasError = true;
           }
@@ -70,7 +74,7 @@ export function createNetImports(env: WasmEnv) {
           batch.forEach((item, index) => {
             const response = responses[index];
             if (!response) {
-              const slot = rids.indexOf(item.rid);
+              const slot = slotByRid.get(item.rid) ?? 0;
               errors[slot] = NetResult.RequestError;
               wasError = true;
               return;
@@ -78,7 +82,7 @@ export function createNetImports(env: WasmEnv) {
 
             const request = getRequest(env, item.rid);
             if (!request) {
-              const slot = rids.indexOf(item.rid);
+              const slot = slotByRid.get(item.rid) ?? 0;
               errors[slot] = NetResult.InvalidDescriptor;
               wasError = true;
               return;
@@ -90,7 +94,7 @@ export function createNetImports(env: WasmEnv) {
               headers: response.headers ?? {},
               data: new TextEncoder().encode(response.body),
             };
-            const slot = rids.indexOf(item.rid);
+            const slot = slotByRid.get(item.rid) ?? 0;
             errors[slot] = NetResult.Success;
           });
         }

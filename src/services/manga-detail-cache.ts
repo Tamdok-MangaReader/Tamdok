@@ -106,3 +106,18 @@ export async function clearMangaDetailCache(sourceId?: string, mangaKey?: string
   memoryCache.clear();
   await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
 }
+
+export async function clearMangaDetailCacheForSource(sourceId: string): Promise<void> {
+  const memoryPrefix = `${sourceId}:`;
+  memoryCache.deleteWhere((key) => key.startsWith(memoryPrefix));
+
+  const filePrefix = `${memoryPrefix}`.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const info = await FileSystem.getInfoAsync(CACHE_DIR);
+  if (!info.exists) return;
+  const files = await FileSystem.readDirectoryAsync(CACHE_DIR);
+  await Promise.all(
+    files
+      .filter((name) => name.startsWith(filePrefix))
+      .map((name) => FileSystem.deleteAsync(`${CACHE_DIR}${name}`, { idempotent: true }).catch(() => undefined)),
+  );
+}

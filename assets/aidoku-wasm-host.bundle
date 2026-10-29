@@ -18075,6 +18075,10 @@ var AidokuWasmHostBundle = (() => {
               fetchRequest: toFetchBridgeRequest(env, rid, request)
             };
           });
+          const slotByRid = /* @__PURE__ */ new Map();
+          rids.forEach((rid, index) => {
+            if (!slotByRid.has(rid)) slotByRid.set(rid, index);
+          });
           const errors = new Array(rids.length);
           let wasError = false;
           const batch = prepared.filter(
@@ -18082,7 +18086,7 @@ var AidokuWasmHostBundle = (() => {
           );
           for (const item of prepared) {
             if ("error" in item) {
-              const index = rids.indexOf(item.rid);
+              const index = slotByRid.get(item.rid) ?? 0;
               errors[index] = item.error;
               wasError = true;
             }
@@ -18092,14 +18096,14 @@ var AidokuWasmHostBundle = (() => {
             batch.forEach((item, index) => {
               const response = responses[index];
               if (!response) {
-                const slot2 = rids.indexOf(item.rid);
+                const slot2 = slotByRid.get(item.rid) ?? 0;
                 errors[slot2] = -10 /* RequestError */;
                 wasError = true;
                 return;
               }
               const request = getRequest(env, item.rid);
               if (!request) {
-                const slot2 = rids.indexOf(item.rid);
+                const slot2 = slotByRid.get(item.rid) ?? 0;
                 errors[slot2] = -1 /* InvalidDescriptor */;
                 wasError = true;
                 return;
@@ -18110,7 +18114,7 @@ var AidokuWasmHostBundle = (() => {
                 headers: response.headers ?? {},
                 data: new TextEncoder().encode(response.body)
               };
-              const slot = rids.indexOf(item.rid);
+              const slot = slotByRid.get(item.rid) ?? 0;
               errors[slot] = 0 /* Success */;
             });
           }

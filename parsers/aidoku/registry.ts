@@ -39,3 +39,23 @@ export function registryEntryKind(
   if (registryUrl.includes("aidoku")) return "aidoku";
   return "tamdok";
 }
+
+export function shiftAidokuContentRating(value?: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.min(3, Math.max(1, Math.round(value) + 1));
+}
+
+export function normalizeRegistryContentRatings(
+  registryUrl: string,
+  registry: SourceRegistry,
+): SourceRegistry {
+  if (!Array.isArray(registry.sources)) return registry;
+  return {
+    ...registry,
+    sources: registry.sources.map((entry) =>
+      registryEntryKind(registryUrl, entry) === "aidoku"
+        ? { ...entry, contentRating: shiftAidokuContentRating(entry.contentRating) }
+        : entry,
+    ),
+  };
+}

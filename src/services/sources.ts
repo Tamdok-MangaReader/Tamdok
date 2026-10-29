@@ -20,9 +20,11 @@ import { createTamdokSourceRunner } from "@/parsers/tamdok/runner";
 import type { SourceRunner } from "@/parsers/shared/source-runner";
 import {
   fetchSourceRegistry,
+  normalizeRegistryContentRatings,
   resolveRegistryAssetUrl,
 } from "@/parsers/aidoku/registry";
 import { isAidokuPackageFilename } from "@/parsers/aidoku/package";
+import { bytesToBase64 } from "@/parsers/shared/base64";
 import { isTamdokPackageFilename } from "@/parsers/tamdok/package";
 import { getValue, hasValue, setValue, storageKeys } from "@/constants/storage";
 import * as FileSystem from "expo-file-system/legacy";
@@ -389,7 +391,7 @@ export function filterByNsfw<T extends { contentRating?: number }>(
 ): T[] {
   if (showNsfw) return entries;
   return entries.filter(
-    (entry) => !entry.contentRating || entry.contentRating === 0,
+    (entry) => !entry.contentRating || entry.contentRating <= 1,
   );
 }
 
@@ -592,7 +594,7 @@ export async function loadRegistryFromUrl(
   if (!force) {
     const cached = await readCachedRegistry(url);
     if (cached) {
-      const registry = cached.data as SourceRegistry;
+      const registry = normalizeRegistryContentRatings(url, cached.data as SourceRegistry);
       registryMemoryCache.set(url, { registry, fetchedAt: Date.now() });
       if (Date.now() - cached.cachedAt < REGISTRY_DISK_TTL_MS) {
         return registry;
@@ -600,8 +602,9 @@ export async function loadRegistryFromUrl(
     }
   }
 
-  const registry = await fetchSourceRegistry(url);
-  await cacheRegistry(url, registry);
+  const fetched = await fetchSourceRegistry(url);
+  await cacheRegistry(url, fetched);
+  const registry = normalizeRegistryContentRatings(url, fetched);
   registryMemoryCache.set(url, { registry, fetchedAt: Date.now() });
   return registry;
 }
@@ -658,7 +661,7 @@ export async function installFromRegistry(
     if (!response.ok) return installed;
     const iconBytes = new Uint8Array(await response.arrayBuffer());
     const iconPath = joinInstallPath(installed.installPath, "icon.png");
-    const base64 = uint8ToBase64(iconBytes);
+    const base64 = bytesToBase64(iconBytes);
     await FileSystem.writeAsStringAsync(iconPath, base64, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -666,14 +669,6 @@ export async function installFromRegistry(
   } catch {
     return installed;
   }
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
 }
 
 export {

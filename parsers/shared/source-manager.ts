@@ -2,6 +2,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { unzipSync, zipSync } from 'fflate';
 
 import { parseAidokuPackage } from '../aidoku/package';
+import { base64ToBytes, bytesToBase64 } from './base64';
+import { shiftAidokuContentRating } from '../aidoku/registry';
 import { parseTamdokPackage } from '../tamdok/package';
 import { parseAidokuFiltersJson } from './filters';
 import type { FilterDefinition, InstalledSource, RegistryEntry, SourceKind, SourceManifest } from './types';
@@ -27,33 +29,94 @@ export async function ensureSourcesDirectory(): Promise<void> {
   }
 }
 
+const INSTALLING_SUFFIX = '.installing';
+
+async function readInstalledEntry(entry: string): Promise<InstalledSource | null> {
+  const installPath = joinInstallPath(SOURCES_DIR, entry);
+  const manifestPath = joinInstallPath(installPath, 'source.json');
+  const iconPath = joinInstallPath(installPath, 'icon.png');
+  const [manifestInfo, iconInfo] = await Promise.all([
+    FileSystem.getInfoAsync(manifestPath),
+    FileSystem.getInfoAsync(iconPath),
+  ]);
+  if (!manifestInfo.exists) return null;
+
+  const raw = await FileSystem.readAsStringAsync(manifestPath);
+  const kind: SourceKind = entry.startsWith('aidoku-') ? 'aidoku' : 'tamdok';
+  const manifest = adaptManifestRating(JSON.parse(raw) as SourceManifest, kind);
+
+  return {
+    id: manifest.info.id,
+    kind,
+    manifest,
+    installPath,
+    iconUri: iconInfo.exists ? normalizeInstalledIconPath(iconPath) : undefined,
+  };
+}
+
 export async function listInstalledSources(): Promise<InstalledSource[]> {
   await ensureSourcesDirectory();
   const entries = await FileSystem.readDirectoryAsync(SOURCES_DIR);
-  const sources: InstalledSource[] = [];
 
-  for (const entry of entries) {
-    const installPath = joinInstallPath(SOURCES_DIR, entry);
-    const manifestPath = joinInstallPath(installPath, 'source.json');
-    const info = await FileSystem.getInfoAsync(manifestPath);
-    if (!info.exists) continue;
-
-    const raw = await FileSystem.readAsStringAsync(manifestPath);
-    const manifest = JSON.parse(raw) as SourceManifest;
-    const kind: SourceKind = entry.startsWith('aidoku-') ? 'aidoku' : 'tamdok';
-    const iconPath = joinInstallPath(installPath, 'icon.png');
-    const iconInfo = await FileSystem.getInfoAsync(iconPath);
-
-    sources.push({
-      id: manifest.info.id,
-      kind,
-      manifest,
-      installPath,
-      iconUri: iconInfo.exists ? normalizeInstalledIconPath(iconPath) : undefined,
-    });
+  const leftovers = entries.filter((entry) => entry.endsWith(INSTALLING_SUFFIX));
+  if (leftovers.length > 0) {
+    await Promise.all(
+      leftovers.map((entry) =>
+        FileSystem.deleteAsync(joinInstallPath(SOURCES_DIR, entry), { idempotent: true }).catch(() => undefined),
+      ),
+    );
   }
 
+  const results = await Promise.all(
+    entries
+      .filter((entry) => !entry.endsWith(INSTALLING_SUFFIX))
+      .map((entry) => readInstalledEntry(entry).catch(() => null)),
+  );
+  const sources = results.filter((item): item is InstalledSource => item != null);
+
   return sources.sort((a, b) => a.manifest.info.name.localeCompare(b.manifest.info.name));
+}
+
+function adaptManifestRating(manifest: SourceManifest, kind: SourceKind): SourceManifest {
+  if (kind !== 'aidoku') return manifest;
+  return {
+    ...manifest,
+    info: { ...manifest.info, contentRating: shiftAidokuContentRating(manifest.info.contentRating) },
+  };
+}
+
+function trimTrailingSlash(path: string): string {
+  return path.endsWith('/') ? path.slice(0, -1) : path;
+}
+
+async function installAtomically(dir: string, write: (stagingDir: string) => Promise<void>): Promise<void> {
+  const target = trimTrailingSlash(dir);
+  const staging = `${target}${INSTALLING_SUFFIX}`;
+  await FileSystem.deleteAsync(staging, { idempotent: true });
+  await FileSystem.makeDirectoryAsync(staging, { intermediates: true });
+  try {
+    await write(`${staging}/`);
+  } catch (error) {
+    await FileSystem.deleteAsync(staging, { idempotent: true }).catch(() => undefined);
+    throw error;
+  }
+  await FileSystem.deleteAsync(target, { idempotent: true });
+  await FileSystem.moveAsync({ from: staging, to: target });
+  invalidateInstalledCaches(dir);
+}
+
+const scriptCache = new Map<string, string>();
+const filtersCache = new Map<string, FilterDefinition[] | null>();
+
+export function invalidateInstalledCaches(installPath?: string): void {
+  if (!installPath) {
+    scriptCache.clear();
+    filtersCache.clear();
+    return;
+  }
+  const key = trimTrailingSlash(installPath);
+  scriptCache.delete(key);
+  filtersCache.delete(key);
 }
 
 export async function installAidokuPackage(data: Uint8Array): Promise<InstalledSource> {
@@ -61,25 +124,24 @@ export async function installAidokuPackage(data: Uint8Array): Promise<InstalledS
   await ensureSourcesDirectory();
   const pkg = parseAidokuPackage(data);
   const dir = `${SOURCES_DIR}aidoku-${pkg.manifest.info.id}/`;
-  await FileSystem.deleteAsync(dir, { idempotent: true });
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-
-  await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'source.json'), JSON.stringify(pkg.manifest, null, 2));
-  await writeBinary(joinInstallPath(dir, 'main.wasm'), pkg.wasm);
-  if (pkg.filters) {
-    await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'filters.json'), JSON.stringify(pkg.filters, null, 2));
-  }
-  if (pkg.settings) {
-    await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'settings.json'), JSON.stringify(pkg.settings, null, 2));
-  }
-  if (pkg.icon) {
-    await writeBinary(joinInstallPath(dir, 'icon.png'), pkg.icon);
-  }
+  await installAtomically(dir, async (staging) => {
+    await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'source.json'), JSON.stringify(pkg.manifest, null, 2));
+    await writeBinary(joinInstallPath(staging, 'main.wasm'), pkg.wasm);
+    if (pkg.filters) {
+      await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'filters.json'), JSON.stringify(pkg.filters, null, 2));
+    }
+    if (pkg.settings) {
+      await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'settings.json'), JSON.stringify(pkg.settings, null, 2));
+    }
+    if (pkg.icon) {
+      await writeBinary(joinInstallPath(staging, 'icon.png'), pkg.icon);
+    }
+  });
 
   return {
     id: pkg.manifest.info.id,
     kind: 'aidoku',
-    manifest: pkg.manifest,
+    manifest: adaptManifestRating(pkg.manifest, 'aidoku'),
     installPath: dir,
     iconUri: pkg.icon ? normalizeInstalledIconPath(joinInstallPath(dir, 'icon.png')) : undefined,
   };
@@ -89,21 +151,20 @@ export async function installTamdokPackage(data: Uint8Array): Promise<InstalledS
   await ensureSourcesDirectory();
   const pkg = parseTamdokPackage(data);
   const dir = `${SOURCES_DIR}tamdok-${pkg.manifest.info.id}/`;
-  await FileSystem.deleteAsync(dir, { idempotent: true });
-  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-
-  await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'source.json'), JSON.stringify(pkg.manifest, null, 2));
-  await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'index.js'), pkg.script);
-  if (pkg.filters) {
-    await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'filters.json'), JSON.stringify(pkg.filters, null, 2));
-  }
-  const manifestSettings = (pkg.manifest as { settings?: unknown[] }).settings;
-  if (manifestSettings?.length) {
-    await FileSystem.writeAsStringAsync(joinInstallPath(dir, 'settings.json'), JSON.stringify(manifestSettings, null, 2));
-  }
-  if (pkg.icon) {
-    await writeBinary(joinInstallPath(dir, 'icon.png'), pkg.icon);
-  }
+  await installAtomically(dir, async (staging) => {
+    await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'source.json'), JSON.stringify(pkg.manifest, null, 2));
+    await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'index.js'), pkg.script);
+    if (pkg.filters) {
+      await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'filters.json'), JSON.stringify(pkg.filters, null, 2));
+    }
+    const manifestSettings = (pkg.manifest as { settings?: unknown[] }).settings;
+    if (manifestSettings?.length) {
+      await FileSystem.writeAsStringAsync(joinInstallPath(staging, 'settings.json'), JSON.stringify(manifestSettings, null, 2));
+    }
+    if (pkg.icon) {
+      await writeBinary(joinInstallPath(staging, 'icon.png'), pkg.icon);
+    }
+  });
 
   return {
     id: pkg.manifest.info.id,
@@ -116,6 +177,7 @@ export async function installTamdokPackage(data: Uint8Array): Promise<InstalledS
 
 export async function uninstallSource(source: InstalledSource): Promise<void> {
   await FileSystem.deleteAsync(source.installPath, { idempotent: true });
+  invalidateInstalledCaches(source.installPath);
 }
 
 export async function downloadRegistryEntry(
@@ -176,16 +238,8 @@ export function buildTamdokPackage(manifest: SourceManifest, script: string, ico
 }
 
 async function writeBinary(path: string, data: Uint8Array): Promise<void> {
-  const base64 = uint8ToBase64(data);
+  const base64 = bytesToBase64(data);
   await FileSystem.writeAsStringAsync(path, base64, { encoding: FileSystem.EncodingType.Base64 });
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
 }
 
 export function normalizeInstalledIconPath(path: string): string {
@@ -206,35 +260,35 @@ export async function readInstalledWasm(source: InstalledSource): Promise<Uint8A
   const info = await FileSystem.getInfoAsync(path);
   if (!info.exists) return null;
   const base64 = await FileSystem.readAsStringAsync(path, { encoding: FileSystem.EncodingType.Base64 });
-  return base64ToUint8(base64);
+  return base64ToBytes(base64);
 }
 
 export async function readInstalledScript(source: InstalledSource): Promise<string | null> {
   if (source.kind !== 'tamdok') return null;
+  const key = trimTrailingSlash(source.installPath);
+  const cached = scriptCache.get(key);
+  if (cached !== undefined) return cached;
   const path = joinInstallPath(source.installPath, 'index.js');
   const info = await FileSystem.getInfoAsync(path);
   if (!info.exists) return null;
-  return FileSystem.readAsStringAsync(path);
+  const script = await FileSystem.readAsStringAsync(path);
+  scriptCache.set(key, script);
+  return script;
 }
 
 export async function readInstalledFilters(source: InstalledSource): Promise<FilterDefinition[] | null> {
+  const key = trimTrailingSlash(source.installPath);
+  if (filtersCache.has(key)) return filtersCache.get(key) ?? null;
   const path = joinInstallPath(source.installPath, 'filters.json');
   const info = await FileSystem.getInfoAsync(path);
   if (!info.exists) return null;
   try {
     const raw = JSON.parse(await FileSystem.readAsStringAsync(path));
     const parsed = parseAidokuFiltersJson(raw);
-    return parsed.length > 0 ? parsed : null;
+    const result = parsed.length > 0 ? parsed : null;
+    filtersCache.set(key, result);
+    return result;
   } catch {
     return null;
   }
-}
-
-function base64ToUint8(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }

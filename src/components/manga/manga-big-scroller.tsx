@@ -11,6 +11,7 @@ import {
 
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { StarRating } from "@/components/manga/star-rating";
+import { useCoverDisplay } from "@/hooks/use-cover-display";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -156,7 +157,8 @@ function BigMangaCard({
   const coverWidth = Math.round(width * 0.38);
   const coverHeight = Math.round(coverWidth * 1.45);
   const parsed = parseMangaDescription(manga.description);
-  const rating = parseRatingText(manga.rating || parsed.ratingLine);
+  const { showRating } = useCoverDisplay();
+  const rating = showRating ? parseRatingText(manga.rating || parsed.ratingLine) : null;
   const authors = manga.authors?.filter(Boolean).join(", ");
   const tags = manga.tags?.slice(0, 6) ?? [];
   const altTitles = (manga.altTitles ?? parsed.altTitles ?? []).filter(

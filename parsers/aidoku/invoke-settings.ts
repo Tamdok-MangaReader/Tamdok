@@ -12,7 +12,22 @@ type AidokuSettingsEntry = {
   items?: AidokuSettingsEntry[];
 };
 
+const defaultsCache = new Map<string, Record<string, unknown>>();
+
+export function clearAidokuSettingsDefaultsCache(): void {
+  defaultsCache.clear();
+}
+
 async function readRawAidokuSettingsDefaults(source: InstalledSource): Promise<Record<string, unknown>> {
+  const cacheKey = `${source.installPath}|${source.manifest.info.version}`;
+  const cached = defaultsCache.get(cacheKey);
+  if (cached) return cached;
+  const loaded = await loadRawAidokuSettingsDefaults(source);
+  defaultsCache.set(cacheKey, loaded);
+  return loaded;
+}
+
+async function loadRawAidokuSettingsDefaults(source: InstalledSource): Promise<Record<string, unknown>> {
   const settingsPath = joinInstallPath(source.installPath, 'settings.json');
   const info = await FileSystem.getInfoAsync(settingsPath);
   if (!info.exists) return {};

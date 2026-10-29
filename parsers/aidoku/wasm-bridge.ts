@@ -1,6 +1,8 @@
 import type { AidokuInvokeArgs } from './runner';
 import { buildFetchHeaders } from '../shared/fetch-headers';
-import { isNhentaiHost, retryDelayMs } from '../shared/fetch-rate-limit';
+import { bytesToBase64 as uint8ToBase64 } from '../shared/base64';
+import { sharedFetch } from '../shared/http';
+import { pause } from '../shared/net-policy';
 import { sanitizeAidokuInvokeError } from './errors';
 import { logAidokuWasm } from './wasm-log';
 
@@ -66,18 +68,6 @@ const INVOKE_TIMEOUT_MS = 60_000;
 const INVOKE_HOME_TIMEOUT_MS = 90_000;
 const WASM_CHUNK_SIZE = 280_000;
 
-type CachedFetch = {
-  expiresAt: number;
-  status: number;
-  url: string;
-  body: string;
-  headers: Record<string, string>;
-};
-
-const nhentaiResponseCache = new Map<string, CachedFetch>();
-const NHENTAI_CACHE_TTL_MS = 90_000;
-const hostFetchQueues = new Map<string, Promise<void>>();
-const hostFetchLastAt = new Map<string, number>();
 const sourceWatchers = new Map<string, number>();
 const sourceRequestGeneration = new Map<string, number>();
 const inflightFetches = new Map<string, InflightFetch>();
@@ -420,170 +410,43 @@ async function performFetch(message: Extract<HostInboundMessage, { type: 'fetch'
   logAidokuWasm('debug', `fetch requested ${message.method ?? 'GET'} ${message.url}`);
 
   const method = message.method ?? 'GET';
-  const cached =
-    method === 'GET' && isNhentaiHost(message.url) ? nhentaiResponseCache.get(message.url) : undefined;
-  if (cached && cached.expiresAt > Date.now()) {
-    settleResponse(cached.status, cached.url, cached.body, cached.headers);
-    return;
-  }
 
-  const maxAttempts = 6;
-  await waitForHostSlot(message.url, inflight.abort.signal);
-  if (isInflightCancelled(inflight)) {
-    settleError(AIDOKU_REQUEST_CANCELLED);
-    return;
-  }
+  try {
+    const result = await sharedFetch({
+      url: message.url,
+      method,
+      headers: message.headers ?? {},
+      body: message.body,
+      sourceBaseUrl: message.sourceBaseUrl,
+      signal: inflight.abort.signal,
+      maxAttempts: 6,
+      onLog: (level, text) => logAidokuWasm(level, text),
+    });
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (isInflightCancelled(inflight)) {
       settleError(AIDOKU_REQUEST_CANCELLED);
       return;
     }
-    if (attempt > 0) {
-      await pause(retryDelayMs(429, attempt), inflight.abort.signal);
-      if (isInflightCancelled(inflight)) {
-        settleError(AIDOKU_REQUEST_CANCELLED);
-        return;
-      }
+
+    if (result.status >= 400) {
+      const isMangadexBatch =
+        result.status === 400 && message.url.includes('api.mangadex.org') && message.url.includes('ids[]=');
+      logAidokuWasm(
+        isMangadexBatch ? 'debug' : 'warn',
+        `HTTP ${result.status} ${method} ${message.url} (${result.body.length} bytes)`,
+      );
+    } else {
+      logAidokuWasm('debug', `fetch completed ${result.status} ${message.url} ${result.body.length} bytes`);
     }
 
-    try {
-      const response = await fetch(message.url, {
-        method,
-        headers: buildFetchHeaders(message.url, message.headers ?? {}, message.sourceBaseUrl),
-        body: message.body,
-        signal: inflight.abort.signal,
-      });
-      const body = await response.text();
-      const retryAfter = response.headers.get('Retry-After') ?? undefined;
-
-      if (isInflightCancelled(inflight)) {
-        settleError(AIDOKU_REQUEST_CANCELLED);
-        return;
-      }
-
-      if (response.status === 429 && attempt < maxAttempts - 1) {
-        logAidokuWasm(
-          'debug',
-          `HTTP 429 ${method} ${message.url}, retry ${attempt + 1}/${maxAttempts - 1}`,
-        );
-        await pause(retryDelayMs(429, attempt + 1, retryAfter), inflight.abort.signal);
-        continue;
-      }
-
-      if (response.status >= 400) {
-        const isMangadexBatch =
-          response.status === 400 && message.url.includes('api.mangadex.org') && message.url.includes('ids[]=');
-        logAidokuWasm(
-          isMangadexBatch ? 'debug' : 'warn',
-          `HTTP ${response.status} ${method} ${message.url} (${body.length} bytes)`,
-        );
-      } else {
-        logAidokuWasm('debug', `fetch completed ${response.status} ${message.url} ${body.length} bytes`);
-      }
-      const headers: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-
-      if (method === 'GET' && isNhentaiHost(message.url) && response.status === 200) {
-        nhentaiResponseCache.set(message.url, {
-          expiresAt: Date.now() + NHENTAI_CACHE_TTL_MS,
-          status: response.status,
-          url: response.url,
-          body,
-          headers,
-        });
-      }
-
-      settleResponse(response.status, response.url, body, headers);
-      return;
-    } catch (error) {
-      if (isInflightCancelled(inflight) || (error instanceof Error && error.name === 'AbortError')) {
-        settleError(AIDOKU_REQUEST_CANCELLED);
-        return;
-      }
-      if (attempt === maxAttempts - 1) {
-        logAidokuWasm('warn', `Fetch failed ${message.url} ${error instanceof Error ? error.message : String(error)}`);
-        settleError(error instanceof Error ? error.message : 'Fetch failed');
-        return;
-      }
-    }
-  }
-}
-
-function pause(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve();
+    settleResponse(result.status, result.url, result.body, result.headers);
+  } catch (error) {
+    if (isInflightCancelled(inflight) || (error instanceof Error && error.name === 'AbortError')) {
+      settleError(AIDOKU_REQUEST_CANCELLED);
       return;
     }
-    const timer = setTimeout(resolve, ms);
-    if (!signal) return;
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
-function hostnameOf(url: string): string {
-  try {
-    return new URL(url).hostname.toLowerCase();
-  } catch {
-    return url;
+    logAidokuWasm('warn', `Fetch failed ${message.url} ${error instanceof Error ? error.message : String(error)}`);
+    settleError(error instanceof Error ? error.message : 'Fetch failed');
   }
 }
 
-function minGapForHost(host: string): number {
-  if (
-    host.includes('cdnlibs') ||
-    host.includes('mangalib') ||
-    host.includes('imglib') ||
-    host.includes('lib.social') ||
-    host.includes('hentailib') ||
-    host.includes('slashlib')
-  ) {
-    return 80;
-  }
-  if (host.includes('nhentai')) return 120;
-  return 0;
-}
-
-// Per-host queue throttles aggressive CDNs (MangaLib, nhentai) that 429 under burst load.
-async function waitForHostSlot(url: string, signal?: AbortSignal): Promise<void> {
-  const host = hostnameOf(url);
-  const gap = minGapForHost(host);
-  const previous = hostFetchQueues.get(host) ?? Promise.resolve();
-  let release: () => void = () => undefined;
-  const current = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  hostFetchQueues.set(
-    host,
-    previous
-      .catch(() => undefined)
-      .then(async () => {
-        if (signal?.aborted) {
-          release();
-          return;
-        }
-        const wait = gap - (Date.now() - (hostFetchLastAt.get(host) ?? 0));
-        if (wait > 0) await pause(wait, signal);
-        if (!signal?.aborted) {
-          hostFetchLastAt.set(host, Date.now());
-        }
-        release();
-      }),
-  );
-  await current;
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
-}

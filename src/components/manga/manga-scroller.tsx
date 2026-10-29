@@ -6,6 +6,7 @@ import { Spacing } from "@/constants/theme";
 import type { HomeScrollerEntry, Listing } from "@/parsers/shared/types";
 import { homeChapterLabel } from "@/utils/chapter-label";
 import { StarRating } from "@/components/manga/star-rating";
+import { useCoverDisplay } from "@/hooks/use-cover-display";
 import {
   parseMangaDescription,
   parseRatingText,
@@ -32,6 +33,7 @@ export function MangaScroller({
   onPressManga,
   onPressSeeAll,
 }: MangaScrollerProps) {
+  const { showRating } = useCoverDisplay();
   if (entries.length === 0) return null;
 
   return (
@@ -66,9 +68,9 @@ export function MangaScroller({
           const chapterLabel = homeChapterLabel(entry.manga, entry.chapter);
           const parsed = parseMangaDescription(entry.manga.description);
           const isTitleBig = (chapterLabel?.length || 0) >= 10;
-          const rating = parseRatingText(
-            entry.manga.rating || parsed.ratingLine,
-          );
+          const rating = showRating
+            ? parseRatingText(entry.manga.rating || parsed.ratingLine)
+            : null;
           return (
             <View
               key={entry.manga.key}

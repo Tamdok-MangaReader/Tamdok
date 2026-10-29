@@ -40,3 +40,8 @@ export function writeReaderPageCache(
     cachedAt: Date.now(),
   });
 }
+
+export function clearReaderPageCacheForSource(sourceId: string): void {
+  const prefix = `${sourceId}:`;
+  memoryCache.deleteWhere((key) => key.startsWith(prefix));
+}

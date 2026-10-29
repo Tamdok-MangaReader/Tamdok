@@ -7,6 +7,7 @@ import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
 import { LongPressScalePressable } from "@/components/ui/long-press-scale-pressable";
 import { ThemedText } from "@/components/ui/themed-text";
 import { StarRating } from "@/components/manga/star-rating";
+import { useCoverDisplay } from "@/hooks/use-cover-display";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
 import { useSourceCoverHeaders } from "@/context/source-cover-context";
@@ -96,7 +97,8 @@ export const MangaCover = memo(function MangaCover({
   const showUnread = inLibrary && unreadCount > 0;
   const showDownloaded = inLibrary && downloadedCount > 0;
   const showBookmarkBadge = showBookmark && inLibrary;
-  const showStatusBadge = showStatus && !updateFailed;
+  const coverDisplay = useCoverDisplay();
+  const showStatusBadge = showStatus && coverDisplay.showStatusBadge && !updateFailed;
 
   const pressableStyle = useMemo(() => [styles.pressable, { width }], [width]);
 
@@ -261,7 +263,7 @@ export const MangaCover = memo(function MangaCover({
   const content = (
     <>
       {coverBody}
-      {rating ? (
+      {rating && coverDisplay.showRating ? (
         <View style={styles.ratingWrap}>
           <StarRating rating={rating} compact={isRatingCompact} />
         </View>

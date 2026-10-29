@@ -87,6 +87,11 @@ export type MangaScreenSettings = {
   showChapterNumber: boolean;
 };
 
+export type CoverDisplaySettings = {
+  showStatusBadge: boolean;
+  showRating: boolean;
+};
+
 export type AppSettings = {
   incognitoMode: boolean;
   reader: ReaderSettings;
@@ -94,6 +99,7 @@ export type AppSettings = {
   downloads: DownloadSettings;
   libraryDisplay: LibraryDisplaySettings;
   mangaScreen: MangaScreenSettings;
+  coverDisplay: CoverDisplaySettings;
   debug: DebugSettings;
 };
 
@@ -161,6 +167,10 @@ const DEFAULT_SETTINGS: AppSettings = {
     showBigMangaCover: false,
     showChapterNumber: true,
   },
+  coverDisplay: {
+    showStatusBadge: true,
+    showRating: true,
+  },
   debug: {
     showReaderPageNumbers: false,
   },
@@ -193,6 +203,10 @@ async function readSettings(): Promise<AppSettings> {
       showBigMangaCover: stored.mangaScreen?.showBigMangaCover ?? DEFAULT_SETTINGS.mangaScreen.showBigMangaCover,
       showChapterNumber: stored.mangaScreen?.showChapterNumber ?? DEFAULT_SETTINGS.mangaScreen.showChapterNumber,
     },
+    coverDisplay: {
+      showStatusBadge: stored.coverDisplay?.showStatusBadge ?? DEFAULT_SETTINGS.coverDisplay.showStatusBadge,
+      showRating: stored.coverDisplay?.showRating ?? DEFAULT_SETTINGS.coverDisplay.showRating,
+    },
     debug: {
       ...DEFAULT_SETTINGS.debug,
       ...(stored.debug ?? {}),
@@ -217,6 +231,7 @@ export async function updateAppSettings(patch: Partial<AppSettings>): Promise<Ap
     downloads: { ...current.downloads, ...patch.downloads },
     libraryDisplay: { ...current.libraryDisplay, ...patch.libraryDisplay },
     mangaScreen: { ...current.mangaScreen, ...patch.mangaScreen },
+    coverDisplay: { ...current.coverDisplay, ...patch.coverDisplay },
     debug: { ...current.debug, ...patch.debug },
   };
   await writeSettings(next);

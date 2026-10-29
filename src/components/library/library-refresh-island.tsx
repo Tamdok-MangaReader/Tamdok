@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { FullWindowOverlay } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,8 +16,59 @@ export function LibraryRefreshIsland() {
   const insets = useSafeAreaInsets();
   const [progress, setProgress] = useState<LibraryRefreshProgress | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
+  const translate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const opacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => subscribeLibraryRefreshProgress(setProgress), []);
+
+  const isActive = progress != null;
+  useEffect(() => {
+    if (!isActive) {
+      setDismissed(false);
+      translate.setValue({ x: 0, y: 0 });
+      opacity.setValue(1);
+    }
+  }, [isActive, translate, opacity]);
+
+  const dismiss = useCallback(
+    (dx: number, dy: number) => {
+      const horizontal = Math.abs(dx) > Math.abs(dy);
+      Animated.parallel([
+        Animated.timing(translate, {
+          toValue: horizontal ? { x: dx > 0 ? 400 : -400, y: 0 } : { x: 0, y: -160 },
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start(() => setDismissed(true));
+    },
+    [translate, opacity],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.abs(gesture.dx) > 6 || Math.abs(gesture.dy) > 6,
+        onPanResponderMove: (_event, gesture) => {
+          translate.setValue({ x: gesture.dx, y: Math.min(0, gesture.dy) });
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          const farEnough = Math.abs(gesture.dx) > 60 || gesture.dy < -24;
+          const fastEnough = Math.abs(gesture.vx) > 0.6 || gesture.vy < -0.5;
+          if (farEnough || fastEnough) {
+            dismiss(gesture.dx, gesture.dy);
+            return;
+          }
+          Animated.spring(translate, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(translate, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
+        },
+      }),
+    [translate, dismiss],
+  );
   useEffect(() => {
     const load = () => {
       void getAppSettings().then((settings) => {
@@ -28,14 +79,17 @@ export function LibraryRefreshIsland() {
     return subscribeAppSettings(load);
   }, []);
 
-  if (!enabled || !progress || progress.total <= 0) return null;
+  if (!enabled || dismissed || !progress || progress.total <= 0) return null;
 
   const ratio = Math.max(0, Math.min(1, progress.current / progress.total));
 
   const island = (
     <View pointerEvents='box-none' style={StyleSheet.absoluteFill}>
-      <View pointerEvents='none' style={[styles.host, { top: insets.top + 6 }]}>
-        <View style={styles.shadow}>
+      <View pointerEvents='box-none' style={[styles.host, { top: insets.top + 6 }]}>
+        <Animated.View
+          {...panResponder.panHandlers}
+          style={[styles.shadow, { opacity, transform: translate.getTranslateTransform() }]}
+        >
           <BlurView intensity={64} tint='dark' style={styles.island}>
             <View style={styles.row}>
               <SFSymbolIcon name='books.vertical.fill' size={16} color='#F5F5F7' fallback='library' />
@@ -60,7 +114,7 @@ export function LibraryRefreshIsland() {
               <View style={[styles.fill, { width: `${Math.max(6, ratio * 100)}%` }]} />
             </View>
           </BlurView>
-        </View>
+        </Animated.View>
       </View>
     </View>
   );

@@ -1,7 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 
 import { joinInstallPath } from "@/parsers/shared/source-manager";
-import { getValue, setValue } from "@/constants/storage";
+import { getValue, removeValue, setValue } from "@/constants/storage";
 import type {
   InstalledSource,
   TamdokSettingDefinition,
@@ -115,6 +115,21 @@ export async function setSourceSettingValue(
   // WASM and Tamdok JS caches must drop stale apiUrl/cookie values immediately.
   const { hydrateTamdokDefaults } = await import("@/parsers/tamdok/runtime");
   hydrateTamdokDefaults(sourceId, { [key]: value });
+
+  const { resetAidokuSourceRuntime } =
+    await import("@/parsers/aidoku/wasm-bridge");
+  resetAidokuSourceRuntime(sourceId);
+
+  const { notifySourceSettingsChanged } =
+    await import("@/utils/source-settings-events");
+  notifySourceSettingsChanged();
+}
+
+export async function resetSourceSettings(sourceId: string): Promise<void> {
+  await removeValue(settingsStorageKey(sourceId));
+
+  const { clearTamdokDefaults } = await import("@/parsers/tamdok/runtime");
+  clearTamdokDefaults(sourceId);
 
   const { resetAidokuSourceRuntime } =
     await import("@/parsers/aidoku/wasm-bridge");

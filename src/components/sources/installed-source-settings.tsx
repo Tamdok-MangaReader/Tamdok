@@ -38,7 +38,27 @@ import {
   setSourceSettingValue,
   type SourceSettingField,
 } from "@/services/source-settings";
+import {
+  clearInstalledSourceCache,
+  resetInstalledSourceSettings,
+  sourceHosts,
+} from "@/services/source-maintenance";
 import { findInstalledSource } from "@/services/sources";
+import { DEFAULT_FETCH_USER_AGENT } from "@/parsers/shared/fetch-headers";
+import {
+  findHostClearance,
+  hostFromUrl,
+  removeHostClearance,
+  saveHostClearance,
+  subscribeClearance,
+} from "@/parsers/shared/host-clearance";
+import {
+  clearHostChallenge,
+  clearResponseCache,
+  isHostChallenged,
+  resetHostThrottle,
+  subscribeChallenges,
+} from "@/parsers/shared/net-policy";
 
 const PRESS_SPRING = {
   damping: 14,
@@ -100,6 +120,29 @@ export function InstalledSourceSettings({
   const [loginUrl, setLoginUrl] = useState<string | null>(null);
   const [isSavingCookies, setIsSavingCookies] = useState(false);
   const [isWebViewLoading, setIsWebViewLoading] = useState(false);
+  const [loginMode, setLoginMode] = useState<"login" | "cloudflare">("login");
+  const [busyAction, setBusyAction] = useState<"reset" | "cache" | null>(null);
+  const [networkTick, setNetworkTick] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setNetworkTick((value) => value + 1);
+    const offClearance = subscribeClearance(bump);
+    const offChallenges = subscribeChallenges(bump);
+    return () => {
+      offClearance();
+      offChallenges();
+    };
+  }, []);
+
+  const primaryHost = source ? (sourceHosts(source)[0] ?? "") : "";
+  const hasClearance = useMemo(
+    () => (primaryHost ? findHostClearance(primaryHost) != null : false),
+    [primaryHost, networkTick],
+  );
+  const challenged = useMemo(
+    () => (primaryHost ? isHostChallenged(primaryHost) : false),
+    [primaryHost, networkTick],
+  );
 
   const sections = useMemo(() => groupSettingFields(fields), [fields]);
 
@@ -174,8 +217,117 @@ export function InstalledSourceSettings({
   };
 
   const openLogin = (url: string) => {
+    setLoginMode("login");
     setIsWebViewLoading(true);
     setLoginUrl(url);
+  };
+
+  const openCloudflare = () => {
+    if (!source) return;
+    const baseUrl = source.manifest.info.url ?? source.manifest.info.urls?.[0];
+    if (!baseUrl) {
+      Alert.alert(t("source_cloudflare_title"), t("source_cloudflare_no_url"));
+      return;
+    }
+    setLoginMode("cloudflare");
+    setIsWebViewLoading(true);
+    setLoginUrl(baseUrl);
+  };
+
+  const saveClearance = async (url: string) => {
+    if (!source || isSavingCookies) return;
+    setIsSavingCookies(true);
+
+    try {
+      const cookies = await CookieManager.get(url, Platform.OS === "ios");
+      const picked: Record<string, string> = {};
+      for (const [name, cookie] of Object.entries(cookies)) {
+        if (
+          cookie.value !== undefined &&
+          /^(cf_clearance|__cf_bm|__cflb|_cfuvid|cf_chl.*)$/i.test(name)
+        ) {
+          picked[name] = cookie.value;
+        }
+      }
+
+      if (!picked.cf_clearance) {
+        Alert.alert(
+          t("source_cloudflare_title"),
+          t("source_cloudflare_not_found"),
+        );
+        return;
+      }
+
+      const host = hostFromUrl(url);
+      await saveHostClearance(host, {
+        cookies: picked,
+        userAgent: DEFAULT_FETCH_USER_AGENT,
+        savedAt: Date.now(),
+      });
+      clearHostChallenge(host);
+      clearResponseCache([host]);
+      resetHostThrottle([host]);
+
+      Alert.alert(
+        t("source_cloudflare_title"),
+        t("source_cloudflare_saved"),
+        [{ text: "OK", onPress: closeLogin }],
+      );
+    } catch {
+      Alert.alert(
+        t("source_cookies_save_error_title"),
+        t("source_cookies_save_error_message"),
+      );
+    } finally {
+      setIsSavingCookies(false);
+    }
+  };
+
+  const forgetClearance = () => {
+    if (!primaryHost) return;
+    void removeHostClearance(primaryHost);
+  };
+
+  const confirmResetSettings = () => {
+    if (!source || busyAction) return;
+    Alert.alert(
+      t("source_reset_settings_title"),
+      t("source_reset_settings_confirm", { name: source.manifest.info.name }),
+      [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("source_reset_settings_action"),
+          style: "destructive",
+          onPress: async () => {
+            setBusyAction("reset");
+            try {
+              await resetInstalledSourceSettings(source);
+              await refreshFields();
+            } catch {
+              Alert.alert("Error", t("source_maintenance_error"));
+            } finally {
+              setBusyAction(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const runClearCache = async () => {
+    if (!source || busyAction) return;
+    setBusyAction("cache");
+    try {
+      await clearInstalledSourceCache(source);
+      Alert.alert(
+        t("source_clear_cache_title"),
+        t("source_clear_cache_done"),
+      );
+    } catch {
+      Alert.alert("Error", t("source_maintenance_error"));
+    } finally {
+      setBusyAction(null);
+    }
   };
 
   const closeLogin = () => {
@@ -589,6 +741,103 @@ export function InstalledSourceSettings({
           ))
         )}
 
+        <SectionLabel>{t("source_maintenance_section")}</SectionLabel>
+        <Card style={styles.sectionCard}>
+          {primaryHost ? (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.row,
+                  pressed && { backgroundColor: colors.quaternaryFill },
+                ]}
+                onPress={openCloudflare}
+                accessibilityRole="button"
+              >
+                <View style={styles.rowText}>
+                  <ThemedText variant="body">
+                    {t("source_cloudflare_title")}
+                  </ThemedText>
+                  <ThemedText
+                    variant="footnote"
+                    color={challenged && !hasClearance ? "destructive" : "secondaryLabel"}
+                  >
+                    {hasClearance
+                      ? t("source_cloudflare_status_saved")
+                      : challenged
+                        ? t("source_cloudflare_status_blocked")
+                        : t("source_cloudflare_hint")}
+                  </ThemedText>
+                </View>
+                <Ionicons name="shield-checkmark-outline" size={20} color={colors.tint} />
+              </Pressable>
+              {hasClearance ? (
+                <>
+                  <CardSeparator />
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.row,
+                      pressed && { backgroundColor: colors.quaternaryFill },
+                    ]}
+                    onPress={forgetClearance}
+                    accessibilityRole="button"
+                  >
+                    <ThemedText variant="body" style={styles.rowLabel}>
+                      {t("source_cloudflare_forget")}
+                    </ThemedText>
+                    <Ionicons name="close-circle-outline" size={20} color={colors.tint} />
+                  </Pressable>
+                </>
+              ) : null}
+              <CardSeparator />
+            </>
+          ) : null}
+          <Pressable
+            style={({ pressed }) => [
+              styles.row,
+              pressed && { backgroundColor: colors.quaternaryFill },
+            ]}
+            onPress={() => void runClearCache()}
+            disabled={busyAction != null}
+            accessibilityRole="button"
+          >
+            <View style={styles.rowText}>
+              <ThemedText variant="body">{t("source_clear_cache_action")}</ThemedText>
+              <ThemedText variant="footnote" color="secondaryLabel">
+                {t("source_clear_cache_hint")}
+              </ThemedText>
+            </View>
+            {busyAction === "cache" ? (
+              <ActivityIndicator />
+            ) : (
+              <Ionicons name="trash-bin-outline" size={20} color={colors.tint} />
+            )}
+          </Pressable>
+          <CardSeparator />
+          <Pressable
+            style={({ pressed }) => [
+              styles.row,
+              pressed && { backgroundColor: colors.quaternaryFill },
+            ]}
+            onPress={confirmResetSettings}
+            disabled={busyAction != null}
+            accessibilityRole="button"
+          >
+            <View style={styles.rowText}>
+              <ThemedText variant="body" color="destructive">
+                {t("source_reset_settings_action")}
+              </ThemedText>
+              <ThemedText variant="footnote" color="secondaryLabel">
+                {t("source_reset_settings_hint")}
+              </ThemedText>
+            </View>
+            {busyAction === "reset" ? (
+              <ActivityIndicator />
+            ) : (
+              <Ionicons name="refresh-outline" size={20} color={colors.tint} />
+            )}
+          </Pressable>
+        </Card>
+
         <GlassSurface
           borderRadius={radius.pill}
           style={styles.deleteButton}
@@ -642,7 +891,11 @@ export function InstalledSourceSettings({
 
             <GlassSurface interactive style={styles.headerAction}>
               <Pressable
-                onPress={() => void saveCookies(loginUrl || "")}
+                onPress={() =>
+                  void (loginMode === "cloudflare"
+                    ? saveClearance(loginUrl || "")
+                    : saveCookies(loginUrl || ""))
+                }
                 style={{ flex: 1 }}
                 disabled={isSavingCookies}
                 accessibilityRole="button"
@@ -667,6 +920,7 @@ export function InstalledSourceSettings({
           {loginUrl !== null ? (
             <WebView
               source={{ uri: loginUrl }}
+              userAgent={loginMode === "cloudflare" ? DEFAULT_FETCH_USER_AGENT : undefined}
               style={styles.webView}
               javaScriptEnabled
               domStorageEnabled

@@ -1,5 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Modal,
   Platform,
@@ -38,19 +48,44 @@ type MangaSearchFilterBarProps = {
   onChange: (values: FilterValue[]) => void;
 };
 
+const EMPTY_IDS: string[] = [];
+const OPTION_PAGE_SIZE = 80;
+const GLASS_OPTION_LIMIT = 36;
+
+type MultiSelectDefinition = Extract<FilterDefinition, { type: "multiSelect" }>;
+type MultiSelectOption = MultiSelectDefinition["options"][number];
+
 function getMultiSelectState(
   values: FilterValue[],
-  definition: Extract<FilterDefinition, { type: "multiSelect" }>,
+  definition: MultiSelectDefinition,
 ) {
   const current = values.find(
     (value): value is Extract<FilterValue, { type: "multiSelect" }> =>
       value.id === definition.id && value.type === "multiSelect",
   );
   return {
-    included: current?.included ?? [],
-    excluded: current?.excluded ?? [],
+    included: current?.included ?? EMPTY_IDS,
+    excluded: current?.excluded ?? EMPTY_IDS,
     matchAll: current?.matchAll ?? false,
   };
+}
+
+function sameFilterProps<
+  P extends { definition: { id: string }; values: FilterValue[] },
+>(previous: P, next: P): boolean {
+  const keys = new Set([
+    ...Object.keys(previous),
+    ...Object.keys(next),
+  ]) as Set<keyof P>;
+  for (const key of keys) {
+    if (key === "values") continue;
+    if (previous[key] !== next[key]) return false;
+  }
+  const id = previous.definition.id;
+  return (
+    previous.values.find((value) => value.id === id) ===
+    next.values.find((value) => value.id === id)
+  );
 }
 
 function hasDedicatedMatchMode(
@@ -315,9 +350,9 @@ function MangaFilterModal({
     }
   }, [visible, values]);
 
-  const applyDraft = (next: FilterValue) => {
+  const applyDraft = useCallback((next: FilterValue) => {
     setDraft((current) => updateFilterValue(current, next));
-  };
+  }, []);
 
   const commitDraft = () => {
     onChange(draft);
@@ -479,7 +514,7 @@ function ModalHeaderButton({
   );
 }
 
-function SelectOptions({
+function SelectOptionsImpl({
   definition,
   values,
   onApply,
@@ -549,7 +584,7 @@ function SelectOptions({
   );
 }
 
-function SortOptions({
+function SortOptionsImpl({
   definition,
   values,
   onApply,
@@ -658,7 +693,192 @@ function MatchModeToggle({
   );
 }
 
-function MultiSelectOptions({
+const PillOption = memo(function PillOption({
+  id,
+  label,
+  selected,
+  glass,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  selected: boolean;
+  glass: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const { colors, radius } = useTheme();
+  if (selected) {
+    return (
+      <Pressable
+        style={[
+          styles.sortPillActive,
+          { borderRadius: radius.pill, backgroundColor: colors.tint },
+        ]}
+        onPress={() => onToggle(id)}
+      >
+        <ThemedText variant="subheadline" color="onTint" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  }
+
+  if (!glass) {
+    return (
+      <Pressable
+        style={[
+          styles.sortPill,
+          { borderRadius: radius.pill, backgroundColor: colors.tertiaryFill },
+        ]}
+        onPress={() => onToggle(id)}
+      >
+        <ThemedText variant="subheadline" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  }
+
+  return (
+    <GlassSurface
+      tintColor={colors.tertiaryFill}
+      borderRadius={radius.pill}
+      interactive
+    >
+      <Pressable style={styles.sortPill} onPress={() => onToggle(id)}>
+        <ThemedText variant="subheadline" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    </GlassSurface>
+  );
+});
+
+const CheckboxOption = memo(function CheckboxOption({
+  id,
+  label,
+  selected,
+  grid,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  selected: boolean;
+  grid: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const { colors, radius } = useTheme();
+  return (
+    <Pressable
+      style={[
+        styles.checkboxRow,
+        grid && styles.checkboxGridItem,
+        selected && {
+          backgroundColor: colors.secondaryFill,
+          borderRadius: radius.sm,
+        },
+      ]}
+      onPress={() => onToggle(id)}
+    >
+      <Ionicons
+        name={selected ? "checkbox" : "square-outline"}
+        size={22}
+        color={selected ? colors.tint : colors.tertiaryLabel}
+      />
+      <ThemedText variant="body" numberOfLines={1}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+});
+
+const TagOption = memo(function TagOption({
+  id,
+  label,
+  selected,
+  glass,
+  onToggle,
+}: {
+  id: string;
+  label: string;
+  selected: boolean;
+  glass: boolean;
+  onToggle: (id: string) => void;
+}) {
+  const { colors, radius } = useTheme();
+  if (selected) {
+    return (
+      <Pressable
+        style={[
+          styles.tag,
+          styles.tagSelected,
+          { borderRadius: radius.pill, backgroundColor: colors.tint },
+        ]}
+        onPress={() => onToggle(id)}
+      >
+        <ThemedText variant="subheadline" color="onTint" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  }
+
+  if (!glass) {
+    return (
+      <Pressable
+        style={[
+          styles.tag,
+          { borderRadius: radius.pill, backgroundColor: colors.tertiaryFill },
+        ]}
+        onPress={() => onToggle(id)}
+      >
+        <ThemedText variant="subheadline" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  }
+
+  return (
+    <GlassSurface
+      tintColor={colors.tertiaryFill}
+      borderRadius={radius.pill}
+      interactive
+    >
+      <Pressable style={styles.tag} onPress={() => onToggle(id)}>
+        <ThemedText variant="subheadline" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    </GlassSurface>
+  );
+});
+
+function ShowMoreButton({
+  remaining,
+  onPress,
+}: {
+  remaining: number;
+  onPress: () => void;
+}) {
+  const { colors, radius } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={[
+        styles.showMore,
+        { borderRadius: radius.pill, backgroundColor: colors.secondaryFill },
+      ]}
+    >
+      <ThemedText variant="subheadline" color="secondaryLabel">
+        {t("source_search_filters_show_more", { count: String(remaining) })}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+function MultiSelectOptionsImpl({
   definition,
   values,
   onApply,
@@ -669,7 +889,7 @@ function MultiSelectOptions({
   query: controlledQuery,
   onQueryChange,
 }: {
-  definition: Extract<FilterDefinition, { type: "multiSelect" }>;
+  definition: MultiSelectDefinition;
   values: FilterValue[];
   onApply: (next: FilterValue) => void;
   compact?: boolean;
@@ -681,118 +901,129 @@ function MultiSelectOptions({
 }) {
   const { colors, radius } = useTheme();
   const [localQuery, setLocalQuery] = useState("");
+  const [limit, setLimit] = useState(OPTION_PAGE_SIZE);
   const query = controlledQuery ?? localQuery;
   const setQuery = onQueryChange ?? setLocalQuery;
+  const deferredQuery = useDeferredValue(query);
   const { included, excluded, matchAll } = getMultiSelectState(
     values,
     definition,
   );
 
+  const includedSet = useMemo(() => new Set(included), [included]);
+  const optionById = useMemo(() => {
+    const map = new Map<string, MultiSelectOption>();
+    for (const option of definition.options) map.set(option.id, option);
+    return map;
+  }, [definition.options]);
+
+  const latest = useRef({
+    included,
+    excluded,
+    matchAll,
+    showMatchMode,
+    definitionId: definition.id,
+    onApply,
+  });
+  useLayoutEffect(() => {
+    latest.current = {
+      included,
+      excluded,
+      matchAll,
+      showMatchMode,
+      definitionId: definition.id,
+      onApply,
+    };
+  });
+
+  useEffect(() => {
+    setLimit(OPTION_PAGE_SIZE);
+  }, [deferredQuery]);
+
   const visibleOptions = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = deferredQuery.trim().toLowerCase();
     if (!normalized || variant === "checkbox") return definition.options;
     return definition.options.filter((option) =>
       option.label.toLowerCase().includes(normalized),
     );
-  }, [definition.options, query, variant]);
+  }, [definition.options, deferredQuery, variant]);
 
-  const selectedOptions = useMemo(
-    () =>
-      included
-        .map((id) => definition.options.find((option) => option.id === id))
-        .filter((option): option is (typeof definition.options)[number] =>
-          Boolean(option),
-        ),
-    [definition.options, included],
-  );
+  const selectedOptions = useMemo(() => {
+    const result: MultiSelectOption[] = [];
+    for (const id of included) {
+      const option = optionById.get(id);
+      if (option) result.push(option);
+    }
+    return result;
+  }, [optionById, included]);
 
   const unselectedOptions = useMemo(
-    () => visibleOptions.filter((option) => !included.includes(option.id)),
-    [visibleOptions, included],
+    () => visibleOptions.filter((option) => !includedSet.has(option.id)),
+    [visibleOptions, includedSet],
   );
 
-  const commitIncluded = (
-    nextIncluded: string[],
-    nextExcluded = excluded,
-    nextMatchAll = matchAll,
-  ) => {
-    onApply({
-      type: "multiSelect",
-      id: definition.id,
-      included: nextIncluded,
-      excluded: nextExcluded,
-      ...(showMatchMode ? { matchAll: nextMatchAll } : {}),
-    });
-  };
+  const toggleOption = useCallback((optionId: string) => {
+    const state = latest.current;
+    const commit = (nextIncluded: string[], nextExcluded: string[]) => {
+      state.onApply({
+        type: "multiSelect",
+        id: state.definitionId,
+        included: nextIncluded,
+        excluded: nextExcluded,
+        ...(state.showMatchMode ? { matchAll: state.matchAll } : {}),
+      });
+    };
 
-  const toggleOption = (optionId: string) => {
-    if (included.includes(optionId)) {
-      commitIncluded(
-        included.filter((id) => id !== optionId),
-        excluded.filter((id) => id !== optionId),
+    if (state.included.includes(optionId)) {
+      commit(
+        state.included.filter((id) => id !== optionId),
+        state.excluded.filter((id) => id !== optionId),
       );
       return;
     }
-    if (excluded.includes(optionId)) {
-      commitIncluded(
-        included,
-        excluded.filter((id) => id !== optionId),
+    if (state.excluded.includes(optionId)) {
+      commit(
+        state.included,
+        state.excluded.filter((id) => id !== optionId),
       );
       return;
     }
-    commitIncluded([optionId, ...included], excluded);
-  };
+    commit([optionId, ...state.included], state.excluded);
+  }, []);
+
+  const showMore = useCallback(
+    () => setLimit((current) => current + OPTION_PAGE_SIZE),
+    [],
+  );
+
+  const glass = definition.options.length <= GLASS_OPTION_LIMIT;
 
   if (variant === "pills") {
+    const shown = definition.options.slice(0, limit);
+    const remaining = definition.options.length - shown.length;
     return (
       <View style={[styles.pillGrid, compact && styles.pillGridCompact]}>
-        {definition.options.map((option) => {
-          const selected = included.includes(option.id);
-          if (selected) {
-            return (
-              <Pressable
-                key={option.id}
-                style={[
-                  styles.sortPillActive,
-                  { borderRadius: radius.pill, backgroundColor: colors.tint },
-                ]}
-                onPress={() => toggleOption(option.id)}
-              >
-                <ThemedText
-                  variant="subheadline"
-                  color="onTint"
-                  numberOfLines={1}
-                >
-                  {option.label}
-                </ThemedText>
-              </Pressable>
-            );
-          }
-
-          return (
-            <GlassSurface
-              key={option.id}
-              tintColor={colors.tertiaryFill}
-              borderRadius={radius.pill}
-              interactive
-            >
-              <Pressable
-                style={styles.sortPill}
-                onPress={() => toggleOption(option.id)}
-              >
-                <ThemedText variant="subheadline" numberOfLines={1}>
-                  {option.label}
-                </ThemedText>
-              </Pressable>
-            </GlassSurface>
-          );
-        })}
+        {shown.map((option) => (
+          <PillOption
+            key={option.id}
+            id={option.id}
+            label={option.label}
+            selected={includedSet.has(option.id)}
+            glass={glass}
+            onToggle={toggleOption}
+          />
+        ))}
+        {remaining > 0 ? (
+          <ShowMoreButton remaining={remaining} onPress={showMore} />
+        ) : null}
       </View>
     );
   }
 
   if (variant === "checkbox") {
     const useGrid = columns > 1;
+    const shown = definition.options.slice(0, limit);
+    const remaining = definition.options.length - shown.length;
 
     return (
       <View
@@ -802,42 +1033,40 @@ function MultiSelectOptions({
           useGrid && styles.checkboxGrid,
         ]}
       >
-        {definition.options.map((option) => {
-          const selected = included.includes(option.id);
-          return (
-            <Pressable
-              key={option.id}
-              style={[
-                styles.checkboxRow,
-                useGrid && styles.checkboxGridItem,
-                selected && {
-                  backgroundColor: colors.secondaryFill,
-                  borderRadius: radius.sm,
-                },
-              ]}
-              onPress={() => toggleOption(option.id)}
-            >
-              <Ionicons
-                name={selected ? "checkbox" : "square-outline"}
-                size={22}
-                color={selected ? colors.tint : colors.tertiaryLabel}
-              />
-              <ThemedText variant="body" numberOfLines={1}>
-                {option.label}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
+        {shown.map((option) => (
+          <CheckboxOption
+            key={option.id}
+            id={option.id}
+            label={option.label}
+            selected={includedSet.has(option.id)}
+            grid={useGrid}
+            onToggle={toggleOption}
+          />
+        ))}
+        {remaining > 0 ? (
+          <ShowMoreButton remaining={remaining} onPress={showMore} />
+        ) : null}
       </View>
     );
   }
+
+  const shownTags = unselectedOptions.slice(0, limit);
+  const remainingTags = unselectedOptions.length - shownTags.length;
 
   return (
     <View style={compact ? styles.dropdown : styles.genreModalSection}>
       {showMatchMode ? (
         <MatchModeToggle
           matchAll={matchAll}
-          onChange={(next) => commitIncluded(included, excluded, next)}
+          onChange={(next) =>
+            onApply({
+              type: "multiSelect",
+              id: definition.id,
+              included,
+              excluded,
+              matchAll: next,
+            })
+          }
         />
       ) : null}
 
@@ -863,52 +1092,39 @@ function MultiSelectOptions({
           </ThemedText>
           <View style={styles.tagGrid}>
             {selectedOptions.map((option) => (
-              <Pressable
+              <TagOption
                 key={`selected-${option.id}`}
-                style={[
-                  styles.tag,
-                  styles.tagSelected,
-                  { borderRadius: radius.pill, backgroundColor: colors.tint },
-                ]}
-                onPress={() => toggleOption(option.id)}
-              >
-                <ThemedText
-                  variant="subheadline"
-                  color="onTint"
-                  numberOfLines={1}
-                >
-                  {option.label}
-                </ThemedText>
-              </Pressable>
+                id={option.id}
+                label={option.label}
+                selected
+                glass={false}
+                onToggle={toggleOption}
+              />
             ))}
           </View>
         </View>
       ) : null}
 
       <View style={styles.tagGrid}>
-        {unselectedOptions.map((option) => (
-          <GlassSurface
+        {shownTags.map((option) => (
+          <TagOption
             key={option.id}
-            tintColor={colors.tertiaryFill}
-            borderRadius={radius.pill}
-            interactive
-          >
-            <Pressable
-              style={styles.tag}
-              onPress={() => toggleOption(option.id)}
-            >
-              <ThemedText variant="subheadline" numberOfLines={1}>
-                {option.label}
-              </ThemedText>
-            </Pressable>
-          </GlassSurface>
+            id={option.id}
+            label={option.label}
+            selected={false}
+            glass={glass}
+            onToggle={toggleOption}
+          />
         ))}
+        {remainingTags > 0 ? (
+          <ShowMoreButton remaining={remainingTags} onPress={showMore} />
+        ) : null}
       </View>
     </View>
   );
 }
 
-function TextOptions({
+function TextOptionsImpl({
   definition,
   values,
   onApply,
@@ -948,7 +1164,7 @@ function TextOptions({
   );
 }
 
-function CheckOptions({
+function CheckOptionsImpl({
   definition,
   values,
   onApply,
@@ -992,6 +1208,12 @@ function CheckOptions({
     </View>
   );
 }
+
+const SelectOptions = memo(SelectOptionsImpl, sameFilterProps);
+const SortOptions = memo(SortOptionsImpl, sameFilterProps);
+const TextOptions = memo(TextOptionsImpl, sameFilterProps);
+const CheckOptions = memo(CheckOptionsImpl, sameFilterProps);
+const MultiSelectOptions = memo(MultiSelectOptionsImpl, sameFilterProps);
 
 const styles = StyleSheet.create({
   bar: {
@@ -1103,6 +1325,11 @@ const styles = StyleSheet.create({
   },
   selectedSection: {
     gap: Spacing.xs,
+  },
+  showMore: {
+    alignSelf: "flex-start",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   tagGrid: {
     flexDirection: "row",

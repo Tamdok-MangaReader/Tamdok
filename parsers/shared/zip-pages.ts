@@ -1,5 +1,6 @@
 import { unzipSync } from 'fflate';
 
+import { bytesToBase64 } from './base64';
 import type { Page } from './types';
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|avif|bmp)$/i;
@@ -24,44 +25,34 @@ function bytesToDataUrl(path: string, bytes: Uint8Array): string {
           : ext === 'avif'
             ? 'image/avif'
             : 'image/jpeg';
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return `data:${mime};base64,${btoa(binary)}`;
+  return `data:${mime};base64,${bytesToBase64(bytes)}`;
 }
 
-/** Expand Aidoku ZIP/CBZ page entries into renderable image URLs. */
-export async function expandZipPages(pages: Page[]): Promise<Page[]> {
-  const expanded: Page[] = [];
+async function expandZipPage(page: Page): Promise<Page[]> {
+  if (!page.zipUrl) return [page];
 
-  for (const page of pages) {
-    if (!page.zipUrl) {
-      expanded.push(page);
-      continue;
+  try {
+    const response = await fetch(page.zipUrl);
+    if (!response.ok) return [page];
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    const archive = unzipSync(buffer);
+    let paths = Object.keys(archive).filter(isImagePath);
+    if (page.zipEntry) {
+      paths = paths.filter((path) => path.includes(page.zipEntry!));
     }
-
-    try {
-      const response = await fetch(page.zipUrl);
-      if (!response.ok) {
-        expanded.push(page);
-        continue;
-      }
-      const buffer = new Uint8Array(await response.arrayBuffer());
-      const archive = unzipSync(buffer);
-      let paths = Object.keys(archive).filter(isImagePath);
-      if (page.zipEntry) {
-        paths = paths.filter((path) => path.includes(page.zipEntry!));
-      }
-      for (const path of sortImagePaths(paths)) {
-        const bytes = archive[path];
-        if (!bytes) continue;
-        expanded.push({ url: bytesToDataUrl(path, bytes), thumbnail: page.thumbnail });
-      }
-    } catch {
-      expanded.push(page);
+    const expanded: Page[] = [];
+    for (const path of sortImagePaths(paths)) {
+      const bytes = archive[path];
+      if (!bytes) continue;
+      expanded.push({ url: bytesToDataUrl(path, bytes), thumbnail: page.thumbnail });
     }
+    return expanded;
+  } catch {
+    return [page];
   }
+}
 
-  return expanded;
+export async function expandZipPages(pages: Page[]): Promise<Page[]> {
+  const groups = await Promise.all(pages.map(expandZipPage));
+  return groups.flat();
 }
