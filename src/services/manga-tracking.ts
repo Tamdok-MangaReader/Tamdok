@@ -228,6 +228,27 @@ export async function markChapterRead(
   scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
+export async function importChapterReadStates(
+  sourceId: string,
+  mangaKey: string,
+  items: { chapterKey: string; dateRead: number }[],
+): Promise<void> {
+  if (items.length === 0) return;
+  await mutateStore((store) => {
+    for (const item of items) {
+      store.chapters[chapterKey(sourceId, mangaKey, item.chapterKey)] = {
+        sourceId,
+        mangaKey,
+        chapterKey: item.chapterKey,
+        page: -1,
+        dateRead: item.dateRead,
+      };
+    }
+    return true;
+  });
+  scheduleLibraryUnreadSync(sourceId, mangaKey);
+}
+
 export async function markChapterUnread(
   sourceId: string,
   mangaKey: string,

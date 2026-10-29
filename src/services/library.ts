@@ -552,6 +552,51 @@ export async function removeFromLibrary(
   await removeMangaDownloads(sourceId, mangaKey);
 }
 
+export async function replaceLibraryEntry(
+  from: { sourceId: string; mangaKey: string },
+  to: Pick<LibraryEntry, "sourceId" | "mangaKey" | "title" | "cover">,
+): Promise<boolean> {
+  const store = await readStore();
+  const fromKey = entryKey(from.sourceId, from.mangaKey);
+  const toKey = entryKey(to.sourceId, to.mangaKey);
+  const source = store.entries.find(
+    (item) => entryKey(item.sourceId, item.mangaKey) === fromKey,
+  );
+  if (!source) return false;
+
+  const existing =
+    fromKey === toKey
+      ? undefined
+      : store.entries.find(
+          (item) => entryKey(item.sourceId, item.mangaKey) === toKey,
+        );
+
+  if (existing) {
+    for (const categoryId of source.categoryIds) {
+      if (!existing.categoryIds.includes(categoryId)) {
+        existing.categoryIds.push(categoryId);
+      }
+    }
+    existing.dateAdded = Math.min(existing.dateAdded, source.dateAdded);
+    store.entries = store.entries.filter((item) => item !== source);
+  } else {
+    source.sourceId = to.sourceId;
+    source.mangaKey = to.mangaKey;
+    source.title = to.title;
+    source.cover = to.cover;
+    source.knownChapterKeys = undefined;
+    source.unreadCount = undefined;
+    source.downloadedCount = undefined;
+    source.status = undefined;
+    source.updateFailed = false;
+    source.lastRefreshed = undefined;
+    source.lastAttemptAt = undefined;
+  }
+
+  await writeStore(store);
+  return true;
+}
+
 export async function setLibraryCategories(
   sourceId: string,
   mangaKey: string,

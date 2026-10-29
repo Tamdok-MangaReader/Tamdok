@@ -15,6 +15,7 @@ export default function MangaLayout() {
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="detail" options={{ title: "" }} />
+      <Stack.Screen name="transfer" options={{ title: "" }} />
     </Stack>
   );
 }

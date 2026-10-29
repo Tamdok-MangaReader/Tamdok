@@ -23,6 +23,7 @@ import {
 } from "@/utils/manga-description";
 
 const PREVIEW_LIMIT = 6;
+const GRID_INSET = Spacing.sm;
 
 export type SourceSearchGroup = {
   source: InstalledSource;
@@ -52,7 +53,11 @@ export function GlobalSearchSourceSection({
   const [expanded, setExpanded] = useState(false);
   const width = Dimensions.get("window").width;
   const itemWidth = Math.floor(
-    (width - Spacing.lg * 2 - Spacing.sm * (columns - 1)) / columns,
+    (width -
+      Spacing.lg * 2 -
+      GRID_INSET * 2 -
+      Spacing.sm * (columns - 1)) /
+      columns,
   );
   const coverHeight = Math.round(itemWidth * 1.45);
 
@@ -246,7 +251,9 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "center",
     gap: Spacing.sm,
+    paddingHorizontal: GRID_INSET,
   },
   loadingWrap: {
     alignItems: "center",

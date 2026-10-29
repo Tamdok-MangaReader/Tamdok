@@ -1,8 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { useIsFocused } from "expo-router";
-import { useHeaderHeight } from "@react-navigation/elements";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 import {
@@ -22,6 +20,7 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type LayoutChangeEvent,
 } from "react-native";
 import { FlatList } from "react-native-gesture-handler";
 import DraggableFlatList, {
@@ -45,6 +44,11 @@ import {
   SwipeableRowsProvider,
   type SwipeAction,
 } from "@/components/sources/swipeable-row";
+import { usePagerHeights } from "@/hooks/use-pager-heights";
+import { usePinnedTabs } from "@/components/library/pinned-tabs";
+import { getAppSettings } from "@/services/app-settings";
+import { subscribeAppSettings } from "@/utils/app-settings-events";
+import { VirtualRows } from "@/components/ui/virtual-rows";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
@@ -73,7 +77,7 @@ type SourceListRow =
   | { kind: "source"; id: string; source: InstalledSource };
 
 type SourcesListItem = SourceListRow | InstalledSource;
-type SourcesCategoryId = "all" | "pinned" | "aidoku" | "tamdok";
+type SourcesCategoryId = "all" | "pinned" | "aidoku" | "tamdok" | "nsfw";
 type UpdateVersion = ComponentProps<typeof SourceListItem>["updateAvailable"];
 
 const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
@@ -85,6 +89,11 @@ type SourcesCategoryPage = {
 
 const EMPTY_SWIPE_ACTIONS: SwipeAction[] = [];
 const REORDER_ROW_HEIGHT = 76;
+
+function isNsfwSource(source: InstalledSource): boolean {
+  return (source.manifest.info.contentRating ?? 0) >= 3;
+}
+const SOURCE_ROW_ESTIMATE = 72;
 const PIN_SWIPE_COLOR = "#E5B800";
 
 const NORMAL_LIST_PROPS = {
@@ -299,6 +308,8 @@ const DragPlaceholder = memo(function DragPlaceholder({
 });
 
 type SourcesPageProps = {
+  pageId: string;
+  onHeight: (id: string, height: number) => void;
   rows: SourceListRow[];
   query: string;
   searchActive: boolean;
@@ -315,6 +326,8 @@ type SourcesPageProps = {
 };
 
 const SourcesPage = memo(function SourcesPage({
+  pageId,
+  onHeight,
   rows,
   query,
   searchActive,
@@ -409,29 +422,42 @@ const SourcesPage = memo(function SourcesPage({
     [searchActive],
   );
 
+  const handleEmptyLayout = useCallback(
+    (event: LayoutChangeEvent) =>
+      onHeight(pageId, event.nativeEvent.layout.height),
+    [onHeight, pageId],
+  );
+
+  const renderRow = useCallback(
+    (item: SourceListRow) => renderItem({ item }),
+    [renderItem],
+  );
+
   if (searchActive && matchingCount === 0) {
     return (
       <View collapsable={false} style={styles.root}>
-        <EmptyState
-          icon="search-outline"
-          title={t("source_search_empty_title")}
-          description={t("source_search_empty_desc")}
-        />
+        <View collapsable={false} onLayout={handleEmptyLayout}>
+          <EmptyState
+            icon="search-outline"
+            title={t("source_search_empty_title")}
+            description={t("source_search_empty_desc")}
+          />
+        </View>
       </View>
     );
   }
 
   return (
     <View collapsable={false} style={styles.root}>
-      <NativeFlatList<SourceListRow>
-        data={rows}
-        keyExtractor={itemKeyExtractor}
-        renderItem={renderItem}
-        contentInsetAdjustmentBehavior="automatic"
-        renderScrollComponent={renderScrollComponent}
-        contentContainerStyle={contentContainerStyle}
-        ListFooterComponent={LIST_FOOTER}
-        {...NORMAL_LIST_PROPS}
+      <VirtualRows
+        rows={rows}
+        rowHeight={SOURCE_ROW_ESTIMATE}
+        keyOf={itemKeyExtractor}
+        renderRow={renderRow}
+        pageId={pageId}
+        onHeight={onHeight}
+        style={contentContainerStyle}
+        footer={LIST_FOOTER}
       />
     </View>
   );
@@ -458,6 +484,9 @@ function buildCategoryRows(
     return rows;
   };
 
+  if (category === "nsfw") {
+    return toRows("", "nsfw", installed, true);
+  }
   if (category === "pinned") {
     return toRows(
       "",
@@ -518,14 +547,6 @@ export default function SourcesScreen() {
   const listRef = useRef<FlatList<SourcesListItem>>(null);
   const pagerRef = useRef<PagerView>(null);
   const progress = useSharedValue(0);
-  const headerHeight = useHeaderHeight();
-  const focused = useIsFocused();
-  const [tabsReady, setTabsReady] = useState(false);
-  useEffect(() => {
-    if (!focused || headerHeight <= 0 || isLoading) return;
-    const timer = setTimeout(() => setTabsReady(true), 60);
-    return () => clearTimeout(timer);
-  }, [focused, headerHeight, isLoading]);
   const isEmpty = !isLoading && installed.length === 0;
   const searchActive = isSearchActive(deferredQuery);
 
@@ -589,29 +610,52 @@ export default function SourcesScreen() {
 
   const exitReorderMode = useCallback(() => setIsReorderMode(false), []);
 
+  const [separateNsfw, setSeparateNsfw] = useState(false);
+  const [nsfwKillSwitch, setNsfwKillSwitch] = useState(false);
+  useEffect(() => {
+    const load = () =>
+      void getAppSettings().then((settings) => {
+        setSeparateNsfw(settings.privacy.separateNsfwSources);
+        setNsfwKillSwitch(settings.privacy.nsfwKillSwitch);
+      });
+    load();
+    return subscribeAppSettings(load);
+  }, []);
+
+  const nsfwSources = useMemo(
+    () => (separateNsfw ? installed.filter(isNsfwSource) : []),
+    [installed, separateNsfw],
+  );
+  const mainSources = useMemo(
+    () => (separateNsfw ? installed.filter((s) => !isNsfwSource(s)) : installed),
+    [installed, separateNsfw],
+  );
+
   const hasPinned = useMemo(
-    () => installed.some((source) => isPinned(source)),
-    [installed, isPinned],
+    () => mainSources.some((source) => isPinned(source)),
+    [mainSources, isPinned],
   );
   const hasAidoku = useMemo(
-    () => installed.some((source) => source.kind === "aidoku"),
-    [installed],
+    () => mainSources.some((source) => source.kind === "aidoku"),
+    [mainSources],
   );
   const hasTamdok = useMemo(
-    () => installed.some((source) => source.kind === "tamdok"),
-    [installed],
+    () => mainSources.some((source) => source.kind === "tamdok"),
+    [mainSources],
   );
+  const hasNsfw = nsfwSources.length > 0 && !nsfwKillSwitch;
   const showKindTabs = hasAidoku && hasTamdok;
 
   const categoryTabs = useMemo<LibraryCategoryTab[]>(() => {
     const tabs: LibraryCategoryTab[] = [{ id: "all", label: t("sources") }];
     if (hasPinned) tabs.push({ id: "pinned", label: t("sources_pinned") });
+    if (hasNsfw) tabs.push({ id: "nsfw", label: t("sources_tab_nsfw") });
     if (showKindTabs) {
       tabs.push({ id: "aidoku", label: t("sources_tab_aidoku") });
       tabs.push({ id: "tamdok", label: t("sources_tab_tamdok") });
     }
     return tabs;
-  }, [hasPinned, showKindTabs]);
+  }, [hasPinned, showKindTabs, hasNsfw]);
 
   useEffect(() => {
     if (!categoryTabs.some((tab) => tab.id === selectedCategory)) {
@@ -635,11 +679,19 @@ export default function SourcesScreen() {
         id: tab.id as SourcesCategoryId,
         rows: buildCategoryRows(
           tab.id as SourcesCategoryId,
-          installed,
+          tab.id === "nsfw" ? nsfwSources : mainSources,
           isPinned,
         ),
       })),
-    [categoryTabs, installed, isPinned],
+    [categoryTabs, mainSources, nsfwSources, isPinned],
+  );
+
+  const { pagerHeight, onHeight: handlePageHeight } = usePagerHeights(
+    pages.map((page) => page.id),
+    selectedPageIndex,
+  );
+  const { spacerHeight, renderOverlay } = usePinnedTabs(
+    categoryTabs.length > 1,
   );
 
   const pageScrollHandler = usePageScrollHandler({
@@ -762,6 +814,8 @@ export default function SourcesScreen() {
           key={isDark ? "sources-search-dark" : "sources-search-light"}
           placeholder={t("sources_search_placeholder")}
           {...stackSearchBarProps}
+          placement="integratedButton"
+          hideWhenScrolling
           onChangeText={handleSearchText}
           onSearchButtonPress={handleSearchText}
         />
@@ -813,55 +867,57 @@ export default function SourcesScreen() {
         </ThemedView>
       ) : (
         <ThemedView color="groupedBackground" style={styles.root}>
-          <View
-            style={{
-              paddingTop: headerHeight,
-              opacity: tabsReady ? 1 : 0,
-            }}
+          <LiquidGlassScrollComponent
+            contentInsetAdjustmentBehavior="automatic"
+            automaticallyAdjustsScrollIndicatorInsets
+            showsVerticalScrollIndicator={false}
           >
             <IncognitoModeBanner />
-            {categoryTabs.length > 1 ? (
-              <LibraryCategoryTabs
+            <View style={{ height: spacerHeight }} />
+            <SwipeableRowsProvider>
+              <AnimatedPagerView
+                ref={pagerRef}
                 key={pagerKey}
-                tabs={categoryTabs}
-                progress={progress}
-                onPress={handleTabPress}
-              />
-            ) : null}
-          </View>
-          <SwipeableRowsProvider>
-            <AnimatedPagerView
-              ref={pagerRef}
+                style={{ height: pagerHeight }}
+                initialPage={selectedPageIndex}
+                onPageScroll={pageScrollHandler}
+                onPageSelected={(event) =>
+                  handlePageSelected(event.nativeEvent.position)
+                }
+                scrollEnabled={categoryTabs.length > 1}
+                offscreenPageLimit={1}
+              >
+                {pages.map((page, index) => (
+                  <SourcesPage
+                    key={page.id}
+                    pageId={page.id}
+                    onHeight={handlePageHeight}
+                    rows={page.rows}
+                    query={deferredQuery}
+                    searchActive={searchActive}
+                    swipeLeading={index === 0}
+                    swipeTrailing={index === pages.length - 1}
+                    isPinned={isPinned}
+                    getSourceUpdate={getSourceUpdate}
+                    onOpen={openSource}
+                    onOpenSettings={openSourceSettings}
+                    onPin={handlePin}
+                    onUnpin={handleUnpin}
+                    onReorder={enterReorderMode}
+                    onDelete={confirmUninstall}
+                  />
+                ))}
+              </AnimatedPagerView>
+            </SwipeableRowsProvider>
+          </LiquidGlassScrollComponent>
+          {renderOverlay(
+            <LibraryCategoryTabs
               key={pagerKey}
-              style={styles.root}
-              initialPage={selectedPageIndex}
-              onPageScroll={pageScrollHandler}
-              onPageSelected={(event) =>
-                handlePageSelected(event.nativeEvent.position)
-              }
-              scrollEnabled={categoryTabs.length > 1}
-              offscreenPageLimit={1}
-            >
-              {pages.map((page, index) => (
-                <SourcesPage
-                  key={page.id}
-                  rows={page.rows}
-                  query={deferredQuery}
-                  searchActive={searchActive}
-                  swipeLeading={index === 0}
-                  swipeTrailing={index === pages.length - 1}
-                  isPinned={isPinned}
-                  getSourceUpdate={getSourceUpdate}
-                  onOpen={openSource}
-                  onOpenSettings={openSourceSettings}
-                  onPin={handlePin}
-                  onUnpin={handleUnpin}
-                  onReorder={enterReorderMode}
-                  onDelete={confirmUninstall}
-                />
-              ))}
-            </AnimatedPagerView>
-          </SwipeableRowsProvider>
+              tabs={categoryTabs}
+              progress={progress}
+              onPress={handleTabPress}
+            />,
+          )}
         </ThemedView>
       )}
     </>

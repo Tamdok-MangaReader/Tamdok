@@ -49,7 +49,6 @@ type CategoryTabProps = {
 const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
 
 const TRACK_PADDING = 3;
-const TRACK_COLOR = "rgba(120, 120, 128, 0.16)";
 
 const CategoryTab = memo(function CategoryTab({
   index,
@@ -65,7 +64,7 @@ const CategoryTab = memo(function CategoryTab({
     opacity: interpolate(
       Math.abs(progress.value - index),
       [0, 1],
-      [1, 0.6],
+      [1, 0.82],
       Extrapolation.CLAMP,
     ),
   }));
@@ -85,7 +84,7 @@ const CategoryTab = memo(function CategoryTab({
       onLayout={handleLayout}
     >
       <Animated.View style={[styles.tabInner, animatedStyle]}>
-        <ThemedText variant="subheadline" numberOfLines={1}>
+        <ThemedText variant="subheadline" color="label" numberOfLines={1}>
           {label}
         </ThemedText>
         {count !== undefined ? (
@@ -266,6 +265,19 @@ export function LibraryCategoryTabs({
         fitWidth != null ? { width: fitWidth } : styles.trackHidden,
       ]}
     >
+      {isGlass ? (
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="regular"
+          colorScheme={isDark ? "dark" : "light"}
+          style={styles.trackGlass}
+        />
+      ) : (
+        <View
+          pointerEvents="none"
+          style={[styles.trackGlass, { backgroundColor: colors.secondaryFill }]}
+        />
+      )}
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
@@ -318,7 +330,15 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.sm,
     borderRadius: 999,
     borderCurve: "continuous",
-    backgroundColor: TRACK_COLOR,
+  },
+  trackGlass: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    borderCurve: "continuous",
   },
   trackFit: {
     alignSelf: "center",

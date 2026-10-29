@@ -60,7 +60,11 @@ import {
 } from "@/services/sources";
 import { chaptersOldestFirst, formatChapterLabel } from "@/utils/chapter-label";
 import { subscribeMangaData } from "@/utils/manga-events";
-import { mangaFromParams, readerHref } from "@/utils/manga-route";
+import {
+  mangaFromParams,
+  mangaTransferHref,
+  readerHref,
+} from "@/utils/manga-route";
 import { resolveMangaPageUrl } from "@/utils/manga-url";
 import { getAppSettings } from "@/services/app-settings";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
@@ -171,7 +175,8 @@ export default function MangaDetailScreen() {
   }>();
   const sourceRoute = decodeParam(params.sourceId);
   const mangaKey = decodeParam(params.mangaKey);
-  const { installed } = useSources();
+  const { installed, isLoading: sourcesLoading } = useSources();
+  const installedReady = !sourcesLoading;
   const source = findInstalledSource(installed, sourceRoute);
   const manifestSourceId = source?.id ?? sourceRoute;
   const cacheSourceId = source?.id ?? parseSourceRouteId(sourceRoute).id;
@@ -762,6 +767,27 @@ export default function MangaDetailScreen() {
   const showInitialLoading =
     isLoading && !hasCachedContent && !hasDisplayContent;
   const showChapterLoading = isLoading && chapters.length === 0;
+
+  const missingAlertShown = useRef(false);
+  useEffect(() => {
+    if (source || missingAlertShown.current || !installedReady) return;
+    missingAlertShown.current = true;
+    Alert.alert(t("sources_not_found"), t("manga_source_missing_message"), [
+      { text: t("ok"), style: "cancel" },
+      {
+        text: t("manga_transfer"),
+        onPress: () =>
+          router.replace(
+            mangaTransferHref(
+              sourceRoute,
+              mangaKey,
+              initialManga.title,
+              initialManga.cover,
+            ),
+          ),
+      },
+    ]);
+  }, [source, installedReady, router, sourceRoute, mangaKey, initialManga]);
 
   if (!source) {
     return (

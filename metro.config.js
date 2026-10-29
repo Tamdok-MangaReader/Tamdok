@@ -9,6 +9,7 @@ config.resolver.assetExts.push('bundle');
 const tsconfigPaths = {
   '@/assets': path.resolve(projectRoot, 'assets'),
   '@/parsers': path.resolve(projectRoot, 'parsers'),
+  '@/rn-private': path.resolve(projectRoot, 'node_modules/react-native/src/private'),
 };
 
 const defaultResolveRequest = config.resolver.resolveRequest;

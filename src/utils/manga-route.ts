@@ -77,3 +77,20 @@ export function sourceSearchHref(sourceId: string, query?: string, filters?: Fil
     },
   } as Href;
 }
+
+export function mangaTransferHref(
+  sourceRoute: string,
+  mangaKey: string,
+  title: string,
+  cover?: string,
+): Href {
+  return {
+    pathname: '/manga/transfer',
+    params: {
+      sourceId: sourceRoute,
+      mangaKey,
+      title,
+      ...(cover ? { cover } : {}),
+    },
+  } as Href;
+}

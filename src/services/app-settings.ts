@@ -98,6 +98,9 @@ export type CoverDisplaySettings = {
 export type PrivacySettings = {
   requireBiometrics: boolean;
   showNsfwHistory: boolean;
+  separateNsfwSources: boolean;
+  nsfwKillSwitch: boolean;
+  hideCategorizedNsfwInAll: boolean;
 };
 
 export type AppSettings = {
@@ -183,6 +186,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   privacy: {
     requireBiometrics: false,
     showNsfwHistory: true,
+    separateNsfwSources: false,
+    nsfwKillSwitch: false,
+    hideCategorizedNsfwInAll: false,
   },
   debug: {
     showReaderPageNumbers: false,
@@ -258,6 +264,15 @@ async function readSettings(): Promise<AppSettings> {
       showNsfwHistory:
         stored.privacy?.showNsfwHistory ??
         DEFAULT_SETTINGS.privacy.showNsfwHistory,
+      separateNsfwSources:
+        stored.privacy?.separateNsfwSources ??
+        DEFAULT_SETTINGS.privacy.separateNsfwSources,
+      nsfwKillSwitch:
+        stored.privacy?.nsfwKillSwitch ??
+        DEFAULT_SETTINGS.privacy.nsfwKillSwitch,
+      hideCategorizedNsfwInAll:
+        stored.privacy?.hideCategorizedNsfwInAll ??
+        DEFAULT_SETTINGS.privacy.hideCategorizedNsfwInAll,
     },
     debug: {
       ...DEFAULT_SETTINGS.debug,

@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
   View,
-  type RefreshControlProps,
+  type LayoutChangeEvent,
 } from "react-native";
 
-import { MangaGrid } from "@/components/manga/manga-grid";
+import { VirtualMangaGrid } from "@/components/manga/virtual-manga-grid";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MangaGridSkeleton } from "@/components/ui/skeleton";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -20,8 +20,9 @@ type SourceListingPanelProps = {
   listing: Listing;
   sourceId?: string;
   onPressManga: (manga: Manga) => void;
-  listHeader?: ReactElement | null;
-  refreshControl?: ReactElement<RefreshControlProps> | null;
+  pageId: string;
+  onHeight: (pageId: string, height: number) => void;
+  registerLoadMore: (pageId: string, loadMore: (() => void) | null) => void;
 };
 
 export function SourceListingPanel({
@@ -29,8 +30,9 @@ export function SourceListingPanel({
   listing,
   sourceId,
   onPressManga,
-  listHeader,
-  refreshControl,
+  pageId,
+  onHeight,
+  registerLoadMore,
 }: SourceListingPanelProps) {
   const [entries, setEntries] = useState<Manga[]>([]);
   const [page, setPage] = useState(1);
@@ -66,18 +68,39 @@ export function SourceListingPanel({
     void load(1, false);
   }, [listing.id, load]);
 
+  const stateRef = useRef({ isLoading, hasNextPage, page, load });
+  stateRef.current = { isLoading, hasNextPage, page, load };
+
+  useEffect(() => {
+    registerLoadMore(pageId, () => {
+      const state = stateRef.current;
+      if (!state.isLoading && state.hasNextPage) {
+        void state.load(state.page + 1, true);
+      }
+    });
+    return () => registerLoadMore(pageId, null);
+  }, [pageId, registerLoadMore]);
+
+  const handleLayout = useCallback(
+    (event: LayoutChangeEvent) =>
+      onHeight(pageId, event.nativeEvent.layout.height),
+    [onHeight, pageId],
+  );
+
   if (!runner?.getMangaList) {
     return (
-      <EmptyState
-        icon="alert-circle-outline"
-        title={t("sources_listing_unsupported")}
-      />
+      <View collapsable={false} onLayout={handleLayout}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t("sources_listing_unsupported")}
+        />
+      </View>
     );
   }
 
   if (error && entries.length === 0) {
     return (
-      <View style={styles.center}>
+      <View collapsable={false} onLayout={handleLayout} style={styles.center}>
         <ThemedText variant="body" color="destructive">
           {error}
         </ThemedText>
@@ -86,30 +109,30 @@ export function SourceListingPanel({
   }
 
   if (isLoading && entries.length === 0) {
-    return <MangaGridSkeleton columns={3} rows={4} />;
+    return (
+      <View collapsable={false} onLayout={handleLayout}>
+        <MangaGridSkeleton columns={3} rows={4} />
+      </View>
+    );
   }
 
   if (entries.length === 0) {
     return (
-      <View style={styles.center}>
+      <View collapsable={false} onLayout={handleLayout} style={styles.center}>
         <EmptyState icon="book-outline" title={t("sources_browse_empty")} />
       </View>
     );
   }
 
   return (
-    <MangaGrid
+    <VirtualMangaGrid
       entries={entries}
       sourceId={sourceId}
+      pageId={pageId}
+      onHeight={onHeight}
       onPressManga={onPressManga}
-      contentInsetAdjustmentBehavior="automatic"
       showRating={entries[0] && entries[0].rating !== undefined}
-      ListHeaderComponent={listHeader}
-      refreshControl={refreshControl ?? undefined}
-      onEndReached={() => {
-        if (!isLoading && hasNextPage) void load(page + 1, true);
-      }}
-      ListFooterComponent={
+      footer={
         isLoading ? (
           <ActivityIndicator style={{ paddingVertical: Spacing.lg }} />
         ) : null
@@ -120,7 +143,7 @@ export function SourceListingPanel({
 
 const styles = StyleSheet.create({
   center: {
-    flex: 1,
+    paddingVertical: Spacing.xxxl,
     alignItems: "center",
     justifyContent: "center",
   },

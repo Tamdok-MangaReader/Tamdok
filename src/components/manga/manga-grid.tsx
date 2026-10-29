@@ -62,7 +62,7 @@ type CellProps = {
   onLongPress?: (manga: MangaGridItem) => void;
 };
 
-const MangaGridCell = memo(function MangaGridCell({
+export const MangaGridCell = memo(function MangaGridCell({
   item,
   sourceId,
   width,

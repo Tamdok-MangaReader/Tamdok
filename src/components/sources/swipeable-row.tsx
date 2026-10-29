@@ -287,7 +287,16 @@ export function SwipeableRow({
     !enabled ||
     (trailingActions.length === 0 && leadingActions.length === 0)
   ) {
-    return <>{children}</>;
+    return (
+      <View
+        style={{
+          backgroundColor: colors.secondarySystemBackground,
+          borderRadius: radius.md,
+        }}
+      >
+        {children}
+      </View>
+    );
   }
 
   return (

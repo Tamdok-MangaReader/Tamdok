@@ -1,4 +1,3 @@
-import { useHeaderHeight } from "@react-navigation/elements";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
@@ -30,6 +29,10 @@ import {
 } from "@/components/sources/swipeable-row";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MeasuredPage } from "@/components/ui/measured-page";
+import { VirtualRows } from "@/components/ui/virtual-rows";
+import { usePagerHeights } from "@/hooks/use-pager-heights";
+import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { HistorySkeleton } from "@/components/ui/skeleton";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ScreenContent } from "@/components/ui/screen-content";
@@ -737,12 +740,14 @@ export default function HistoryScreen() {
   }, [scheduleLoad]);
 
   const [showNsfwHistory, setShowNsfwHistory] = useState(true);
+  const [nsfwKillSwitch, setNsfwKillSwitch] = useState(false);
 
   useEffect(() => {
     const load = () => {
-      void getAppSettings().then((settings) =>
-        setShowNsfwHistory(settings.privacy.showNsfwHistory),
-      );
+      void getAppSettings().then((settings) => {
+        setShowNsfwHistory(settings.privacy.showNsfwHistory);
+        setNsfwKillSwitch(settings.privacy.nsfwKillSwitch);
+      });
     };
     load();
     return subscribeAppSettings(load);
@@ -751,7 +756,7 @@ export default function HistoryScreen() {
   const isNsfwEntry = useCallback(
     (entry: HistoryEntry) => {
       const source = findInstalledSource(installed, entry.sourceId);
-      return (source?.manifest.info.contentRating ?? 0) > 1;
+      return (source?.manifest.info.contentRating ?? 0) >= 3;
     },
     [installed],
   );
@@ -772,11 +777,10 @@ export default function HistoryScreen() {
   const [selectedPage, setSelectedPage] = useState<HistoryPageId>("main");
   const pagerRef = useRef<PagerView>(null);
   const progress = useSharedValue(0);
-  const headerHeight = useHeaderHeight();
   const mainCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
   const nsfwCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
 
-  const showTabs = showNsfwHistory;
+  const showTabs = showNsfwHistory && !nsfwKillSwitch;
 
   const mainRows = useMemo(() => {
     const result = buildRows(mainEntries, mainCacheRef.current);
@@ -837,9 +841,8 @@ export default function HistoryScreen() {
   const openManga = useCallback(
     (group: MangaHistoryGroup) => {
       const source = findInstalledSource(installedRef.current, group.sourceId);
-      if (!source) return;
       router.navigate(
-        mangaHref(sourceRouteId(source), {
+        mangaHref(source ? sourceRouteId(source) : group.sourceId, {
           key: group.mangaKey,
           title: group.mangaTitle,
           cover: group.cover,
@@ -927,6 +930,17 @@ export default function HistoryScreen() {
     [installed, openManga, requestReload],
   );
 
+  const { pagerHeight, onHeight: handlePageHeight } = usePagerHeights(
+    ["main", "nsfw"],
+    selectedPage === "nsfw" ? 1 : 0,
+  );
+  const { spacerHeight, renderOverlay } = usePinnedTabs(showTabs);
+
+  const renderRow = useCallback(
+    (row: HistoryRow) => renderItem({ item: row } as ListRenderItemInfo<HistoryRow>),
+    [renderItem],
+  );
+
   if (!loaded) {
     return (
       <>
@@ -967,13 +981,40 @@ export default function HistoryScreen() {
         contentInsetAdjustmentBehavior="automatic"
         automaticallyAdjustsScrollIndicatorInsets
         contentContainerStyle={styles.list}
-        ListHeaderComponent={withHeaderInset ? undefined : LIST_HEADER}
+        ListHeaderComponent={LIST_HEADER}
         renderScrollComponent={renderScrollComponent}
         initialNumToRender={8}
         maxToRenderPerBatch={6}
         updateCellsBatchingPeriod={50}
         windowSize={7}
         removeClippedSubviews={Platform.OS === "android"}
+      />
+    );
+  };
+
+  const renderTabPage = (rows: HistoryRow[], pageId: HistoryPageId) => {
+    if (rows.length === 0) {
+      return (
+        <MeasuredPage pageId={pageId} onHeight={handlePageHeight}>
+          <View style={styles.emptyWrap}>
+            <EmptyState
+              icon={pageId === "nsfw" ? "eye-off-outline" : "time-outline"}
+              title={t("history_empty_title")}
+              description={t("history_empty_desc")}
+            />
+          </View>
+        </MeasuredPage>
+      );
+    }
+    return (
+      <VirtualRows
+        rows={rows}
+        rowHeight={historyRowEstimate}
+        keyOf={rowKeyExtractor}
+        renderRow={renderRow}
+        pageId={pageId}
+        onHeight={handlePageHeight}
+        style={styles.list}
       />
     );
   };
@@ -1002,37 +1043,46 @@ export default function HistoryScreen() {
       <Stack.Screen options={screenOptions} />
       <Stack.Title>{t("history")}</Stack.Title>
       <View style={styles.root}>
-        <View style={{ paddingTop: headerHeight }}>
+        <LiquidGlassScrollComponent
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustsScrollIndicatorInsets
+          showsVerticalScrollIndicator={false}
+        >
           <IncognitoModeBanner />
+          <View style={{ height: spacerHeight }} />
+          <SwipeableRowsProvider>
+            <AnimatedPagerView
+              ref={pagerRef}
+              style={{ height: pagerHeight }}
+              initialPage={selectedPage === "nsfw" ? 1 : 0}
+              onPageScroll={pageScrollHandler}
+              onPageSelected={(event) =>
+                handlePageSelected(event.nativeEvent.position)
+              }
+              offscreenPageLimit={1}
+            >
+              <View key="main" collapsable={false} style={styles.root}>
+                {renderTabPage(mainRows, "main")}
+              </View>
+              <View key="nsfw" collapsable={false} style={styles.root}>
+                {nsfwActive ? (
+                  renderTabPage(nsfwRows, "nsfw")
+                ) : (
+                  <MeasuredPage pageId="nsfw" onHeight={handlePageHeight}>
+                    <HistorySkeleton />
+                  </MeasuredPage>
+                )}
+              </View>
+            </AnimatedPagerView>
+          </SwipeableRowsProvider>
+        </LiquidGlassScrollComponent>
+        {renderOverlay(
           <LibraryCategoryTabs
             tabs={historyTabs}
             progress={progress}
             onPress={handleTabPress}
-          />
-        </View>
-        <SwipeableRowsProvider>
-          <AnimatedPagerView
-            ref={pagerRef}
-            style={styles.root}
-            initialPage={selectedPage === "nsfw" ? 1 : 0}
-            onPageScroll={pageScrollHandler}
-            onPageSelected={(event) =>
-              handlePageSelected(event.nativeEvent.position)
-            }
-            offscreenPageLimit={1}
-          >
-            <View key="main" collapsable={false} style={styles.root}>
-              {renderPage(mainRows, "main", true)}
-            </View>
-            <View key="nsfw" collapsable={false} style={styles.root}>
-              {nsfwActive ? (
-                renderPage(nsfwRows, "nsfw", true)
-              ) : (
-                <HistorySkeleton />
-              )}
-            </View>
-          </AnimatedPagerView>
-        </SwipeableRowsProvider>
+          />,
+        )}
       </View>
     </>
   );
@@ -1041,6 +1091,10 @@ export default function HistoryScreen() {
 const EMPTY_ROWS: HistoryRow[] = [];
 
 type HistoryPageId = "main" | "nsfw";
+
+function historyRowEstimate(row: HistoryRow): number {
+  return row.kind === "header" ? 44 : 120;
+}
 
 function rowKeyExtractor(row: HistoryRow): string {
   return row.id;

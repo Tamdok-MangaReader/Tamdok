@@ -2,13 +2,16 @@ import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, RefreshControl, StyleSheet, View } from "react-native";
-import { useHeaderHeight } from "@react-navigation/elements";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 
 import { LibraryCategoryTabs } from "@/components/library/library-category-tabs";
 import { LibraryMangaActionsMenu } from "@/components/library/library-manga-actions-menu";
-import { MangaGrid, type MangaGridItem } from "@/components/manga/manga-grid";
+import { type MangaGridItem } from "@/components/manga/manga-grid";
+import { VirtualMangaGrid } from "@/components/manga/virtual-manga-grid";
+import { usePinnedTabs } from "@/components/library/pinned-tabs";
+import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
+import { usePagerHeights } from "@/hooks/use-pager-heights";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MangaGridSkeleton } from "@/components/ui/skeleton";
@@ -55,7 +58,7 @@ import {
 } from "@/services/manga-tracking";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
-import { mangaHref } from "@/utils/manga-route";
+import { mangaHref, mangaTransferHref } from "@/utils/manga-route";
 
 const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 
@@ -81,48 +84,32 @@ function EmptyBelowTabs() {
 type LibraryPageProps = {
   entries: MangaGridItem[];
   columns: number;
-  refreshing: boolean;
-  tintColor: string;
-  onRefresh: () => void;
+  pageId: string;
+  onHeight: (pageId: string, height: number) => void;
   onPressManga: (manga: MangaGridItem) => void;
   onLongPressManga: (manga: MangaGridItem) => void;
 };
 
+const EMPTY_BELOW_TABS = <EmptyBelowTabs />;
+
 const LibraryPage = memo(function LibraryPage({
   entries,
   columns,
-  refreshing,
-  tintColor,
-  onRefresh,
+  pageId,
+  onHeight,
   onPressManga,
   onLongPressManga,
 }: LibraryPageProps) {
-  const isEmpty = entries.length === 0;
-
-  const emptyComponent = useMemo(() => <EmptyBelowTabs />, []);
-
-  const refreshControl = useMemo(
-    () =>
-      isEmpty ? null : (
-        <RefreshControl
-          refreshing={false}
-          onRefresh={onRefresh}
-          tintColor={tintColor}
-        />
-      ),
-    [isEmpty, onRefresh, tintColor],
-  );
-
   return (
     <View collapsable={false} style={styles.root}>
-      <MangaGrid
+      <VirtualMangaGrid
         entries={entries}
         columns={columns}
+        pageId={pageId}
+        onHeight={onHeight}
         showBookmark={false}
         scaleBadges
-        scrollEnabled
-        ListEmptyComponent={emptyComponent}
-        refreshControl={refreshControl}
+        empty={EMPTY_BELOW_TABS}
         onPressManga={onPressManga}
         onLongPressManga={onLongPressManga}
       />
@@ -169,7 +156,6 @@ export default function LibraryScreen() {
   const { colors } = useTheme();
   const { installed } = useSources();
   const refreshTick = useMangaDataRefresh();
-  const headerHeight = useHeaderHeight();
 
   const pagerRef = useRef<PagerView>(null);
   const loadedOnceRef = useRef(false);
@@ -189,6 +175,7 @@ export default function LibraryScreen() {
     useState<LibraryRefreshProgress | null>(null);
   const [gridColumns, setGridColumns] = useState(3);
   const [loaded, setLoaded] = useState(false);
+  const [hideCategorizedNsfw, setHideCategorizedNsfw] = useState(false);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
   const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] =
@@ -210,12 +197,12 @@ export default function LibraryScreen() {
 
   const loadLibrary = useCallback(async () => {
     const [
-      nextCategories,
+      rawCategories,
       storedCategoryId,
       customCategories,
       settings,
       history,
-      nextEntries,
+      rawEntries,
     ] = await Promise.all([
       getLibraryCategories(),
       getCurrentCategoryId(),
@@ -224,6 +211,29 @@ export default function LibraryScreen() {
       getHistoryEntries(),
       getLibraryEntries(),
     ]);
+
+    const hiddenCategoryIds = new Set(
+      settings.privacy.nsfwKillSwitch
+        ? rawCategories
+            .filter(
+              (category) =>
+                !isAllCategory(category.id) &&
+                /nsfw/i.test(category.name),
+            )
+            .map((category) => category.id)
+        : [],
+    );
+    const nextCategories =
+      hiddenCategoryIds.size === 0
+        ? rawCategories
+        : rawCategories.filter((category) => !hiddenCategoryIds.has(category.id));
+    const nextEntries =
+      hiddenCategoryIds.size === 0
+        ? rawEntries
+        : rawEntries.filter(
+            (entry) =>
+              !entry.categoryIds.some((id) => hiddenCategoryIds.has(id)),
+          );
 
     const isFirstLoad = !loadedOnceRef.current;
     const wantedCategoryId = isFirstLoad
@@ -264,6 +274,7 @@ export default function LibraryScreen() {
       }
     }
 
+    setHideCategorizedNsfw(settings.privacy.hideCategorizedNsfwInAll);
     setGridColumns(libraryGridColumns(settings.libraryDisplay.gridSize));
     setShowUnreadBadges(settings.libraryDisplay.showUnreadBadges);
     setShowDownloadedBadges(settings.libraryDisplay.showDownloadedBadges);
@@ -337,7 +348,14 @@ export default function LibraryScreen() {
 
     for (const category of categories) {
       const filtered = isAllCategory(category.id)
-        ? allEntries
+        ? hideCategorizedNsfw
+          ? allEntries.filter(
+              (entry) =>
+                entry.categoryIds.length === 0 ||
+                (findInstalledSource(installed, entry.sourceId)?.manifest.info
+                  .contentRating ?? 0) < 3,
+            )
+          : allEntries
         : allEntries.filter((entry) => entry.categoryIds.includes(category.id));
 
       map.set(
@@ -363,6 +381,8 @@ export default function LibraryScreen() {
   }, [
     categories,
     allEntries,
+    hideCategorizedNsfw,
+    installed,
     sortMode,
     lastReadAt,
     showUnreadBadges,
@@ -424,12 +444,25 @@ export default function LibraryScreen() {
   const openManga = useCallback(
     (manga: MangaGridItem, entry: LibraryEntry) => {
       const source = findInstalledSource(installed, entry.sourceId);
-      if (!source) return;
 
-      router.navigate(mangaHref(sourceRouteId(source), manga));
+      router.navigate(
+        mangaHref(source ? sourceRouteId(source) : entry.sourceId, manga),
+      );
     },
     [installed, router],
   );
+
+  const handleTransfer = useCallback(() => {
+    if (!menuEntry) return;
+    router.navigate(
+      mangaTransferHref(
+        menuEntry.sourceId,
+        menuEntry.mangaKey,
+        menuEntry.title,
+        menuEntry.cover,
+      ),
+    );
+  }, [menuEntry, router]);
 
   const handlePressManga = useCallback(
     (manga: MangaGridItem) => {
@@ -552,15 +585,22 @@ export default function LibraryScreen() {
     ]);
   }, [loadLibrary]);
 
-  const categoryTabs =
-    showCategoryTabs && categories.length > 0 ? (
-      <LibraryCategoryTabs
-        key={pagerKey}
-        tabs={categories}
-        progress={progress}
-        onPress={handleTabPress}
+  const hasCategoryTabs = showCategoryTabs && categories.length > 0;
+  const { pagerHeight, onHeight: handlePageHeight } = usePagerHeights(
+    categories.map((category) => category.id),
+    selectedPageIndex,
+  );
+  const { spacerHeight, renderOverlay } = usePinnedTabs(hasCategoryTabs);
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={false}
+        onRefresh={handleRefresh}
+        tintColor={colors.tint}
       />
-    ) : null;
+    ),
+    [handleRefresh, colors.tint],
+  );
 
   const emptyState = (
     <EmptyState
@@ -596,7 +636,6 @@ export default function LibraryScreen() {
   const listHeader = (
     <>
       <IncognitoModeBanner />
-      {categoryTabs}
       {refreshStatus}
     </>
   );
@@ -628,32 +667,47 @@ export default function LibraryScreen() {
         </ScreenContent>
       ) : (
         <View style={styles.root}>
-          <View style={{ paddingTop: headerHeight }}>{listHeader}</View>
-          <AnimatedPagerView
-            ref={pagerRef}
-            key={pagerKey}
-            style={styles.root}
-            initialPage={selectedPageIndex}
-            onPageScroll={pageScrollHandler}
-            onPageSelected={(event) =>
-              handlePageSelected(event.nativeEvent.position)
-            }
-            scrollEnabled={showCategoryTabs && categories.length > 1}
-            offscreenPageLimit={1}
+          <LiquidGlassScrollComponent
+            contentInsetAdjustmentBehavior="automatic"
+            automaticallyAdjustsScrollIndicatorInsets
+            showsVerticalScrollIndicator={false}
+            refreshControl={isEmpty ? undefined : refreshControl}
           >
-            {categories.map((category) => (
-              <LibraryPage
-                key={category.id}
-                entries={pagesData.get(category.id) ?? EMPTY_ENTRIES}
-                columns={gridColumns}
-                refreshing={refreshing}
-                tintColor={colors.tint}
-                onRefresh={handleRefresh}
-                onPressManga={handlePressManga}
-                onLongPressManga={openMangaMenu}
-              />
-            ))}
-          </AnimatedPagerView>
+            {listHeader}
+            <View style={{ height: spacerHeight }} />
+            <AnimatedPagerView
+              ref={pagerRef}
+              key={pagerKey}
+              style={{ height: pagerHeight }}
+              initialPage={selectedPageIndex}
+              onPageScroll={pageScrollHandler}
+              onPageSelected={(event) =>
+                handlePageSelected(event.nativeEvent.position)
+              }
+              scrollEnabled={showCategoryTabs && categories.length > 1}
+              offscreenPageLimit={1}
+            >
+              {categories.map((category) => (
+                <LibraryPage
+                  key={category.id}
+                  pageId={category.id}
+                  entries={pagesData.get(category.id) ?? EMPTY_ENTRIES}
+                  columns={gridColumns}
+                  onHeight={handlePageHeight}
+                  onPressManga={handlePressManga}
+                  onLongPressManga={openMangaMenu}
+                />
+              ))}
+            </AnimatedPagerView>
+          </LiquidGlassScrollComponent>
+          {renderOverlay(
+            <LibraryCategoryTabs
+              key={pagerKey}
+              tabs={categories}
+              progress={progress}
+              onPress={handleTabPress}
+            />,
+          )}
         </View>
       )}
 
@@ -665,6 +719,7 @@ export default function LibraryScreen() {
         onMarkAllRead={() => void handleMarkAllRead()}
         onMarkAllUnread={() => void handleMarkAllUnread()}
         onToggleCategory={(categoryId) => void handleToggleCategory(categoryId)}
+        onTransfer={handleTransfer}
         onDelete={handleDeleteManga}
         onClose={closeMangaMenu}
       />

@@ -19,6 +19,7 @@ type LibraryMangaActionsMenuProps = {
   onMarkAllRead: () => void;
   onMarkAllUnread: () => void;
   onToggleCategory: (categoryId: string) => void;
+  onTransfer: () => void;
   onDelete: () => void;
   onClose: () => void;
 };
@@ -43,7 +44,8 @@ function MenuRow({
     | "folder-outline"
     | "trash-outline"
     | "checkbox-outline"
-    | "square-outline";
+    | "square-outline"
+    | "swap-horizontal-outline";
   destructive?: boolean;
   showDivider?: boolean;
   trailing?: "up" | "down" | "check";
@@ -108,6 +110,7 @@ export function LibraryMangaActionsMenu({
   onMarkAllRead,
   onMarkAllUnread,
   onToggleCategory,
+  onTransfer,
   onDelete,
   onClose,
 }: LibraryMangaActionsMenuProps) {
@@ -212,6 +215,13 @@ export function LibraryMangaActionsMenu({
                   );
                 })
               : null}
+            <MenuRow
+              label={t("manga_transfer")}
+              sfSymbol="arrow.left.arrow.right"
+              fallback="swap-horizontal-outline"
+              showDivider
+              onPress={() => run(onTransfer)}
+            />
             <MenuRow
               label={t("manga_remove_from_library")}
               sfSymbol="trash"

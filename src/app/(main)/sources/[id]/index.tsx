@@ -1,4 +1,8 @@
-import { useHeaderHeight } from "@react-navigation/elements";
+import { MeasuredPage } from "@/components/ui/measured-page";
+import { VirtualRows } from "@/components/ui/virtual-rows";
+import { usePagerHeights } from "@/hooks/use-pager-heights";
+import { useNearEnd } from "@/hooks/use-near-end";
+import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   memo,
@@ -70,67 +74,11 @@ const renderScrollComponent = (
   props: ComponentProps<typeof LiquidGlassScrollComponent>,
 ) => <LiquidGlassScrollComponent {...props} />;
 
-const LoadingHome = memo(function LoadingHome({
-  chrome,
-}: {
-  chrome?: ReactElement;
-}) {
-  return (
-    <View style={styles.flex}>
-      {chrome}
-      <View style={styles.loading}>
-        <ActivityIndicator />
-      </View>
-    </View>
-  );
-});
+const HOME_SECTION_ESTIMATE = 280;
 
-const EmptyHome = memo(function EmptyHome({
-  chrome,
-  refreshControl,
-}: {
-  chrome?: ReactElement;
-  refreshControl: ReactElement<ComponentProps<typeof RefreshControl>>;
-}) {
-  return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.emptyHome}
-      contentInsetAdjustmentBehavior="automatic"
-      refreshControl={refreshControl}
-    >
-      {chrome}
-      <EmptyState
-        icon="book-outline"
-        title={t("sources_browse_empty")}
-        description={t("sources_try_search")}
-      />
-    </ScrollView>
-  );
-});
+type HomeRow = { key: string; component: HomeComponent };
 
-const PlaceholderHome = memo(function PlaceholderHome({
-  chrome,
-  refreshControl,
-}: {
-  chrome?: ReactElement;
-  refreshControl: ReactElement<ComponentProps<typeof RefreshControl>>;
-}) {
-  return (
-    <LiquidGlassScrollRoot style={styles.scroll}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.home}
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        refreshControl={refreshControl}
-      >
-        {chrome}
-        <HomePlaceholderLayout />
-      </ScrollView>
-    </LiquidGlassScrollRoot>
-  );
-});
+const homeRowKey = (row: HomeRow) => row.key;
 
 export default function SourceHomeScreen() {
   const router = useRouter();
@@ -160,7 +108,6 @@ export default function SourceHomeScreen() {
   );
   const pagerRef = useRef<PagerView>(null);
   const progress = useSharedValue(0);
-  const headerHeight = useHeaderHeight();
 
   const sourceKey = source ? sourceRouteId(source) : null;
 
@@ -284,8 +231,6 @@ export default function SourceHomeScreen() {
     [showInlineError, combinedError, dismissError],
   );
 
-  const pageSpacer = useMemo(() => <View style={styles.pageSpacer} />, []);
-
   const refreshControl = useMemo(
     () => (
       <RefreshControl
@@ -323,10 +268,10 @@ export default function SourceHomeScreen() {
 
   const sourceId = source?.id;
 
-  const renderSection = useCallback(
-    ({ item }: { item: HomeComponent }) => (
+  const renderHomeRow = useCallback(
+    (row: HomeRow) => (
       <HomeSection
-        component={item}
+        component={row.component}
         sourceId={sourceId}
         onPressManga={openManga}
         onPressListing={openListing}
@@ -334,6 +279,36 @@ export default function SourceHomeScreen() {
       />
     ),
     [sourceId, openManga, openListing, openSearchWithFilters],
+  );
+
+  const homeRows = useMemo<HomeRow[]>(
+    () =>
+      homeComponents.map((component, index) => ({
+        key: sectionKeyExtractor(component, index),
+        component,
+      })),
+    [homeComponents],
+  );
+
+  const loadMoreRef = useRef(new Map<string, () => void>());
+  const registerLoadMore = useCallback(
+    (id: string, loadMore: (() => void) | null) => {
+      if (loadMore) loadMoreRef.current.set(id, loadMore);
+      else loadMoreRef.current.delete(id);
+    },
+    [],
+  );
+  const handleScroll = useNearEnd(() => {
+    const id = categoryTabs[selectedIndex]?.id;
+    if (id) loadMoreRef.current.get(id)?.();
+  });
+
+  const { pagerHeight, onHeight: handlePageHeight } = usePagerHeights(
+    categoryTabs.map((tab) => tab.id),
+    selectedIndex,
+  );
+  const { spacerHeight, renderOverlay } = usePinnedTabs(
+    categoryTabs.length > 1,
   );
 
   if (!source) {
@@ -352,25 +327,21 @@ export default function SourceHomeScreen() {
 
   let homeBody: ReactNode;
   if (showHomePlaceholder) {
-    homeBody = <PlaceholderHome refreshControl={refreshControl} />;
+    homeBody = (
+      <MeasuredPage pageId={SOURCE_HOME_TAB_ID} onHeight={handlePageHeight}>
+        <HomePlaceholderLayout />
+      </MeasuredPage>
+    );
   } else if (hasHomeContent) {
     homeBody = (
-      <FlatList
-        style={styles.scroll}
-        data={homeComponents}
-        keyExtractor={sectionKeyExtractor}
-        renderItem={renderSection}
-        ListHeaderComponent={pageSpacer}
-        contentContainerStyle={styles.home}
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        refreshControl={refreshControl}
-        renderScrollComponent={renderScrollComponent}
-        initialNumToRender={3}
-        maxToRenderPerBatch={2}
-        updateCellsBatchingPeriod={50}
-        windowSize={5}
-        removeClippedSubviews={Platform.OS === "android"}
+      <VirtualRows
+        rows={homeRows}
+        rowHeight={HOME_SECTION_ESTIMATE}
+        keyOf={homeRowKey}
+        renderRow={renderHomeRow}
+        pageId={SOURCE_HOME_TAB_ID}
+        onHeight={handlePageHeight}
+        style={styles.home}
       />
     );
   } else if (listings[0] && runner) {
@@ -380,64 +351,94 @@ export default function SourceHomeScreen() {
         listing={listings[0]}
         sourceId={source.id}
         onPressManga={openManga}
-        listHeader={pageSpacer}
-        refreshControl={refreshControl}
+        pageId={SOURCE_HOME_TAB_ID}
+        onHeight={handlePageHeight}
+        registerLoadMore={registerLoadMore}
       />
     );
   } else if (runnerLoading) {
-    homeBody = <LoadingHome />;
+    homeBody = (
+      <MeasuredPage pageId={SOURCE_HOME_TAB_ID} onHeight={handlePageHeight}>
+        <View style={styles.loading}>
+          <ActivityIndicator />
+        </View>
+      </MeasuredPage>
+    );
   } else {
-    homeBody = <EmptyHome refreshControl={refreshControl} />;
+    homeBody = (
+      <MeasuredPage pageId={SOURCE_HOME_TAB_ID} onHeight={handlePageHeight}>
+        <EmptyState
+          icon="book-outline"
+          title={t("sources_browse_empty")}
+          description={t("sources_try_search")}
+        />
+      </MeasuredPage>
+    );
   }
 
   const hasTabs = categoryTabs.length > 1;
 
   const body = showBlockingError ? null : (
     <View style={styles.flex}>
-      <View style={{ paddingTop: headerHeight }}>
+      <LiquidGlassScrollComponent
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        onScroll={handleScroll}
+        scrollEventThrottle={100}
+      >
         <IncognitoModeBanner />
         {alertBanner}
-        {hasTabs ? (
-          <LibraryCategoryTabs
-            key={pagerKey}
-            tabs={categoryTabs}
-            progress={progress}
-            onPress={handleTabPress}
-          />
-        ) : null}
-      </View>
-      <AnimatedPagerView
-        ref={pagerRef}
-        key={pagerKey}
-        style={styles.flex}
-        initialPage={selectedIndex}
-        onPageScroll={pageScrollHandler}
-        onPageSelected={(event) =>
-          handlePageSelected(event.nativeEvent.position)
-        }
-        scrollEnabled={hasTabs}
-        offscreenPageLimit={1}
-      >
-        <View key={SOURCE_HOME_TAB_ID} collapsable={false} style={styles.flex}>
-          {homeBody}
-        </View>
-        {listings.map((listing) => (
-          <View key={listing.id} collapsable={false} style={styles.flex}>
-            {activatedTabs.has(listing.id) && runner ? (
-              <SourceListingPanel
-                runner={runner}
-                listing={listing}
-                sourceId={source.id}
-                onPressManga={openManga}
-                listHeader={pageSpacer}
-                refreshControl={refreshControl}
-              />
-            ) : (
-              <MangaGridSkeleton columns={3} rows={4} />
-            )}
+        <View style={{ height: spacerHeight }} />
+        <AnimatedPagerView
+          ref={pagerRef}
+          key={pagerKey}
+          style={{ height: pagerHeight }}
+          initialPage={selectedIndex}
+          onPageScroll={pageScrollHandler}
+          onPageSelected={(event) =>
+            handlePageSelected(event.nativeEvent.position)
+          }
+          scrollEnabled={hasTabs}
+          offscreenPageLimit={1}
+        >
+          <View
+            key={SOURCE_HOME_TAB_ID}
+            collapsable={false}
+            style={styles.flex}
+          >
+            {homeBody}
           </View>
-        ))}
-      </AnimatedPagerView>
+          {listings.map((listing) => (
+            <View key={listing.id} collapsable={false} style={styles.flex}>
+              {activatedTabs.has(listing.id) && runner ? (
+                <SourceListingPanel
+                  runner={runner}
+                  listing={listing}
+                  sourceId={source.id}
+                  onPressManga={openManga}
+                  pageId={listing.id}
+                  onHeight={handlePageHeight}
+                  registerLoadMore={registerLoadMore}
+                />
+              ) : (
+                <MeasuredPage pageId={listing.id} onHeight={handlePageHeight}>
+                  <MangaGridSkeleton columns={3} rows={4} />
+                </MeasuredPage>
+              )}
+            </View>
+          ))}
+        </AnimatedPagerView>
+      </LiquidGlassScrollComponent>
+      {renderOverlay(
+        <LibraryCategoryTabs
+          key={pagerKey}
+          tabs={categoryTabs}
+          progress={progress}
+          onPress={handleTabPress}
+        />,
+      )}
     </View>
   );
 

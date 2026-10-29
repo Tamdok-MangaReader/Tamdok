@@ -391,7 +391,7 @@ export function filterByNsfw<T extends { contentRating?: number }>(
 ): T[] {
   if (showNsfw) return entries;
   return entries.filter(
-    (entry) => !entry.contentRating || entry.contentRating <= 1,
+    (entry) => !entry.contentRating || entry.contentRating < 3,
   );
 }
 

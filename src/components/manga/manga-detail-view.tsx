@@ -195,7 +195,13 @@ const DescriptionBlock = memo(function DescriptionBlock({
   );
 });
 
-const TagsBlock = memo(function TagsBlock({ tags }: { tags: string[] }) {
+const TagsBlock = memo(function TagsBlock({
+  tags,
+  contentRating,
+}: {
+  tags: string[];
+  contentRating?: string;
+}) {
   const { radius } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const toggle = useCallback(() => setExpanded((v) => !v), []);
@@ -211,6 +217,21 @@ const TagsBlock = memo(function TagsBlock({ tags }: { tags: string[] }) {
         {t("manga_tags")}
       </ThemedText>
       <View style={styles.tagsWrap}>
+        {contentRating && contentRating !== null && contentRating !== "safe" ? (
+          <GlassSurface
+            borderRadius={radius.pill}
+            style={styles.typePill}
+            tintColor={contentRating === "suggestive" ? "#FA9A10" : "#AA1A10"}
+          >
+            <ThemedText
+              variant="footnote"
+              color="label"
+              style={styles.typeText}
+            >
+              {`${contentRating === "suggestive" ? "16+" : "NSFW"}`}
+            </ThemedText>
+          </GlassSurface>
+        ) : null}
         {visibleTags.map((tag) => (
           <GlassSurface
             key={tag}
@@ -587,7 +608,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         <DescriptionBlock text={descriptionText} altTitles={altTitles} />
       ) : null}
 
-      {tags.length > 0 ? <TagsBlock tags={tags} /> : null}
+      {tags.length > 0 ? (
+        <TagsBlock tags={tags} contentRating={manga.contentRating} />
+      ) : null}
 
       {!chapterSelectMode && !isLoading && chaptersCount > 0 ? (
         <Pressable onPress={onContinueReading} style={libraryPressableStyle}>

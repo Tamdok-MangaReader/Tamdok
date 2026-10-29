@@ -9,6 +9,7 @@ import type {
 import type { SourceRunner } from "@/parsers/shared/source-runner";
 import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
 import {
+  peekSourceHomeCache,
   readSourceHomeCache,
   writeSourceHomeCache,
 } from "@/services/source-home-cache";
@@ -24,12 +25,19 @@ type UseSourceHomeOptions = {
 };
 
 export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
-  const [home, setHome] = useState<HomeLayout | null>(null);
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const peeked = source ? peekSourceHomeCache(source.id) : null;
+  const [home, setHome] = useState<HomeLayout | null>(peeked?.home ?? null);
+  const [listings, setListings] = useState<Listing[]>(
+    () =>
+      peeked?.listings ??
+      (source?.manifest.listings ?? []).filter(
+        (listing) => listing.name || listing.id,
+      ),
+  );
+  const [isLoading, setIsLoading] = useState(!peeked);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [hasCachedContent, setHasCachedContent] = useState(false);
+  const [hasCachedContent, setHasCachedContent] = useState(Boolean(peeked));
   const requestIdRef = useRef(0);
 
   useAidokuSourceRequests(source?.id);

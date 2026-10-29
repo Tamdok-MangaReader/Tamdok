@@ -5,9 +5,9 @@ import type { GlobalSearchContentFilter } from '@/components/search/global-searc
 export function filterMangaByContent(entries: Manga[], contentFilter: GlobalSearchContentFilter): Manga[] {
   switch (contentFilter) {
     case 'safe':
-      return entries.filter((entry) => !entry.contentRating || entry.contentRating === 'safe');
+      return entries.filter((entry) => entry.contentRating !== 'nsfw');
     case 'nsfw':
-      return entries.filter((entry) => entry.contentRating === 'nsfw' || entry.contentRating === 'suggestive');
+      return entries.filter((entry) => entry.contentRating === 'nsfw');
     default:
       return entries;
   }
