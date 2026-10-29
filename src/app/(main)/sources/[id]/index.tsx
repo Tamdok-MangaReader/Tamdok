@@ -1,7 +1,17 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import {
   ActivityIndicator,
+  FlatList,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -20,7 +30,10 @@ import { SourceListingPanel } from "@/components/sources/source-listing-panel";
 import { SourceOverflowMenu } from "@/components/sources/source-overflow-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { HeaderIconButton } from "@/components/ui/header-icon-button";
-import { LiquidGlassScrollRoot } from "@/components/ui/liquid-glass-scroll-root";
+import {
+  LiquidGlassScrollComponent,
+  LiquidGlassScrollRoot,
+} from "@/components/ui/liquid-glass-scroll-root";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -43,6 +56,72 @@ function decodeSourceRouteId(id: string): string {
     return id;
   }
 }
+
+const renderScrollComponent = (
+  props: ComponentProps<typeof LiquidGlassScrollComponent>,
+) => <LiquidGlassScrollComponent {...props} />;
+
+const LoadingHome = memo(function LoadingHome({
+  chrome,
+}: {
+  chrome: ReactElement;
+}) {
+  return (
+    <View style={styles.flex}>
+      {chrome}
+      <View style={styles.loading}>
+        <ActivityIndicator />
+      </View>
+    </View>
+  );
+});
+
+const EmptyHome = memo(function EmptyHome({
+  chrome,
+  refreshControl,
+}: {
+  chrome: ReactElement;
+  refreshControl: ReactElement<ComponentProps<typeof RefreshControl>>;
+}) {
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.emptyHome}
+      contentInsetAdjustmentBehavior="automatic"
+      refreshControl={refreshControl}
+    >
+      {chrome}
+      <EmptyState
+        icon="book-outline"
+        title={t("sources_browse_empty")}
+        description={t("sources_try_search")}
+      />
+    </ScrollView>
+  );
+});
+
+const PlaceholderHome = memo(function PlaceholderHome({
+  chrome,
+  refreshControl,
+}: {
+  chrome: ReactElement;
+  refreshControl: ReactElement<ComponentProps<typeof RefreshControl>>;
+}) {
+  return (
+    <LiquidGlassScrollRoot style={styles.scroll}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.home}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+      >
+        {chrome}
+        <HomePlaceholderLayout />
+      </ScrollView>
+    </LiquidGlassScrollRoot>
+  );
+});
 
 export default function SourceHomeScreen() {
   const router = useRouter();
@@ -68,17 +147,19 @@ export default function SourceHomeScreen() {
   } = useSourceHome({ source, runner });
   const [selectedTabId, setSelectedTabId] = useState(SOURCE_HOME_TAB_ID);
 
+  const sourceKey = source ? sourceRouteId(source) : null;
+
   const openManga = useCallback(
     (manga: Manga) => {
-      if (!source) return;
-      router.navigate(mangaHref(sourceRouteId(source), manga));
+      if (!sourceKey) return;
+      router.navigate(mangaHref(sourceKey, manga));
     },
-    [router, source],
+    [router, sourceKey],
   );
 
-  const openSearch = () => {
+  const openSearch = useCallback(() => {
     router.navigate(sourceSearchHref(sourceRoute));
-  };
+  }, [router, sourceRoute]);
 
   const openSearchWithFilters = useCallback(
     (filters: FilterValue[]) => {
@@ -87,9 +168,14 @@ export default function SourceHomeScreen() {
     [router, sourceRoute],
   );
 
-  const openSettings = () => {
+  const openSettings = useCallback(() => {
     router.navigate(`/sources/${encodeURIComponent(sourceRoute)}/settings`);
-  };
+  }, [router, sourceRoute]);
+
+  const openListing = useCallback(
+    (listing: { id: string }) => setSelectedTabId(listing.id),
+    [],
+  );
 
   const websiteUrl = useMemo(() => sourceWebsiteUrl(source), [source]);
 
@@ -108,10 +194,12 @@ export default function SourceHomeScreen() {
     [listings, selectedTabId],
   );
 
+  const homeComponents = home?.components ?? EMPTY_COMPONENTS;
+
   const err = runnerError ?? homeLoadError;
   const combinedError = err?.includes("HTTP 403") ? "Try to disable VPN" : err;
   const showHome = selectedTabId === SOURCE_HOME_TAB_ID;
-  const hasHomeContent = Boolean(home && home.components.length > 0);
+  const hasHomeContent = homeComponents.length > 0;
   const showBlockingError =
     Boolean(combinedError) &&
     !hasCachedContent &&
@@ -124,46 +212,99 @@ export default function SourceHomeScreen() {
     (isLoading || runnerLoading) && !hasCachedContent && !hasHomeContent;
   const showCategoryTabs = categoryTabs.length > 1;
 
-  const categoryTabsElement = showCategoryTabs ? (
-    <SourceCategoryTabs
-      tabs={categoryTabs}
-      selectedId={selectedTabId}
-      onSelect={setSelectedTabId}
-    />
-  ) : null;
-
-  const refreshControl = (
-    <RefreshControl
-      refreshing={isRefreshing}
-      onRefresh={refresh}
-      tintColor={colors.tint}
-    />
+  const categoryTabsElement = useMemo(
+    () =>
+      showCategoryTabs ? (
+        <SourceCategoryTabs
+          tabs={categoryTabs}
+          selectedId={selectedTabId}
+          onSelect={setSelectedTabId}
+        />
+      ) : null,
+    [showCategoryTabs, categoryTabs, selectedTabId],
   );
 
-  const lazyIndicator = isRefreshing ? (
-    <View style={styles.refreshIndicator}>
-      <ActivityIndicator size="small" />
-    </View>
-  ) : null;
-
-  const alertBanner = showInlineError ? (
-    <SourceHomeAlertBanner message={combinedError!} onDismiss={dismissError} />
-  ) : null;
-
-  const homeChrome = (
-    <View style={styles.homeChrome}>
-      <IncognitoModeBanner />
-      {alertBanner}
-      {categoryTabsElement}
-    </View>
+  const alertBanner = useMemo(
+    () =>
+      showInlineError && combinedError ? (
+        <SourceHomeAlertBanner
+          message={combinedError}
+          onDismiss={dismissError}
+        />
+      ) : null,
+    [showInlineError, combinedError, dismissError],
   );
 
-  const listingChrome = (
-    <View style={[styles.homeChrome, { paddingBottom: Spacing.md }]}>
-      <IncognitoModeBanner />
-      {alertBanner}
-      {categoryTabsElement}
-    </View>
+  const homeChrome = useMemo(
+    () => (
+      <View style={styles.homeChrome}>
+        <IncognitoModeBanner />
+        {alertBanner}
+        {categoryTabsElement}
+      </View>
+    ),
+    [alertBanner, categoryTabsElement],
+  );
+
+  const listingChrome = useMemo(
+    () => (
+      <View style={styles.listingChrome}>
+        <IncognitoModeBanner />
+        {alertBanner}
+        {categoryTabsElement}
+      </View>
+    ),
+    [alertBanner, categoryTabsElement],
+  );
+
+  const refreshControl = useMemo(
+    () => (
+      <RefreshControl
+        refreshing={isRefreshing}
+        onRefresh={refresh}
+        tintColor={colors.tint}
+      />
+    ),
+    [isRefreshing, refresh, colors.tint],
+  );
+
+  const headerRight = useCallback(
+    () => (
+      <View style={styles.headerActions}>
+        {isRefreshing ? (
+          <View style={styles.refreshIndicator}>
+            <ActivityIndicator size="small" />
+          </View>
+        ) : null}
+        <HeaderIconButton icon="search" onPress={openSearch} />
+        <SourceOverflowMenu
+          onOpenSettings={openSettings}
+          websiteUrl={websiteUrl}
+        />
+      </View>
+    ),
+    [isRefreshing, openSearch, openSettings, websiteUrl],
+  );
+
+  const sourceName = source?.manifest.info.name;
+  const screenOptions = useMemo(
+    () => ({ title: sourceName, headerRight }),
+    [sourceName, headerRight],
+  );
+
+  const sourceId = source?.id;
+
+  const renderSection = useCallback(
+    ({ item }: { item: HomeComponent }) => (
+      <HomeSection
+        component={item}
+        sourceId={sourceId}
+        onPressManga={openManga}
+        onPressListing={openListing}
+        onApplyHomeFilters={openSearchWithFilters}
+      />
+    ),
+    [sourceId, openManga, openListing, openSearchWithFilters],
   );
 
   if (!source) {
@@ -180,24 +321,57 @@ export default function SourceHomeScreen() {
     );
   }
 
+  let body: ReactNode;
+  if (showBlockingError) {
+    body = null;
+  } else if (showHome && showHomePlaceholder) {
+    body = (
+      <PlaceholderHome chrome={homeChrome} refreshControl={refreshControl} />
+    );
+  } else if (showHome && hasHomeContent) {
+    body = (
+      <FlatList
+        style={styles.scroll}
+        data={homeComponents}
+        keyExtractor={sectionKeyExtractor}
+        renderItem={renderSection}
+        ListHeaderComponent={homeChrome}
+        contentContainerStyle={styles.home}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        renderScrollComponent={renderScrollComponent}
+        initialNumToRender={3}
+        maxToRenderPerBatch={2}
+        updateCellsBatchingPeriod={50}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === "android"}
+      />
+    );
+  } else {
+    const listing = showHome ? listings[0] : selectedListing;
+    if (listing && runner) {
+      body = (
+        <SourceListingPanel
+          runner={runner}
+          listing={listing}
+          sourceId={source.id}
+          onPressManga={openManga}
+          listHeader={listingChrome}
+          refreshControl={refreshControl}
+        />
+      );
+    } else if (runnerLoading) {
+      body = <LoadingHome chrome={homeChrome} />;
+    } else {
+      body = <EmptyHome chrome={homeChrome} refreshControl={refreshControl} />;
+    }
+  }
+
   return (
     <SourceCoverHeadersProvider source={source}>
       <>
-        <Stack.Screen
-          options={{
-            title: source.manifest.info.name,
-            headerRight: () => (
-              <View style={styles.headerActions}>
-                {lazyIndicator}
-                <HeaderIconButton icon="search" onPress={openSearch} />
-                <SourceOverflowMenu
-                  onOpenSettings={openSettings}
-                  websiteUrl={websiteUrl}
-                />
-              </View>
-            ),
-          }}
-        />
+        <Stack.Screen options={screenOptions} />
         <ScreenContent
           padded={false}
           centerContent={showBlockingError}
@@ -210,113 +384,22 @@ export default function SourceHomeScreen() {
               description={combinedError!}
             />
           ) : (
-            <View style={styles.flex}>
-              {showHome ? (
-                showHomePlaceholder ? (
-                  <LiquidGlassScrollRoot style={styles.scroll}>
-                    <ScrollView
-                      style={styles.scroll}
-                      contentContainerStyle={styles.home}
-                      contentInsetAdjustmentBehavior="automatic"
-                      showsVerticalScrollIndicator={false}
-                      refreshControl={refreshControl}
-                    >
-                      {homeChrome}
-                      <HomePlaceholderLayout />
-                    </ScrollView>
-                  </LiquidGlassScrollRoot>
-                ) : hasHomeContent ? (
-                  <LiquidGlassScrollRoot style={styles.scroll}>
-                    <ScrollView
-                      style={styles.scroll}
-                      contentContainerStyle={styles.home}
-                      contentInsetAdjustmentBehavior="automatic"
-                      showsVerticalScrollIndicator={false}
-                      refreshControl={refreshControl}
-                    >
-                      {homeChrome}
-                      {home!.components.map((component, index) => (
-                        <HomeSection
-                          key={`${component.title ?? "section"}-${index}`}
-                          component={component}
-                          sourceId={source?.id}
-                          onPressManga={openManga}
-                          onPressListing={(listing) =>
-                            setSelectedTabId(listing.id)
-                          }
-                          onApplyHomeFilters={openSearchWithFilters}
-                        />
-                      ))}
-                    </ScrollView>
-                  </LiquidGlassScrollRoot>
-                ) : listings.length > 0 && runner ? (
-                  <SourceListingPanel
-                    runner={runner}
-                    listing={listings[0]!}
-                    sourceId={source?.id}
-                    onPressManga={openManga}
-                    listHeader={listingChrome}
-                    refreshControl={refreshControl}
-                  />
-                ) : runnerLoading ? (
-                  <View style={styles.flex}>
-                    {homeChrome}
-                    <View style={styles.loading}>
-                      <ActivityIndicator />
-                    </View>
-                  </View>
-                ) : (
-                  <ScrollView
-                    style={styles.scroll}
-                    contentContainerStyle={styles.emptyHome}
-                    contentInsetAdjustmentBehavior="automatic"
-                    refreshControl={refreshControl}
-                  >
-                    {homeChrome}
-                    <EmptyState
-                      icon="book-outline"
-                      title={t("sources_browse_empty")}
-                      description={t("sources_try_search")}
-                    />
-                  </ScrollView>
-                )
-              ) : selectedListing && runner ? (
-                <SourceListingPanel
-                  runner={runner}
-                  listing={selectedListing}
-                  sourceId={source?.id}
-                  onPressManga={openManga}
-                  listHeader={listingChrome}
-                  refreshControl={refreshControl}
-                />
-              ) : runnerLoading ? (
-                <View style={styles.flex}>
-                  {homeChrome}
-                  <View style={styles.loading}>
-                    <ActivityIndicator />
-                  </View>
-                </View>
-              ) : (
-                <ScrollView
-                  style={styles.scroll}
-                  contentContainerStyle={styles.emptyHome}
-                  contentInsetAdjustmentBehavior="automatic"
-                  refreshControl={refreshControl}
-                >
-                  {homeChrome}
-                  <EmptyState
-                    icon="book-outline"
-                    title={t("sources_browse_empty")}
-                    description={t("sources_try_search")}
-                  />
-                </ScrollView>
-              )}
-            </View>
+            <View style={styles.flex}>{body}</View>
           )}
         </ScreenContent>
       </>
     </SourceCoverHeadersProvider>
   );
+}
+
+type HomeComponent = NonNullable<
+  ReturnType<typeof useSourceHome>["home"]
+>["components"][number];
+
+const EMPTY_COMPONENTS: HomeComponent[] = [];
+
+function sectionKeyExtractor(component: HomeComponent, index: number): string {
+  return `${component.title ?? "section"}-${index}`;
 }
 
 const styles = StyleSheet.create({
@@ -330,6 +413,11 @@ const styles = StyleSheet.create({
   homeChrome: {
     gap: Spacing.xs,
     paddingTop: Spacing.md,
+  },
+  listingChrome: {
+    gap: Spacing.xs,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
   },
   emptyHome: {
     flexGrow: 1,

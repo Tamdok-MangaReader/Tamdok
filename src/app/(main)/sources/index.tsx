@@ -1,6 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -57,10 +66,212 @@ type SourceListRow =
   | { kind: "source"; id: string; source: InstalledSource };
 
 type SourcesListItem = SourceListRow | InstalledSource;
+type SourcesCategoryId = "all" | "pinned" | "aidoku" | "tamdok";
+type UpdateVersion = ComponentProps<typeof SourceListItem>["updateAvailable"];
 
 const REORDER_ROW_HEIGHT = 76;
+const PIN_SWIPE_COLOR = "#E5B800";
 
-type SourcesCategoryId = "all" | "pinned" | "aidoku" | "tamdok";
+const NORMAL_LIST_PROPS = {
+  initialNumToRender: 14,
+  maxToRenderPerBatch: 8,
+  windowSize: 9,
+  updateCellsBatchingPeriod: 50,
+} as const;
+
+const LIST_FOOTER = <View style={{ height: Spacing.lg }} />;
+
+const renderScrollComponent = (
+  props: ComponentProps<typeof LiquidGlassScrollComponent>,
+) => <LiquidGlassScrollComponent {...props} />;
+
+const itemKeyExtractor = (item: SourcesListItem) => item.id;
+
+const reorderItemLayout = (
+  _: ArrayLike<SourcesListItem> | null | undefined,
+  index: number,
+) => ({
+  length: REORDER_ROW_HEIGHT,
+  offset: REORDER_ROW_HEIGHT * index,
+  index,
+});
+
+const HeaderRow = memo(function HeaderRow({
+  title,
+  isFirst,
+  visible,
+  searchActive,
+}: {
+  title: string;
+  isFirst: boolean;
+  visible: boolean;
+  searchActive: boolean;
+}) {
+  return (
+    <SearchDismissRow visible={visible} searchActive={searchActive}>
+      <SectionLabel isFirst={isFirst}>{title}</SectionLabel>
+    </SearchDismissRow>
+  );
+});
+
+type SourceRowProps = {
+  source: InstalledSource;
+  pinned: boolean;
+  updateVersion: UpdateVersion;
+  visible: boolean;
+  searchActive: boolean;
+  onOpen: (source: InstalledSource) => void;
+  onOpenSettings: (source: InstalledSource) => void;
+  onPin: (source: InstalledSource) => void;
+  onUnpin: (source: InstalledSource) => void;
+  onReorder: () => void;
+  onDelete: (source: InstalledSource) => void;
+};
+
+const SourceRow = memo(function SourceRow({
+  source,
+  pinned,
+  updateVersion,
+  visible,
+  searchActive,
+  onOpen,
+  onOpenSettings,
+  onPin,
+  onUnpin,
+  onReorder,
+  onDelete,
+}: SourceRowProps) {
+  const leadingActions = useMemo<SwipeAction[]>(
+    () => [
+      {
+        key: "pin",
+        label: pinned ? t("sources_unpin") : t("sources_pin"),
+        icon: pinned ? "pin-outline" : "pin",
+        sfSymbol: pinned ? "pin.slash.fill" : "pin.fill",
+        color: PIN_SWIPE_COLOR,
+        onPress: () => (pinned ? onUnpin(source) : onPin(source)),
+      },
+    ],
+    [pinned, source, onPin, onUnpin],
+  );
+
+  const trailingActions = useMemo<SwipeAction[]>(
+    () => [
+      {
+        key: "settings",
+        label: t("settings"),
+        icon: "settings-outline",
+        color: "#8E8E93",
+        onPress: () => onOpenSettings(source),
+      },
+    ],
+    [source, onOpenSettings],
+  );
+
+  const handlePress = useCallback(() => onOpen(source), [onOpen, source]);
+  const handlePin = useCallback(() => onPin(source), [onPin, source]);
+  const handleUnpin = useCallback(() => onUnpin(source), [onUnpin, source]);
+  const handleDelete = useCallback(() => onDelete(source), [onDelete, source]);
+  const subtitle = useMemo(() => installedSourceSubtitle(source), [source]);
+
+  return (
+    <SearchDismissRow visible={visible} searchActive={searchActive}>
+      <View style={styles.listRow}>
+        <Card style={[styles.card, styles.swipeCard]}>
+          <SwipeableRow
+            rowId={getSourceLayoutKey(source)}
+            leadingActions={leadingActions}
+            fullSwipeLeadingActionKey="pin"
+            actions={trailingActions}
+            fullSwipeActionKey="settings"
+          >
+            <SourceInstalledActions
+              source={source}
+              isPinned={pinned}
+              onPress={handlePress}
+              onPin={handlePin}
+              onUnpin={handleUnpin}
+              onReorder={onReorder}
+              onDelete={handleDelete}
+            >
+              <SourceListItem
+                title={source.manifest.info.name}
+                subtitle={subtitle}
+                iconUri={source.iconUri}
+                rating={source.manifest.info.contentRating}
+                showChevron
+                updateAvailable={updateVersion}
+              />
+            </SourceInstalledActions>
+          </SwipeableRow>
+        </Card>
+      </View>
+    </SearchDismissRow>
+  );
+});
+
+const ReorderRow = memo(function ReorderRow({
+  source,
+  updateVersion,
+  drag,
+  isActive,
+}: {
+  source: InstalledSource;
+  updateVersion: UpdateVersion;
+  drag: () => void;
+  isActive: boolean;
+}) {
+  const { colors } = useTheme();
+  const subtitle = useMemo(() => installedSourceSubtitle(source), [source]);
+
+  return (
+    <View style={[styles.reorderItem, isActive && styles.reorderItemActive]}>
+      <Card style={[styles.card, isActive && styles.cardDragging]}>
+        <SourceListItem
+          title={source.manifest.info.name}
+          subtitle={subtitle}
+          iconUri={source.iconUri}
+          updateAvailable={updateVersion}
+          rating={source.manifest.info.contentRating}
+          trailing={
+            <Pressable
+              onPressIn={drag}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t("sources_reorder")}
+            >
+              <Ionicons
+                name="reorder-three-outline"
+                size={22}
+                color={colors.secondaryLabel}
+              />
+            </Pressable>
+          }
+        />
+      </Card>
+    </View>
+  );
+});
+
+const DragPlaceholder = memo(function DragPlaceholder({
+  source,
+}: {
+  source: InstalledSource;
+}) {
+  return (
+    <View style={styles.reorderItem}>
+      <Card style={[styles.card, styles.dragPlaceholder]}>
+        <SourceListItem
+          title={source.manifest.info.name}
+          subtitle={installedSourceSubtitle(source)}
+          iconUri={source.iconUri}
+          rating={source.manifest.info.contentRating}
+          trailing={<View style={styles.reorderHandleSpacer} />}
+        />
+      </Card>
+    </View>
+  );
+});
 
 export default function SourcesScreen() {
   const router = useRouter();
@@ -78,18 +289,74 @@ export default function SourcesScreen() {
     getSourceUpdate,
   } = useSources();
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [selectedCategory, setSelectedCategory] =
     useState<SourcesCategoryId>("all");
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [reorderData, setReorderData] = useState(installed);
   const listRef = useRef<FlatList<SourcesListItem>>(null);
   const isEmpty = !isLoading && installed.length === 0;
-  const searchActive = isSearchActive(query);
+  const searchActive = isSearchActive(deferredQuery);
 
-  const sourceMatches = useCallback(
-    (source: InstalledSource) => matchesInstalledSource(source, query),
-    [query],
+  const latest = useRef({
+    router,
+    installed,
+    pinSource,
+    unpinSource,
+    reorderSources,
+    uninstall,
+  });
+  latest.current = {
+    router,
+    installed,
+    pinSource,
+    unpinSource,
+    reorderSources,
+    uninstall,
+  };
+
+  const openSource = useCallback((source: InstalledSource) => {
+    latest.current.router.navigate(
+      `/sources/${encodeURIComponent(sourceRouteId(source))}`,
+    );
+  }, []);
+
+  const openSourceSettings = useCallback((source: InstalledSource) => {
+    latest.current.router.navigate(
+      `/settings/source/${encodeURIComponent(sourceRouteId(source))}`,
+    );
+  }, []);
+
+  const handlePin = useCallback(
+    (source: InstalledSource) => void latest.current.pinSource(source),
+    [],
   );
+  const handleUnpin = useCallback(
+    (source: InstalledSource) => void latest.current.unpinSource(source),
+    [],
+  );
+
+  const confirmUninstall = useCallback((source: InstalledSource) => {
+    Alert.alert(
+      t("sources_uninstall_title"),
+      t("sources_uninstall_confirm", { name: source.manifest.info.name }),
+      [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("sources_uninstall_action"),
+          style: "destructive",
+          onPress: () => void latest.current.uninstall(source),
+        },
+      ],
+    );
+  }, []);
+
+  const enterReorderMode = useCallback(() => {
+    setReorderData([...latest.current.installed]);
+    setIsReorderMode(true);
+  }, []);
+
+  const exitReorderMode = useCallback(() => setIsReorderMode(false), []);
 
   const hasPinned = useMemo(
     () => installed.some((source) => isPinned(source)),
@@ -121,6 +388,11 @@ export default function SourcesScreen() {
     }
   }, [categoryTabs, selectedCategory]);
 
+  const handleSelectCategory = useCallback(
+    (id: string) => setSelectedCategory(id as SourcesCategoryId),
+    [],
+  );
+
   const filteredByCategory = useMemo(() => {
     switch (selectedCategory) {
       case "pinned":
@@ -133,27 +405,6 @@ export default function SourcesScreen() {
         return installed;
     }
   }, [installed, isPinned, selectedCategory]);
-
-  const matchingSourceCount = useMemo(
-    () =>
-      searchActive
-        ? filteredByCategory.filter(sourceMatches).length
-        : filteredByCategory.length,
-    [filteredByCategory, searchActive, sourceMatches],
-  );
-
-  useEffect(() => {
-    if (!isReorderMode) {
-      setReorderData(installed);
-    }
-  }, [installed, isReorderMode]);
-
-  useEffect(() => {
-    if (!isReorderMode) return;
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToOffset({ offset: 0, animated: false });
-    });
-  }, [isReorderMode]);
 
   const sections = useMemo<SourceSection[]>(() => {
     if (selectedCategory !== "all") {
@@ -175,13 +426,11 @@ export default function SourcesScreen() {
         data: unpinned,
       });
     }
-
     return result;
   }, [filteredByCategory, isPinned, selectedCategory]);
 
   const listRows = useMemo<SourceListRow[]>(() => {
     const rows: SourceListRow[] = [];
-
     sections.forEach((section, sectionIndex) => {
       if (section.title) {
         rows.push({
@@ -195,200 +444,174 @@ export default function SourcesScreen() {
         rows.push({ kind: "source", id: getSourceLayoutKey(source), source });
       });
     });
-
     return rows;
   }, [sections]);
 
-  const openSource = (source: InstalledSource) => {
-    router.navigate(`/sources/${encodeURIComponent(sourceRouteId(source))}`);
-  };
-
-  const openSourceSettings = (source: InstalledSource) => {
-    router.navigate(
-      `/settings/source/${encodeURIComponent(sourceRouteId(source))}`,
-    );
-  };
-
-  const confirmUninstall = (source: InstalledSource) => {
-    Alert.alert(
-      t("sources_uninstall_title"),
-      t("sources_uninstall_confirm", { name: source.manifest.info.name }),
-      [
-        { text: t("cancel"), style: "cancel" },
-        {
-          text: t("sources_uninstall_action"),
-          style: "destructive",
-          onPress: () => void uninstall(source),
-        },
-      ],
-    );
-  };
-
-  const enterReorderMode = useCallback(() => {
-    setReorderData([...installed]);
-    setIsReorderMode(true);
-  }, [installed]);
-
-  const exitReorderMode = useCallback(() => {
-    setIsReorderMode(false);
-  }, []);
-
-  const PIN_SWIPE_COLOR = "#E5B800";
-
-  const pinLeadingActions = (source: InstalledSource): SwipeAction[] => {
-    const pinned = isPinned(source);
-    return [
-      {
-        key: "pin",
-        label: pinned ? t("sources_unpin") : t("sources_pin"),
-        icon: pinned ? "pin-outline" : "pin",
-        sfSymbol: pinned ? "pin.slash.fill" : "pin.fill",
-        color: PIN_SWIPE_COLOR,
-        onPress: () => void (pinned ? unpinSource(source) : pinSource(source)),
-      },
-    ];
-  };
-
-  const settingsTrailingActions = (source: InstalledSource): SwipeAction[] => [
-    {
-      key: "settings",
-      label: t("settings"),
-      icon: "settings-outline",
-      color: "#8E8E93",
-      onPress: () => openSourceSettings(source),
-    },
-  ];
-
-  const renderSourceActions = (source: InstalledSource) => (
-    <SwipeableRow
-      rowId={getSourceLayoutKey(source)}
-      leadingActions={pinLeadingActions(source)}
-      fullSwipeLeadingActionKey="pin"
-      actions={settingsTrailingActions(source)}
-      fullSwipeActionKey="settings"
-    >
-      <SourceInstalledActions
-        source={source}
-        isPinned={isPinned(source)}
-        onPress={() => openSource(source)}
-        onPin={() => void pinSource(source)}
-        onUnpin={() => void unpinSource(source)}
-        onReorder={enterReorderMode}
-        onDelete={() => confirmUninstall(source)}
-      >
-        <SourceListItem
-          title={source.manifest.info.name}
-          subtitle={installedSourceSubtitle(source)}
-          iconUri={source.iconUri}
-          rating={source.manifest.info.contentRating}
-          showChevron
-          updateAvailable={getSourceUpdate(source.id)?.availableVersion}
-        />
-      </SourceInstalledActions>
-    </SwipeableRow>
-  );
-
-  const renderSourceRow = (
-    source: InstalledSource,
-    drag?: () => void,
-    isActive?: boolean,
-  ) => (
-    <Card style={[styles.card, isActive && styles.cardDragging]}>
-      <SourceListItem
-        title={source.manifest.info.name}
-        subtitle={installedSourceSubtitle(source)}
-        iconUri={source.iconUri}
-        updateAvailable={getSourceUpdate(source.id)?.availableVersion}
-        rating={source.manifest.info.contentRating}
-        trailing={
-          drag ? (
-            <Pressable
-              onPressIn={drag}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t("sources_reorder")}
-            >
-              <Ionicons
-                name="reorder-three-outline"
-                size={22}
-                color={colors.secondaryLabel}
-              />
-            </Pressable>
-          ) : undefined
+  const { visibilityById, matchingSourceCount } = useMemo(() => {
+    if (!searchActive) {
+      return {
+        visibilityById: null,
+        matchingSourceCount: filteredByCategory.length,
+      };
+    }
+    const map = new Map<string, boolean>();
+    let count = 0;
+    for (const section of sections) {
+      let anyMatch = false;
+      for (const source of section.data) {
+        const matches = matchesInstalledSource(source, deferredQuery);
+        map.set(getSourceLayoutKey(source), matches);
+        if (matches) {
+          anyMatch = true;
+          count++;
         }
-      />
-    </Card>
-  );
+      }
+      map.set(`header-${section.key}`, anyMatch);
+    }
+    return { visibilityById: map, matchingSourceCount: count };
+  }, [searchActive, sections, filteredByCategory.length, deferredQuery]);
 
-  const renderDragPlaceholder = ({ item }: { item: InstalledSource }) => (
-    <View style={styles.reorderItem}>
-      <Card style={[styles.card, styles.dragPlaceholder]}>
-        <SourceListItem
-          title={item.manifest.info.name}
-          subtitle={installedSourceSubtitle(item)}
-          iconUri={item.iconUri}
-          rating={item.manifest.info.contentRating}
-          trailing={<View style={styles.reorderHandleSpacer} />}
-        />
-      </Card>
-    </View>
-  );
+  useEffect(() => {
+    if (!isReorderMode) return;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    });
+  }, [isReorderMode]);
 
-  const renderDraggableItem = ({
-    item,
-    drag,
-    isActive,
-  }: RenderItemParams<InstalledSource>) => (
-    <View style={[styles.reorderItem, isActive && styles.reorderItemActive]}>
-      {renderSourceRow(item, drag, isActive)}
-    </View>
-  );
+  const renderItem = useCallback(
+    (params: RenderItemParams<SourcesListItem>) => {
+      if (isReorderMode) {
+        const source = params.item as InstalledSource;
+        return (
+          <ReorderRow
+            source={source}
+            updateVersion={getSourceUpdate(source.id)?.availableVersion}
+            drag={params.drag}
+            isActive={params.isActive}
+          />
+        );
+      }
 
-  const renderListRow = ({ item }: { item: SourceListRow }) => {
-    if (item.kind === "header") {
-      const sectionKey = item.id.replace("header-", "");
-      const section = sections.find((entry) => entry.key === sectionKey);
-      const headerVisible = searchActive
-        ? (section?.data.some(sourceMatches) ?? false)
-        : true;
+      const row = params.item as SourceListRow;
+      const visible = visibilityById?.get(row.id) ?? true;
+
+      if (row.kind === "header") {
+        return (
+          <HeaderRow
+            title={row.title}
+            isFirst={row.isFirst}
+            visible={visible}
+            searchActive={searchActive}
+          />
+        );
+      }
 
       return (
-        <SearchDismissRow
-          visible={headerVisible}
-          searchActive={searchActive && !isReorderMode}
-        >
-          <SectionLabel isFirst={item.isFirst}>{item.title}</SectionLabel>
-        </SearchDismissRow>
+        <SourceRow
+          source={row.source}
+          pinned={isPinned(row.source)}
+          updateVersion={getSourceUpdate(row.source.id)?.availableVersion}
+          visible={visible}
+          searchActive={searchActive}
+          onOpen={openSource}
+          onOpenSettings={openSourceSettings}
+          onPin={handlePin}
+          onUnpin={handleUnpin}
+          onReorder={enterReorderMode}
+          onDelete={confirmUninstall}
+        />
       );
-    }
+    },
+    [
+      isReorderMode,
+      visibilityById,
+      searchActive,
+      isPinned,
+      getSourceUpdate,
+      openSource,
+      openSourceSettings,
+      handlePin,
+      handleUnpin,
+      enterReorderMode,
+      confirmUninstall,
+    ],
+  );
 
-    return (
-      <SearchDismissRow
-        visible={sourceMatches(item.source)}
-        searchActive={searchActive && !isReorderMode}
-      >
-        <View style={styles.listRow}>
-          <Card style={[styles.card, styles.swipeCard]}>
-            {renderSourceActions(item.source)}
-          </Card>
-        </View>
-      </SearchDismissRow>
+  const renderPlaceholder = useCallback(
+    ({ item }: { item: SourcesListItem }) => (
+      <DragPlaceholder source={item as InstalledSource} />
+    ),
+    [],
+  );
+
+  const handleDragEnd = useCallback(({ data }: { data: SourcesListItem[] }) => {
+    const next = data as InstalledSource[];
+    setReorderData(next);
+    void latest.current.reorderSources(
+      next.map((source) => getSourceLayoutKey(source)),
     );
-  };
+  }, []);
 
-  const renderListHeader = useCallback(
+  const listHeader = useMemo(
     () =>
-      !isReorderMode ? (
+      isReorderMode ? undefined : (
         <>
           <IncognitoModeBanner />
           <SourceCategoryTabs
             tabs={categoryTabs}
             selectedId={selectedCategory}
-            onSelect={(id) => setSelectedCategory(id as SourcesCategoryId)}
+            onSelect={handleSelectCategory}
           />
         </>
-      ) : null,
-    [categoryTabs, isReorderMode, selectedCategory],
+      ),
+    [isReorderMode, categoryTabs, selectedCategory, handleSelectCategory],
+  );
+
+  const contentContainerStyle = useMemo(
+    () =>
+      isReorderMode
+        ? [
+            styles.reorderListContent,
+            {
+              paddingTop: Spacing.xs,
+              paddingBottom: BottomTabInset + insets.bottom,
+            },
+          ]
+        : [styles.listContent, searchActive && styles.listContentSearching],
+    [isReorderMode, searchActive, insets.bottom],
+  );
+
+  const renderDoneButton = useCallback(
+    () => (
+      <Pressable
+        onPress={exitReorderMode}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={t("done")}
+      >
+        <Ionicons name="checkmark" size={24} color={colors.tint} />
+      </Pressable>
+    ),
+    [exitReorderMode, colors.tint],
+  );
+
+  const screenOptions = useMemo(
+    () => ({
+      headerLargeTitle: !isReorderMode,
+      headerTransparent: !isReorderMode,
+      headerStyle: isReorderMode
+        ? { backgroundColor: colors.groupedBackground }
+        : undefined,
+      headerShadowVisible: isReorderMode,
+      headerRight: isReorderMode ? renderDoneButton : undefined,
+    }),
+    [isReorderMode, colors.groupedBackground, renderDoneButton],
+  );
+
+  const handleSearchText = useCallback(
+    (event: { nativeEvent: { text: string } }) =>
+      setQuery(event.nativeEvent.text),
+    [],
   );
 
   const categoryEmpty =
@@ -398,46 +621,9 @@ export default function SourcesScreen() {
     !searchActive &&
     filteredByCategory.length === 0;
 
-  const listFooterHeight = Spacing.lg;
-
-  const renderListFooter = useCallback(
-    () => <View style={{ height: listFooterHeight }} />,
-    [listFooterHeight],
-  );
-
-  const reorderItemLayout = (
-    _: ArrayLike<SourcesListItem> | null | undefined,
-    index: number,
-  ) => ({
-    length: REORDER_ROW_HEIGHT,
-    offset: REORDER_ROW_HEIGHT * index,
-    index,
-  });
-
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerLargeTitle: !isReorderMode,
-          headerTransparent: !isReorderMode,
-          headerStyle: isReorderMode
-            ? { backgroundColor: colors.groupedBackground }
-            : undefined,
-          headerShadowVisible: isReorderMode,
-          headerRight: isReorderMode
-            ? () => (
-                <Pressable
-                  onPress={exitReorderMode}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("done")}
-                >
-                  <Ionicons name="checkmark" size={24} color={colors.tint} />
-                </Pressable>
-              )
-            : undefined,
-        }}
-      />
+      <Stack.Screen options={screenOptions} />
       <Stack.Title>
         {isReorderMode ? t("sources_reorder") : t("sources")}
       </Stack.Title>
@@ -446,8 +632,8 @@ export default function SourcesScreen() {
           key={isDark ? "sources-search-dark" : "sources-search-light"}
           placeholder={t("sources_search_placeholder")}
           {...stackSearchBarProps}
-          onChangeText={(event) => setQuery(event.nativeEvent.text)}
-          onSearchButtonPress={(event) => setQuery(event.nativeEvent.text)}
+          onChangeText={handleSearchText}
+          onSearchButtonPress={handleSearchText}
         />
       )}
       {isLoading || isEmpty ? (
@@ -498,7 +684,8 @@ export default function SourcesScreen() {
               ref={listRef}
               containerStyle={styles.listContainer}
               data={isReorderMode ? reorderData : listRows}
-              keyExtractor={(item) => item.id}
+              keyExtractor={itemKeyExtractor}
+              renderItem={renderItem}
               activationDistance={isReorderMode ? 12 : 10000}
               dragItemOverflow={isReorderMode}
               enableLayoutAnimationExperimental={false}
@@ -506,53 +693,14 @@ export default function SourcesScreen() {
                 isReorderMode ? "never" : "automatic"
               }
               automaticallyAdjustsScrollIndicatorInsets={!isReorderMode}
-              renderScrollComponent={(props) => (
-                <LiquidGlassScrollComponent {...props} />
-              )}
-              contentContainerStyle={
-                isReorderMode
-                  ? [
-                      styles.reorderListContent,
-                      {
-                        paddingTop: Spacing.xs,
-                        paddingBottom: BottomTabInset + insets.bottom,
-                      },
-                    ]
-                  : [
-                      styles.listContent,
-                      searchActive && styles.listContentSearching,
-                    ]
-              }
-              ListHeaderComponent={isReorderMode ? undefined : renderListHeader}
-              ListFooterComponent={isReorderMode ? undefined : renderListFooter}
+              renderScrollComponent={renderScrollComponent}
+              contentContainerStyle={contentContainerStyle}
+              ListHeaderComponent={listHeader}
+              ListFooterComponent={isReorderMode ? undefined : LIST_FOOTER}
               getItemLayout={isReorderMode ? reorderItemLayout : undefined}
-              renderPlaceholder={
-                isReorderMode
-                  ? (params) =>
-                      renderDragPlaceholder({
-                        item: params.item as InstalledSource,
-                      })
-                  : undefined
-              }
-              onDragEnd={
-                isReorderMode
-                  ? ({ data }) => {
-                      const next = data as InstalledSource[];
-                      setReorderData(next);
-                      void reorderSources(
-                        next.map((source) => getSourceLayoutKey(source)),
-                      );
-                    }
-                  : undefined
-              }
-              renderItem={(params) => {
-                if (isReorderMode) {
-                  return renderDraggableItem(
-                    params as RenderItemParams<InstalledSource>,
-                  );
-                }
-                return renderListRow({ item: params.item as SourceListRow });
-              }}
+              renderPlaceholder={isReorderMode ? renderPlaceholder : undefined}
+              onDragEnd={isReorderMode ? handleDragEnd : undefined}
+              {...(isReorderMode ? null : NORMAL_LIST_PROPS)}
             />
           </SwipeableRowsProvider>
         </ThemedView>

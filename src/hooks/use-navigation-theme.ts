@@ -1,14 +1,21 @@
-import { useMemo, useSyncExternalStore } from 'react';
-import { Platform } from 'react-native';
-import { DarkTheme, DefaultTheme, type Theme } from 'expo-router';
+import { useMemo, useSyncExternalStore } from "react";
+import { Platform } from "react-native";
+import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
 
-import { useAppearance } from '@/context/appearance-context';
-import { getAccentPreset } from '@/constants/accent-colors';
-import { useTheme } from '@/hooks/use-theme';
-import { subscribeAppearance, getAppearanceSnapshot } from '@/utils/appearance-events';
-import { isGlassSupported, liquidGlassScrollEdgeEffects } from '@/utils/glass';
+import { useAppearance } from "@/context/appearance-context";
+import { getAccentPreset } from "@/constants/accent-colors";
+import { useTheme } from "@/hooks/use-theme";
+import {
+  subscribeAppearance,
+  getAppearanceSnapshot,
+} from "@/utils/appearance-events";
+import { isGlassSupported, liquidGlassScrollEdgeEffects } from "@/utils/glass";
 
-function buildNavigationTheme(isDark: boolean, accentLight: string, accentDark: string): Theme {
+function buildNavigationTheme(
+  isDark: boolean,
+  accentLight: string,
+  accentDark: string,
+): Theme {
   const base = isDark ? DarkTheme : DefaultTheme;
   return {
     ...base,
@@ -22,7 +29,11 @@ function buildNavigationTheme(isDark: boolean, accentLight: string, accentDark: 
 export function useExpoRouterTheme(): Theme {
   const { isDark } = useTheme();
   const { accentColorId } = useAppearance();
-  const appearanceTick = useSyncExternalStore(subscribeAppearance, getAppearanceSnapshot, getAppearanceSnapshot);
+  const appearanceTick = useSyncExternalStore(
+    subscribeAppearance,
+    getAppearanceSnapshot,
+    getAppearanceSnapshot,
+  );
   const accent = getAccentPreset(accentColorId);
 
   return useMemo(
@@ -44,14 +55,15 @@ export function useNavigationTheme() {
       headerTintColor: colors.tint,
       headerTitleStyle: { color: colors.label },
       headerLargeTitleStyle: { color: colors.label },
+      freezeOnBlur: true,
       contentStyle: { backgroundColor: colors.groupedBackground },
       ...(useLiquidGlassHeader
         ? {
             headerShadowVisible: true,
             scrollEdgeEffects: liquidGlassScrollEdgeEffects,
           }
-        : Platform.OS === 'ios'
-          ? { headerBlurEffect: 'regular' as const }
+        : Platform.OS === "ios"
+          ? { headerBlurEffect: "regular" as const }
           : {}),
     }),
     [colors.groupedBackground, colors.label, colors.tint, useLiquidGlassHeader],
@@ -61,7 +73,7 @@ export function useNavigationTheme() {
     () =>
       useGlassSearchBar
         ? {
-            placement: 'automatic' as const,
+            placement: "automatic" as const,
             allowToolbarIntegration: true,
             tintColor: colors.tint,
           }

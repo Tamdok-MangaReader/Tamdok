@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -31,6 +31,11 @@ import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { mangaHref } from "@/utils/manga-route";
 
+const SEARCH_DEBOUNCE_MS = 400;
+const FOOTER_SPINNER_STYLE = { paddingVertical: Spacing.lg } as const;
+
+const ResultsGrid = memo(MangaGrid);
+
 function decodeSourceRouteId(id: string): string {
   try {
     return decodeURIComponent(id);
@@ -52,6 +57,8 @@ export default function SourceSearchScreen() {
   const initialQuery = typeof q === "string" ? q : "";
   const { installed } = useSources();
   const source = findInstalledSource(installed, sourceRoute);
+  const sourceKey = source ? sourceRouteId(source) : null;
+  const sourceId = source?.id;
   const { runner, error, isLoading: runnerLoading } = useSourceRunner(source);
   const {
     definitions,
@@ -61,11 +68,14 @@ export default function SourceSearchScreen() {
   } = useSourceFilters(runner);
   const [query, setQuery] = useState(initialQuery);
   const [entries, setEntries] = useState<Manga[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
   const requestIdRef = useRef(0);
+  const pageRef = useRef(1);
+  const hasNextRef = useRef(false);
+  const busyRef = useRef(false);
 
   useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
 
@@ -78,20 +88,18 @@ export default function SourceSearchScreen() {
     try {
       const parsed = JSON.parse(rawFilters) as FilterValue[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        setFilters((current) =>
-          mergeFilterValues(parsed.length > 0 ? parsed : current, definitions),
-        );
+        setFilters(() => mergeFilterValues(parsed, definitions));
       }
-    } catch {
-      // Ignore malformed deep-link filters.
-    }
+    } catch {}
   }, [rawFilters, definitions, setFilters]);
 
   const load = useCallback(
     async (nextPage: number, append: boolean) => {
       if (!runner) return;
       const requestId = ++requestIdRef.current;
-      setIsLoading(true);
+      busyRef.current = true;
+      if (append) setIsLoadingMore(true);
+      else setIsLoading(true);
       setLoadError(null);
       try {
         const result = await runner.getSearchMangaList({
@@ -100,11 +108,14 @@ export default function SourceSearchScreen() {
           filters,
         });
         if (requestId !== requestIdRef.current) return;
-        setEntries((current) =>
-          append ? [...current, ...result.entries] : result.entries,
-        );
-        setHasNextPage(result.hasNextPage);
-        setPage(nextPage);
+        setEntries((current) => {
+          if (!append) return result.entries;
+          const seen = new Set(current.map((manga) => manga.key));
+          const fresh = result.entries.filter((manga) => !seen.has(manga.key));
+          return fresh.length > 0 ? [...current, ...fresh] : current;
+        });
+        hasNextRef.current = result.hasNextPage;
+        pageRef.current = nextPage;
       } catch (loadErr) {
         if (requestId !== requestIdRef.current) return;
         if (isAidokuRequestCancelled(loadErr)) return;
@@ -113,42 +124,82 @@ export default function SourceSearchScreen() {
         );
         if (!append) {
           setEntries([]);
-          setHasNextPage(false);
+          hasNextRef.current = false;
         }
       } finally {
-        if (requestId === requestIdRef.current) setIsLoading(false);
+        if (requestId === requestIdRef.current) {
+          busyRef.current = false;
+          setIsLoading(false);
+          setIsLoadingMore(false);
+        }
       }
     },
     [runner, query, filters],
   );
 
+  const loadRef = useRef(load);
+  loadRef.current = load;
+
   useEffect(() => {
     if (!runner || filtersLoading) return;
     const timer = setTimeout(() => {
       void load(1, false);
-    }, 400);
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
       requestIdRef.current += 1;
+      busyRef.current = false;
       clearTimeout(timer);
     };
   }, [runner, query, filters, load, filtersLoading]);
 
-  const submitQuery = () => {
+  const submitQuery = useCallback(() => {
     router.setParams({ q: query });
-  };
+  }, [router, query]);
 
-  const openManga = (manga: Manga) => {
-    if (!source) return;
-    router.navigate(mangaHref(sourceRouteId(source), manga));
-  };
+  const openManga = useCallback(
+    (manga: Manga) => {
+      if (!sourceKey) return;
+      router.navigate(mangaHref(sourceKey, manga));
+    },
+    [router, sourceKey],
+  );
+
+  const handleEndReached = useCallback(() => {
+    if (busyRef.current || !hasNextRef.current) return;
+    void loadRef.current(pageRef.current + 1, true);
+  }, []);
+
+  const handleCancel = useCallback(() => router.back(), [router]);
+
+  const footer = useMemo(
+    () =>
+      isLoadingMore ? <ActivityIndicator style={FOOTER_SPINNER_STYLE} /> : null,
+    [isLoadingMore],
+  );
+
+  const searchHeaderStyle = useMemo(
+    () => [styles.searchHeader, { paddingTop: insets.top + Spacing.xs }],
+    [insets.top],
+  );
+  const rootStyle = useMemo(
+    () => [styles.root, { backgroundColor: colors.systemBackground }],
+    [colors.systemBackground],
+  );
+  const overlayCardStyle = useMemo(
+    () => [styles.searchOverlayCard, { backgroundColor: colors.secondaryFill }],
+    [colors.secondaryFill],
+  );
+  const searchInputStyle = useMemo(
+    () => [styles.searchInput, { color: colors.label }],
+    [colors.label],
+  );
 
   const displayError = error ?? loadError;
+  const showInitialLoading =
+    runnerLoading || filtersLoading || (isLoading && entries.length === 0);
   const centerContent =
-    !displayError &&
-    (runnerLoading ||
-      filtersLoading ||
-      (isLoading && entries.length === 0) ||
-      entries.length === 0);
+    !displayError && (runnerLoading || filtersLoading || entries.length === 0);
+  const showRating = entries.length > 0 && entries[0]!.rating !== undefined;
 
   if (!source) {
     return (
@@ -164,12 +215,10 @@ export default function SourceSearchScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.root, { backgroundColor: colors.systemBackground }]}
+      style={rootStyle}
       keyboardVerticalOffset={0}
     >
-      <View
-        style={[styles.searchHeader, { paddingTop: insets.top + Spacing.xs }]}
-      >
+      <View style={searchHeaderStyle}>
         <GlassSurface
           style={styles.searchRow}
           borderRadius={radius.pill}
@@ -183,7 +232,7 @@ export default function SourceSearchScreen() {
               style={styles.searchIcon}
             />
             <TextInput
-              style={[styles.searchInput, { color: colors.label }]}
+              style={searchInputStyle}
               placeholder={t("search_placeholder")}
               placeholderTextColor={colors.tertiaryLabel}
               value={query}
@@ -198,7 +247,7 @@ export default function SourceSearchScreen() {
         </GlassSurface>
         <GlassIconButton
           icon="close"
-          onPress={() => router.back()}
+          onPress={handleCancel}
           size={44}
           iconSize={22}
           iconColor={colors.destructive}
@@ -225,9 +274,7 @@ export default function SourceSearchScreen() {
               {displayError}
             </ThemedText>
           </View>
-        ) : runnerLoading ||
-          filtersLoading ||
-          (isLoading && entries.length === 0) ? (
+        ) : showInitialLoading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator />
             <ThemedText
@@ -242,29 +289,18 @@ export default function SourceSearchScreen() {
           <EmptyState icon="search-outline" title={t("sources_browse_empty")} />
         ) : (
           <View style={styles.gridWrap}>
-            <MangaGrid
+            <ResultsGrid
               entries={entries}
-              sourceId={source?.id}
-              showRating={entries[0] && entries[0].rating !== undefined}
+              sourceId={sourceId}
+              showRating={showRating}
               isRatingCompact={false}
               onPressManga={openManga}
-              onEndReached={() => {
-                if (!isLoading && hasNextPage) void load(page + 1, true);
-              }}
-              ListFooterComponent={
-                isLoading ? (
-                  <ActivityIndicator style={{ paddingVertical: Spacing.lg }} />
-                ) : null
-              }
+              onEndReached={handleEndReached}
+              ListFooterComponent={footer}
             />
             {isLoading ? (
               <View style={styles.searchOverlay} pointerEvents="none">
-                <View
-                  style={[
-                    styles.searchOverlayCard,
-                    { backgroundColor: colors.secondaryFill },
-                  ]}
-                >
+                <View style={overlayCardStyle}>
                   <ActivityIndicator color={colors.tint} />
                 </View>
               </View>

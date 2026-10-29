@@ -1,30 +1,40 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, View, StyleSheet } from 'react-native';
+import { router, Stack, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, View, StyleSheet } from "react-native";
 
-import { ReaderView } from '@/components/reader/reader-view';
-import { EmptyState } from '@/components/ui/empty-state';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import { t } from '@/constants/locales';
-import { SourceCoverHeadersProvider, useSourceCoverHeaders, useSourceCoverHeadersReady } from '@/context/source-cover-context';
-import { useSources } from '@/context/sources-context';
-import { useSourceRunner } from '@/hooks/use-source-runner';
-import type { Chapter, Manga, Page } from '@/parsers/shared/types';
-import { getDownloadedPageUrls } from '@/services/downloads';
-import { getChapterProgress } from '@/services/manga-tracking';
-import { peekMangaDetailCache } from '@/services/manga-detail-cache';
-import { peekReaderPageCache, writeReaderPageCache } from '@/services/reader-page-cache';
-import { findInstalledSource } from '@/services/sources';
-import { decodeMangaKey, mangaFromParams } from '@/utils/manga-route';
-import { findAdjacentChapter } from '@/utils/reader-chapters';
-import { filterRenderablePages } from '@/utils/reader-pages';
-import { prefetchReaderUrls, READER_PRELOAD_AHEAD } from '@/utils/reader-prefetch';
-import { useTheme } from '@/hooks/use-theme';
+import { ReaderView } from "@/components/reader/reader-view";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import { t } from "@/constants/locales";
+import {
+  SourceCoverHeadersProvider,
+  useSourceCoverHeaders,
+  useSourceCoverHeadersReady,
+} from "@/context/source-cover-context";
+import { useSources } from "@/context/sources-context";
+import { useSourceRunner } from "@/hooks/use-source-runner";
+import type { Chapter, Manga, Page } from "@/parsers/shared/types";
+import { getDownloadedPageUrls } from "@/services/downloads";
+import { getChapterProgress } from "@/services/manga-tracking";
+import { peekMangaDetailCache } from "@/services/manga-detail-cache";
+import {
+  peekReaderPageCache,
+  writeReaderPageCache,
+} from "@/services/reader-page-cache";
+import { findInstalledSource } from "@/services/sources";
+import { decodeMangaKey, mangaFromParams } from "@/utils/manga-route";
+import { findAdjacentChapter } from "@/utils/reader-chapters";
+import { filterRenderablePages } from "@/utils/reader-pages";
+import {
+  prefetchReaderUrls,
+  READER_PRELOAD_AHEAD,
+} from "@/utils/reader-prefetch";
+import { useTheme } from "@/hooks/use-theme";
 
 function decodeParam(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
-  if (!raw) return '';
+  if (!raw) return "";
   try {
     return decodeURIComponent(raw);
   } catch {
@@ -43,17 +53,25 @@ async function loadPagesForChapter(
   sourceId: string,
   manga: Manga,
   target: Chapter,
-  runner: { getPageList: (manga: Manga, chapter: Chapter) => Promise<Page[]> } | null,
+  runner: {
+    getPageList: (manga: Manga, chapter: Chapter) => Promise<Page[]>;
+  } | null,
 ): Promise<Page[]> {
   // Prefer offline downloads, then warm cache, then live source fetch.
-  const localUrls = await getDownloadedPageUrls(sourceId, manga.key, target.key);
+  const localUrls = await getDownloadedPageUrls(
+    sourceId,
+    manga.key,
+    target.key,
+  );
   if (localUrls?.length) return localUrls.map((url) => ({ url }));
 
   const cachedPages = peekReaderPageCache(sourceId, manga.key, target.key);
   if (cachedPages?.length) return cachedPages;
 
   if (!runner) return [];
-  const nextPages = filterRenderablePages(await runner.getPageList(manga, target));
+  const nextPages = filterRenderablePages(
+    await runner.getPageList(manga, target),
+  );
   writeReaderPageCache(sourceId, manga.key, target.key, nextPages);
   return nextPages;
 }
@@ -87,7 +105,12 @@ function ReaderLoadedContent({
 
   useEffect(() => {
     if (!headersReady) return;
-    const nextChapter = findAdjacentChapter(chapters, chapter.key, 'next', true);
+    const nextChapter = findAdjacentChapter(
+      chapters,
+      chapter.key,
+      "next",
+      true,
+    );
     if (!nextChapter) return;
     const cached = peekReaderPageCache(sourceId, manga.key, nextChapter.key);
     if (cached) prefetchPageImages(cached, coverHeaders);
@@ -95,8 +118,15 @@ function ReaderLoadedContent({
 
   if (!headersReady) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}>
-        <ActivityIndicator color='#fff' />
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#000",
+        }}
+      >
+        <ActivityIndicator color="#fff" />
       </View>
     );
   }
@@ -130,7 +160,7 @@ export default function MangaReaderScreen() {
   const mangaKey = decodeParam(params.mangaKey);
   const chapterKey = decodeMangaKey(decodeParam(params.chapterKey));
   const pageParam = decodeParam(params.page);
-  const pageFromRoute = pageParam === '' ? null : Number(pageParam);
+  const pageFromRoute = pageParam === "" ? null : Number(pageParam);
   const { installed } = useSources();
   const source = findInstalledSource(installed, sourceRoute);
   const manifestSourceId = source?.id ?? sourceRoute;
@@ -138,7 +168,11 @@ export default function MangaReaderScreen() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
   const [resumePage, setResumePage] = useState<number | null>(
-    pageFromRoute != null && Number.isFinite(pageFromRoute) && pageFromRoute >= 0 ? pageFromRoute : null,
+    pageFromRoute != null &&
+      Number.isFinite(pageFromRoute) &&
+      pageFromRoute >= 0
+      ? pageFromRoute
+      : null,
   );
   const [contentLoading, setContentLoading] = useState(true);
   const [contentError, setContentError] = useState<string | null>(null);
@@ -146,7 +180,12 @@ export default function MangaReaderScreen() {
   const { colors, radius } = useTheme();
 
   const manga = useMemo(() => {
-    const fromParams = mangaFromParams(manifestSourceId, mangaKey, decodeParam(params.mangaTitle), decodeParam(params.cover));
+    const fromParams = mangaFromParams(
+      manifestSourceId,
+      mangaKey,
+      decodeParam(params.mangaTitle),
+      decodeParam(params.cover),
+    );
     const cached = peekMangaDetailCache(manifestSourceId, mangaKey)?.manga;
     if (!cached) return fromParams;
     return {
@@ -157,8 +196,13 @@ export default function MangaReaderScreen() {
     };
   }, [manifestSourceId, mangaKey, params.cover, params.mangaTitle]);
   const chapter: Chapter = useMemo(() => {
-    const cached = peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters?.find((item) => item.key === chapterKey);
-    return cached ?? { key: chapterKey, title: decodeParam(params.chapterTitle) };
+    const cached = peekMangaDetailCache(
+      manifestSourceId,
+      mangaKey,
+    )?.manga.chapters?.find((item) => item.key === chapterKey);
+    return (
+      cached ?? { key: chapterKey, title: decodeParam(params.chapterTitle) }
+    );
   }, [chapterKey, manifestSourceId, mangaKey, params.chapterTitle]);
 
   useEffect(() => {
@@ -169,7 +213,11 @@ export default function MangaReaderScreen() {
 
       if (resumePage == null) {
         try {
-          const progress = await getChapterProgress(manifestSourceId, mangaKey, chapterKey);
+          const progress = await getChapterProgress(
+            manifestSourceId,
+            mangaKey,
+            chapterKey,
+          );
           if (!cancelled) {
             setResumePage(progress && progress.page >= 0 ? progress.page : 0);
           }
@@ -178,12 +226,17 @@ export default function MangaReaderScreen() {
         }
       }
 
-      const cachedChapters = peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters ?? [];
+      const cachedChapters =
+        peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters ?? [];
       if (cachedChapters.length > 0) {
         setChapters(cachedChapters);
       }
 
-      const localUrls = await getDownloadedPageUrls(manifestSourceId, mangaKey, chapterKey);
+      const localUrls = await getDownloadedPageUrls(
+        manifestSourceId,
+        mangaKey,
+        chapterKey,
+      );
       if (localUrls?.length) {
         if (!cancelled) {
           setPages(localUrls.map((url) => ({ url })));
@@ -192,7 +245,11 @@ export default function MangaReaderScreen() {
         return;
       }
 
-      const cachedPages = peekReaderPageCache(manifestSourceId, mangaKey, chapterKey);
+      const cachedPages = peekReaderPageCache(
+        manifestSourceId,
+        mangaKey,
+        chapterKey,
+      );
       if (cachedPages?.length) {
         if (!cancelled) {
           setPages(cachedPages);
@@ -208,13 +265,17 @@ export default function MangaReaderScreen() {
       }
 
       try {
-        const nextPages = filterRenderablePages(await runner.getPageList(manga, chapter));
+        const nextPages = filterRenderablePages(
+          await runner.getPageList(manga, chapter),
+        );
         if (cancelled) return;
         setPages(nextPages);
         writeReaderPageCache(manifestSourceId, mangaKey, chapterKey, nextPages);
       } catch (loadError) {
         if (!cancelled && !cachedPages?.length) {
-          setContentError(loadError instanceof Error ? loadError.message : String(loadError));
+          setContentError(
+            loadError instanceof Error ? loadError.message : String(loadError),
+          );
         }
       } finally {
         if (!cancelled) setContentLoading(false);
@@ -224,9 +285,7 @@ export default function MangaReaderScreen() {
         try {
           const detail = await runner.getMangaUpdate(manga, false, true);
           if (!cancelled) setChapters(detail.chapters ?? []);
-        } catch {
-          // Chapter list is optional for reading; don't block the reader.
-        }
+        } catch {}
       }
     }
 
@@ -239,9 +298,10 @@ export default function MangaReaderScreen() {
   useEffect(() => {
     if (!runner || chapters.length === 0) return;
 
-    const adjacent = [findAdjacentChapter(chapters, chapterKey, 'previous', true), findAdjacentChapter(chapters, chapterKey, 'next', true)].filter(
-      (item): item is Chapter => Boolean(item),
-    );
+    const adjacent = [
+      findAdjacentChapter(chapters, chapterKey, "previous", true),
+      findAdjacentChapter(chapters, chapterKey, "next", true),
+    ].filter((item): item is Chapter => Boolean(item));
 
     let cancelled = false;
     void (async () => {
@@ -249,9 +309,7 @@ export default function MangaReaderScreen() {
         try {
           await loadPagesForChapter(manifestSourceId, manga, item, runner);
           if (cancelled) return;
-        } catch {
-          // Prefetch is best-effort.
-        }
+        } catch {}
       }
     })();
 
@@ -260,20 +318,27 @@ export default function MangaReaderScreen() {
     };
   }, [chapterKey, chapters, manifestSourceId, manga, mangaKey, runner]);
 
-  const loadChapterPages = useCallback((target: Chapter) => loadPagesForChapter(manifestSourceId, manga, target, runner), [manifestSourceId, manga, runner]);
+  const loadChapterPages = useCallback(
+    (target: Chapter) =>
+      loadPagesForChapter(manifestSourceId, manga, target, runner),
+    [manifestSourceId, manga, runner],
+  );
 
   const combinedError = error ?? contentError;
-  const isLoading = resumePage == null || (runnerLoading && pages.length === 0) || (contentLoading && pages.length === 0);
+  const isLoading =
+    resumePage == null ||
+    (runnerLoading && pages.length === 0) ||
+    (contentLoading && pages.length === 0);
   const readerScreenOptions = useMemo(
     () => ({
       headerShown: false as const,
-      animation: 'slide_from_right' as const,
-      gestureDirection: 'horizontal' as const,
-      statusBarStyle: 'light' as const,
-      statusBarAnimation: 'fade' as const,
+      animation: "slide_from_right" as const,
+      gestureDirection: "horizontal" as const,
+      statusBarStyle: "light" as const,
+      statusBarAnimation: "fade" as const,
       statusBarHidden,
       autoHideHomeIndicator: statusBarHidden,
-      contentStyle: { backgroundColor: '#000' },
+      contentStyle: { backgroundColor: "#000" },
     }),
     [statusBarHidden],
   );
@@ -283,58 +348,91 @@ export default function MangaReaderScreen() {
       <Stack.Screen options={readerScreenOptions} />
       {combinedError && pages.length === 0 ? (
         <View style={styles.messageContainer}>
-          <ThemedText variant='body' color='destructive'>
-            {combinedError ? combinedError : 'Undefined error'}
+          <ThemedText variant="body" color="destructive">
+            {combinedError ? combinedError : "Undefined error"}
           </ThemedText>
           <View style={styles.buttons}>
             <Pressable
-              style={({ pressed }) => [styles.refreshButton, { backgroundColor: colors.tint, borderRadius: radius.md }, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.refreshButton,
+                { backgroundColor: colors.tint, borderRadius: radius.md },
+                pressed && styles.pressed,
+              ]}
               onPress={() => {
                 loadChapterPages(chapter);
               }}
-              accessibilityRole='button'>
-              <ThemedText variant='headline' color='onTint'>
-                {t('manga_refresh')}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="headline" color="onTint">
+                {t("manga_refresh")}
               </ThemedText>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.backButton, { backgroundColor: colors.destructive, borderRadius: radius.md }, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.backButton,
+                {
+                  backgroundColor: colors.destructive,
+                  borderRadius: radius.md,
+                },
+                pressed && styles.pressed,
+              ]}
               onPress={() => {
                 router.back();
               }}
-              accessibilityRole='button'>
-              <ThemedText variant='headline' color='onTint'>
-                {t('back')}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="headline" color="onTint">
+                {t("back")}
               </ThemedText>
             </Pressable>
           </View>
         </View>
       ) : isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}>
-          <ActivityIndicator color='#fff' />
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#000",
+          }}
+        >
+          <ActivityIndicator color="#fff" />
         </View>
       ) : pages.length === 0 ? (
         <View style={styles.messageContainer}>
-          <EmptyState icon='images-outline' title={t('reader_no_pages')} />
+          <EmptyState icon="images-outline" title={t("reader_no_pages")} />
           <View style={styles.buttons}>
             <Pressable
-              style={({ pressed }) => [styles.refreshButton, { backgroundColor: colors.tint, borderRadius: radius.md }, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.refreshButton,
+                { backgroundColor: colors.tint, borderRadius: radius.md },
+                pressed && styles.pressed,
+              ]}
               onPress={() => {
                 loadChapterPages(chapter);
               }}
-              accessibilityRole='button'>
-              <ThemedText variant='headline' color='onTint'>
-                {t('manga_refresh')}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="headline" color="onTint">
+                {t("manga_refresh")}
               </ThemedText>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.backButton, { backgroundColor: colors.destructive, borderRadius: radius.md }, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.backButton,
+                {
+                  backgroundColor: colors.destructive,
+                  borderRadius: radius.md,
+                },
+                pressed && styles.pressed,
+              ]}
               onPress={() => {
                 router.back();
               }}
-              accessibilityRole='button'>
-              <ThemedText variant='headline' color='onTint'>
-                {t('back')}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="headline" color="onTint">
+                {t("back")}
               </ThemedText>
             </Pressable>
           </View>
@@ -347,7 +445,10 @@ export default function MangaReaderScreen() {
             chapter={chapter}
             chapters={chapters}
             pages={pages}
-            initialPage={Math.min(resumePage ?? 0, Math.max(0, pages.length - 1))}
+            initialPage={Math.min(
+              resumePage ?? 0,
+              Math.max(0, pages.length - 1),
+            )}
             loadChapterPages={loadChapterPages}
             onStatusBarHiddenChange={setStatusBarHidden}
           />
@@ -360,22 +461,22 @@ export default function MangaReaderScreen() {
 const styles = StyleSheet.create({
   messageContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.lg,
     gap: Spacing.xl,
   },
   buttons: {
-    width: '60%',
+    width: "60%",
     gap: Spacing.md,
   },
   refreshButton: {
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   backButton: {
     padding: Spacing.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   pressed: {
     opacity: 0.72,

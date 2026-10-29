@@ -1,11 +1,15 @@
-import * as Haptics from 'expo-haptics';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { usePanGesture, GestureDetector } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
 
 type ReaderPageSliderProps = {
   currentPage: number;
@@ -37,7 +41,9 @@ export function ReaderPageSlider({
   const progressSV = useSharedValue(currentPage);
 
   const currentPageRef = useRef(currentPage);
-  currentPageRef.current = currentPage;
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
   const slidingRef = useRef(false);
 
   const max = Math.max(0, totalPages - 1);
@@ -57,7 +63,10 @@ export function ReaderPageSlider({
   const pageFromAbsoluteX = (absoluteX: number) => {
     const width = widthRef.current;
     if (width <= 0 || max <= 0) return 0;
-    const ratio = Math.min(1, Math.max(0, (absoluteX - trackPageXRef.current) / width));
+    const ratio = Math.min(
+      1,
+      Math.max(0, (absoluteX - trackPageXRef.current) / width),
+    );
     return Math.round(ratio * max);
   };
 
@@ -104,33 +113,41 @@ export function ReaderPageSlider({
     progressSV.value = restore;
   };
 
-  const panGesture = Gesture.Pan()
-    .minDistance(0)
-    .shouldCancelWhenOutside(false)
-    .onBegin((event) => {
-      runOnJS(beginSlide)(event.absoluteX);
-    })
-    .onUpdate((event) => {
+  const panGesture = usePanGesture({
+    minDistance: 0,
+    shouldCancelWhenOutside: false,
+    onActivate: (event) => {
+      "worklet";
+      scheduleOnRN(beginSlide, event.absoluteX);
+    },
+    onUpdate: (event) => {
+      "worklet";
       const trackWidth = widthSV.value;
       const maxPage = maxSV.value;
       const localX = event.absoluteX - trackPageXSV.value;
-      const ratio = trackWidth <= 0 || maxPage <= 0 ? 0 : Math.min(1, Math.max(0, localX / trackWidth));
+      const ratio =
+        trackWidth <= 0 || maxPage <= 0
+          ? 0
+          : Math.min(1, Math.max(0, localX / trackWidth));
       progressSV.value = Math.round(ratio * maxPage);
-      runOnJS(moveSlide)(event.absoluteX);
-    })
-    .onFinalize((event, success) => {
-      if (success) {
-        runOnJS(endSlide)(event.absoluteX);
-        return;
+      scheduleOnRN(moveSlide, event.absoluteX);
+    },
+    onDeactivate: (event) => {
+      "worklet";
+      if (!event.canceled) {
+        scheduleOnRN(endSlide, event.absoluteX);
+      } else {
+        scheduleOnRN(cancelSlide);
       }
-      runOnJS(cancelSlide)();
-    });
+    },
+  });
 
   const thumbStyle = useAnimatedStyle(() => {
     const width = widthSV.value;
     const maxPage = Math.max(1, maxSV.value);
     const travel = Math.max(0, width - THUMB_SIZE);
-    const x = maxSV.value <= 0 ? travel / 2 : (progressSV.value / maxPage) * travel;
+    const x =
+      maxSV.value <= 0 ? travel / 2 : (progressSV.value / maxPage) * travel;
     return {
       transform: [{ translateX: x }],
     };
@@ -145,10 +162,14 @@ export function ReaderPageSlider({
     <View style={styles.root}>
       {sliding ? (
         <View
-          style={[styles.bubbleWrap, { left: `${(max <= 0 ? 0.5 : clamped / max) * 100}%` }]}
-          pointerEvents='none'>
+          style={[
+            styles.bubbleWrap,
+            { left: `${(max <= 0 ? 0.5 : clamped / max) * 100}%` },
+          ]}
+          pointerEvents="none"
+        >
           <View style={styles.bubble}>
-            <ThemedText variant='caption1' style={styles.bubbleText}>
+            <ThemedText variant="caption1" style={styles.bubbleText}>
               {clamped + 1}
             </ThemedText>
           </View>
@@ -166,7 +187,8 @@ export function ReaderPageSlider({
               trackPageXRef.current = x;
               trackPageXSV.value = x;
             });
-          }}>
+          }}
+        >
           <View style={styles.sections}>
             {sections.map((index) => (
               <View
@@ -174,14 +196,18 @@ export function ReaderPageSlider({
                 style={[
                   styles.section,
                   {
-                    marginRight: index === sections.length - 1 ? 0 : SECTION_GAP,
-                    backgroundColor: index <= clamped ? accentColor : 'rgba(255,255,255,0.22)',
+                    marginRight:
+                      index === sections.length - 1 ? 0 : SECTION_GAP,
+                    backgroundColor:
+                      index <= clamped ? accentColor : "rgba(255,255,255,0.22)",
                   },
                 ]}
               />
             ))}
           </View>
-          <Animated.View style={[styles.thumb, { backgroundColor: accentColor }, thumbStyle]} />
+          <Animated.View
+            style={[styles.thumb, { backgroundColor: accentColor }, thumbStyle]}
+          />
         </View>
       </GestureDetector>
     </View>
@@ -193,7 +219,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
   },
   bubbleWrap: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     transform: [{ translateX: -16 }],
   },
@@ -202,22 +228,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.78)',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.78)",
+    alignItems: "center",
   },
   bubbleText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   trackHit: {
     height: 44,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   sections: {
     height: TRACK_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    overflow: 'hidden',
+    flexDirection: "row",
+    alignItems: "stretch",
+    overflow: "hidden",
     borderRadius: 5,
   },
   section: {
@@ -226,12 +252,12 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   thumb: {
-    position: 'absolute',
+    position: "absolute",
     width: THUMB_SIZE,
     height: THUMB_SIZE,
     borderRadius: THUMB_SIZE / 2,
     top: (44 - THUMB_SIZE) / 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.35,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },

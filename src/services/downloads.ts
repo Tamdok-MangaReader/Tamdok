@@ -1,9 +1,9 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from "expo-file-system/legacy";
 
-import { getValue, setValue, storageKeys } from '@/constants/storage';
-import { notifyMangaDataChanged } from '@/utils/manga-events';
+import { getValue, setValue, storageKeys } from "@/constants/storage";
+import { notifyMangaDataChanged } from "@/utils/manga-events";
 
-export type DownloadStatus = 'pending' | 'downloading' | 'completed' | 'failed';
+export type DownloadStatus = "pending" | "downloading" | "completed" | "failed";
 
 export type DownloadEntry = {
   sourceId: string;
@@ -21,55 +21,137 @@ type DownloadStore = {
   entries: DownloadEntry[];
 };
 
-function downloadKey(sourceId: string, mangaKey: string, chapterKey: string): string {
+export type QueueDownloadInput = Pick<
+  DownloadEntry,
+  "sourceId" | "mangaKey" | "chapterKey" | "mangaTitle" | "chapterTitle"
+>;
+
+const PAGE_CONCURRENCY = 4;
+const PROGRESS_NOTIFY_MS = 500;
+const SOURCE_PREFIX = /^(aidoku|tamdok):/;
+
+let cache: DownloadStore | null = null;
+let cacheLoad: Promise<DownloadStore> | null = null;
+let mutationTail: Promise<void> = Promise.resolve();
+
+function loadStore(): Promise<DownloadStore> {
+  if (cache) return Promise.resolve(cache);
+  if (!cacheLoad) {
+    cacheLoad = getValue<DownloadStore>(storageKeys.DOWNLOADS, { entries: [] })
+      .then((stored) => {
+        const store: DownloadStore = {
+          entries: Array.isArray(stored?.entries) ? stored.entries : [],
+        };
+        cache = store;
+        return store;
+      })
+      .finally(() => {
+        cacheLoad = null;
+      });
+  }
+  return cacheLoad;
+}
+
+export function invalidateDownloadsCache(): void {
+  cache = null;
+}
+
+function mutateStore(
+  apply: (store: DownloadStore) => boolean,
+  persist = true,
+): Promise<void> {
+  const run = mutationTail.then(async () => {
+    const store = await loadStore();
+    if (!apply(store)) return;
+    if (persist) await setValue(storageKeys.DOWNLOADS, store);
+    notifyMangaDataChanged();
+  });
+  mutationTail = run.catch(() => undefined);
+  return run;
+}
+
+function downloadKey(
+  sourceId: string,
+  mangaKey: string,
+  chapterKey: string,
+): string {
   return `${sourceId}:${mangaKey}:${chapterKey}`;
 }
 
+function findEntry(
+  store: DownloadStore,
+  sourceId: string,
+  mangaKey: string,
+  chapterKey: string,
+): DownloadEntry | undefined {
+  return store.entries.find(
+    (item) =>
+      item.sourceId === sourceId &&
+      item.mangaKey === mangaKey &&
+      item.chapterKey === chapterKey,
+  );
+}
+
 function matchesDownload(
-  entry: Pick<DownloadEntry, 'sourceId' | 'mangaKey' | 'chapterKey'>,
+  entry: Pick<DownloadEntry, "sourceId" | "mangaKey" | "chapterKey">,
   sourceId: string,
   mangaKey: string,
   chapterKey: string,
 ): boolean {
-  return sameDownloadSource(entry.sourceId, sourceId) && entry.mangaKey === mangaKey && entry.chapterKey === chapterKey;
+  return (
+    sameDownloadSource(entry.sourceId, sourceId) &&
+    entry.mangaKey === mangaKey &&
+    entry.chapterKey === chapterKey
+  );
 }
 
 function sourceIdCandidates(sourceId: string): string[] {
-  const stripped = sourceId.replace(/^(aidoku|tamdok):/, '');
+  const stripped = sourceId.replace(SOURCE_PREFIX, "");
   return stripped === sourceId ? [sourceId] : [sourceId, stripped];
 }
 
 function sameDownloadSource(a: string, b: string): boolean {
-  return a === b || a.replace(/^(aidoku|tamdok):/, '') === b.replace(/^(aidoku|tamdok):/, '');
+  return (
+    a === b || a.replace(SOURCE_PREFIX, "") === b.replace(SOURCE_PREFIX, "")
+  );
 }
 
 function toFileUri(path: string): string {
-  if (path.startsWith('file:')) return path;
-  if (path.startsWith('/')) return `file://${path}`;
+  if (path.startsWith("file:")) return path;
+  if (path.startsWith("/")) return `file://${path}`;
   return path;
 }
 
-export function downloadDirectory(sourceId: string, mangaKey: string, chapterKey: string): string {
+export function downloadDirectory(
+  sourceId: string,
+  mangaKey: string,
+  chapterKey: string,
+): string {
   return `${FileSystem.documentDirectory}Downloads/${sourceId}/${mangaKey}/${chapterKey}/`;
 }
 
-async function readStore(): Promise<DownloadStore> {
-  return getValue<DownloadStore>(storageKeys.DOWNLOADS, { entries: [] });
-}
-
-async function writeStore(store: DownloadStore): Promise<void> {
-  await setValue(storageKeys.DOWNLOADS, store);
-  notifyMangaDataChanged();
-}
-
 export async function getDownloads(): Promise<DownloadEntry[]> {
-  const store = await readStore();
-  return [...store.entries].sort((a, b) => b.dateAdded - a.dateAdded);
+  const store = await loadStore();
+  return store.entries
+    .map((entry) => ({ ...entry }))
+    .sort((a, b) => b.dateAdded - a.dateAdded);
 }
 
-export async function getMangaDownloads(sourceId: string, mangaKey: string): Promise<DownloadEntry[]> {
-  const store = await readStore();
-  return store.entries.filter((entry) => sameDownloadSource(entry.sourceId, sourceId) && entry.mangaKey === mangaKey);
+export async function getMangaDownloads(
+  sourceId: string,
+  mangaKey: string,
+): Promise<DownloadEntry[]> {
+  const store = await loadStore();
+  const result: DownloadEntry[] = [];
+  for (const entry of store.entries) {
+    if (
+      sameDownloadSource(entry.sourceId, sourceId) &&
+      entry.mangaKey === mangaKey
+    ) {
+      result.push({ ...entry });
+    }
+  }
+  return result;
 }
 
 export async function isChapterDownloaded(
@@ -77,36 +159,62 @@ export async function isChapterDownloaded(
   mangaKey: string,
   chapterKey: string,
 ): Promise<boolean> {
-  const store = await readStore();
-  const entry = store.entries.find((item) => matchesDownload(item, sourceId, mangaKey, chapterKey));
-  return entry?.status === 'completed';
+  const store = await loadStore();
+  const entry = store.entries.find((item) =>
+    matchesDownload(item, sourceId, mangaKey, chapterKey),
+  );
+  return entry?.status === "completed";
+}
+
+export async function queueChapterDownloads(
+  entries: QueueDownloadInput[],
+): Promise<void> {
+  if (entries.length === 0) return;
+
+  await mutateStore((store) => {
+    const index = new Map<string, DownloadEntry>();
+    for (const item of store.entries) {
+      index.set(
+        downloadKey(item.sourceId, item.mangaKey, item.chapterKey),
+        item,
+      );
+    }
+
+    const now = Date.now();
+    let changed = false;
+
+    entries.forEach((entry, order) => {
+      const key = downloadKey(entry.sourceId, entry.mangaKey, entry.chapterKey);
+      const existing = index.get(key);
+      if (existing && existing.status !== "failed") return;
+
+      const dateAdded = now + order;
+      if (existing) {
+        existing.status = "pending";
+        existing.progress = 0;
+        existing.error = undefined;
+        existing.dateAdded = dateAdded;
+      } else {
+        const created: DownloadEntry = {
+          ...entry,
+          status: "pending",
+          progress: 0,
+          dateAdded,
+        };
+        store.entries.push(created);
+        index.set(key, created);
+      }
+      changed = true;
+    });
+
+    return changed;
+  });
 }
 
 export async function queueChapterDownload(
-  entry: Pick<DownloadEntry, 'sourceId' | 'mangaKey' | 'chapterKey' | 'mangaTitle' | 'chapterTitle'>,
+  entry: QueueDownloadInput,
 ): Promise<void> {
-  const store = await readStore();
-  const key = downloadKey(entry.sourceId, entry.mangaKey, entry.chapterKey);
-  const existing = store.entries.find(
-    (item) => downloadKey(item.sourceId, item.mangaKey, item.chapterKey) === key,
-  );
-  if (existing && existing.status !== 'failed') return;
-
-  if (existing) {
-    existing.status = 'pending';
-    existing.progress = 0;
-    existing.error = undefined;
-    existing.dateAdded = Date.now();
-  } else {
-    store.entries.push({
-      ...entry,
-      status: 'pending',
-      progress: 0,
-      dateAdded: Date.now(),
-    });
-  }
-
-  await writeStore(store);
+  await queueChapterDownloads([entry]);
 }
 
 export async function updateDownloadStatus(
@@ -117,16 +225,33 @@ export async function updateDownloadStatus(
   progress?: number,
   error?: string,
 ): Promise<void> {
-  const store = await readStore();
-  const key = downloadKey(sourceId, mangaKey, chapterKey);
-  const entry = store.entries.find(
-    (item) => downloadKey(item.sourceId, item.mangaKey, item.chapterKey) === key,
-  );
+  await mutateStore((store) => {
+    const entry = findEntry(store, sourceId, mangaKey, chapterKey);
+    if (!entry) return false;
+    entry.status = status;
+    if (progress != null) entry.progress = progress;
+    if (error != null) entry.error = error;
+    return true;
+  });
+}
+
+let progressTimer: ReturnType<typeof setTimeout> | null = null;
+
+function reportProgress(
+  sourceId: string,
+  mangaKey: string,
+  chapterKey: string,
+  progress: number,
+): void {
+  if (!cache) return;
+  const entry = findEntry(cache, sourceId, mangaKey, chapterKey);
   if (!entry) return;
-  entry.status = status;
-  if (progress != null) entry.progress = progress;
-  if (error != null) entry.error = error;
-  await writeStore(store);
+  entry.progress = progress;
+  if (progressTimer) return;
+  progressTimer = setTimeout(() => {
+    progressTimer = null;
+    notifyMangaDataChanged();
+  }, PROGRESS_NOTIFY_MS);
 }
 
 export async function removeChapterDownload(
@@ -134,35 +259,65 @@ export async function removeChapterDownload(
   mangaKey: string,
   chapterKey: string,
 ): Promise<void> {
-  const store = await readStore();
-  const key = downloadKey(sourceId, mangaKey, chapterKey);
-  store.entries = store.entries.filter(
-    (item) => downloadKey(item.sourceId, item.mangaKey, item.chapterKey) !== key,
+  await mutateStore((store) => {
+    const before = store.entries.length;
+    store.entries = store.entries.filter(
+      (item) =>
+        !(
+          item.sourceId === sourceId &&
+          item.mangaKey === mangaKey &&
+          item.chapterKey === chapterKey
+        ),
+    );
+    return store.entries.length !== before;
+  });
+  await FileSystem.deleteAsync(
+    downloadDirectory(sourceId, mangaKey, chapterKey),
+    {
+      idempotent: true,
+    },
   );
-  const dir = downloadDirectory(sourceId, mangaKey, chapterKey);
-  const info = await FileSystem.getInfoAsync(dir);
-  if (info.exists) {
-    await FileSystem.deleteAsync(dir, { idempotent: true });
-  }
-  await writeStore(store);
 }
 
-export async function removeMangaDownloads(sourceId: string, mangaKey: string): Promise<void> {
-  const store = await readStore();
-  const toRemove = store.entries.filter(
-    (entry) => entry.sourceId === sourceId && entry.mangaKey === mangaKey,
-  );
-  for (const entry of toRemove) {
-    const dir = downloadDirectory(entry.sourceId, entry.mangaKey, entry.chapterKey);
-    const info = await FileSystem.getInfoAsync(dir);
-    if (info.exists) {
-      await FileSystem.deleteAsync(dir, { idempotent: true });
+export async function removeMangaDownloads(
+  sourceId: string,
+  mangaKey: string,
+): Promise<void> {
+  const removed: DownloadEntry[] = [];
+
+  await mutateStore((store) => {
+    const keep: DownloadEntry[] = [];
+    for (const entry of store.entries) {
+      if (
+        sameDownloadSource(entry.sourceId, sourceId) &&
+        entry.mangaKey === mangaKey
+      ) {
+        removed.push(entry);
+      } else {
+        keep.push(entry);
+      }
     }
-  }
-  store.entries = store.entries.filter(
-    (entry) => !(entry.sourceId === sourceId && entry.mangaKey === mangaKey),
+    if (removed.length === 0) return false;
+    store.entries = keep;
+    return true;
+  });
+
+  await Promise.all(
+    removed.map((entry) =>
+      FileSystem.deleteAsync(
+        downloadDirectory(entry.sourceId, entry.mangaKey, entry.chapterKey),
+        { idempotent: true },
+      ),
+    ),
   );
-  await writeStore(store);
+}
+
+export async function clearFailedDownloads(): Promise<void> {
+  await mutateStore((store) => {
+    const before = store.entries.length;
+    store.entries = store.entries.filter((entry) => entry.status !== "failed");
+    return store.entries.length !== before;
+  });
 }
 
 export async function saveDownloadedPages(
@@ -174,21 +329,56 @@ export async function saveDownloadedPages(
 ): Promise<void> {
   const dir = downloadDirectory(sourceId, mangaKey, chapterKey);
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-  const manifest: string[] = [];
-  const options = headers && Object.keys(headers).length > 0 ? { headers } : undefined;
+  const options =
+    headers && Object.keys(headers).length > 0 ? { headers } : undefined;
 
-  for (let index = 0; index < pageUrls.length; index += 1) {
-    const url = pageUrls[index];
-    if (!url) continue;
-    const filename = `page_${String(index).padStart(4, '0')}.jpg`;
-    const target = `${dir}${filename}`;
-    await FileSystem.downloadAsync(url, target, options);
-    manifest.push(target);
-    await updateDownloadStatus(sourceId, mangaKey, chapterKey, 'downloading', (index + 1) / pageUrls.length);
-  }
+  const files: (string | null)[] = new Array(pageUrls.length).fill(null);
+  let nextIndex = 0;
+  let finished = 0;
+  let failed = false;
 
-  await FileSystem.writeAsStringAsync(`${dir}manifest.json`, JSON.stringify(manifest));
-  await updateDownloadStatus(sourceId, mangaKey, chapterKey, 'completed', 1);
+  const worker = async (): Promise<void> => {
+    while (!failed) {
+      const index = nextIndex++;
+      if (index >= pageUrls.length) return;
+
+      const url = pageUrls[index];
+      if (url) {
+        const target = `${dir}page_${String(index).padStart(4, "0")}.jpg`;
+        try {
+          const result = await FileSystem.downloadAsync(url, target, options);
+          if (result.status < 200 || result.status >= 300) {
+            throw new Error(`HTTP ${result.status}`);
+          }
+          files[index] = target;
+        } catch (error) {
+          failed = true;
+          throw error;
+        }
+      }
+
+      finished += 1;
+      reportProgress(
+        sourceId,
+        mangaKey,
+        chapterKey,
+        finished / pageUrls.length,
+      );
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(PAGE_CONCURRENCY, pageUrls.length) }, () =>
+      worker(),
+    ),
+  );
+
+  const manifest = files.filter((file): file is string => file !== null);
+  await FileSystem.writeAsStringAsync(
+    `${dir}manifest.json`,
+    JSON.stringify(manifest),
+  );
+  await updateDownloadStatus(sourceId, mangaKey, chapterKey, "completed", 1);
 }
 
 export async function getDownloadedPageUrls(
@@ -208,8 +398,15 @@ export async function getDownloadedPageUrls(
       const raw = await FileSystem.readAsStringAsync(manifestPath);
       const urls = (JSON.parse(raw) as string[]).map(toFileUri);
       if (urls.length === 0) continue;
-      const existing = await Promise.all(urls.map(async (url) => (await FileSystem.getInfoAsync(url)).exists));
-      if (!existing.some(Boolean)) continue;
+
+      let anyExists = false;
+      for (const url of urls) {
+        if ((await FileSystem.getInfoAsync(url)).exists) {
+          anyExists = true;
+          break;
+        }
+      }
+      if (!anyExists) continue;
       return urls;
     } catch {
       continue;
@@ -218,19 +415,20 @@ export async function getDownloadedPageUrls(
   return null;
 }
 
-export async function getDownloadStats(): Promise<{ total: number; completed: number; pending: number }> {
-  const entries = await getDownloads();
-  return {
-    total: entries.length,
-    completed: entries.filter((entry) => entry.status === 'completed').length,
-    pending: entries.filter((entry) => entry.status === 'pending' || entry.status === 'downloading').length,
-  };
-}
-
-export async function clearFailedDownloads(): Promise<void> {
-  const store = await readStore();
-  store.entries = store.entries.filter((entry) => entry.status !== 'failed');
-  await writeStore(store);
+export async function getDownloadStats(): Promise<{
+  total: number;
+  completed: number;
+  pending: number;
+}> {
+  const store = await loadStore();
+  let completed = 0;
+  let pending = 0;
+  for (const entry of store.entries) {
+    if (entry.status === "completed") completed += 1;
+    else if (entry.status === "pending" || entry.status === "downloading")
+      pending += 1;
+  }
+  return { total: store.entries.length, completed, pending };
 }
 
 export type DownloadPageList = {
@@ -252,16 +450,25 @@ export async function processDownloadQueue(
 ): Promise<void> {
   const run = queueTail.then(async () => {
     while (true) {
-      const store = await readStore();
+      const store = await loadStore();
       const pending = store.entries
-        .filter((entry) => entry.status === 'pending' || entry.status === 'downloading')
+        .filter(
+          (entry) =>
+            entry.status === "pending" || entry.status === "downloading",
+        )
         .sort((a, b) => a.dateAdded - b.dateAdded)
         .slice(0, limit);
       if (pending.length === 0) break;
 
       for (const entry of pending) {
         try {
-          await updateDownloadStatus(entry.sourceId, entry.mangaKey, entry.chapterKey, 'downloading', 0);
+          await updateDownloadStatus(
+            entry.sourceId,
+            entry.mangaKey,
+            entry.chapterKey,
+            "downloading",
+            0,
+          );
           const fetched = await fetchPages(
             entry.sourceId,
             entry.mangaKey,
@@ -272,18 +479,31 @@ export async function processDownloadQueue(
           const urls = Array.isArray(fetched) ? fetched : fetched.urls;
           const headers = Array.isArray(fetched) ? undefined : fetched.headers;
           if (urls.length === 0) {
-            await updateDownloadStatus(entry.sourceId, entry.mangaKey, entry.chapterKey, 'failed', 0, 'No pages');
+            await updateDownloadStatus(
+              entry.sourceId,
+              entry.mangaKey,
+              entry.chapterKey,
+              "failed",
+              0,
+              "No pages",
+            );
             continue;
           }
-          await saveDownloadedPages(entry.sourceId, entry.mangaKey, entry.chapterKey, urls, headers);
+          await saveDownloadedPages(
+            entry.sourceId,
+            entry.mangaKey,
+            entry.chapterKey,
+            urls,
+            headers,
+          );
         } catch (error) {
           await updateDownloadStatus(
             entry.sourceId,
             entry.mangaKey,
             entry.chapterKey,
-            'failed',
+            "failed",
             undefined,
-            error instanceof Error ? error.message : 'Download failed',
+            error instanceof Error ? error.message : "Download failed",
           );
         }
       }

@@ -1,7 +1,9 @@
+import { memo, useCallback, useMemo, useRef } from "react";
 import {
-  Dimensions,
   FlatList,
+  Platform,
   StyleSheet,
+  useWindowDimensions,
   type RefreshControlProps,
   type ScrollViewProps,
 } from "react-native";
@@ -47,6 +49,77 @@ type MangaGridProps = {
   contentInsetAdjustmentBehavior?: "automatic" | "never";
 };
 
+type CellProps = {
+  item: MangaGridItem;
+  sourceId?: string;
+  width: number;
+  getMeta: ReturnType<typeof useLibraryLookup>["getMeta"];
+  showBookmark: boolean;
+  showRating: boolean;
+  isRatingCompact: boolean;
+  scaleBadges: boolean;
+  onPress: (manga: MangaGridItem) => void;
+  onLongPress?: (manga: MangaGridItem) => void;
+};
+
+const MangaGridCell = memo(function MangaGridCell({
+  item,
+  sourceId,
+  width,
+  getMeta,
+  showBookmark,
+  showRating,
+  isRatingCompact,
+  scaleBadges,
+  onPress,
+  onLongPress,
+}: CellProps) {
+  const enriched = useMemo(
+    () => enrichMangaWithLibraryMeta(item, sourceId ?? item.sourceId, getMeta),
+    [item, sourceId, getMeta],
+  );
+
+  // Описание парсим ТОЛЬКО если рейтинг реально нужен и не пришёл готовым
+  const rating = useMemo(() => {
+    if (!showRating) return undefined;
+    const raw =
+      item.rating || parseMangaDescription(item.description).ratingLine;
+    return parseRatingText(raw) ?? undefined;
+  }, [showRating, item.rating, item.description]);
+
+  const handlePress = useCallback(() => onPress(item), [onPress, item]);
+  const handleLongPress = useMemo(
+    () => (onLongPress ? () => onLongPress(item) : undefined),
+    [onLongPress, item],
+  );
+
+  return (
+    <MangaCover
+      title={item.title}
+      cover={item.cover}
+      width={width}
+      inLibrary={enriched.inLibrary}
+      unreadCount={enriched.unreadCount}
+      downloadedCount={enriched.downloadedCount}
+      updateFailed={enriched.updateFailed}
+      showBookmark={showBookmark}
+      scaleBadges={scaleBadges}
+      showStatus={!!item.status}
+      mangaStatus={item.status}
+      rating={rating}
+      isRatingCompact={isRatingCompact}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+    />
+  );
+});
+
+const keyExtractor = (item: { key: string }) => item.key;
+
+const renderScrollComponent = (props: ScrollViewProps) => (
+  <LiquidGlassScrollComponent {...props} />
+);
+
 export function MangaGrid({
   entries,
   sourceId,
@@ -66,86 +139,103 @@ export function MangaGrid({
   scrollEnabled = true,
   contentInsetAdjustmentBehavior = "automatic",
 }: MangaGridProps) {
-  const width = Dimensions.get("window").width;
-  const itemWidth = Math.floor(
-    (width - Spacing.lg * 2 - Spacing.sm * (columns - 1)) / columns,
+  const { width } = useWindowDimensions();
+  const itemWidth = useMemo(
+    () =>
+      Math.floor(
+        (width - Spacing.lg * 2 - Spacing.sm * (columns - 1)) / columns,
+      ),
+    [width, columns],
   );
   const { getMeta } = useLibraryLookup();
+
+  const pressRef = useRef(onPressManga);
+  const longPressRef = useRef(onLongPressManga);
+  pressRef.current = onPressManga;
+  longPressRef.current = onLongPressManga;
+
+  const handlePress = useCallback(
+    (m: MangaGridItem) => pressRef.current(m),
+    [],
+  );
+  const handleLongPress = useCallback(
+    (m: MangaGridItem) => longPressRef.current?.(m),
+    [],
+  );
+  const hasLongPress = !!onLongPressManga;
+
+  const renderItem = useCallback(
+    ({ item }: { item: MangaGridItem }) => (
+      <MangaGridCell
+        item={item}
+        sourceId={sourceId}
+        width={itemWidth}
+        getMeta={getMeta}
+        showBookmark={showBookmark}
+        showRating={showRating}
+        isRatingCompact={isRatingCompact}
+        scaleBadges={scaleBadges}
+        onPress={handlePress}
+        onLongPress={hasLongPress ? handleLongPress : undefined}
+      />
+    ),
+    [
+      sourceId,
+      itemWidth,
+      getMeta,
+      showBookmark,
+      showRating,
+      isRatingCompact,
+      scaleBadges,
+      handlePress,
+      handleLongPress,
+      hasLongPress,
+    ],
+  );
+
+  const contentContainerStyle = useMemo(
+    () => [styles.list, entries.length === 0 ? styles.emptyList : null],
+    [entries.length],
+  );
 
   return (
     <FlatList
       key={`manga-grid-${columns}`}
       style={styles.root}
-      data={entries}
-      keyExtractor={(item) => item.key}
+      data={entries as MangaGridItem[]}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
       numColumns={columns}
       columnWrapperStyle={columns > 1 ? styles.row : undefined}
-      contentContainerStyle={[
-        styles.list,
-        entries.length === 0 ? styles.emptyList : null,
-      ]}
+      contentContainerStyle={contentContainerStyle}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior}
       scrollEnabled={scrollEnabled}
       bounces={scrollEnabled}
-      renderScrollComponent={(props: ScrollViewProps) => (
-        <LiquidGlassScrollComponent {...props} />
-      )}
+      renderScrollComponent={renderScrollComponent}
       onEndReached={onEndReached}
-      onEndReachedThreshold={0.4}
+      onEndReachedThreshold={1.5}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={ListEmptyComponent}
       refreshControl={refreshControl ?? undefined}
       extraData={extraData}
-      renderItem={({ item }) => {
-        const enriched = enrichMangaWithLibraryMeta(
-          item,
-          sourceId ?? item.sourceId,
-          getMeta,
-        );
-        const showMeta = enriched.inLibrary;
-        const parsed = parseMangaDescription(item.description);
-        const rating = parseRatingText(item.rating || parsed.ratingLine);
-        return (
-          <MangaCover
-            title={item.title}
-            cover={item.cover}
-            width={itemWidth}
-            inLibrary={showMeta}
-            unreadCount={enriched.unreadCount}
-            downloadedCount={enriched.downloadedCount}
-            updateFailed={enriched.updateFailed}
-            showBookmark={showBookmark}
-            scaleBadges={scaleBadges}
-            showStatus={item.status && true}
-            mangaStatus={item.status}
-            rating={showRating && rating !== null ? rating : undefined}
-            isRatingCompact={isRatingCompact}
-            onPress={() => onPressManga(item as MangaGridItem)}
-            onLongPress={
-              onLongPressManga
-                ? () => onLongPressManga(item as MangaGridItem)
-                : undefined
-            }
-          />
-        );
-      }}
+      initialNumToRender={columns * 4}
+      maxToRenderPerBatch={columns * 2}
+      updateCellsBatchingPeriod={50}
+      windowSize={7}
+      removeClippedSubviews={Platform.OS === "android"}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-  },
+  root: { flex: 1 },
   list: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.xs,
     paddingBottom: Spacing.xxxl,
   },
-  emptyList: {
-    flexGrow: 1,
-  },
+  emptyList: { flexGrow: 1 },
   row: {
     gap: Spacing.sm,
     marginBottom: Spacing.md,

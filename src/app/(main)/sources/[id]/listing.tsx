@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 import { MangaGrid } from "@/components/manga/manga-grid";
@@ -15,6 +15,10 @@ import type { Listing, Manga } from "@/parsers/shared/types";
 import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { mangaHref } from "@/utils/manga-route";
+
+const ResultsGrid = memo(MangaGrid);
+
+const FOOTER_SPINNER_STYLE = { paddingVertical: Spacing.lg } as const;
 
 function decodeSourceRouteId(id: string): string {
   try {
@@ -38,12 +42,18 @@ export default function SourceListingScreen() {
   const sourceRoute = decodeSourceRouteId(rawId ?? "");
   const { installed } = useSources();
   const source = findInstalledSource(installed, sourceRoute);
+  const sourceKey = source ? sourceRouteId(source) : null;
+  const sourceId = source?.id;
   const { runner, error, isLoading: runnerLoading } = useSourceRunner(source);
   const [entries, setEntries] = useState<Manga[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const requestIdRef = useRef(0);
+  const pageRef = useRef(1);
+  const hasNextRef = useRef(false);
+  const busyRef = useRef(false);
 
   useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
 
@@ -60,47 +70,90 @@ export default function SourceListingScreen() {
     async (nextPage: number, append: boolean) => {
       if (!runner?.getMangaList) return;
       const requestId = ++requestIdRef.current;
-      setIsLoading(true);
+      busyRef.current = true;
+      if (append) setIsLoadingMore(true);
+      else {
+        setIsLoading(true);
+        setLoadError(null);
+      }
       try {
         const result = await runner.getMangaList(listing, nextPage);
         if (requestId !== requestIdRef.current) return;
-        setEntries((current) =>
-          append ? [...current, ...result.entries] : result.entries,
-        );
-        setHasNextPage(result.hasNextPage);
-        setPage(nextPage);
-      } catch (error) {
+        setEntries((current) => {
+          if (!append) return result.entries;
+          const seen = new Set(current.map((manga) => manga.key));
+          const fresh = result.entries.filter((manga) => !seen.has(manga.key));
+          return fresh.length > 0 ? [...current, ...fresh] : current;
+        });
+        hasNextRef.current = result.hasNextPage;
+        pageRef.current = nextPage;
+      } catch (loadErr) {
         if (
           requestId !== requestIdRef.current ||
-          isAidokuRequestCancelled(error)
-        )
+          isAidokuRequestCancelled(loadErr)
+        ) {
           return;
+        }
+        if (!append) {
+          setLoadError(
+            loadErr instanceof Error ? loadErr.message : String(loadErr),
+          );
+          setEntries([]);
+          hasNextRef.current = false;
+        }
       } finally {
-        if (requestId === requestIdRef.current) setIsLoading(false);
+        if (requestId === requestIdRef.current) {
+          busyRef.current = false;
+          setIsLoading(false);
+          setIsLoadingMore(false);
+        }
       }
     },
     [runner, listing],
   );
+
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
   useEffect(() => {
     if (!runner) return;
     void load(1, false);
     return () => {
       requestIdRef.current += 1;
+      busyRef.current = false;
     };
   }, [runner, listing.id, load]);
 
-  const openManga = (manga: Manga) => {
-    if (!source) return;
-    router.navigate(mangaHref(sourceRouteId(source), manga));
-  };
+  const openManga = useCallback(
+    (manga: Manga) => {
+      if (!sourceKey) return;
+      router.navigate(mangaHref(sourceKey, manga));
+    },
+    [router, sourceKey],
+  );
 
+  const handleEndReached = useCallback(() => {
+    if (busyRef.current || !hasNextRef.current) return;
+    void loadRef.current(pageRef.current + 1, true);
+  }, []);
+
+  const footer = useMemo(
+    () =>
+      isLoadingMore ? <ActivityIndicator style={FOOTER_SPINNER_STYLE} /> : null,
+    [isLoadingMore],
+  );
+
+  const screenOptions = useMemo(
+    () => ({ title: listingName ?? listing.id }),
+    [listingName, listing.id],
+  );
+
+  const displayError = error ?? loadError;
+  const supportsListing = Boolean(runner?.getMangaList);
+  const showLoading = runnerLoading || (isLoading && entries.length === 0);
   const centerContent =
-    !error &&
-    (!runner?.getMangaList ||
-      runnerLoading ||
-      (isLoading && entries.length === 0) ||
-      entries.length === 0);
+    !displayError &&
+    (!supportsListing || runnerLoading || entries.length === 0);
 
   if (!source) {
     return (
@@ -118,41 +171,35 @@ export default function SourceListingScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: listingName ?? listing.id }} />
+      <Stack.Screen options={screenOptions} />
       <ScreenContent
         padded={false}
         centerContent={centerContent}
         scrollable={false}
       >
-        {error ? (
+        {displayError ? (
           <View style={styles.errorWrap}>
             <ThemedText variant="body" color="destructive">
-              {error}
+              {displayError}
             </ThemedText>
           </View>
-        ) : !runner?.getMangaList ? (
+        ) : !supportsListing ? (
           <EmptyState
             icon="alert-circle-outline"
             title={t("sources_listing_unsupported")}
           />
-        ) : runnerLoading || (isLoading && entries.length === 0) ? (
+        ) : showLoading ? (
           <ActivityIndicator />
         ) : entries.length === 0 ? (
           <EmptyState icon="book-outline" title={t("sources_browse_empty")} />
         ) : (
           <View style={styles.gridWrap}>
-            <MangaGrid
+            <ResultsGrid
               entries={entries}
-              sourceId={source?.id}
+              sourceId={sourceId}
               onPressManga={openManga}
-              onEndReached={() => {
-                if (!isLoading && hasNextPage) void load(page + 1, true);
-              }}
-              ListFooterComponent={
-                isLoading ? (
-                  <ActivityIndicator style={{ paddingVertical: Spacing.lg }} />
-                ) : null
-              }
+              onEndReached={handleEndReached}
+              ListFooterComponent={footer}
             />
           </View>
         )}

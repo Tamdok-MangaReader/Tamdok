@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -33,7 +34,39 @@ type MangaCoverProps = {
   onLongPress?: () => void;
 };
 
-export function MangaCover({
+const GRADIENT_COLORS = ["rgba(0,0,0,0.01)", "rgba(0,0,0,0.72)"] as const;
+const BADGE_REFERENCE_WIDTH = 112;
+const LONG_PRESS_DELAY = 240;
+
+const STATUS_META = {
+  ongoing: { bg: "rgba(150,150,150,0.9)", icon: "play.fill", whiteIcon: true },
+  completed: { bg: "rgba(1,200,100,0.9)", icon: "checkmark", whiteIcon: false },
+  hiatus: { bg: "rgba(230,210,30,0.9)", icon: "pause.fill", whiteIcon: false },
+  other: { bg: "rgba(255,40,20,0.9)", icon: "xmark", whiteIcon: false },
+} as const;
+
+function getStatusMeta(status: string) {
+  switch (status) {
+    case "ongoing":
+      return STATUS_META.ongoing;
+    case "completed":
+      return STATUS_META.completed;
+    case "hiatus":
+      return STATUS_META.hiatus;
+    default:
+      return STATUS_META.other;
+  }
+}
+
+function formatCount(value: number): string {
+  return value > 99 ? "99+" : String(value);
+}
+
+function coverBadgeScale(width: number): number {
+  return Math.min(1.7, Math.max(0.72, width / BADGE_REFERENCE_WIDTH));
+}
+
+export const MangaCover = memo(function MangaCover({
   title,
   cover,
   width,
@@ -53,39 +86,71 @@ export function MangaCover({
 }: MangaCoverProps) {
   const { colors, radius } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
+
+  const imageSource = useMemo(
+    () => (cover ? coverImageSource(cover, coverHeaders) : undefined),
+    [cover, coverHeaders],
+  );
+
   const height = Math.round(width * 1.45);
-  const badgeScale = scaleBadges ? coverBadgeScale(width) : 1;
-  const badgeSize = Math.round(20 * badgeScale);
-  const badgeFontSize = Math.max(9, Math.round(11 * badgeScale));
-  const badgePadding = Math.max(4, Math.round(6 * badgeScale));
-  const badgeInset = Math.max(4, Math.round(Spacing.xs * badgeScale));
   const showUnread = inLibrary && unreadCount > 0;
   const showDownloaded = inLibrary && downloadedCount > 0;
-  const pressableProps = {
-    style: StyleSheet.flatten([styles.pressable, { width }]),
-    onPress,
-    onLongPress,
-    delayLongPress: 240,
-    disabled: !onPress && !onLongPress,
-    accessibilityRole: (onPress || onLongPress ? "button" : "image") as
-      "button" | "image",
-  };
+  const showBookmarkBadge = showBookmark && inLibrary;
+  const showStatusBadge = showStatus && !updateFailed;
+
+  const pressableStyle = useMemo(() => [styles.pressable, { width }], [width]);
+
+  const coverStyle = useMemo(
+    () => [
+      styles.cover,
+      {
+        width,
+        height,
+        borderRadius: radius.sm,
+        backgroundColor: colors.secondaryFill,
+      },
+    ],
+    [width, height, radius.sm, colors.secondaryFill],
+  );
+
+  const countStyles = useMemo(() => {
+    if (!showUnread && !showDownloaded) return null;
+    const scale = scaleBadges ? coverBadgeScale(width) : 1;
+    const size = Math.round(20 * scale);
+    const inset = Math.max(4, Math.round(Spacing.xs * scale));
+    return {
+      row: [
+        styles.countRow,
+        { top: inset, left: inset, gap: Math.max(3, Math.round(4 * scale)) },
+      ],
+      badge: {
+        minWidth: size,
+        height: size,
+        borderRadius: size / 2,
+        paddingHorizontal: Math.max(4, Math.round(6 * scale)),
+      },
+      text: { fontSize: Math.max(9, Math.round(11 * scale)) },
+    };
+  }, [showUnread, showDownloaded, scaleBadges, width]);
+
+  const statusMeta = useMemo(
+    () => (showStatusBadge ? getStatusMeta(mangaStatus) : null),
+    [showStatusBadge, mangaStatus],
+  );
+
+  const statusBadgeStyle = useMemo(
+    () =>
+      statusMeta
+        ? [styles.statusBadge, { backgroundColor: statusMeta.bg }]
+        : null,
+    [statusMeta],
+  );
 
   const coverBody = (
-    <View
-      style={[
-        styles.cover,
-        {
-          width,
-          height,
-          borderRadius: radius.sm,
-          backgroundColor: colors.secondaryFill,
-        },
-      ]}
-    >
-      {cover ? (
+    <View style={coverStyle}>
+      {imageSource ? (
         <Image
-          source={coverImageSource(cover, coverHeaders)}
+          source={imageSource}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           recyclingKey={cover}
@@ -103,8 +168,8 @@ export function MangaCover({
         </ThemedText>
       )}
 
-      <View style={styles.badges}>
-        {showBookmark && inLibrary ? (
+      {showBookmarkBadge ? (
+        <View style={styles.badges}>
           <View
             style={[styles.bookmarkBadge, { backgroundColor: colors.tint }]}
           >
@@ -115,34 +180,16 @@ export function MangaCover({
               fallback="bookmark"
             />
           </View>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
 
-      {showUnread || showDownloaded ? (
-        <View
-          style={[
-            styles.countRow,
-            {
-              top: badgeInset,
-              left: badgeInset,
-              gap: Math.max(3, Math.round(4 * badgeScale)),
-            },
-          ]}
-        >
+      {countStyles ? (
+        <View style={countStyles.row}>
           {showUnread ? (
             <View
-              style={[
-                styles.countBadge,
-                styles.unreadBadge,
-                {
-                  minWidth: badgeSize,
-                  height: badgeSize,
-                  borderRadius: badgeSize / 2,
-                  paddingHorizontal: badgePadding,
-                },
-              ]}
+              style={[styles.countBadge, styles.unreadBadge, countStyles.badge]}
             >
-              <Text style={[styles.countText, { fontSize: badgeFontSize }]}>
+              <Text style={[styles.countText, countStyles.text]}>
                 {formatCount(unreadCount)}
               </Text>
             </View>
@@ -152,15 +199,10 @@ export function MangaCover({
               style={[
                 styles.countBadge,
                 styles.downloadedBadge,
-                {
-                  minWidth: badgeSize,
-                  height: badgeSize,
-                  borderRadius: badgeSize / 2,
-                  paddingHorizontal: badgePadding,
-                },
+                countStyles.badge,
               ]}
             >
-              <Text style={[styles.countText, { fontSize: badgeFontSize }]}>
+              <Text style={[styles.countText, countStyles.text]}>
                 {formatCount(downloadedCount)}
               </Text>
             </View>
@@ -183,34 +225,12 @@ export function MangaCover({
         </View>
       ) : null}
 
-      {showStatus && !updateFailed ? (
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                mangaStatus === "ongoing"
-                  ? "rgba(150,150,150,0.9)"
-                  : mangaStatus === "completed"
-                    ? "rgba(1,200,100,0.9)"
-                    : mangaStatus === "hiatus"
-                      ? "rgba(230,210,30,0.9)"
-                      : "rgba(255,40,20,0.9)",
-            },
-          ]}
-        >
+      {statusMeta ? (
+        <View style={statusBadgeStyle}>
           <SFSymbolIcon
-            name={
-              mangaStatus === "ongoing"
-                ? "play.fill"
-                : mangaStatus === "completed"
-                  ? "checkmark"
-                  : mangaStatus === "hiatus"
-                    ? "pause.fill"
-                    : "xmark"
-            }
+            name={statusMeta.icon}
             size={11}
-            color={mangaStatus === "ongoing" ? colors.white : colors.black}
+            color={statusMeta.whiteIcon ? colors.white : colors.black}
             fallback="bookmark"
           />
         </View>
@@ -219,7 +239,7 @@ export function MangaCover({
       {showTitleOverlay ? (
         <>
           <LinearGradient
-            colors={["rgba(0,0,0,0.01)", "rgba(0,0,0,0.72)"]}
+            colors={GRADIENT_COLORS}
             style={styles.titleGradient}
             pointerEvents="none"
           />
@@ -238,51 +258,47 @@ export function MangaCover({
     </View>
   );
 
-  if (onLongPress) {
-    return (
-      <LongPressScalePressable {...pressableProps} squeezeScale={0.92}>
-        {coverBody}
-      </LongPressScalePressable>
-    );
-  }
-
-  return (
-    <Pressable {...pressableProps}>
+  const content = (
+    <>
       {coverBody}
       {rating ? (
         <View style={styles.ratingWrap}>
           <StarRating rating={rating} compact={isRatingCompact} />
         </View>
       ) : null}
-    </Pressable>
+    </>
   );
-}
 
-function formatCount(value: number): string {
-  if (value > 99) return "99+";
-  return String(value);
-}
+  const interactive = !!(onPress || onLongPress);
+  const pressableProps = {
+    style: pressableStyle,
+    onPress,
+    onLongPress,
+    delayLongPress: LONG_PRESS_DELAY,
+    disabled: !interactive,
+    accessibilityRole: (interactive ? "button" : "image") as "button" | "image",
+    accessibilityLabel: title,
+  };
 
-const BADGE_REFERENCE_WIDTH = 112;
+  if (onLongPress) {
+    return (
+      <LongPressScalePressable {...pressableProps} squeezeScale={0.92}>
+        {content}
+      </LongPressScalePressable>
+    );
+  }
 
-function coverBadgeScale(width: number): number {
-  return Math.min(1.7, Math.max(0.72, width / BADGE_REFERENCE_WIDTH));
-}
+  return <Pressable {...pressableProps}>{content}</Pressable>;
+});
 
 const styles = StyleSheet.create({
-  pressable: {
-    flexGrow: 0,
-    flexShrink: 0,
-  },
+  pressable: { flexGrow: 0, flexShrink: 0 },
   cover: {
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
-  placeholder: {
-    fontSize: 24,
-    fontWeight: "700",
-  },
+  placeholder: { fontSize: 24, fontWeight: "700" },
   badges: {
     position: "absolute",
     flexDirection: "column",
@@ -327,12 +343,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  unreadBadge: {
-    backgroundColor: "#FF3B30",
-  },
-  downloadedBadge: {
-    backgroundColor: "#007AFF",
-  },
+  unreadBadge: { backgroundColor: "#FF3B30" },
+  downloadedBadge: { backgroundColor: "#007AFF" },
   updateFailedBadge: {
     position: "absolute",
     right: Spacing.xs,
@@ -345,11 +357,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF3B30",
     zIndex: 3,
   },
-  countText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "700",
-  },
+  countText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   titleGradient: {
     position: "absolute",
     left: 0,
@@ -367,16 +375,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     zIndex: 2,
   },
-  titleWrapWithWarn: {
-    paddingRight: Spacing.sm + 22 + Spacing.xs,
-  },
+  titleWrapWithWarn: { paddingRight: Spacing.sm + 22 + Spacing.xs },
   title: {
     color: "#FFFFFF",
     fontSize: 15,
     lineHeight: 19,
     fontWeight: "700",
   },
-  ratingWrap: {
-    paddingHorizontal: 2,
-  },
+  ratingWrap: { paddingHorizontal: 2 },
 });

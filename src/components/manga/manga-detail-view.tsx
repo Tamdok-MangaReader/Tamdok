@@ -1,14 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   View,
   type ListRenderItem,
+  type PressableStateCallbackType,
+  type TextStyle,
   type View as ViewType,
 } from "react-native";
 
@@ -56,7 +66,72 @@ const DOWNLOADED_COLOR = "#007AFF";
 const COVER_WIDTH = 132;
 const COVER_HEIGHT = Math.round(COVER_WIDTH * 1.45);
 
-function ChapterDownloadIndicator({ entry }: { entry?: DownloadEntry }) {
+const EMPTY_CHAPTERS: Chapter[] = [];
+const EMPTY_TAGS: string[] = [];
+const PRESSED_72 = { opacity: 0.72 } as const;
+const PRESSED_85 = { opacity: 0.85 } as const;
+const ROW_PAD_NUMBERED = { paddingHorizontal: Spacing.md } as const;
+const ROW_PAD_DEFAULT = { paddingHorizontal: Spacing.lg } as const;
+const DATE_TEXT_BASE: TextStyle = {
+  fontWeight: "700",
+  fontVariant: ["tabular-nums"],
+};
+
+const STATUS_PILL = {
+  ongoing: { tint: "transparent", icon: "play.fill" },
+  completed: { tint: "rgba(1,200,100,0.6)", icon: "checkmark" },
+  hiatus: { tint: "rgba(230,210,30,0.6)", icon: "pause.fill" },
+  other: { tint: "rgba(255,40,20,0.6)", icon: "x.circle.fill" },
+} as const;
+
+function getStatusPill(status: string) {
+  switch (status) {
+    case "ongoing":
+      return STATUS_PILL.ongoing;
+    case "completed":
+      return STATUS_PILL.completed;
+    case "hiatus":
+      return STATUS_PILL.hiatus;
+    default:
+      return STATUS_PILL.other;
+  }
+}
+
+const DATE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+function formatUploadDate(timestampSeconds: number): string {
+  const locale = getExpoLocale().regionCode || getLocale();
+  let formatter = DATE_FORMATTERS.get(locale);
+  if (!formatter) {
+    try {
+      formatter = new Intl.DateTimeFormat(locale);
+    } catch {
+      formatter = new Intl.DateTimeFormat();
+    }
+    DATE_FORMATTERS.set(locale, formatter);
+  }
+  return formatter.format(new Date(timestampSeconds * 1000));
+}
+
+const libraryPressableStyle = ({ pressed }: PressableStateCallbackType) => [
+  styles.libraryButtonPressable,
+  pressed && PRESSED_85,
+];
+
+const formatCount = (n: number) => (n > 99 ? "99+" : String(n));
+
+const renderScrollComponent = (
+  props: React.ComponentProps<typeof LiquidGlassScrollComponent>,
+) => <LiquidGlassScrollComponent {...props} scrollsToTop={false} />;
+
+function chapterKeyExtractor(chapter: Chapter): string {
+  return chapter.key;
+}
+
+const ChapterDownloadIndicator = memo(function ChapterDownloadIndicator({
+  entry,
+}: {
+  entry?: DownloadEntry;
+}) {
   if (!entry) return null;
 
   if (entry.status === "downloading" || entry.status === "pending") {
@@ -68,17 +143,484 @@ function ChapterDownloadIndicator({ entry }: { entry?: DownloadEntry }) {
       />
     );
   }
-
   if (entry.status === "completed") {
     return <Ionicons name="download" size={14} color={DOWNLOADED_COLOR} />;
   }
-
   if (entry.status === "failed") {
     return <Ionicons name="alert-circle" size={14} color="#FF3B30" />;
   }
-
   return null;
-}
+});
+
+const DescriptionBlock = memo(function DescriptionBlock({
+  text,
+  altTitles,
+}: {
+  text: string;
+  altTitles: string[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const toggle = useCallback(() => setExpanded((v) => !v), []);
+  const fullText = useMemo(
+    () => (altTitles.length > 0 ? `${text}\n\n${altTitles.join(", ")}` : text),
+    [text, altTitles],
+  );
+  const canExpand = text.length > 180;
+
+  return (
+    <View style={styles.block}>
+      <ThemedText variant="headline" style={styles.blockTitle}>
+        {t("manga_description")}
+      </ThemedText>
+      <ThemedText
+        variant="body"
+        color="secondaryLabel"
+        style={styles.description}
+        numberOfLines={expanded ? undefined : DESCRIPTION_PREVIEW_LINES}
+      >
+        {fullText}
+      </ThemedText>
+      {canExpand ? (
+        <Pressable onPress={toggle} hitSlop={8}>
+          <ThemedText
+            variant="footnote"
+            color="tint"
+            style={styles.expandButton}
+          >
+            {expanded ? t("manga_show_less") : t("manga_show_more")}
+          </ThemedText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+});
+
+const TagsBlock = memo(function TagsBlock({ tags }: { tags: string[] }) {
+  const { radius } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const toggle = useCallback(() => setExpanded((v) => !v), []);
+  const canExpand = tags.length > TAG_PREVIEW_COUNT;
+  const visibleTags = useMemo(
+    () => (expanded || !canExpand ? tags : tags.slice(0, TAG_PREVIEW_COUNT)),
+    [expanded, canExpand, tags],
+  );
+
+  return (
+    <View style={styles.block}>
+      <ThemedText variant="headline" style={styles.blockTitle}>
+        {t("manga_tags")}
+      </ThemedText>
+      <View style={styles.tagsWrap}>
+        {visibleTags.map((tag) => (
+          <GlassSurface key={tag} borderRadius={radius.pill}>
+            <View style={styles.tagPill}>
+              <ThemedText
+                variant="footnote"
+                color="secondaryLabel"
+                numberOfLines={1}
+              >
+                {tag}
+              </ThemedText>
+            </View>
+          </GlassSurface>
+        ))}
+      </View>
+      {canExpand ? (
+        <Pressable onPress={toggle} hitSlop={8}>
+          <ThemedText
+            variant="footnote"
+            color="tint"
+            style={styles.expandButton}
+          >
+            {expanded ? t("manga_show_less") : t("manga_show_more")}
+          </ThemedText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+});
+
+type HeaderProps = {
+  manga: Manga;
+  sourceName?: string;
+  sourceKind?: "aidoku" | "tamdok";
+  inLibrary: boolean;
+  hasCustomCategories: boolean;
+  libraryPickerOpen: boolean;
+  canOpenInBrowser: boolean;
+  continueLabel: string;
+  chapterSelectMode: boolean;
+  showBigMangaCover?: boolean;
+  inlineError?: string | null;
+  isLoading: boolean;
+  isRefreshing: boolean;
+  chaptersCount: number;
+  unreadCount: number;
+  downloadedCount: number;
+  libraryButtonRef: RefObject<ViewType | null>;
+  onDismissInlineError?: () => void;
+  onContinueReading: () => void;
+  onLibraryPress: () => void;
+  onOpenInBrowser: () => void;
+  onSelectAllChapters?: () => void;
+  onDeselectAllChapters?: () => void;
+};
+
+const MangaDetailHeader = memo(function MangaDetailHeader({
+  manga,
+  sourceName,
+  sourceKind,
+  inLibrary,
+  hasCustomCategories,
+  libraryPickerOpen,
+  canOpenInBrowser,
+  continueLabel,
+  chapterSelectMode,
+  showBigMangaCover,
+  inlineError,
+  isLoading,
+  isRefreshing,
+  chaptersCount,
+  unreadCount,
+  downloadedCount,
+  libraryButtonRef,
+  onDismissInlineError,
+  onContinueReading,
+  onLibraryPress,
+  onOpenInBrowser,
+  onSelectAllChapters,
+  onDeselectAllChapters,
+}: HeaderProps) {
+  const { colors, radius } = useTheme();
+  const coverHeaders = useSourceCoverHeaders();
+
+  const parsed = useMemo(
+    () => parseMangaDescription(manga.description),
+    [manga.description],
+  );
+  const rating = useMemo(
+    () => parseRatingText(manga.rating || parsed.ratingLine),
+    [manga.rating, parsed],
+  );
+  const authors = useMemo(
+    () => manga.authors?.filter(Boolean).join(", "),
+    [manga.authors],
+  );
+  const artists = useMemo(
+    () => manga.artists?.filter(Boolean).join(", "),
+    [manga.artists],
+  );
+  const altTitles = useMemo(
+    () =>
+      (manga.altTitles ?? parsed.altTitles ?? []).filter(
+        (name) => name !== manga.title,
+      ),
+    [manga.altTitles, manga.title, parsed],
+  );
+  const descriptionText = parsed.summary ?? manga.description ?? "";
+  const tags = manga.tags ?? EMPTY_TAGS;
+
+  const coverSource = useMemo(
+    () =>
+      manga.cover ? coverImageSource(manga.cover, coverHeaders) : undefined,
+    [manga.cover, coverHeaders],
+  );
+
+  const coverStyle = useMemo(
+    () => [
+      styles.cover,
+      {
+        width: COVER_WIDTH,
+        height: COVER_HEIGHT,
+        borderRadius: radius.md,
+        backgroundColor: colors.secondaryFill,
+      },
+    ],
+    [radius.md, colors.secondaryFill],
+  );
+
+  const statusPill =
+    manga.status && manga.status !== "unknown"
+      ? getStatusPill(manga.status)
+      : null;
+
+  const showCounts = inLibrary && (unreadCount > 0 || downloadedCount > 0);
+
+  return (
+    <View style={styles.header}>
+      {inlineError ? (
+        <SourceHomeAlertBanner
+          message={inlineError}
+          onDismiss={onDismissInlineError}
+        />
+      ) : null}
+      <IncognitoModeBanner />
+
+      <View style={styles.hero}>
+        {showBigMangaCover && coverSource ? (
+          <MangaBackground source={coverSource} />
+        ) : null}
+        <View style={coverStyle}>
+          {coverSource ? (
+            <Image
+              source={coverSource}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              recyclingKey={manga.cover}
+              cachePolicy={IMAGE_CACHE_POLICY}
+              allowDownscaling
+              transition={200}
+            />
+          ) : (
+            <ThemedText variant="title1" color="tertiaryLabel">
+              {manga.title.slice(0, 1)}
+            </ThemedText>
+          )}
+          {inLibrary ? (
+            <View
+              style={[styles.coverBookmark, { backgroundColor: colors.tint }]}
+            >
+              <SFSymbolIcon
+                name="bookmark.fill"
+                size={11}
+                color={colors.onTint}
+                fallback="bookmark"
+              />
+            </View>
+          ) : null}
+          {showCounts ? (
+            <View style={styles.coverCountRow}>
+              {unreadCount > 0 ? (
+                <View style={[styles.coverCountBadge, styles.coverUnreadBadge]}>
+                  <ThemedText variant="caption2" style={styles.coverCountText}>
+                    {formatCount(unreadCount)}
+                  </ThemedText>
+                </View>
+              ) : null}
+              {downloadedCount > 0 ? (
+                <View
+                  style={[styles.coverCountBadge, styles.coverDownloadedBadge]}
+                >
+                  <ThemedText variant="caption2" style={styles.coverCountText}>
+                    {formatCount(downloadedCount)}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.heroMeta}>
+          <ThemedText variant="title2" numberOfLines={2}>
+            {manga.title}
+          </ThemedText>
+          {sourceName ? (
+            <View style={styles.sourceRow}>
+              <ThemedText variant="footnote" color="tint">
+                {sourceName}
+              </ThemedText>
+              {sourceKind ? (
+                <GlassSurface borderRadius={radius.pill}>
+                  <ThemedText
+                    variant="caption2"
+                    color="secondaryLabel"
+                    style={styles.kindBadge}
+                  >
+                    {sourceKind === "aidoku" ? "Aidoku" : "Tamdok"}
+                  </ThemedText>
+                </GlassSurface>
+              ) : null}
+            </View>
+          ) : null}
+          {altTitles.length > 0 ? (
+            <View style={styles.altTitles}>
+              <ThemedText
+                variant="subheadline"
+                color="tertiaryLabel"
+                numberOfLines={1}
+              >
+                {altTitles[0]}
+              </ThemedText>
+              {altTitles.length > 1 ? (
+                <View
+                  style={[
+                    styles.caltTitleBadge,
+                    { backgroundColor: colors.fill },
+                  ]}
+                >
+                  <ThemedText
+                    variant="caption1"
+                    color="tertiaryLabel"
+                  >{`+${altTitles.length - 1}`}</ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          {authors ? (
+            <ThemedText variant="subheadline" color="secondaryLabel">
+              {authors}
+            </ThemedText>
+          ) : null}
+          {artists && artists !== authors ? (
+            <ThemedText variant="footnote" color="secondaryLabel">
+              {artists}
+            </ThemedText>
+          ) : null}
+          {rating ? <StarRating rating={rating} /> : null}
+          <View style={styles.pills}>
+            {statusPill && manga.status ? (
+              <GlassSurface
+                borderRadius={radius.pill}
+                style={styles.statusPill}
+                tintColor={statusPill.tint}
+              >
+                <SFSymbolIcon
+                  name={statusPill.icon}
+                  size={13}
+                  color={colors.secondaryLabel}
+                  fallback="globe-outline"
+                />
+                <ThemedText
+                  variant="caption1"
+                  color="secondaryLabel"
+                  style={styles.statusText}
+                >
+                  {formatStatus(manga.status)}
+                </ThemedText>
+              </GlassSurface>
+            ) : null}
+            {manga.viewer ? (
+              <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
+                <ThemedText
+                  variant="caption1"
+                  color="secondaryLabel"
+                  style={styles.typeText}
+                >
+                  {manga.viewer === "webtoon" ? "Webtoon" : "Manga"}
+                </ThemedText>
+              </GlassSurface>
+            ) : null}
+          </View>
+          {!chapterSelectMode ? (
+            <View style={styles.librarySection}>
+              <View style={styles.libraryRow}>
+                <Pressable
+                  ref={libraryButtonRef}
+                  onPress={onLibraryPress}
+                  hitSlop={8}
+                  style={libraryPressableStyle}
+                >
+                  <View
+                    style={[
+                      styles.libraryButton,
+                      {
+                        borderRadius: radius.pill,
+                        backgroundColor: inLibrary
+                          ? colors.secondaryFill
+                          : colors.tint,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={inLibrary ? "bookmark" : "bookmark-outline"}
+                      size={16}
+                      color={inLibrary ? colors.tint : colors.onTint}
+                    />
+                    <ThemedText
+                      variant="footnote"
+                      color={inLibrary ? "tint" : "onTint"}
+                    >
+                      {inLibrary
+                        ? t("manga_in_library")
+                        : t("manga_add_to_library")}
+                    </ThemedText>
+                    {hasCustomCategories ? (
+                      <Ionicons
+                        name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
+                        size={13}
+                        color={inLibrary ? colors.tint : colors.onTint}
+                      />
+                    ) : null}
+                  </View>
+                </Pressable>
+                {canOpenInBrowser ? (
+                  <Pressable
+                    onPress={onOpenInBrowser}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                  >
+                    <GlassSurface
+                      borderRadius={radius.pill}
+                      style={styles.safariButton}
+                      interactive
+                    >
+                      <SFSymbolIcon
+                        name="safari"
+                        size={16}
+                        color={colors.tint}
+                        fallback="globe-outline"
+                      />
+                    </GlassSurface>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      {descriptionText ? (
+        <DescriptionBlock text={descriptionText} altTitles={altTitles} />
+      ) : null}
+
+      {tags.length > 0 ? <TagsBlock tags={tags} /> : null}
+
+      {!chapterSelectMode && !isLoading && chaptersCount > 0 ? (
+        <Pressable onPress={onContinueReading} style={libraryPressableStyle}>
+          <View
+            style={[
+              styles.continueButton,
+              { backgroundColor: colors.tint, borderRadius: radius.md },
+            ]}
+          >
+            <ThemedText
+              variant="headline"
+              color="onTint"
+              style={styles.continueButtonText}
+            >
+              {continueLabel}
+            </ThemedText>
+          </View>
+        </Pressable>
+      ) : null}
+
+      <View style={styles.chapterHeader}>
+        <View style={styles.chapterTitleRow}>
+          <ThemedText variant="headline" style={styles.blockTitle}>
+            {chapterSelectMode
+              ? t("manga_select_chapters")
+              : `${t("manga_chapters")}${chaptersCount > 0 ? ` (${chaptersCount})` : ""}`}
+          </ThemedText>
+          {isRefreshing ? <ActivityIndicator size="small" /> : null}
+        </View>
+        {chapterSelectMode ? (
+          <View style={styles.selectActions}>
+            <Pressable onPress={onSelectAllChapters} hitSlop={8}>
+              <ThemedText variant="footnote" color="tint">
+                {t("manga_select_all")}
+              </ThemedText>
+            </Pressable>
+            <Pressable onPress={onDeselectAllChapters} hitSlop={8}>
+              <ThemedText variant="footnote" color="tint">
+                {t("manga_deselect_all")}
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+});
 
 type MangaDetailViewProps = {
   manga: Manga;
@@ -151,28 +693,11 @@ export function MangaDetailView({
   onSelectAllChapters,
   onDeselectAllChapters,
 }: MangaDetailViewProps) {
-  const { colors, radius } = useTheme();
-  const coverHeaders = useSourceCoverHeaders();
-  const parsed = parseMangaDescription(manga.description);
-  const rating = parseRatingText(manga.rating || parsed.ratingLine);
-  const authors = manga.authors?.filter(Boolean).join(", ");
-  const artists = manga.artists?.filter(Boolean).join(", ");
-  const altTitles = (manga.altTitles ?? parsed.altTitles ?? []).filter(
-    (name) => name !== manga.title,
-  );
-  const tags = manga.tags ?? [];
-  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-  const [tagsExpanded, setTagsExpanded] = useState(false);
-  const visibleTags =
-    tagsExpanded || tags.length <= TAG_PREVIEW_COUNT
-      ? tags
-      : tags.slice(0, TAG_PREVIEW_COUNT);
-  const canExpandTags = tags.length > TAG_PREVIEW_COUNT;
+  const { colors } = useTheme();
   const libraryButtonRef = useRef<ViewType>(null);
   const [dropdownAnchor, setDropdownAnchor] =
     useState<CategoryDropdownAnchor | null>(null);
-  const descriptionText = parsed.summary ?? manga.description ?? "";
-  const canExpandDescription = descriptionText.length > 180;
+
   const unreadCount = useMemo(
     () =>
       chapters.reduce(
@@ -184,18 +709,83 @@ export function MangaDetailView({
   );
   const downloadedCount = downloadedChapterKeys.size;
 
+  const hasCustomCategories = useMemo(
+    () => libraryCategories.some((c) => c.id !== ALL_CATEGORY_ID),
+    [libraryCategories],
+  );
+
+  const handlersRef = useRef({
+    onOpenChapter,
+    onToggleChapterSelected,
+    onMarkChapterRead,
+    onMarkChapterUnread,
+    onContinueReading,
+    onOpenInBrowser,
+    onDismissInlineError,
+    onSelectAllChapters,
+    onDeselectAllChapters,
+    onToggleCategory,
+    onToggleLibraryPicker,
+  });
+  handlersRef.current = {
+    onOpenChapter,
+    onToggleChapterSelected,
+    onMarkChapterRead,
+    onMarkChapterUnread,
+    onContinueReading,
+    onOpenInBrowser,
+    onDismissInlineError,
+    onSelectAllChapters,
+    onDeselectAllChapters,
+    onToggleCategory,
+    onToggleLibraryPicker,
+  };
+
+  const stableOpenChapter = useCallback(
+    (c: Chapter) => handlersRef.current.onOpenChapter(c),
+    [],
+  );
+  const stableToggleSelected = useCallback(
+    (c: Chapter) => handlersRef.current.onToggleChapterSelected?.(c),
+    [],
+  );
+  const stableMarkRead = useCallback(
+    (c: Chapter) => handlersRef.current.onMarkChapterRead(c),
+    [],
+  );
+  const stableMarkUnread = useCallback(
+    (c: Chapter) => handlersRef.current.onMarkChapterUnread(c),
+    [],
+  );
+  const stableContinue = useCallback(
+    () => handlersRef.current.onContinueReading(),
+    [],
+  );
+  const stableOpenInBrowser = useCallback(
+    () => handlersRef.current.onOpenInBrowser(),
+    [],
+  );
+  const stableDismissError = useCallback(
+    () => handlersRef.current.onDismissInlineError?.(),
+    [],
+  );
+  const stableSelectAll = useCallback(
+    () => handlersRef.current.onSelectAllChapters?.(),
+    [],
+  );
+  const stableDeselectAll = useCallback(
+    () => handlersRef.current.onDeselectAllChapters?.(),
+    [],
+  );
+
   const closeLibraryPicker = useCallback(() => {
     setDropdownAnchor(null);
-    if (libraryPickerOpen) onToggleLibraryPicker();
-  }, [libraryPickerOpen, onToggleLibraryPicker]);
-
-  const hasCustomCategories = libraryCategories.some(
-    (category) => category.id !== ALL_CATEGORY_ID,
-  );
+    if (libraryPickerOpen) handlersRef.current.onToggleLibraryPicker();
+  }, [libraryPickerOpen]);
 
   const handleLibraryPickerPress = useCallback(() => {
     if (!hasCustomCategories) {
-      onToggleCategory(ALL_CATEGORY_ID);
+      handlersRef.current.onToggleCategory(ALL_CATEGORY_ID);
       return;
     }
     if (libraryPickerOpen) {
@@ -204,522 +794,106 @@ export function MangaDetailView({
     }
     libraryButtonRef.current?.measureInWindow((x, y, width, height) => {
       setDropdownAnchor({ x, y, width, height });
-      onToggleLibraryPicker();
+      handlersRef.current.onToggleLibraryPicker();
     });
-  }, [
-    closeLibraryPicker,
-    hasCustomCategories,
-    libraryPickerOpen,
-    onToggleCategory,
-    onToggleLibraryPicker,
-  ]);
+  }, [closeLibraryPicker, hasCustomCategories, libraryPickerOpen]);
+
+  const total = chapters.length;
 
   const renderChapter: ListRenderItem<Chapter> = useCallback(
-    ({ item, index }) => {
-      const downloadEntry = chapterDownloads[item.key];
-      return (
-        <ChapterRow
-          chapter={item}
-          index={index}
-          total={chapters.length}
-          selectMode={chapterSelectMode}
-          showChapterNumber={showChapterNumber}
-          isSelected={selectedChapterKeys?.has(item.key) ?? false}
-          isRead={readChapterKeys.has(item.key)}
-          isDownloaded={downloadedChapterKeys.has(item.key)}
-          downloadEntry={downloadEntry}
-          isLast={index === chapters.length - 1}
-          onOpen={onOpenChapter}
-          onToggleSelected={onToggleChapterSelected}
-          onMarkRead={onMarkChapterRead}
-          onMarkUnread={onMarkChapterUnread}
-        />
-      );
-    },
+    ({ item, index }) => (
+      <ChapterRow
+        chapter={item}
+        index={index}
+        total={total}
+        selectMode={chapterSelectMode}
+        showChapterNumber={showChapterNumber}
+        isSelected={selectedChapterKeys?.has(item.key) ?? false}
+        isRead={readChapterKeys.has(item.key)}
+        isDownloaded={downloadedChapterKeys.has(item.key)}
+        downloadEntry={chapterDownloads[item.key]}
+        isLast={index === total - 1}
+        onOpen={stableOpenChapter}
+        onToggleSelected={stableToggleSelected}
+        onMarkRead={stableMarkRead}
+        onMarkUnread={stableMarkUnread}
+      />
+    ),
     [
       chapterDownloads,
       chapterSelectMode,
-      chapters.length,
       downloadedChapterKeys,
-      onMarkChapterRead,
-      onMarkChapterUnread,
-      onOpenChapter,
-      onToggleChapterSelected,
       readChapterKeys,
       selectedChapterKeys,
       showChapterNumber,
+      total,
+      stableOpenChapter,
+      stableToggleSelected,
+      stableMarkRead,
+      stableMarkUnread,
     ],
   );
 
-  const listHeader = useMemo(
-    () => (
-      <View style={styles.header}>
-        {inlineError ? (
-          <SourceHomeAlertBanner
-            message={inlineError}
-            onDismiss={onDismissInlineError}
-          />
-        ) : null}
-        <IncognitoModeBanner />
-
-        <View style={styles.hero}>
-          {showBigMangaCover && manga.cover ? (
-            <MangaBackground
-              source={coverImageSource(manga.cover, coverHeaders)}
-            />
-          ) : null}
-          <View
-            style={[
-              styles.cover,
-              {
-                width: COVER_WIDTH,
-                height: COVER_HEIGHT,
-                borderRadius: radius.md,
-                backgroundColor: colors.secondaryFill,
-              },
-            ]}
-          >
-            {manga.cover ? (
-              <Image
-                source={coverImageSource(manga.cover, coverHeaders)}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                recyclingKey={manga.cover}
-                cachePolicy={IMAGE_CACHE_POLICY}
-                allowDownscaling
-                transition={200}
-              />
-            ) : (
-              <ThemedText variant="title1" color="tertiaryLabel">
-                {manga.title.slice(0, 1)}
-              </ThemedText>
-            )}
-            {inLibrary ? (
-              <View
-                style={[styles.coverBookmark, { backgroundColor: colors.tint }]}
-              >
-                <SFSymbolIcon
-                  name="bookmark.fill"
-                  size={11}
-                  color={colors.onTint}
-                  fallback="bookmark"
-                />
-              </View>
-            ) : null}
-            {inLibrary && (unreadCount > 0 || downloadedCount > 0) ? (
-              <View style={styles.coverCountRow}>
-                {unreadCount > 0 ? (
-                  <View
-                    style={[styles.coverCountBadge, styles.coverUnreadBadge]}
-                  >
-                    <ThemedText
-                      variant="caption2"
-                      style={styles.coverCountText}
-                    >
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {downloadedCount > 0 ? (
-                  <View
-                    style={[
-                      styles.coverCountBadge,
-                      styles.coverDownloadedBadge,
-                    ]}
-                  >
-                    <ThemedText
-                      variant="caption2"
-                      style={styles.coverCountText}
-                    >
-                      {downloadedCount > 99 ? "99+" : downloadedCount}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.heroMeta}>
-            <ThemedText variant="title2" numberOfLines={2}>
-              {manga.title}
-            </ThemedText>
-            {sourceName ? (
-              <View style={styles.sourceRow}>
-                <ThemedText variant="footnote" color="tint">
-                  {sourceName}
-                </ThemedText>
-                {sourceKind ? (
-                  <GlassSurface borderRadius={radius.pill}>
-                    <ThemedText
-                      variant="caption2"
-                      color="secondaryLabel"
-                      style={styles.kindBadge}
-                    >
-                      {sourceKind === "aidoku" ? "Aidoku" : "Tamdok"}
-                    </ThemedText>
-                  </GlassSurface>
-                ) : null}
-              </View>
-            ) : null}
-            {altTitles.length > 0 ? (
-              <View style={styles.altTitles}>
-                <ThemedText
-                  variant="subheadline"
-                  color="tertiaryLabel"
-                  numberOfLines={1}
-                >
-                  {altTitles[0]}
-                </ThemedText>
-                {altTitles.length > 1 ? (
-                  <View
-                    style={[
-                      styles.caltTitleBadge,
-                      { backgroundColor: colors.fill },
-                    ]}
-                  >
-                    <ThemedText
-                      variant="caption1"
-                      color="tertiaryLabel"
-                    >{`+${altTitles.length - 1}`}</ThemedText>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-            {authors ? (
-              <ThemedText variant="subheadline" color="secondaryLabel">
-                {authors}
-              </ThemedText>
-            ) : null}
-            {artists && artists !== authors ? (
-              <ThemedText variant="footnote" color="secondaryLabel">
-                {artists}
-              </ThemedText>
-            ) : null}
-            {rating ? <StarRating rating={rating} /> : null}
-            <View style={styles.pills}>
-              {manga.status && manga.status !== "unknown" ? (
-                <GlassSurface
-                  borderRadius={radius.pill}
-                  style={styles.statusPill}
-                  tintColor={
-                    manga.status === "ongoing"
-                      ? "transparent"
-                      : manga.status === "completed"
-                        ? "rgba(1,200,100.0,0.6)"
-                        : manga.status === "hiatus"
-                          ? "rgba(230,210,30.0,0.6)"
-                          : "rgba(255,40,20.0,0.6)"
-                  }
-                >
-                  <SFSymbolIcon
-                    name={
-                      manga.status === "ongoing"
-                        ? "play.fill"
-                        : manga.status === "completed"
-                          ? "checkmark"
-                          : manga.status === "hiatus"
-                            ? "pause.fill"
-                            : "x.circle.fill"
-                    }
-                    size={13}
-                    color={colors.secondaryLabel}
-                    fallback="globe-outline"
-                  />
-                  <ThemedText
-                    variant="caption1"
-                    color="secondaryLabel"
-                    style={styles.statusText}
-                  >
-                    {formatStatus(manga.status)}
-                  </ThemedText>
-                </GlassSurface>
-              ) : null}
-              {manga.viewer ? (
-                <GlassSurface
-                  borderRadius={radius.pill}
-                  style={styles.typePill}
-                >
-                  <ThemedText
-                    variant="caption1"
-                    color="secondaryLabel"
-                    style={styles.typeText}
-                  >
-                    {manga.viewer === "webtoon" ? "Webtoon" : "Manga"}
-                  </ThemedText>
-                </GlassSurface>
-              ) : null}
-            </View>
-            {!chapterSelectMode ? (
-              <View style={styles.librarySection}>
-                <View style={styles.libraryRow}>
-                  <Pressable
-                    ref={libraryButtonRef}
-                    onPress={handleLibraryPickerPress}
-                    hitSlop={8}
-                    style={({ pressed }) => [
-                      styles.libraryButtonPressable,
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.libraryButton,
-                        {
-                          borderRadius: radius.pill,
-                          backgroundColor: inLibrary
-                            ? colors.secondaryFill
-                            : colors.tint,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={inLibrary ? "bookmark" : "bookmark-outline"}
-                        size={16}
-                        color={inLibrary ? colors.tint : colors.onTint}
-                      />
-                      <ThemedText
-                        variant="footnote"
-                        color={inLibrary ? "tint" : "onTint"}
-                      >
-                        {inLibrary
-                          ? t("manga_in_library")
-                          : t("manga_add_to_library")}
-                      </ThemedText>
-                      {libraryCategories.some(
-                        (category) => category.id !== ALL_CATEGORY_ID,
-                      ) ? (
-                        <Ionicons
-                          name={
-                            libraryPickerOpen ? "chevron-up" : "chevron-down"
-                          }
-                          size={13}
-                          color={inLibrary ? colors.tint : colors.onTint}
-                        />
-                      ) : null}
-                    </View>
-                  </Pressable>
-                  {canOpenInBrowser ? (
-                    <Pressable
-                      onPress={onOpenInBrowser}
-                      hitSlop={8}
-                      accessibilityRole="button"
-                    >
-                      <GlassSurface
-                        borderRadius={radius.pill}
-                        style={styles.safariButton}
-                        interactive
-                      >
-                        <SFSymbolIcon
-                          name="safari"
-                          size={16}
-                          color={colors.tint}
-                          fallback="globe-outline"
-                        />
-                      </GlassSurface>
-                    </Pressable>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        {descriptionText ? (
-          <View style={styles.block}>
-            <ThemedText variant="headline" style={styles.blockTitle}>
-              {t("manga_description")}
-            </ThemedText>
-            <ThemedText
-              variant="body"
-              color="secondaryLabel"
-              style={styles.description}
-              numberOfLines={
-                descriptionExpanded ? undefined : DESCRIPTION_PREVIEW_LINES
-              }
-            >
-              {`${descriptionText}${altTitles.length > 0 ? `\n\n${altTitles.join(", ")}` : ""}`}
-            </ThemedText>
-            {canExpandDescription ? (
-              <Pressable
-                onPress={() => setDescriptionExpanded((value) => !value)}
-                hitSlop={8}
-              >
-                <ThemedText
-                  variant="footnote"
-                  color="tint"
-                  style={styles.expandButton}
-                >
-                  {descriptionExpanded
-                    ? t("manga_show_less")
-                    : t("manga_show_more")}
-                </ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
-        {tags.length > 0 ? (
-          <View style={styles.block}>
-            <ThemedText variant="headline" style={styles.blockTitle}>
-              {t("manga_tags")}
-            </ThemedText>
-            <View style={styles.tagsWrap}>
-              {visibleTags.map((tag) => (
-                <GlassSurface key={tag} borderRadius={radius.pill}>
-                  <View style={styles.tagPill}>
-                    <ThemedText
-                      variant="footnote"
-                      color="secondaryLabel"
-                      numberOfLines={1}
-                    >
-                      {tag}
-                    </ThemedText>
-                  </View>
-                </GlassSurface>
-              ))}
-            </View>
-            {canExpandTags ? (
-              <Pressable
-                onPress={() => setTagsExpanded((value) => !value)}
-                hitSlop={8}
-              >
-                <ThemedText
-                  variant="footnote"
-                  color="tint"
-                  style={styles.expandButton}
-                >
-                  {tagsExpanded ? t("manga_show_less") : t("manga_show_more")}
-                </ThemedText>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
-        {!chapterSelectMode && !isLoading && chapters.length > 0 ? (
-          <Pressable
-            onPress={onContinueReading}
-            style={({ pressed }) => [
-              styles.libraryButtonPressable,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View
-              style={[
-                styles.continueButton,
-                { backgroundColor: colors.tint, borderRadius: radius.md },
-              ]}
-            >
-              <ThemedText
-                variant="headline"
-                color="onTint"
-                style={styles.continueButtonText}
-              >
-                {continueLabel}
-              </ThemedText>
-            </View>
-          </Pressable>
-        ) : null}
-
-        <View style={styles.chapterHeader}>
-          <View style={styles.chapterTitleRow}>
-            <ThemedText variant="headline" style={styles.blockTitle}>
-              {chapterSelectMode
-                ? t("manga_select_chapters")
-                : `${t("manga_chapters")}${chapters.length > 0 ? ` (${chapters.length})` : ""}`}
-            </ThemedText>
-            {isRefreshing ? <ActivityIndicator size="small" /> : null}
-          </View>
-          {chapterSelectMode ? (
-            <View style={styles.selectActions}>
-              <Pressable onPress={onSelectAllChapters} hitSlop={8}>
-                <ThemedText variant="footnote" color="tint">
-                  {t("manga_select_all")}
-                </ThemedText>
-              </Pressable>
-              <Pressable onPress={onDeselectAllChapters} hitSlop={8}>
-                <ThemedText variant="footnote" color="tint">
-                  {t("manga_deselect_all")}
-                </ThemedText>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
-      </View>
-    ),
-    [
-      altTitles,
-      artists,
-      authors,
-      canExpandDescription,
-      canOpenInBrowser,
-      chapterSelectMode,
-      handleLibraryPickerPress,
-      chapters.length,
-      colors.onTint,
-      colors.secondaryFill,
-      colors.tint,
-      continueLabel,
-      coverHeaders,
-      descriptionExpanded,
-      descriptionText,
-      downloadedCount,
-      inLibrary,
-      inlineError,
-      isLoading,
-      isRefreshing,
-      libraryCategories,
-      libraryPickerOpen,
-      manga.cover,
-      manga.status,
-      manga.title,
-      onContinueReading,
-      onDismissInlineError,
-      onOpenInBrowser,
-      onSelectAllChapters,
-      onDeselectAllChapters,
-      radius.md,
-      radius.pill,
-      rating,
-      sourceKind,
-      sourceName,
-      canExpandTags,
-      tagsExpanded,
-      visibleTags,
-      unreadCount,
-      colors.fill,
-      colors.secondaryLabel,
-      manga.viewer,
-      showBigMangaCover,
-      tags.length,
-    ],
+  const listHeader = (
+    <MangaDetailHeader
+      manga={manga}
+      sourceName={sourceName}
+      sourceKind={sourceKind}
+      inLibrary={inLibrary}
+      hasCustomCategories={hasCustomCategories}
+      libraryPickerOpen={libraryPickerOpen}
+      canOpenInBrowser={canOpenInBrowser}
+      continueLabel={continueLabel}
+      chapterSelectMode={chapterSelectMode}
+      showBigMangaCover={showBigMangaCover}
+      inlineError={inlineError}
+      isLoading={isLoading}
+      isRefreshing={isRefreshing}
+      chaptersCount={total}
+      unreadCount={unreadCount}
+      downloadedCount={downloadedCount}
+      libraryButtonRef={libraryButtonRef}
+      onDismissInlineError={
+        onDismissInlineError ? stableDismissError : undefined
+      }
+      onContinueReading={stableContinue}
+      onLibraryPress={handleLibraryPickerPress}
+      onOpenInBrowser={stableOpenInBrowser}
+      onSelectAllChapters={onSelectAllChapters ? stableSelectAll : undefined}
+      onDeselectAllChapters={
+        onDeselectAllChapters ? stableDeselectAll : undefined
+      }
+    />
   );
 
-  const listEmpty = useMemo(() => {
-    if (isLoading) {
-      return <ActivityIndicator style={styles.loading} />;
-    }
-    return <EmptyState icon="book-outline" title={t("manga_no_chapters")} />;
-  }, [isLoading]);
+  const listEmpty = useMemo(
+    () =>
+      isLoading ? (
+        <ActivityIndicator style={styles.loading} />
+      ) : (
+        <EmptyState icon="book-outline" title={t("manga_no_chapters")} />
+      ),
+    [isLoading],
+  );
 
-  const listExtraData = useMemo(
-    () => ({
-      chapterSelectMode,
-      selectedChapterKeys,
-      readChapterKeys,
-      downloadedChapterKeys,
-      chapterDownloads,
-      tagsExpanded,
-      descriptionExpanded,
-    }),
-    [
-      chapterSelectMode,
-      selectedChapterKeys,
-      readChapterKeys,
-      downloadedChapterKeys,
-      chapterDownloads,
-      tagsExpanded,
-      descriptionExpanded,
+  const contentContainerStyle = useMemo(
+    () => [
+      styles.content,
+      contentBottomInset > 0 && { paddingBottom: contentBottomInset },
     ],
+    [contentBottomInset],
+  );
+
+  const refreshControl = useMemo(
+    () =>
+      onRefresh ? (
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.tint}
+        />
+      ) : undefined,
+    [onRefresh, isRefreshing, colors.tint],
   );
 
   return (
@@ -727,37 +901,23 @@ export function MangaDetailView({
       <SwipeableRowsProvider>
         <FlatList
           style={styles.root}
-          data={isLoading ? [] : chapters}
+          data={isLoading ? EMPTY_CHAPTERS : chapters}
           keyExtractor={chapterKeyExtractor}
           renderItem={renderChapter}
           ListHeaderComponent={listHeader}
           ListEmptyComponent={listEmpty}
-          contentContainerStyle={[
-            styles.content,
-            contentBottomInset > 0 && { paddingBottom: contentBottomInset },
-          ]}
+          contentContainerStyle={contentContainerStyle}
           contentInsetAdjustmentBehavior="automatic"
           automaticallyAdjustsScrollIndicatorInsets
           scrollsToTop={false}
           showsVerticalScrollIndicator={false}
-          initialNumToRender={12}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-          updateCellsBatchingPeriod={16}
-          removeClippedSubviews
-          extraData={listExtraData}
-          refreshControl={
-            onRefresh ? (
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.tint}
-              />
-            ) : undefined
-          }
-          renderScrollComponent={(props) => (
-            <LiquidGlassScrollComponent {...props} scrollsToTop={false} />
-          )}
+          refreshControl={refreshControl}
+          renderScrollComponent={renderScrollComponent}
+          initialNumToRender={10}
+          maxToRenderPerBatch={6}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === "android"}
         />
       </SwipeableRowsProvider>
       <LibraryCategoryDropdown
@@ -771,10 +931,6 @@ export function MangaDetailView({
       />
     </View>
   );
-}
-
-function chapterKeyExtractor(chapter: Chapter): string {
-  return chapter.key;
 }
 
 type ChapterRowProps = {
@@ -812,50 +968,113 @@ const ChapterRow = memo(function ChapterRow({
 }: ChapterRowProps) {
   const { colors, radius } = useTheme();
   const isLocked = chapter.locked === true;
-  const isDownloading =
-    downloadEntry?.status === "downloading" ||
-    downloadEntry?.status === "pending";
-  const chapterNumberLabel = formatChapterNumber(chapter, index, total);
+  const status = downloadEntry?.status;
+  const isDownloading = status === "downloading" || status === "pending";
+  const isFailed = status === "failed";
+  const isFirst = index === 0;
 
-  const markReadAction = useMemo<SwipeAction>(
-    () => ({
-      key: "read",
-      label: t("manga_mark_read"),
-      icon: "checkmark-circle",
-      sfSymbol: "checkmark.circle.fill",
-      color: "#34C759",
-      onPress: () => onMarkRead(chapter),
-    }),
-    [chapter, onMarkRead],
+  const chapterNumberLabel = showChapterNumber
+    ? formatChapterNumber(chapter, index, total)
+    : null;
+  const title = useMemo(
+    () => chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter),
+    [chapter],
+  );
+  // Форматтер кэширован, а строка даты считается один раз на главу
+  const dateLabel = useMemo(
+    () =>
+      chapter.dateUploaded ? formatUploadDate(chapter.dateUploaded) : null,
+    [chapter.dateUploaded],
   );
 
-  const markUnreadAction = useMemo<SwipeAction>(
-    () => ({
-      key: "unread",
-      label: t("manga_mark_unread"),
-      icon: "eye-off",
-      sfSymbol: "eye.slash.fill",
-      color: "#FF9F0A",
-      onPress: () => onMarkUnread(chapter),
-    }),
-    [chapter, onMarkUnread],
+  const swipeActions = useMemo<SwipeAction[]>(
+    () =>
+      isRead
+        ? [
+            {
+              key: "unread",
+              label: t("manga_mark_unread"),
+              icon: "eye-off",
+              sfSymbol: "eye.slash.fill",
+              color: "#FF9F0A",
+              onPress: () => onMarkUnread(chapter),
+            },
+          ]
+        : [
+            {
+              key: "read",
+              label: t("manga_mark_read"),
+              icon: "checkmark-circle",
+              sfSymbol: "checkmark.circle.fill",
+              color: "#34C759",
+              onPress: () => onMarkRead(chapter),
+            },
+          ],
+    [isRead, chapter, onMarkRead, onMarkUnread],
+  );
+
+  const handleFullSwipe = useCallback(
+    () => (isRead ? onMarkUnread(chapter) : onMarkRead(chapter)),
+    [isRead, chapter, onMarkRead, onMarkUnread],
+  );
+
+  const handlePress = useCallback(() => {
+    if (selectMode) {
+      onToggleSelected?.(chapter);
+      return;
+    }
+    if (isLocked) return;
+    onOpen(chapter);
+  }, [selectMode, isLocked, chapter, onOpen, onToggleSelected]);
+
+  const pressableStyle = useCallback(
+    ({ pressed }: PressableStateCallbackType) => [
+      styles.chapterRow,
+      showChapterNumber ? ROW_PAD_NUMBERED : ROW_PAD_DEFAULT,
+      pressed && PRESSED_72,
+    ],
+    [showChapterNumber],
+  );
+
+  const dateBadgeStyle = useMemo(
+    () => [
+      styles.dateUploaded,
+      {
+        backgroundColor: isRead ? colors.quaternaryFill : colors.tertiaryFill,
+      },
+    ],
+    [isRead, colors.quaternaryFill, colors.tertiaryFill],
+  );
+  const dateTextStyle = useMemo(
+    () => [
+      DATE_TEXT_BASE,
+      { color: isRead ? colors.tertiaryLabel : colors.secondaryLabel },
+    ],
+    [isRead, colors.tertiaryLabel, colors.secondaryLabel],
+  );
+
+  const cardStyle = useMemo(
+    () => [
+      styles.chapterCard,
+      {
+        backgroundColor: colors.secondarySystemBackground,
+        borderBottomLeftRadius: isLast ? radius.md : 0,
+        borderBottomRightRadius: isLast ? radius.md : 0,
+        borderTopLeftRadius: isFirst ? radius.md : 0,
+        borderTopRightRadius: isFirst ? radius.md : 0,
+      },
+    ],
+    [colors.secondarySystemBackground, radius.md, isLast, isFirst],
+  );
+  const separatorStyle = useMemo(
+    () => [styles.separator, { backgroundColor: colors.separator }],
+    [colors.separator],
   );
 
   const row = (
     <Pressable
-      style={({ pressed }) => [
-        styles.chapterRow,
-        pressed && { opacity: 0.72 },
-        { paddingHorizontal: showChapterNumber ? Spacing.md : Spacing.lg },
-      ]}
-      onPress={() => {
-        if (selectMode) {
-          onToggleSelected?.(chapter);
-          return;
-        }
-        if (isLocked) return;
-        onOpen(chapter);
-      }}
+      style={pressableStyle}
+      onPress={handlePress}
       accessibilityRole="button"
     >
       {selectMode ? (
@@ -864,7 +1083,7 @@ const ChapterRow = memo(function ChapterRow({
           size={22}
           color={isSelected ? colors.tint : colors.tertiaryLabel}
         />
-      ) : showChapterNumber ? (
+      ) : chapterNumberLabel ? (
         <ThemedText
           variant="footnote"
           color="secondaryLabel"
@@ -884,7 +1103,7 @@ const ChapterRow = memo(function ChapterRow({
               isRead ? styles.readChapter : undefined,
             ]}
           >
-            {chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter)}
+            {title}
           </ThemedText>
         </View>
         {chapter.scanlators?.length ? (
@@ -896,35 +1115,17 @@ const ChapterRow = memo(function ChapterRow({
             {chapter.scanlators.join(", ")}
           </ThemedText>
         ) : null}
-        {downloadEntry?.status === "failed" && downloadEntry.error ? (
+        {isFailed && downloadEntry?.error ? (
           <ThemedText variant="caption1" color="destructive" numberOfLines={1}>
             {downloadEntry.error}
           </ThemedText>
         ) : null}
       </View>
       <View style={styles.sourceRowRightInfo}>
-        {chapter.dateUploaded ? (
-          <View
-            style={[
-              styles.dateUploaded,
-              {
-                backgroundColor: isRead
-                  ? colors.quaternaryFill
-                  : colors.tertiaryFill,
-              },
-            ]}
-          >
-            <ThemedText
-              variant="caption2"
-              style={{
-                color: isRead ? colors.tertiaryLabel : colors.secondaryLabel,
-                fontWeight: "700",
-                fontVariant: ["tabular-nums"],
-              }}
-            >
-              {Intl.DateTimeFormat(
-                getExpoLocale().regionCode || getLocale(),
-              ).format(new Date(chapter.dateUploaded * 1000))}
+        {dateLabel ? (
+          <View style={dateBadgeStyle}>
+            <ThemedText variant="caption2" style={dateTextStyle}>
+              {dateLabel}
             </ThemedText>
           </View>
         ) : null}
@@ -948,7 +1149,7 @@ const ChapterRow = memo(function ChapterRow({
           {!isDownloading && isDownloaded ? (
             <Ionicons name="download" size={14} color={DOWNLOADED_COLOR} />
           ) : null}
-          {downloadEntry?.status === "failed" ? (
+          {isFailed ? (
             <Ionicons name="alert-circle" size={14} color="#FF3B30" />
           ) : null}
         </View>
@@ -968,34 +1169,17 @@ const ChapterRow = memo(function ChapterRow({
   );
 
   return (
-    <View
-      style={[
-        styles.chapterCard,
-        {
-          backgroundColor: colors.secondarySystemBackground,
-          borderBottomLeftRadius: isLast ? radius.md : 0,
-          borderBottomRightRadius: isLast ? radius.md : 0,
-          borderTopLeftRadius: index === 0 ? radius.md : 0,
-          borderTopRightRadius: index === 0 ? radius.md : 0,
-        },
-      ]}
-    >
+    <View style={cardStyle}>
       <SwipeableRow
         rowId={chapter.key}
         enabled={!selectMode}
-        actions={[isRead ? markUnreadAction : markReadAction]}
+        actions={swipeActions}
         fullSwipeActionKey={isRead ? "unread" : "read"}
-        onFullSwipe={() =>
-          isRead ? onMarkUnread(chapter) : onMarkRead(chapter)
-        }
+        onFullSwipe={handleFullSwipe}
       >
         {row}
       </SwipeableRow>
-      {!isLast ? (
-        <View
-          style={[styles.separator, { backgroundColor: colors.separator }]}
-        />
-      ) : null}
+      {!isLast ? <View style={separatorStyle} /> : null}
     </View>
   );
 });

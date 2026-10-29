@@ -1,12 +1,12 @@
-import { GlassView } from 'expo-glass-effect';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { GlassView } from "expo-glass-effect";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { useTheme } from '@/hooks/use-theme';
+import { useTheme } from "@/hooks/use-theme";
 
-type GlassEffectStyle = 'clear' | 'regular';
+type GlassEffectStyle = "clear" | "regular";
 
 type GlassSurfaceProps = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   borderRadius?: number;
   style?: StyleProp<ViewStyle>;
   interactive?: boolean;
@@ -24,7 +24,8 @@ export function GlassSurface({
 }: GlassSurfaceProps) {
   const { colors, radius, isDark, isGlass } = useTheme();
   const cornerRadius = borderRadius ?? radius.md;
-  const effectStyle: GlassEffectStyle = glassStyle ?? (isDark ? 'clear' : 'regular');
+  const effectStyle: GlassEffectStyle =
+    glassStyle ?? (isDark ? "clear" : "regular");
 
   if (isGlass) {
     return (
@@ -32,8 +33,9 @@ export function GlassSurface({
         style={[styles.surface, { borderRadius: cornerRadius }, style]}
         glassEffectStyle={effectStyle}
         tintColor={tintColor}
-        colorScheme={isDark ? 'dark' : 'light'}
-        isInteractive={interactive}>
+        colorScheme={isDark ? "dark" : "light"}
+        isInteractive={interactive}
+      >
         {children}
       </GlassView>
     );
@@ -41,7 +43,12 @@ export function GlassSurface({
 
   return (
     <View
-      style={[styles.surface, { borderRadius: cornerRadius, backgroundColor: colors.secondaryFill }, style]}>
+      style={[
+        styles.surface,
+        { borderRadius: cornerRadius, backgroundColor: colors.secondaryFill },
+        style,
+      ]}
+    >
       {children}
     </View>
   );
@@ -49,6 +56,6 @@ export function GlassSurface({
 
 const styles = StyleSheet.create({
   surface: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
 });

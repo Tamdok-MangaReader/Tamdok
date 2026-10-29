@@ -1,30 +1,34 @@
-import { Stack, ThemeProvider, useRouter, type Href } from 'expo-router';
-import * as Linking from 'expo-linking';
-import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Stack, ThemeProvider, useRouter, type Href } from "expo-router";
+import * as Linking from "expo-linking";
+import { useEffect, useMemo, useState } from "react";
+import { View } from "react-native";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { LibraryRefreshIsland } from '@/components/library/library-refresh-island';
-import { WelcomeScreen } from '@/components/onboarding/WelcomeScreen';
-import { AidokuWasmHost } from '@/components/sources/aidoku-wasm-host';
-import { AppearanceProvider } from '@/context/appearance-context';
-import { SourcesProvider } from '@/context/sources-context';
-import { ThemePreferenceProvider } from '@/context/theme-preference-context';
-import { useExpoRouterTheme } from '@/hooks/use-navigation-theme';
-import { useThemeColor } from '@/hooks/use-theme';
+import { LibraryRefreshIsland } from "@/components/library/library-refresh-island";
+import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
+import { AidokuWasmHost } from "@/components/sources/aidoku-wasm-host";
+import { AppearanceProvider } from "@/context/appearance-context";
+import { SourcesProvider } from "@/context/sources-context";
+import { ThemePreferenceProvider } from "@/context/theme-preference-context";
+import { useExpoRouterTheme } from "@/hooks/use-navigation-theme";
+import { useThemeColor } from "@/hooks/use-theme";
 import {
   buildRegistrySettingsHref,
   parseRegistryDeepLink,
   peekPendingRegistryDeepLink,
   renotifyPendingRegistryDeepLink,
   setPendingRegistryDeepLink,
-} from '@/utils/registry-deep-link';
-import { shouldShowWelcome, markWelcomeCompleted, subscribeWelcomeReplay } from '@/utils/welcome-data-loader';
-import { installImageMemoryReclaimer } from '@/utils/image-memory';
+} from "@/utils/registry-deep-link";
+import {
+  shouldShowWelcome,
+  markWelcomeCompleted,
+  subscribeWelcomeReplay,
+} from "@/utils/welcome-data-loader";
+import { installImageMemoryReclaimer } from "@/utils/image-memory";
 
 export const unstable_settings = {
-  initialRouteName: '(main)',
+  initialRouteName: "(main)",
 };
 
 export default function RootLayout() {
@@ -43,7 +47,10 @@ export default function RootLayout() {
   );
 }
 
-function navigateToRegistrySettings(router: ReturnType<typeof useRouter>, registryUrl: string) {
+function navigateToRegistrySettings(
+  router: ReturnType<typeof useRouter>,
+  registryUrl: string,
+) {
   const href = buildRegistrySettingsHref(registryUrl) as Href;
   setTimeout(() => {
     router.replace(href);
@@ -52,13 +59,16 @@ function navigateToRegistrySettings(router: ReturnType<typeof useRouter>, regist
 }
 
 function RootLayoutContent() {
-  const backgroundColor = useThemeColor('systemBackground');
+  const backgroundColor = useThemeColor("systemBackground");
   const navigationTheme = useExpoRouterTheme();
   const [showWelcome, setShowWelcome] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const rootStackOptions = useMemo(() => ({ headerShown: false as const }), []);
+  const rootStackOptions = useMemo(
+    () => ({ headerShown: false as const, freezeOnBlur: true as const }),
+    [],
+  );
 
   useEffect(() => {
     shouldShowWelcome()
@@ -85,7 +95,7 @@ function RootLayoutContent() {
       if (url) handleDeepLink(url);
     });
 
-    const subscription = Linking.addEventListener('url', ({ url }) => {
+    const subscription = Linking.addEventListener("url", ({ url }) => {
       handleDeepLink(url);
     });
 
@@ -115,22 +125,22 @@ function RootLayoutContent() {
       <AidokuWasmHost />
       {showWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
       <Stack screenOptions={rootStackOptions}>
-        <Stack.Screen name='(main)' />
-        <Stack.Screen name='manga' />
+        <Stack.Screen name="(main)" />
+        <Stack.Screen name="manga" />
         <Stack.Screen
-          name='reader'
+          name="reader"
           options={{
             headerShown: false,
-            animation: 'slide_from_right',
-            gestureDirection: 'horizontal',
+            animation: "slide_from_right",
+            gestureDirection: "horizontal",
             gestureEnabled: false,
             fullScreenGestureEnabled: false,
-            statusBarStyle: 'light',
-            statusBarAnimation: 'fade',
-            contentStyle: { backgroundColor: '#000' },
+            statusBarStyle: "light",
+            statusBarAnimation: "fade",
+            contentStyle: { backgroundColor: "#000" },
           }}
         />
-        <Stack.Screen name='[...unmatched]' />
+        <Stack.Screen name="[...unmatched]" />
       </Stack>
       <LibraryRefreshIsland />
     </ThemeProvider>
