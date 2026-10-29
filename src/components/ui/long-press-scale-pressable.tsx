@@ -2,9 +2,10 @@ import * as Haptics from 'expo-haptics';
 import { forwardRef, useCallback } from 'react';
 import { Pressable, type PressableProps, type View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 const SQUEEZE_SCALE = 0.96;
+const PRESS_SCALE = 0.97;
 const SPRING = { damping: 14, stiffness: 320, mass: 0.6 };
 
 type LongPressScalePressableProps = PressableProps & {
@@ -13,7 +14,7 @@ type LongPressScalePressableProps = PressableProps & {
 };
 
 export const LongPressScalePressable = forwardRef<View, LongPressScalePressableProps>(function LongPressScalePressable(
-  { onLongPress, onPressOut, onPressIn, style, squeezeOnLongPress = true, squeezeScale = SQUEEZE_SCALE, children, ...rest },
+  { onLongPress, onPress, onPressOut, onPressIn, style, squeezeOnLongPress = true, squeezeScale = SQUEEZE_SCALE, children, ...rest },
   ref,
 ) {
   const scale = useSharedValue(1);
@@ -39,13 +40,22 @@ export const LongPressScalePressable = forwardRef<View, LongPressScalePressableP
         {...rest}
         style={style}
         onPressIn={(event) => {
+          if (squeezeOnLongPress) scale.value = withTiming(PRESS_SCALE, { duration: 90 });
           onPressIn?.(event);
         }}
-        onLongPress={(event) => {
-          squeeze();
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          onLongPress?.(event);
+        onPress={(event) => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onPress?.(event);
         }}
+        onLongPress={
+          onLongPress
+            ? (event) => {
+                squeeze();
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onLongPress(event);
+              }
+            : undefined
+        }
         onPressOut={(event) => {
           release();
           onPressOut?.(event);

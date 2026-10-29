@@ -830,25 +830,76 @@ export type LibraryEntryMetadata = Partial<
   >
 >;
 
+const LAST_REFRESHED_MIN_STEP_MS = 10 * 60 * 1000;
+
+function sameKeys(a: string[] | undefined, b: string[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 function applyEntryMetadata(
   entry: LibraryEntry,
   metadata: LibraryEntryMetadata,
-): void {
-  if (metadata.title) entry.title = metadata.title;
-  if (metadata.cover !== undefined) entry.cover = metadata.cover;
-  if (metadata.unreadCount !== undefined)
+): boolean {
+  let changed = false;
+  if (metadata.title && entry.title !== metadata.title) {
+    entry.title = metadata.title;
+    changed = true;
+  }
+  if (metadata.cover !== undefined && entry.cover !== metadata.cover) {
+    entry.cover = metadata.cover;
+    changed = true;
+  }
+  if (
+    metadata.unreadCount !== undefined &&
+    entry.unreadCount !== metadata.unreadCount
+  ) {
     entry.unreadCount = metadata.unreadCount;
-  if (metadata.downloadedCount !== undefined)
+    changed = true;
+  }
+  if (
+    metadata.downloadedCount !== undefined &&
+    entry.downloadedCount !== metadata.downloadedCount
+  ) {
     entry.downloadedCount = metadata.downloadedCount;
-  if (metadata.lastRefreshed !== undefined)
+    changed = true;
+  }
+  if (
+    metadata.lastRefreshed !== undefined &&
+    (entry.lastRefreshed === undefined ||
+      Math.abs(metadata.lastRefreshed - entry.lastRefreshed) >=
+        LAST_REFRESHED_MIN_STEP_MS)
+  ) {
     entry.lastRefreshed = metadata.lastRefreshed;
-  if (metadata.status !== undefined) entry.status = metadata.status;
-  if (metadata.knownChapterKeys !== undefined)
+    changed = true;
+  }
+  if (metadata.status !== undefined && entry.status !== metadata.status) {
+    entry.status = metadata.status;
+    changed = true;
+  }
+  if (
+    metadata.knownChapterKeys !== undefined &&
+    !sameKeys(entry.knownChapterKeys, metadata.knownChapterKeys)
+  ) {
     entry.knownChapterKeys = metadata.knownChapterKeys;
-  if (metadata.updateFailed !== undefined)
+    changed = true;
+  }
+  if (
+    metadata.updateFailed !== undefined &&
+    entry.updateFailed !== metadata.updateFailed
+  ) {
     entry.updateFailed = metadata.updateFailed;
-  if (metadata.lastAttemptAt !== undefined)
+    changed = true;
+  }
+  if (
+    metadata.lastAttemptAt !== undefined &&
+    entry.lastAttemptAt !== metadata.lastAttemptAt
+  ) {
     entry.lastAttemptAt = metadata.lastAttemptAt;
+    changed = true;
+  }
+  return changed;
 }
 
 export async function updateLibraryEntryMetadata(
@@ -878,8 +929,7 @@ export async function updateLibraryEntriesMetadata(
   for (const update of updates) {
     const entry = byKey.get(entryKey(update.sourceId, update.mangaKey));
     if (!entry) continue;
-    applyEntryMetadata(entry, update.metadata);
-    changed = true;
+    if (applyEntryMetadata(entry, update.metadata)) changed = true;
   }
   if (changed) await writeStore(store);
 }

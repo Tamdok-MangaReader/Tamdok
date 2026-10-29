@@ -367,7 +367,10 @@ export default function MangaDetailScreen() {
   useEffect(() => {
     let cancelled = false;
     void getLibraryCategories().then((categories) => {
-      if (!cancelled) setLibraryCategories(categories);
+      if (cancelled) return;
+      setLibraryCategories((prev) =>
+        JSON.stringify(prev) === JSON.stringify(categories) ? prev : categories,
+      );
     });
     return () => {
       cancelled = true;

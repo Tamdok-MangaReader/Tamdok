@@ -11,6 +11,7 @@ import { LibraryMangaActionsMenu } from "@/components/library/library-manga-acti
 import { MangaGrid, type MangaGridItem } from "@/components/manga/manga-grid";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MangaGridSkeleton } from "@/components/ui/skeleton";
 import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -129,6 +130,40 @@ const LibraryPage = memo(function LibraryPage({
   );
 });
 
+function sameEntry(a: LibraryEntry, b: LibraryEntry): boolean {
+  const keys = Object.keys(b) as (keyof LibraryEntry)[];
+  if (keys.length !== Object.keys(a).length) return false;
+  for (const key of keys) {
+    const x = a[key];
+    const y = b[key];
+    if (x === y) continue;
+    if (Array.isArray(x) && Array.isArray(y)) {
+      if (x.length !== y.length) return false;
+      for (let n = 0; n < x.length; n++) if (x[n] !== y[n]) return false;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+function reuseEntries(
+  prev: LibraryEntry[],
+  next: LibraryEntry[],
+): LibraryEntry[] {
+  const byKey = new Map(
+    prev.map((entry) => [`${entry.sourceId}:${entry.mangaKey}`, entry]),
+  );
+  let changed = prev.length !== next.length;
+  const result = next.map((entry, index) => {
+    const old = byKey.get(`${entry.sourceId}:${entry.mangaKey}`);
+    const reused = old && sameEntry(old, entry) ? old : entry;
+    if (reused !== prev[index]) changed = true;
+    return reused;
+  });
+  return changed ? result : prev;
+}
+
 export default function LibraryScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -153,6 +188,7 @@ export default function LibraryScreen() {
   const [refreshProgress, setRefreshProgress] =
     useState<LibraryRefreshProgress | null>(null);
   const [gridColumns, setGridColumns] = useState(3);
+  const [loaded, setLoaded] = useState(false);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
   const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] =
@@ -235,9 +271,20 @@ export default function LibraryScreen() {
       settings.libraryDisplay.showLibraryRefreshStatus ?? false,
     );
     setSortMode(settings.libraryDisplay.sortMode ?? "unread");
-    setLastReadAt(nextLastRead);
-    setLibraryCategories(nextCategories);
-    setAllEntries(nextEntries);
+    setLastReadAt((prev) => {
+      if (prev.size !== nextLastRead.size) return nextLastRead;
+      for (const [key, value] of nextLastRead) {
+        if (prev.get(key) !== value) return nextLastRead;
+      }
+      return prev;
+    });
+    setLibraryCategories((prev) =>
+      JSON.stringify(prev) === JSON.stringify(nextCategories)
+        ? prev
+        : nextCategories,
+    );
+    setAllEntries((prev) => reuseEntries(prev, nextEntries));
+    setLoaded(true);
     setSelectedCategoryId(validCategoryId);
     setShowCategoryTabs(customCategories);
 
@@ -245,16 +292,17 @@ export default function LibraryScreen() {
     const showEmpty =
       settings.libraryDisplay.showEmptyCategoryCountBadges ?? false;
 
-    setCategories(
-      nextCategories.map((category) => {
-        const count = libraryCategoryCount(nextEntries, category.id);
+    const nextTabs = nextCategories.map((category) => {
+      const count = libraryCategoryCount(nextEntries, category.id);
 
-        return {
-          id: category.id,
-          label: categoryLabel(category.id, category.name),
-          count: !showCounts || (count === 0 && !showEmpty) ? undefined : count,
-        };
-      }),
+      return {
+        id: category.id,
+        label: categoryLabel(category.id, category.name),
+        count: !showCounts || (count === 0 && !showEmpty) ? undefined : count,
+      };
+    });
+    setCategories((prev) =>
+      JSON.stringify(prev) === JSON.stringify(nextTabs) ? prev : nextTabs,
     );
 
     if (persistedCategoryIdRef.current !== validCategoryId) {
@@ -569,7 +617,11 @@ export default function LibraryScreen() {
 
       <Stack.Title>{t("library")}</Stack.Title>
 
-      {isEmpty && !showCategoryTabs ? (
+      {!loaded ? (
+        <ScreenContent padded={false} scrollEnabled={false}>
+          <MangaGridSkeleton columns={gridColumns} />
+        </ScreenContent>
+      ) : isEmpty && !showCategoryTabs ? (
         <ScreenContent centerContent={!refreshing} scrollable={refreshing}>
           {refreshStatus}
           {emptyState}

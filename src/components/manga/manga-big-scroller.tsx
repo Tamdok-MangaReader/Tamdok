@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
@@ -168,8 +169,14 @@ function BigMangaCard({
 
   return (
     <Pressable
-      style={StyleSheet.flatten([styles.card, { width }])}
-      onPress={onPress}
+      style={({ pressed }) => [
+        StyleSheet.flatten([styles.card, { width }]),
+        pressed ? { opacity: 0.6, transform: [{ scale: 0.98 }] } : null,
+      ]}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
     >
       <View style={styles.cardBody}>
         <View

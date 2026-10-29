@@ -282,15 +282,18 @@ export const MangaCover = memo(function MangaCover({
     accessibilityLabel: title,
   };
 
-  if (onLongPress) {
-    return (
-      <LongPressScalePressable {...pressableProps} squeezeScale={0.92}>
-        {content}
-      </LongPressScalePressable>
-    );
+  if (!interactive) {
+    return <Pressable {...pressableProps}>{content}</Pressable>;
   }
 
-  return <Pressable {...pressableProps}>{content}</Pressable>;
+  return (
+    <LongPressScalePressable
+      {...pressableProps}
+      squeezeScale={onLongPress ? 0.92 : 0.96}
+    >
+      {content}
+    </LongPressScalePressable>
+  );
 });
 
 const styles = StyleSheet.create({

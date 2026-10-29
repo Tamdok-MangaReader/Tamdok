@@ -1,4 +1,9 @@
-import { getValue, setValue, storageKeys } from "@/constants/storage";
+import {
+  getValue,
+  getValueSerialized,
+  setValue,
+  storageKeys,
+} from "@/constants/storage";
 import { getAppSettings } from "@/services/app-settings";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
 
@@ -81,15 +86,22 @@ function upsertChapterHistory(store: TrackingStore, entry: HistoryEntry): void {
   store.history.unshift(entry);
 }
 
+let trackingCache: { raw: string | undefined; store: TrackingStore } | null =
+  null;
+
 async function readStore(): Promise<TrackingStore> {
+  const raw = await getValueSerialized(storageKeys.MANGA_TRACKING);
+  if (trackingCache && trackingCache.raw === raw) return trackingCache.store;
   const stored = await getValue<Partial<TrackingStore>>(
     storageKeys.MANGA_TRACKING,
     {},
   );
-  return {
+  const store: TrackingStore = {
     chapters: stored?.chapters ?? {},
     history: Array.isArray(stored?.history) ? stored.history : [],
   };
+  trackingCache = { raw, store };
+  return store;
 }
 
 function mutateStore(
@@ -100,6 +112,10 @@ function mutateStore(
     const store = await readStore();
     if (!apply(store)) return false;
     await setValue(storageKeys.MANGA_TRACKING, store);
+    trackingCache = {
+      raw: await getValueSerialized(storageKeys.MANGA_TRACKING),
+      store,
+    };
     if (notify) scheduleNotify();
     return true;
   });

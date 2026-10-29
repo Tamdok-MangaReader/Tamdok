@@ -5,7 +5,7 @@ const PREFS_PATH = `${FileSystem.documentDirectory}app-preferences.json`;
 const TMP_PATH = `${FileSystem.documentDirectory}app-preferences.json.tmp`;
 const CORRUPT_PATH = `${FileSystem.documentDirectory}app-preferences.corrupt.json`;
 const MIGRATION_FLAG = "storage_migrated_from_secure_store_v1";
-const PERSIST_DELAY_MS = 40;
+const PERSIST_DELAY_MS = 150;
 
 type Preferences = Record<string, unknown>;
 type PreferencesStore = Map<string, string>;
@@ -129,6 +129,11 @@ export async function setValue<T>(key: string, value: T): Promise<void> {
   if (serialized === undefined) store.delete(key);
   else store.set(key, serialized);
   await persist();
+}
+
+export async function getValueSerialized(key: string): Promise<string | undefined> {
+  const store = await ensureLoaded();
+  return store.get(key);
 }
 
 export async function getValue<T>(key: string, defaultValue: T): Promise<T> {

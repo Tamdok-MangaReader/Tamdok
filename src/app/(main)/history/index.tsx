@@ -21,6 +21,7 @@ import {
 } from "@/components/sources/swipeable-row";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { HistorySkeleton } from "@/components/ui/skeleton";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -573,6 +574,7 @@ export default function HistoryScreen() {
   const { installed } = useSources();
   const refreshTick = useMangaDataRefresh();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   const entriesRef = useRef<HistoryEntry[]>([]);
   const groupCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
@@ -611,6 +613,8 @@ export default function HistoryScreen() {
         cover: entry.cover ?? libraryEntry?.cover ?? cached?.cover,
       };
     });
+
+    setLoaded(true);
 
     const previous = entriesRef.current;
     const previousByKey = new Map(
@@ -773,6 +777,18 @@ export default function HistoryScreen() {
     },
     [installed, openManga, requestReload],
   );
+
+  if (!loaded) {
+    return (
+      <>
+        <Stack.Screen options={screenOptions} />
+        <Stack.Title>{t("history")}</Stack.Title>
+        <ScreenContent padded={false} scrollEnabled={false}>
+          <HistorySkeleton />
+        </ScreenContent>
+      </>
+    );
+  }
 
   if (!hasEntries) {
     return (
