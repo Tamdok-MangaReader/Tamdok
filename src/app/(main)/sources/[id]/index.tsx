@@ -1,13 +1,18 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
   memo,
   useCallback,
   useMemo,
+  useRef,
   useState,
   type ComponentProps,
   type ReactElement,
   type ReactNode,
 } from "react";
+import * as Haptics from "expo-haptics";
+import Animated, { useSharedValue } from "react-native-reanimated";
+import PagerView from "react-native-pager-view";
 import {
   ActivityIndicator,
   FlatList,
@@ -22,13 +27,14 @@ import { HomePlaceholderLayout } from "@/components/manga/home-placeholder-layou
 import { HomeSection } from "@/components/manga/home-section";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import {
-  SourceCategoryTabs,
-  type SourceCategoryTab,
-} from "@/components/sources/source-category-tabs";
+  LibraryCategoryTabs,
+  type LibraryCategoryTab,
+} from "@/components/library/library-category-tabs";
 import { SourceHomeAlertBanner } from "@/components/sources/source-home-alert-banner";
 import { SourceListingPanel } from "@/components/sources/source-listing-panel";
 import { SourceOverflowMenu } from "@/components/sources/source-overflow-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MangaGridSkeleton } from "@/components/ui/skeleton";
 import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import {
   LiquidGlassScrollComponent,
@@ -39,6 +45,7 @@ import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { useSources } from "@/context/sources-context";
+import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
 import { useSourceHome } from "@/hooks/use-source-home";
 import { sourceWebsiteUrl } from "@/hooks/use-source-filters";
 import { useSourceRunner } from "@/hooks/use-source-runner";
@@ -48,6 +55,8 @@ import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { mangaHref, sourceSearchHref } from "@/utils/manga-route";
 
 export const SOURCE_HOME_TAB_ID = "__home__";
+
+const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 
 function decodeSourceRouteId(id: string): string {
   try {
@@ -64,7 +73,7 @@ const renderScrollComponent = (
 const LoadingHome = memo(function LoadingHome({
   chrome,
 }: {
-  chrome: ReactElement;
+  chrome?: ReactElement;
 }) {
   return (
     <View style={styles.flex}>
@@ -80,7 +89,7 @@ const EmptyHome = memo(function EmptyHome({
   chrome,
   refreshControl,
 }: {
-  chrome: ReactElement;
+  chrome?: ReactElement;
   refreshControl: ReactElement<ComponentProps<typeof RefreshControl>>;
 }) {
   return (
@@ -104,7 +113,7 @@ const PlaceholderHome = memo(function PlaceholderHome({
   chrome,
   refreshControl,
 }: {
-  chrome: ReactElement;
+  chrome?: ReactElement;
   refreshControl: ReactElement<ComponentProps<typeof RefreshControl>>;
 }) {
   return (
@@ -146,6 +155,12 @@ export default function SourceHomeScreen() {
     dismissError,
   } = useSourceHome({ source, runner });
   const [selectedTabId, setSelectedTabId] = useState(SOURCE_HOME_TAB_ID);
+  const [activatedTabs, setActivatedTabs] = useState<Set<string>>(
+    () => new Set([SOURCE_HOME_TAB_ID]),
+  );
+  const pagerRef = useRef<PagerView>(null);
+  const progress = useSharedValue(0);
+  const headerHeight = useHeaderHeight();
 
   const sourceKey = source ? sourceRouteId(source) : null;
 
@@ -172,15 +187,16 @@ export default function SourceHomeScreen() {
     router.navigate(`/sources/${encodeURIComponent(sourceRoute)}/settings`);
   }, [router, sourceRoute]);
 
-  const openListing = useCallback(
-    (listing: { id: string }) => setSelectedTabId(listing.id),
-    [],
-  );
+  const activateTab = useCallback((id: string) => {
+    setActivatedTabs((previous) =>
+      previous.has(id) ? previous : new Set(previous).add(id),
+    );
+  }, []);
 
   const websiteUrl = useMemo(() => sourceWebsiteUrl(source), [source]);
 
-  const categoryTabs = useMemo<SourceCategoryTab[]>(() => {
-    const tabs: SourceCategoryTab[] = [
+  const categoryTabs = useMemo<LibraryCategoryTab[]>(() => {
+    const tabs: LibraryCategoryTab[] = [
       { id: SOURCE_HOME_TAB_ID, label: t("source_tab_home") },
     ];
     for (const listing of listings) {
@@ -189,16 +205,61 @@ export default function SourceHomeScreen() {
     return tabs;
   }, [listings]);
 
-  const selectedListing = useMemo(
-    () => listings.find((listing) => listing.id === selectedTabId),
-    [listings, selectedTabId],
+  const pagerKey = useMemo(
+    () => categoryTabs.map((tab) => tab.id).join("|"),
+    [categoryTabs],
+  );
+
+  const selectedIndex = Math.max(
+    0,
+    categoryTabs.findIndex((tab) => tab.id === selectedTabId),
+  );
+
+  const openListing = useCallback(
+    (listing: { id: string }) => {
+      const index = categoryTabs.findIndex((tab) => tab.id === listing.id);
+      if (index < 0) return;
+      activateTab(listing.id);
+      pagerRef.current?.setPage(index);
+    },
+    [categoryTabs, activateTab],
+  );
+
+  const pageScrollHandler = usePageScrollHandler({
+    onPageScroll: (event) => {
+      "worklet";
+      progress.value = event.position + event.offset;
+    },
+  });
+
+  const handleTabPress = useCallback(
+    (index: number) => {
+      const tab = categoryTabs[index];
+      if (tab) activateTab(tab.id);
+      if (Math.abs(index - selectedIndex) > 1) {
+        pagerRef.current?.setPageWithoutAnimation(index);
+      } else {
+        pagerRef.current?.setPage(index);
+      }
+    },
+    [categoryTabs, selectedIndex, activateTab],
+  );
+
+  const handlePageSelected = useCallback(
+    (index: number) => {
+      const tab = categoryTabs[index];
+      if (!tab) return;
+      setSelectedTabId(tab.id);
+      activateTab(tab.id);
+      void Haptics.selectionAsync();
+    },
+    [categoryTabs, activateTab],
   );
 
   const homeComponents = home?.components ?? EMPTY_COMPONENTS;
 
   const err = runnerError ?? homeLoadError;
   const combinedError = err?.includes("HTTP 403") ? "Try to disable VPN" : err;
-  const showHome = selectedTabId === SOURCE_HOME_TAB_ID;
   const hasHomeContent = homeComponents.length > 0;
   const showBlockingError =
     Boolean(combinedError) &&
@@ -212,18 +273,6 @@ export default function SourceHomeScreen() {
     (isLoading || runnerLoading) && !hasCachedContent && !hasHomeContent;
   const showCategoryTabs = categoryTabs.length > 1;
 
-  const categoryTabsElement = useMemo(
-    () =>
-      showCategoryTabs ? (
-        <SourceCategoryTabs
-          tabs={categoryTabs}
-          selectedId={selectedTabId}
-          onSelect={setSelectedTabId}
-        />
-      ) : null,
-    [showCategoryTabs, categoryTabs, selectedTabId],
-  );
-
   const alertBanner = useMemo(
     () =>
       showInlineError && combinedError ? (
@@ -235,27 +284,7 @@ export default function SourceHomeScreen() {
     [showInlineError, combinedError, dismissError],
   );
 
-  const homeChrome = useMemo(
-    () => (
-      <View style={styles.homeChrome}>
-        <IncognitoModeBanner />
-        {alertBanner}
-        {categoryTabsElement}
-      </View>
-    ),
-    [alertBanner, categoryTabsElement],
-  );
-
-  const listingChrome = useMemo(
-    () => (
-      <View style={styles.listingChrome}>
-        <IncognitoModeBanner />
-        {alertBanner}
-        {categoryTabsElement}
-      </View>
-    ),
-    [alertBanner, categoryTabsElement],
-  );
+  const pageSpacer = useMemo(() => <View style={styles.pageSpacer} />, []);
 
   const refreshControl = useMemo(
     () => (
@@ -321,21 +350,17 @@ export default function SourceHomeScreen() {
     );
   }
 
-  let body: ReactNode;
-  if (showBlockingError) {
-    body = null;
-  } else if (showHome && showHomePlaceholder) {
-    body = (
-      <PlaceholderHome chrome={homeChrome} refreshControl={refreshControl} />
-    );
-  } else if (showHome && hasHomeContent) {
-    body = (
+  let homeBody: ReactNode;
+  if (showHomePlaceholder) {
+    homeBody = <PlaceholderHome refreshControl={refreshControl} />;
+  } else if (hasHomeContent) {
+    homeBody = (
       <FlatList
         style={styles.scroll}
         data={homeComponents}
         keyExtractor={sectionKeyExtractor}
         renderItem={renderSection}
-        ListHeaderComponent={homeChrome}
+        ListHeaderComponent={pageSpacer}
         contentContainerStyle={styles.home}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -348,25 +373,73 @@ export default function SourceHomeScreen() {
         removeClippedSubviews={Platform.OS === "android"}
       />
     );
+  } else if (listings[0] && runner) {
+    homeBody = (
+      <SourceListingPanel
+        runner={runner}
+        listing={listings[0]}
+        sourceId={source.id}
+        onPressManga={openManga}
+        listHeader={pageSpacer}
+        refreshControl={refreshControl}
+      />
+    );
+  } else if (runnerLoading) {
+    homeBody = <LoadingHome />;
   } else {
-    const listing = showHome ? listings[0] : selectedListing;
-    if (listing && runner) {
-      body = (
-        <SourceListingPanel
-          runner={runner}
-          listing={listing}
-          sourceId={source.id}
-          onPressManga={openManga}
-          listHeader={listingChrome}
-          refreshControl={refreshControl}
-        />
-      );
-    } else if (runnerLoading) {
-      body = <LoadingHome chrome={homeChrome} />;
-    } else {
-      body = <EmptyHome chrome={homeChrome} refreshControl={refreshControl} />;
-    }
+    homeBody = <EmptyHome refreshControl={refreshControl} />;
   }
+
+  const hasTabs = categoryTabs.length > 1;
+
+  const body = showBlockingError ? null : (
+    <View style={styles.flex}>
+      <View style={{ paddingTop: headerHeight }}>
+        <IncognitoModeBanner />
+        {alertBanner}
+        {hasTabs ? (
+          <LibraryCategoryTabs
+            key={pagerKey}
+            tabs={categoryTabs}
+            progress={progress}
+            onPress={handleTabPress}
+          />
+        ) : null}
+      </View>
+      <AnimatedPagerView
+        ref={pagerRef}
+        key={pagerKey}
+        style={styles.flex}
+        initialPage={selectedIndex}
+        onPageScroll={pageScrollHandler}
+        onPageSelected={(event) =>
+          handlePageSelected(event.nativeEvent.position)
+        }
+        scrollEnabled={hasTabs}
+        offscreenPageLimit={1}
+      >
+        <View key={SOURCE_HOME_TAB_ID} collapsable={false} style={styles.flex}>
+          {homeBody}
+        </View>
+        {listings.map((listing) => (
+          <View key={listing.id} collapsable={false} style={styles.flex}>
+            {activatedTabs.has(listing.id) && runner ? (
+              <SourceListingPanel
+                runner={runner}
+                listing={listing}
+                sourceId={source.id}
+                onPressManga={openManga}
+                listHeader={pageSpacer}
+                refreshControl={refreshControl}
+              />
+            ) : (
+              <MangaGridSkeleton columns={3} rows={4} />
+            )}
+          </View>
+        ))}
+      </AnimatedPagerView>
+    </View>
+  );
 
   return (
     <SourceCoverHeadersProvider source={source}>
@@ -384,7 +457,7 @@ export default function SourceHomeScreen() {
               description={combinedError!}
             />
           ) : (
-            <View style={styles.flex}>{body}</View>
+            body
           )}
         </ScreenContent>
       </>
@@ -410,14 +483,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxxl,
     gap: Spacing.lg,
   },
-  homeChrome: {
-    gap: Spacing.xs,
-    paddingTop: Spacing.md,
-  },
-  listingChrome: {
-    gap: Spacing.xs,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
+  pageSpacer: {
+    height: Spacing.sm,
   },
   emptyHome: {
     flexGrow: 1,

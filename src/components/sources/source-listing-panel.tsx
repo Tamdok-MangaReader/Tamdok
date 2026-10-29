@@ -8,6 +8,7 @@ import {
 
 import { MangaGrid } from "@/components/manga/manga-grid";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MangaGridSkeleton } from "@/components/ui/skeleton";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -34,7 +35,7 @@ export function SourceListingPanel({
   const [entries, setEntries] = useState<Manga[]>([]);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
@@ -85,11 +86,7 @@ export function SourceListingPanel({
   }
 
   if (isLoading && entries.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
-    );
+    return <MangaGridSkeleton columns={3} rows={4} />;
   }
 
   if (entries.length === 0) {
