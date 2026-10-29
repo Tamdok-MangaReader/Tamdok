@@ -7,7 +7,7 @@ export default function SourcesLayout() {
 
   return (
     <Stack screenOptions={stackScreenOptions}>
-      <Stack.Screen name='index' />
+      <Stack.Screen name='index' options={{ headerLargeTitle: false }} />
       <Stack.Screen name='[id]/index' options={{ headerLargeTitle: false, title: '' }} />
       <Stack.Screen name='[id]/settings' options={{ headerLargeTitle: false, title: '' }} />
       <Stack.Screen name='[id]/search' options={{ headerShown: false, animation: 'fade_from_bottom' }} />

@@ -1,5 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { useIsFocused } from "expo-router";
+import { useHeaderHeight } from "@react-navigation/elements";
+import Animated, { useSharedValue } from "react-native-reanimated";
+import PagerView from "react-native-pager-view";
 import {
   memo,
   useCallback,
@@ -13,6 +18,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  FlatList as NativeFlatList,
   Pressable,
   StyleSheet,
   View,
@@ -24,9 +30,9 @@ import DraggableFlatList, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-  SourceCategoryTabs,
-  type SourceCategoryTab,
-} from "@/components/sources/source-category-tabs";
+  LibraryCategoryTabs,
+  type LibraryCategoryTab,
+} from "@/components/library/library-category-tabs";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import { SourceInstalledActions } from "@/components/sources/source-actions-menu";
 import { SearchDismissRow } from "@/components/sources/search-dismiss-row";
@@ -50,6 +56,7 @@ import { BottomTabInset, Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useSources } from "@/context/sources-context";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
+import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
 import { useTheme } from "@/hooks/use-theme";
 import type { InstalledSource } from "@/parsers/shared/types";
 import { getSourceLayoutKey, sourceRouteId } from "@/services/sources";
@@ -69,6 +76,14 @@ type SourcesListItem = SourceListRow | InstalledSource;
 type SourcesCategoryId = "all" | "pinned" | "aidoku" | "tamdok";
 type UpdateVersion = ComponentProps<typeof SourceListItem>["updateAvailable"];
 
+const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
+
+type SourcesCategoryPage = {
+  id: SourcesCategoryId;
+  rows: SourceListRow[];
+};
+
+const EMPTY_SWIPE_ACTIONS: SwipeAction[] = [];
 const REORDER_ROW_HEIGHT = 76;
 const PIN_SWIPE_COLOR = "#E5B800";
 
@@ -120,6 +135,8 @@ type SourceRowProps = {
   updateVersion: UpdateVersion;
   visible: boolean;
   searchActive: boolean;
+  swipeLeading: boolean;
+  swipeTrailing: boolean;
   onOpen: (source: InstalledSource) => void;
   onOpenSettings: (source: InstalledSource) => void;
   onPin: (source: InstalledSource) => void;
@@ -134,6 +151,8 @@ const SourceRow = memo(function SourceRow({
   updateVersion,
   visible,
   searchActive,
+  swipeLeading,
+  swipeTrailing,
   onOpen,
   onOpenSettings,
   onPin,
@@ -142,30 +161,36 @@ const SourceRow = memo(function SourceRow({
   onDelete,
 }: SourceRowProps) {
   const leadingActions = useMemo<SwipeAction[]>(
-    () => [
-      {
-        key: "pin",
-        label: pinned ? t("sources_unpin") : t("sources_pin"),
-        icon: pinned ? "pin-outline" : "pin",
-        sfSymbol: pinned ? "pin.slash.fill" : "pin.fill",
-        color: PIN_SWIPE_COLOR,
-        onPress: () => (pinned ? onUnpin(source) : onPin(source)),
-      },
-    ],
-    [pinned, source, onPin, onUnpin],
+    () =>
+      swipeLeading
+        ? [
+            {
+              key: "pin",
+              label: pinned ? t("sources_unpin") : t("sources_pin"),
+              icon: pinned ? "pin-outline" : "pin",
+              sfSymbol: pinned ? "pin.slash.fill" : "pin.fill",
+              color: PIN_SWIPE_COLOR,
+              onPress: () => (pinned ? onUnpin(source) : onPin(source)),
+            },
+          ]
+        : EMPTY_SWIPE_ACTIONS,
+    [swipeLeading, pinned, source, onPin, onUnpin],
   );
 
   const trailingActions = useMemo<SwipeAction[]>(
-    () => [
-      {
-        key: "settings",
-        label: t("settings"),
-        icon: "settings-outline",
-        color: "#8E8E93",
-        onPress: () => onOpenSettings(source),
-      },
-    ],
-    [source, onOpenSettings],
+    () =>
+      swipeTrailing
+        ? [
+            {
+              key: "settings",
+              label: t("settings"),
+              icon: "settings-outline",
+              color: "#8E8E93",
+              onPress: () => onOpenSettings(source),
+            },
+          ]
+        : EMPTY_SWIPE_ACTIONS,
+    [swipeTrailing, source, onOpenSettings],
   );
 
   const handlePress = useCallback(() => onOpen(source), [onOpen, source]);
@@ -273,6 +298,202 @@ const DragPlaceholder = memo(function DragPlaceholder({
   );
 });
 
+type SourcesPageProps = {
+  rows: SourceListRow[];
+  query: string;
+  searchActive: boolean;
+  swipeLeading: boolean;
+  swipeTrailing: boolean;
+  isPinned: ReturnType<typeof useSources>["isPinned"];
+  getSourceUpdate: ReturnType<typeof useSources>["getSourceUpdate"];
+  onOpen: (source: InstalledSource) => void;
+  onOpenSettings: (source: InstalledSource) => void;
+  onPin: (source: InstalledSource) => void;
+  onUnpin: (source: InstalledSource) => void;
+  onReorder: () => void;
+  onDelete: (source: InstalledSource) => void;
+};
+
+const SourcesPage = memo(function SourcesPage({
+  rows,
+  query,
+  searchActive,
+  swipeLeading,
+  swipeTrailing,
+  isPinned,
+  getSourceUpdate,
+  onOpen,
+  onOpenSettings,
+  onPin,
+  onUnpin,
+  onReorder,
+  onDelete,
+}: SourcesPageProps) {
+  const { visibilityById, matchingCount } = useMemo(() => {
+    if (!searchActive) {
+      return { visibilityById: null, matchingCount: rows.length };
+    }
+    const map = new Map<string, boolean>();
+    let count = 0;
+    let headerId: string | null = null;
+    let anyMatch = false;
+    for (const row of rows) {
+      if (row.kind === "header") {
+        if (headerId) map.set(headerId, anyMatch);
+        headerId = row.id;
+        anyMatch = false;
+        continue;
+      }
+      const matches = matchesInstalledSource(row.source, query);
+      map.set(row.id, matches);
+      if (matches) {
+        count++;
+        anyMatch = true;
+      }
+    }
+    if (headerId) map.set(headerId, anyMatch);
+    return { visibilityById: map, matchingCount: count };
+  }, [rows, searchActive, query]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: SourceListRow }) => {
+      const visible = visibilityById?.get(item.id) ?? true;
+
+      if (item.kind === "header") {
+        return (
+          <HeaderRow
+            title={item.title}
+            isFirst={item.isFirst}
+            visible={visible}
+            searchActive={searchActive}
+          />
+        );
+      }
+
+      return (
+        <SourceRow
+          source={item.source}
+          pinned={isPinned(item.source)}
+          updateVersion={getSourceUpdate(item.source.id)?.availableVersion}
+          visible={visible}
+          searchActive={searchActive}
+          swipeLeading={swipeLeading}
+          swipeTrailing={swipeTrailing}
+          onOpen={onOpen}
+          onOpenSettings={onOpenSettings}
+          onPin={onPin}
+          onUnpin={onUnpin}
+          onReorder={onReorder}
+          onDelete={onDelete}
+        />
+      );
+    },
+    [
+      visibilityById,
+      searchActive,
+      swipeLeading,
+      swipeTrailing,
+      isPinned,
+      getSourceUpdate,
+      onOpen,
+      onOpenSettings,
+      onPin,
+      onUnpin,
+      onReorder,
+      onDelete,
+    ],
+  );
+
+  const contentContainerStyle = useMemo(
+    () => [styles.listContent, searchActive && styles.listContentSearching],
+    [searchActive],
+  );
+
+  if (searchActive && matchingCount === 0) {
+    return (
+      <View collapsable={false} style={styles.root}>
+        <EmptyState
+          icon="search-outline"
+          title={t("source_search_empty_title")}
+          description={t("source_search_empty_desc")}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View collapsable={false} style={styles.root}>
+      <NativeFlatList<SourceListRow>
+        data={rows}
+        keyExtractor={itemKeyExtractor}
+        renderItem={renderItem}
+        contentInsetAdjustmentBehavior="automatic"
+        renderScrollComponent={renderScrollComponent}
+        contentContainerStyle={contentContainerStyle}
+        ListFooterComponent={LIST_FOOTER}
+        {...NORMAL_LIST_PROPS}
+      />
+    </View>
+  );
+});
+
+function buildCategoryRows(
+  category: SourcesCategoryId,
+  installed: InstalledSource[],
+  isPinned: (source: InstalledSource) => boolean,
+): SourceListRow[] {
+  const toRows = (
+    title: string,
+    key: string,
+    data: InstalledSource[],
+    isFirst: boolean,
+  ) => {
+    const rows: SourceListRow[] = [];
+    if (title) {
+      rows.push({ kind: "header", id: `header-${key}`, title, isFirst });
+    }
+    for (const source of data) {
+      rows.push({ kind: "source", id: getSourceLayoutKey(source), source });
+    }
+    return rows;
+  };
+
+  if (category === "pinned") {
+    return toRows(
+      "",
+      "pinned",
+      installed.filter((source) => isPinned(source)),
+      true,
+    );
+  }
+  if (category === "aidoku" || category === "tamdok") {
+    return toRows(
+      "",
+      category,
+      installed.filter((source) => source.kind === category),
+      true,
+    );
+  }
+
+  const pinned = installed.filter((source) => isPinned(source));
+  const unpinned = installed.filter((source) => !isPinned(source));
+  const rows: SourceListRow[] = [];
+  if (pinned.length > 0) {
+    rows.push(...toRows(t("sources_pinned"), "pinned", pinned, true));
+  }
+  if (unpinned.length > 0) {
+    rows.push(
+      ...toRows(
+        pinned.length > 0 ? t("sources_all") : t("sources"),
+        "all",
+        unpinned,
+        pinned.length === 0,
+      ),
+    );
+  }
+  return rows;
+}
+
 export default function SourcesScreen() {
   const router = useRouter();
   const { colors, radius, isDark } = useTheme();
@@ -295,6 +516,16 @@ export default function SourcesScreen() {
   const [isReorderMode, setIsReorderMode] = useState(false);
   const [reorderData, setReorderData] = useState(installed);
   const listRef = useRef<FlatList<SourcesListItem>>(null);
+  const pagerRef = useRef<PagerView>(null);
+  const progress = useSharedValue(0);
+  const headerHeight = useHeaderHeight();
+  const focused = useIsFocused();
+  const [tabsReady, setTabsReady] = useState(false);
+  useEffect(() => {
+    if (!focused || headerHeight <= 0 || isLoading) return;
+    const timer = setTimeout(() => setTabsReady(true), 60);
+    return () => clearTimeout(timer);
+  }, [focused, headerHeight, isLoading]);
   const isEmpty = !isLoading && installed.length === 0;
   const searchActive = isSearchActive(deferredQuery);
 
@@ -372,8 +603,8 @@ export default function SourcesScreen() {
   );
   const showKindTabs = hasAidoku && hasTamdok;
 
-  const categoryTabs = useMemo<SourceCategoryTab[]>(() => {
-    const tabs: SourceCategoryTab[] = [{ id: "all", label: t("sources") }];
+  const categoryTabs = useMemo<LibraryCategoryTab[]>(() => {
+    const tabs: LibraryCategoryTab[] = [{ id: "all", label: t("sources") }];
     if (hasPinned) tabs.push({ id: "pinned", label: t("sources_pinned") });
     if (showKindTabs) {
       tabs.push({ id: "aidoku", label: t("sources_tab_aidoku") });
@@ -388,88 +619,56 @@ export default function SourcesScreen() {
     }
   }, [categoryTabs, selectedCategory]);
 
-  const handleSelectCategory = useCallback(
-    (id: string) => setSelectedCategory(id as SourcesCategoryId),
-    [],
+  const pagerKey = useMemo(
+    () => categoryTabs.map((tab) => tab.id).join("|"),
+    [categoryTabs],
   );
 
-  const filteredByCategory = useMemo(() => {
-    switch (selectedCategory) {
-      case "pinned":
-        return installed.filter((source) => isPinned(source));
-      case "aidoku":
-        return installed.filter((source) => source.kind === "aidoku");
-      case "tamdok":
-        return installed.filter((source) => source.kind === "tamdok");
-      default:
-        return installed;
-    }
-  }, [installed, isPinned, selectedCategory]);
+  const selectedPageIndex = Math.max(
+    0,
+    categoryTabs.findIndex((tab) => tab.id === selectedCategory),
+  );
 
-  const sections = useMemo<SourceSection[]>(() => {
-    if (selectedCategory !== "all") {
-      if (filteredByCategory.length === 0) return [];
-      return [{ key: selectedCategory, title: "", data: filteredByCategory }];
-    }
+  const pages = useMemo<SourcesCategoryPage[]>(
+    () =>
+      categoryTabs.map((tab) => ({
+        id: tab.id as SourcesCategoryId,
+        rows: buildCategoryRows(
+          tab.id as SourcesCategoryId,
+          installed,
+          isPinned,
+        ),
+      })),
+    [categoryTabs, installed, isPinned],
+  );
 
-    const pinned = filteredByCategory.filter((source) => isPinned(source));
-    const unpinned = filteredByCategory.filter((source) => !isPinned(source));
-    const result: SourceSection[] = [];
+  const pageScrollHandler = usePageScrollHandler({
+    onPageScroll: (event) => {
+      "worklet";
+      progress.value = event.position + event.offset;
+    },
+  });
 
-    if (pinned.length > 0) {
-      result.push({ key: "pinned", title: t("sources_pinned"), data: pinned });
-    }
-    if (unpinned.length > 0) {
-      result.push({
-        key: "all",
-        title: pinned.length > 0 ? t("sources_all") : t("sources"),
-        data: unpinned,
-      });
-    }
-    return result;
-  }, [filteredByCategory, isPinned, selectedCategory]);
-
-  const listRows = useMemo<SourceListRow[]>(() => {
-    const rows: SourceListRow[] = [];
-    sections.forEach((section, sectionIndex) => {
-      if (section.title) {
-        rows.push({
-          kind: "header",
-          id: `header-${section.key}`,
-          title: section.title,
-          isFirst: sectionIndex === 0,
-        });
+  const handleTabPress = useCallback(
+    (index: number) => {
+      if (Math.abs(index - selectedPageIndex) > 1) {
+        pagerRef.current?.setPageWithoutAnimation(index);
+      } else {
+        pagerRef.current?.setPage(index);
       }
-      section.data.forEach((source) => {
-        rows.push({ kind: "source", id: getSourceLayoutKey(source), source });
-      });
-    });
-    return rows;
-  }, [sections]);
+    },
+    [selectedPageIndex],
+  );
 
-  const { visibilityById, matchingSourceCount } = useMemo(() => {
-    if (!searchActive) {
-      return {
-        visibilityById: null,
-        matchingSourceCount: filteredByCategory.length,
-      };
-    }
-    const map = new Map<string, boolean>();
-    let count = 0;
-    for (const section of sections) {
-      let anyMatch = false;
-      for (const source of section.data) {
-        const matches = matchesInstalledSource(source, deferredQuery);
-        map.set(getSourceLayoutKey(source), matches);
-        if (matches) {
-          anyMatch = true;
-          count++;
-        }
-      }
-      map.set(`header-${section.key}`, anyMatch);
-    }
-    return { visibilityById: map, matchingSourceCount: count };
-  }, [searchActive, sections, filteredByCategory.length, deferredQuery]);
+  const handlePageSelected = useCallback(
+    (index: number) => {
+      const tab = categoryTabs[index];
+      if (!tab) return;
+      setSelectedCategory(tab.id as SourcesCategoryId);
+      void Haptics.selectionAsync();
+    },
+    [categoryTabs],
+  );
 
   useEffect(() => {
     if (!isReorderMode) return;
@@ -478,63 +677,19 @@ export default function SourcesScreen() {
     });
   }, [isReorderMode]);
 
-  const renderItem = useCallback(
+  const renderReorderItem = useCallback(
     (params: RenderItemParams<SourcesListItem>) => {
-      if (isReorderMode) {
-        const source = params.item as InstalledSource;
-        return (
-          <ReorderRow
-            source={source}
-            updateVersion={getSourceUpdate(source.id)?.availableVersion}
-            drag={params.drag}
-            isActive={params.isActive}
-          />
-        );
-      }
-
-      const row = params.item as SourceListRow;
-      const visible = visibilityById?.get(row.id) ?? true;
-
-      if (row.kind === "header") {
-        return (
-          <HeaderRow
-            title={row.title}
-            isFirst={row.isFirst}
-            visible={visible}
-            searchActive={searchActive}
-          />
-        );
-      }
-
+      const source = params.item as InstalledSource;
       return (
-        <SourceRow
-          source={row.source}
-          pinned={isPinned(row.source)}
-          updateVersion={getSourceUpdate(row.source.id)?.availableVersion}
-          visible={visible}
-          searchActive={searchActive}
-          onOpen={openSource}
-          onOpenSettings={openSourceSettings}
-          onPin={handlePin}
-          onUnpin={handleUnpin}
-          onReorder={enterReorderMode}
-          onDelete={confirmUninstall}
+        <ReorderRow
+          source={source}
+          updateVersion={getSourceUpdate(source.id)?.availableVersion}
+          drag={params.drag}
+          isActive={params.isActive}
         />
       );
     },
-    [
-      isReorderMode,
-      visibilityById,
-      searchActive,
-      isPinned,
-      getSourceUpdate,
-      openSource,
-      openSourceSettings,
-      handlePin,
-      handleUnpin,
-      enterReorderMode,
-      confirmUninstall,
-    ],
+    [getSourceUpdate],
   );
 
   const renderPlaceholder = useCallback(
@@ -552,33 +707,15 @@ export default function SourcesScreen() {
     );
   }, []);
 
-  const listHeader = useMemo(
-    () =>
-      isReorderMode ? undefined : (
-        <>
-          <IncognitoModeBanner />
-          <SourceCategoryTabs
-            tabs={categoryTabs}
-            selectedId={selectedCategory}
-            onSelect={handleSelectCategory}
-          />
-        </>
-      ),
-    [isReorderMode, categoryTabs, selectedCategory, handleSelectCategory],
-  );
-
-  const contentContainerStyle = useMemo(
-    () =>
-      isReorderMode
-        ? [
-            styles.reorderListContent,
-            {
-              paddingTop: Spacing.xs,
-              paddingBottom: BottomTabInset + insets.bottom,
-            },
-          ]
-        : [styles.listContent, searchActive && styles.listContentSearching],
-    [isReorderMode, searchActive, insets.bottom],
+  const reorderContentStyle = useMemo(
+    () => [
+      styles.reorderListContent,
+      {
+        paddingTop: Spacing.xs,
+        paddingBottom: BottomTabInset + insets.bottom,
+      },
+    ],
+    [insets.bottom],
   );
 
   const renderDoneButton = useCallback(
@@ -597,7 +734,7 @@ export default function SourcesScreen() {
 
   const screenOptions = useMemo(
     () => ({
-      headerLargeTitle: !isReorderMode,
+      headerLargeTitle: false,
       headerTransparent: !isReorderMode,
       headerStyle: isReorderMode
         ? { backgroundColor: colors.groupedBackground }
@@ -614,20 +751,13 @@ export default function SourcesScreen() {
     [],
   );
 
-  const categoryEmpty =
-    !isLoading &&
-    !isEmpty &&
-    !isReorderMode &&
-    !searchActive &&
-    filteredByCategory.length === 0;
-
   return (
     <>
       <Stack.Screen options={screenOptions} />
       <Stack.Title>
         {isReorderMode ? t("sources_reorder") : t("sources")}
       </Stack.Title>
-      {!isReorderMode && !isLoading && !isEmpty && (
+      {!isReorderMode && (
         <Stack.SearchBar
           key={isDark ? "sources-search-dark" : "sources-search-light"}
           placeholder={t("sources_search_placeholder")}
@@ -661,47 +791,76 @@ export default function SourcesScreen() {
             </View>
           )}
         </ScreenContent>
-      ) : categoryEmpty ? (
-        <ScreenContent centerContent>
-          <EmptyState
-            icon="globe-outline"
-            title={t("sources_category_empty_title")}
-            description={t("sources_category_empty_desc")}
+      ) : isReorderMode ? (
+        <ThemedView color="groupedBackground" style={styles.root}>
+          <DraggableFlatList<SourcesListItem>
+            ref={listRef}
+            containerStyle={styles.listContainer}
+            data={reorderData}
+            keyExtractor={itemKeyExtractor}
+            renderItem={renderReorderItem}
+            activationDistance={12}
+            dragItemOverflow
+            enableLayoutAnimationExperimental={false}
+            contentInsetAdjustmentBehavior="never"
+            automaticallyAdjustsScrollIndicatorInsets={false}
+            renderScrollComponent={renderScrollComponent}
+            contentContainerStyle={reorderContentStyle}
+            getItemLayout={reorderItemLayout}
+            renderPlaceholder={renderPlaceholder}
+            onDragEnd={handleDragEnd}
           />
-        </ScreenContent>
-      ) : searchActive && matchingSourceCount === 0 ? (
-        <ScreenContent centerContent>
-          <EmptyState
-            icon="search-outline"
-            title={t("source_search_empty_title")}
-            description={t("source_search_empty_desc")}
-          />
-        </ScreenContent>
+        </ThemedView>
       ) : (
         <ThemedView color="groupedBackground" style={styles.root}>
+          <View
+            style={{
+              paddingTop: headerHeight,
+              opacity: tabsReady ? 1 : 0,
+            }}
+          >
+            <IncognitoModeBanner />
+            {categoryTabs.length > 1 ? (
+              <LibraryCategoryTabs
+                key={pagerKey}
+                tabs={categoryTabs}
+                progress={progress}
+                onPress={handleTabPress}
+              />
+            ) : null}
+          </View>
           <SwipeableRowsProvider>
-            <DraggableFlatList<SourcesListItem>
-              ref={listRef}
-              containerStyle={styles.listContainer}
-              data={isReorderMode ? reorderData : listRows}
-              keyExtractor={itemKeyExtractor}
-              renderItem={renderItem}
-              activationDistance={isReorderMode ? 12 : 10000}
-              dragItemOverflow={isReorderMode}
-              enableLayoutAnimationExperimental={false}
-              contentInsetAdjustmentBehavior={
-                isReorderMode ? "never" : "automatic"
+            <AnimatedPagerView
+              ref={pagerRef}
+              key={pagerKey}
+              style={styles.root}
+              initialPage={selectedPageIndex}
+              onPageScroll={pageScrollHandler}
+              onPageSelected={(event) =>
+                handlePageSelected(event.nativeEvent.position)
               }
-              automaticallyAdjustsScrollIndicatorInsets={!isReorderMode}
-              renderScrollComponent={renderScrollComponent}
-              contentContainerStyle={contentContainerStyle}
-              ListHeaderComponent={listHeader}
-              ListFooterComponent={isReorderMode ? undefined : LIST_FOOTER}
-              getItemLayout={isReorderMode ? reorderItemLayout : undefined}
-              renderPlaceholder={isReorderMode ? renderPlaceholder : undefined}
-              onDragEnd={isReorderMode ? handleDragEnd : undefined}
-              {...(isReorderMode ? null : NORMAL_LIST_PROPS)}
-            />
+              scrollEnabled={categoryTabs.length > 1}
+              offscreenPageLimit={1}
+            >
+              {pages.map((page, index) => (
+                <SourcesPage
+                  key={page.id}
+                  rows={page.rows}
+                  query={deferredQuery}
+                  searchActive={searchActive}
+                  swipeLeading={index === 0}
+                  swipeTrailing={index === pages.length - 1}
+                  isPinned={isPinned}
+                  getSourceUpdate={getSourceUpdate}
+                  onOpen={openSource}
+                  onOpenSettings={openSourceSettings}
+                  onPin={handlePin}
+                  onUnpin={handleUnpin}
+                  onReorder={enterReorderMode}
+                  onDelete={confirmUninstall}
+                />
+              ))}
+            </AnimatedPagerView>
           </SwipeableRowsProvider>
         </ThemedView>
       )}

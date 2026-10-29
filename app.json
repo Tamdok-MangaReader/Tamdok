@@ -62,6 +62,12 @@
         }
       ],
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Tamdok uses Face ID to unlock the app."
+        }
+      ],
+      [
         "expo-localization",
         {
           "supportedLocales": {

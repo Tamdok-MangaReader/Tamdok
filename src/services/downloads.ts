@@ -1,6 +1,8 @@
 import * as FileSystem from "expo-file-system/legacy";
 
 import { getValue, setValue, storageKeys } from "@/constants/storage";
+import { getAppSettings } from "@/services/app-settings";
+import { isOnWifi } from "@/services/network";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
 
 export type DownloadStatus = "pending" | "downloading" | "completed" | "failed";
@@ -450,6 +452,9 @@ export async function processDownloadQueue(
 ): Promise<void> {
   const run = queueTail.then(async () => {
     while (true) {
+      const appSettings = await getAppSettings();
+      if (appSettings.downloads.downloadOnlyOnWifi && !(await isOnWifi()))
+        break;
       const store = await loadStore();
       const pending = store.entries
         .filter(

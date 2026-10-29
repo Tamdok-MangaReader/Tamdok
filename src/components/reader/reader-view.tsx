@@ -190,6 +190,11 @@ export function ReaderView({
     setBarsVisible(false);
   }, [clearBarsIdleTimer]);
 
+  const hideBarsOnSwipe = Boolean(settings?.hideBarsOnSwipe);
+  const handleSwipeInteraction = useCallback(() => {
+    if (hideBarsOnSwipe) hideBars();
+  }, [hideBarsOnSwipe, hideBars]);
+
   useEffect(() => {
     if (barsVisible) scheduleBarsIdleHide();
     else clearBarsIdleTimer();
@@ -1116,7 +1121,7 @@ export function ReaderView({
             key={chapter.key}
             currentPage={currentPage}
             onLocationChange={handleLocationChange}
-            onInteraction={hideBars}
+            onInteraction={handleSwipeInteraction}
             setPageRef={setPageRef}
           />
         ) : (
@@ -1124,7 +1129,7 @@ export function ReaderView({
             key={chapter.key}
             currentPage={currentPage}
             onPageChange={handlePageChange}
-            onInteraction={hideBars}
+            onInteraction={handleSwipeInteraction}
             setPageRef={setPageRef}
             pageOffsetEnabled={pageOffsetEnabled}
             onTogglePageOffset={togglePageOffset}

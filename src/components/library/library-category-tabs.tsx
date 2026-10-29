@@ -1,7 +1,10 @@
-import { memo, useCallback, useRef } from "react";
+import { useIsFocused } from "expo-router";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from "react-native";
@@ -16,7 +19,7 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from "react-native-reanimated";
-import { GlassSurface } from "@/components/ui/glass-surface";
+import { GlassView } from "expo-glass-effect";
 
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
@@ -42,6 +45,8 @@ type CategoryTabProps = {
   onPress: (index: number) => void;
   onTabLayout: (index: number, x: number, width: number) => void;
 };
+
+const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
 
 const TRACK_PADDING = 3;
 const TRACK_COLOR = "rgba(120, 120, 128, 0.16)";
@@ -102,7 +107,38 @@ export function LibraryCategoryTabs({
   progress,
   onPress,
 }: LibraryCategoryTabsProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const { colors, isDark, isGlass } = useTheme();
   const edge = Spacing.lg;
+  const [fitWidth, setFitWidth] = useState<number | null>(null);
+  const [glassKey, setGlassKey] = useState(0);
+  const [measured, setMeasured] = useState(false);
+  const nudge = useSharedValue(0);
+  const focused = useIsFocused();
+
+  useEffect(() => {
+    if (!measured || !focused) return;
+    setGlassKey((value) => value + 1);
+    const timers = [80, 250, 600].map((delay, i) =>
+      setTimeout(() => {
+        nudge.value = i % 2 === 0 ? 1 : 0;
+      }, delay),
+    );
+    const last = setTimeout(() => {
+      nudge.value = 0;
+    }, 900);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(last);
+    };
+  }, [measured, focused, nudge]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") setGlassKey((value) => value + 1);
+    });
+    return () => subscription.remove();
+  }, []);
 
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollX = useSharedValue(0);
@@ -123,6 +159,7 @@ export function LibraryCategoryTabs({
 
       lefts.value = items.map((item) => item!.x);
       widths.value = items.map((item) => item!.width);
+      setMeasured(true);
     },
     [tabCount, lefts, widths],
   );
@@ -191,7 +228,7 @@ export function LibraryCategoryTabs({
 
     if (count === 1) {
       return {
-        width: widthValues[0],
+        width: widthValues[0] + nudge.value * 0.5,
         transform: [{ translateX: leftValues[0] }],
       };
     }
@@ -199,12 +236,14 @@ export function LibraryCategoryTabs({
     const indices = leftValues.map((_, i) => i);
 
     return {
-      width: interpolate(
-        progress.value,
-        indices,
-        widthValues,
-        Extrapolation.CLAMP,
-      ),
+      width:
+        interpolate(
+          progress.value,
+          indices,
+          widthValues,
+          Extrapolation.CLAMP,
+        ) +
+        nudge.value * 0.5,
       transform: [
         {
           translateX: interpolate(
@@ -219,7 +258,14 @@ export function LibraryCategoryTabs({
   });
 
   return (
-    <View style={styles.track}>
+    <View
+      style={[
+        styles.track,
+        styles.trackFit,
+        { maxWidth: windowWidth - Spacing.lg * 2 },
+        fitWidth != null ? { width: fitWidth } : styles.trackHidden,
+      ]}
+    >
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
@@ -231,17 +277,25 @@ export function LibraryCategoryTabs({
         }}
         onContentSizeChange={(width) => {
           contentWidth.value = width;
+          setFitWidth(width);
         }}
         style={styles.scroll}
         contentContainerStyle={styles.content}
       >
-        <Animated.View pointerEvents="none" style={[styles.thumb, thumbStyle]}>
-          <GlassSurface
-            style={StyleSheet.absoluteFill}
-            glassStyle="regular"
-            borderRadius={12}
+        {isGlass ? (
+          <AnimatedGlassView
+            key={glassKey}
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            colorScheme={isDark ? "dark" : "light"}
+            style={[styles.thumb, thumbStyle]}
           />
-        </Animated.View>
+        ) : (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.thumb, { backgroundColor: colors.secondaryFill }, thumbStyle]}
+          />
+        )}
         {tabs.map((tab, index) => (
           <CategoryTab
             key={tab.id}
@@ -264,8 +318,13 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.sm,
     borderRadius: 999,
     borderCurve: "continuous",
-    overflow: "hidden",
     backgroundColor: TRACK_COLOR,
+  },
+  trackFit: {
+    alignSelf: "center",
+  },
+  trackHidden: {
+    opacity: 0,
   },
   scroll: {
     flexGrow: 0,
@@ -289,7 +348,6 @@ const styles = StyleSheet.create({
     bottom: TRACK_PADDING,
     borderRadius: 999,
     borderCurve: "continuous",
-    overflow: "hidden",
   },
   count: {
     minWidth: 20,

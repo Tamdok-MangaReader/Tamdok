@@ -12,6 +12,7 @@ import { View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { AppLockGate } from "@/components/privacy/app-lock-gate";
 import { LibraryRefreshIsland } from "@/components/library/library-refresh-island";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
 import { AidokuWasmHost } from "@/components/sources/aidoku-wasm-host";
@@ -204,6 +205,7 @@ function RootLayoutContent() {
         <Stack.Screen name="[...unmatched]" />
       </Stack>
       <LibraryRefreshIsland />
+      <AppLockGate />
     </ThemeProvider>
   );
 }

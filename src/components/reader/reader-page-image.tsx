@@ -1,23 +1,39 @@
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image as RNImage, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Image as RNImage,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
-import { ReaderDictionaryOverlay } from '@/components/reader/reader-dictionary-overlay';
-import { useReader } from '@/components/reader/reader-context';
-import { describeImageLoadError } from '@/utils/reader-image-error';
-import { ThemedText } from '@/components/ui/themed-text';
-import { t } from '@/constants/locales';
-import type { DictionarySettings, ReaderSettings } from '@/services/app-settings';
-import { coverImageSource } from '@/utils/cover-image-source';
-import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
+import { ReaderDictionaryOverlay } from "@/components/reader/reader-dictionary-overlay";
+import { useReader } from "@/components/reader/reader-context";
+import { describeImageLoadError } from "@/utils/reader-image-error";
+import { ThemedText } from "@/components/ui/themed-text";
+import { t } from "@/constants/locales";
+import type {
+  DictionarySettings,
+  ReaderSettings,
+} from "@/services/app-settings";
+import { coverImageSource } from "@/utils/cover-image-source";
+import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 import {
   READER_DEFAULT_ASPECT_RATIO,
   readerPageAspectFromSize,
   type ReaderPage,
-} from '@/utils/reader-pages';
+} from "@/utils/reader-pages";
 
 type ReaderPageImageProps = {
   page: ReaderPage;
@@ -28,13 +44,13 @@ type ReaderPageImageProps = {
   disableDoubleTap?: boolean;
   pillarbox?: boolean;
   pillarboxAmount?: number;
-  pillarboxOrientation?: import('@/services/app-settings').PillarboxOrientation;
+  pillarboxOrientation?: import("@/services/app-settings").PillarboxOrientation;
   onMeasuredAspectRatio?: (ratio: number) => void;
   onSingleTap?: (x: number, y: number) => void;
   onLongPress?: (x: number, y: number) => void;
   onDictionaryLookup?: (x: number, y: number) => void;
-  layout?: 'fill' | 'intrinsic';
-  contentFit?: 'contain' | 'cover' | 'fill';
+  layout?: "fill" | "intrinsic";
+  contentFit?: "contain" | "cover" | "fill";
   containerWidth?: number;
 };
 
@@ -42,8 +58,14 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const ZOOM_EPSILON = 1.01;
 
-function initialAspectRatio(page: ReaderPage, layout: 'fill' | 'intrinsic'): number {
-  return readerPageAspectFromSize(page.width, page.height) ?? (layout === 'intrinsic' ? READER_DEFAULT_ASPECT_RATIO : 0.7);
+function initialAspectRatio(
+  page: ReaderPage,
+  layout: "fill" | "intrinsic",
+): number {
+  return (
+    readerPageAspectFromSize(page.width, page.height) ??
+    (layout === "intrinsic" ? READER_DEFAULT_ASPECT_RATIO : 0.7)
+  );
 }
 
 export function ReaderPageImage({
@@ -55,22 +77,29 @@ export function ReaderPageImage({
   disableDoubleTap = false,
   pillarbox = false,
   pillarboxAmount = 15,
-  pillarboxOrientation = 'both',
+  pillarboxOrientation = "both",
   onMeasuredAspectRatio,
   onSingleTap,
   onLongPress,
   onDictionaryLookup,
-  layout = 'fill',
+  layout = "fill",
   contentFit,
   containerWidth,
 }: ReaderPageImageProps) {
   const { debugShowPageNumbers } = useReader();
   const dictionaryEnabled = dictionarySettings?.enable ?? false;
-  const dictionaryLongPress = dictionaryEnabled && dictionarySettings?.lookupGesture === 'long-press';
-  const dictionarySingleTap = dictionaryEnabled && dictionarySettings?.lookupGesture === 'single-tap';
-  const quickActionsLongPress = !settings.disableQuickActions && !dictionaryLongPress;
-  const [aspectRatio, setAspectRatio] = useState(() => initialAspectRatio(page, layout));
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const dictionaryLongPress =
+    dictionaryEnabled && dictionarySettings?.lookupGesture === "long-press";
+  const dictionarySingleTap =
+    dictionaryEnabled && dictionarySettings?.lookupGesture === "single-tap";
+  const quickActionsLongPress =
+    !settings.disableQuickActions && !dictionaryLongPress;
+  const [aspectRatio, setAspectRatio] = useState(() =>
+    initialAspectRatio(page, layout),
+  );
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
   const onMeasuredAspectRatioRef = useRef(onMeasuredAspectRatio);
@@ -105,6 +134,8 @@ export function ReaderPageImage({
     [dictionaryLongPress, onDictionaryLookup, onLongPress],
   );
 
+  const liveText = Platform.OS === "ios" && settings.liveText;
+
   const composed = useMemo(() => {
     // Pinch zoom only; pan activates once zoomed so taps still reach the reader chrome.
     const pinch = Gesture.Pinch()
@@ -112,7 +143,10 @@ export function ReaderPageImage({
         savedScale.value = scale.value;
       })
       .onUpdate((event) => {
-        scale.value = Math.min(MAX_SCALE, Math.max(MIN_SCALE, savedScale.value * event.scale));
+        scale.value = Math.min(
+          MAX_SCALE,
+          Math.max(MIN_SCALE, savedScale.value * event.scale),
+        );
       })
       .onEnd(() => {
         if (scale.value > MIN_SCALE) {
@@ -176,14 +210,20 @@ export function ReaderPageImage({
       .maxDistance(16)
       .onEnd((event, success) => {
         if (!success) return;
-        runOnJS(handleSingleTapJS)(event.absoluteX ?? event.x, event.absoluteY ?? event.y);
+        runOnJS(handleSingleTapJS)(
+          event.absoluteX ?? event.x,
+          event.absoluteY ?? event.y,
+        );
       });
 
     const longPress = Gesture.LongPress()
       .minDuration(400)
-      .enabled(quickActionsLongPress || dictionaryLongPress)
+      .enabled(!liveText && (quickActionsLongPress || dictionaryLongPress))
       .onStart((event) => {
-        runOnJS(handleLongPressJS)(event.absoluteX ?? event.x, event.absoluteY ?? event.y);
+        runOnJS(handleLongPressJS)(
+          event.absoluteX ?? event.x,
+          event.absoluteY ?? event.y,
+        );
       });
 
     const needsSingleTap = Boolean(onSingleTap) || dictionarySingleTap;
@@ -207,6 +247,7 @@ export function ReaderPageImage({
     handleSingleTapJS,
     onSingleTap,
     quickActionsLongPress,
+    liveText,
     savedScale,
     savedTranslateX,
     savedTranslateY,
@@ -228,34 +269,46 @@ export function ReaderPageImage({
     return Object.entries(merged)
       .sort()
       .map(([key, value]) => `${key}:${value}`)
-      .join('|');
+      .join("|");
   }, [coverHeaders, page.headers]);
   const imageSource = useMemo(() => {
     if (!page.url) return null;
     const headers = { ...coverHeaders, ...page.headers };
-    return coverImageSource(page.url, Object.keys(headers).length > 0 ? headers : undefined);
+    return coverImageSource(
+      page.url,
+      Object.keys(headers).length > 0 ? headers : undefined,
+    );
   }, [coverHeaders, page.headers, page.url]);
 
   useEffect(() => {
     setAspectRatio(initialAspectRatio(page, layout));
   }, [headerKey, layout, page.url]);
 
-  const commitAspectRatio = useCallback((width: number, height: number, ignoreIfMatchesView?: { viewWidth: number; viewHeight: number }) => {
-    if (width < 16 || height < 16) return;
-    if (
-      ignoreIfMatchesView &&
-      Math.abs(width - ignoreIfMatchesView.viewWidth) < 2 &&
-      Math.abs(height - ignoreIfMatchesView.viewHeight) < 2
-    ) {
-      return;
-    }
-    const next = width / height;
-    setAspectRatio((current) => (Math.abs(next - current) > 0.01 ? next : current));
-    onMeasuredAspectRatioRef.current?.(next);
-  }, []);
+  const commitAspectRatio = useCallback(
+    (
+      width: number,
+      height: number,
+      ignoreIfMatchesView?: { viewWidth: number; viewHeight: number },
+    ) => {
+      if (width < 16 || height < 16) return;
+      if (
+        ignoreIfMatchesView &&
+        Math.abs(width - ignoreIfMatchesView.viewWidth) < 2 &&
+        Math.abs(height - ignoreIfMatchesView.viewHeight) < 2
+      ) {
+        return;
+      }
+      const next = width / height;
+      setAspectRatio((current) =>
+        Math.abs(next - current) > 0.01 ? next : current,
+      );
+      onMeasuredAspectRatioRef.current?.(next);
+    },
+    [],
+  );
 
   useEffect(() => {
-    if (layout !== 'intrinsic' || !page.url) return;
+    if (layout !== "intrinsic" || !page.url) return;
     let cancelled = false;
     const headers = { ...coverHeaders, ...page.headers };
     const finish = (width?: number, height?: number) => {
@@ -263,7 +316,10 @@ export function ReaderPageImage({
       commitAspectRatio(width, height);
     };
     const onFailure = () => {};
-    if (Object.keys(headers).length > 0 && typeof RNImage.getSizeWithHeaders === 'function') {
+    if (
+      Object.keys(headers).length > 0 &&
+      typeof RNImage.getSizeWithHeaders === "function"
+    ) {
       RNImage.getSizeWithHeaders(page.url, headers, finish, onFailure);
     } else {
       RNImage.getSize(page.url, finish, onFailure);
@@ -271,45 +327,66 @@ export function ReaderPageImage({
     return () => {
       cancelled = true;
     };
-  }, [commitAspectRatio, coverHeaders, headerKey, layout, page.headers, page.url]);
+  }, [
+    commitAspectRatio,
+    coverHeaders,
+    headerKey,
+    layout,
+    page.headers,
+    page.url,
+  ]);
 
   useEffect(() => {
     if (!page.url) {
-      setLoadError(t('reader_image_error_missing'));
-      setLoadState('error');
+      setLoadError(t("reader_image_error_missing"));
+      setLoadState("error");
       return;
     }
     setLoadError(null);
-    setLoadState('loading');
+    setLoadState("loading");
   }, [page.url, retryTick]);
 
   useEffect(() => {
-    if (loadState !== 'loading' || layout !== 'fill' || !page.url) return;
+    if (loadState !== "loading" || layout !== "fill" || !page.url) return;
     const timer = setTimeout(() => {
-      setLoadState((current) => (current === 'loading' ? 'ready' : current));
+      setLoadState((current) => (current === "loading" ? "ready" : current));
     }, 1200);
     return () => clearTimeout(timer);
   }, [layout, loadState, page.url, retryTick]);
 
   const resolvedFit =
-    contentFit ?? (layout === 'intrinsic' ? 'contain' : settings.cropBorders ? 'cover' : 'contain');
+    contentFit ??
+    (layout === "intrinsic"
+      ? "contain"
+      : settings.cropBorders
+        ? "cover"
+        : "contain");
   const pillarboxPadding = pillarbox ? Math.round(pillarboxAmount) : 0;
   const intrinsicWidth = Math.max(
     1,
     (containerWidth ?? windowWidth) -
-      (pillarboxPadding > 0 && pillarboxOrientation !== 'vertical' ? pillarboxPadding * 2 : 0),
+      (pillarboxPadding > 0 && pillarboxOrientation !== "vertical"
+        ? pillarboxPadding * 2
+        : 0),
   );
   const displayAspectRatio =
-    page.splitTotal && page.splitTotal > 1 ? aspectRatio / page.splitTotal : aspectRatio;
-  const showPlaceholder = layout === 'intrinsic' && loadState !== 'ready';
-  const frameHeight = Math.round(intrinsicWidth / Math.max(displayAspectRatio, 0.04));
+    page.splitTotal && page.splitTotal > 1
+      ? aspectRatio / page.splitTotal
+      : aspectRatio;
+  const showPlaceholder = layout === "intrinsic" && loadState !== "ready";
+  const frameHeight = Math.round(
+    intrinsicWidth / Math.max(displayAspectRatio, 0.04),
+  );
   const frameStyle =
     pillarboxPadding > 0
-      ? pillarboxOrientation === 'vertical'
+      ? pillarboxOrientation === "vertical"
         ? { paddingVertical: pillarboxPadding }
-        : pillarboxOrientation === 'horizontal'
+        : pillarboxOrientation === "horizontal"
           ? { paddingHorizontal: pillarboxPadding }
-          : { paddingHorizontal: pillarboxPadding, paddingVertical: pillarboxPadding }
+          : {
+              paddingHorizontal: pillarboxPadding,
+              paddingVertical: pillarboxPadding,
+            }
       : null;
   const splitStyle =
     page.splitTotal && page.splitTotal > 1
@@ -320,31 +397,38 @@ export function ReaderPageImage({
         }
       : null;
   const imageStyle =
-    layout === 'intrinsic'
-      ? [styles.intrinsicImage, splitStyle ?? { width: intrinsicWidth, aspectRatio: displayAspectRatio }]
+    layout === "intrinsic"
+      ? [
+          styles.intrinsicImage,
+          splitStyle ?? {
+            width: intrinsicWidth,
+            aspectRatio: displayAspectRatio,
+          },
+        ]
       : [styles.image, splitStyle ?? styles.imageFull];
   const missingPage = !page.url && !page.text;
   const statusOverlay =
-    loadState === 'loading' ? (
-      <View style={styles.statusOverlay} pointerEvents='none'>
-        <ActivityIndicator color='#FFFFFF' />
+    loadState === "loading" ? (
+      <View style={styles.statusOverlay} pointerEvents="none">
+        <ActivityIndicator color="#FFFFFF" />
       </View>
-    ) : loadState === 'error' ? (
+    ) : loadState === "error" ? (
       <Pressable
         style={styles.statusOverlay}
         onPress={() => {
           setLoadError(null);
-          setLoadState('loading');
+          setLoadState("loading");
           setRetryTick((value) => value + 1);
         }}
-        accessibilityRole='button'
-        accessibilityLabel={t('reader_image_retry')}>
-        <Ionicons name='alert-circle-outline' size={28} color='#FFFFFF' />
-        <ThemedText variant='subheadline' style={styles.retryLabel}>
-          {loadError ?? t('reader_image_failed')}
+        accessibilityRole="button"
+        accessibilityLabel={t("reader_image_retry")}
+      >
+        <Ionicons name="alert-circle-outline" size={28} color="#FFFFFF" />
+        <ThemedText variant="subheadline" style={styles.retryLabel}>
+          {loadError ?? t("reader_image_failed")}
         </ThemedText>
-        <ThemedText variant='footnote' style={styles.retryHint}>
-          {t('reader_image_retry')}
+        <ThemedText variant="footnote" style={styles.retryHint}>
+          {t("reader_image_retry")}
         </ThemedText>
       </Pressable>
     ) : null;
@@ -359,58 +443,90 @@ export function ReaderPageImage({
   const debugBadge =
     debugLabel != null ? (
       <ThemedText
-        variant='footnote'
-        style={layout === 'intrinsic' ? styles.debugIndex : styles.debugIndexOverlay}>
+        variant="footnote"
+        style={
+          layout === "intrinsic" ? styles.debugIndex : styles.debugIndexOverlay
+        }
+      >
         {debugLabel}
       </ThemedText>
     ) : null;
 
   return (
-    <View style={[layout === 'intrinsic' ? styles.intrinsicContainer : styles.container, { backgroundColor }]}>
-      {layout === 'intrinsic' ? debugBadge : null}
+    <View
+      style={[
+        layout === "intrinsic" ? styles.intrinsicContainer : styles.container,
+        { backgroundColor },
+      ]}
+    >
+      {layout === "intrinsic" ? debugBadge : null}
       <GestureDetector gesture={composed}>
         <Animated.View
           collapsable={false}
-          style={[layout === 'intrinsic' ? styles.intrinsicContent : styles.content, animatedStyle]}>
+          style={[
+            layout === "intrinsic" ? styles.intrinsicContent : styles.content,
+            animatedStyle,
+          ]}
+        >
           {page.url && imageSource ? (
             <View
               style={[
-                layout === 'intrinsic' ? [styles.intrinsicFrame, { width: intrinsicWidth, aspectRatio: displayAspectRatio }] : styles.imageFrame,
+                layout === "intrinsic"
+                  ? [
+                      styles.intrinsicFrame,
+                      {
+                        width: intrinsicWidth,
+                        aspectRatio: displayAspectRatio,
+                      },
+                    ]
+                  : styles.imageFrame,
                 frameStyle,
-              ]}>
+              ]}
+            >
               <Image
                 key={`${page.url}:${retryTick}`}
                 source={imageSource}
-                style={[imageStyle, showPlaceholder ? styles.loadingImage : null]}
+                style={[
+                  imageStyle,
+                  showPlaceholder ? styles.loadingImage : null,
+                ]}
                 contentFit={resolvedFit}
-                allowDownscaling
+                allowDownscaling={settings.downsampleImages}
                 cachePolicy={IMAGE_CACHE_POLICY}
                 recyclingKey={`${page.id}:${retryTick}`}
                 transition={0}
-                pointerEvents={Platform.OS === 'ios' && settings.liveText ? 'auto' : 'none'}
-                {...(Platform.OS === 'ios' && settings.liveText
-                  ? ({ enableLiveTextInteraction: true } as Record<string, unknown>)
+                pointerEvents={
+                  Platform.OS === "ios" && settings.liveText ? "auto" : "none"
+                }
+                {...(Platform.OS === "ios" && settings.liveText
+                  ? ({ enableLiveTextInteraction: true } as Record<
+                      string,
+                      unknown
+                    >)
                   : {})}
                 onLoad={(event) => {
-                  const { width: loadedWidth, height: loadedHeight } = event.source;
+                  const { width: loadedWidth, height: loadedHeight } =
+                    event.source;
                   if (loadedWidth && loadedHeight) {
                     commitAspectRatio(loadedWidth, loadedHeight, {
                       viewWidth: intrinsicWidth,
                       viewHeight: frameHeight,
                     });
                   }
-                  setLoadState('ready');
+                  setLoadState("ready");
                 }}
                 onLoadEnd={() => {
-                  setLoadState((current) => (current === 'error' ? current : 'ready'));
+                  setLoadState((current) =>
+                    current === "error" ? current : "ready",
+                  );
                 }}
                 onError={(event) => {
                   setLoadError(describeImageLoadError(event));
-                  setLoadState('error');
+                  setLoadState("error");
                 }}
               />
               {statusOverlay}
-              {layout !== 'intrinsic' ? debugBadge : null}
+              {layout !== "intrinsic" ? debugBadge : null}
               {dictionarySettings ? (
                 <ReaderDictionaryOverlay
                   imageUri={page.url}
@@ -424,13 +540,20 @@ export function ReaderPageImage({
           ) : missingPage ? (
             <View
               style={[
-                layout === 'intrinsic' ? [styles.missingIntrinsic, { height: frameHeight }] : styles.imageFrame,
-              ]}>
-              {layout !== 'intrinsic' ? debugBadge : null}
-              <View style={styles.statusOverlay} pointerEvents='none'>
-                <Ionicons name='alert-circle-outline' size={28} color='#FFFFFF' />
-                <ThemedText variant='subheadline' style={styles.retryLabel}>
-                  {t('reader_image_error_missing')}
+                layout === "intrinsic"
+                  ? [styles.missingIntrinsic, { height: frameHeight }]
+                  : styles.imageFrame,
+              ]}
+            >
+              {layout !== "intrinsic" ? debugBadge : null}
+              <View style={styles.statusOverlay} pointerEvents="none">
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={28}
+                  color="#FFFFFF"
+                />
+                <ThemedText variant="subheadline" style={styles.retryLabel}>
+                  {t("reader_image_error_missing")}
                 </ThemedText>
               </View>
             </View>
@@ -444,101 +567,101 @@ export function ReaderPageImage({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   intrinsicContainer: {
-    overflow: 'hidden',
-    width: '100%',
-    alignSelf: 'stretch',
+    overflow: "hidden",
+    width: "100%",
+    alignSelf: "stretch",
   },
   content: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   intrinsicContent: {
-    width: '100%',
+    width: "100%",
   },
   imageFrame: {
-    width: '100%',
+    width: "100%",
     flex: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   intrinsicFrame: {
-    width: '100%',
-    overflow: 'hidden',
+    width: "100%",
+    overflow: "hidden",
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   intrinsicImage: {
-    width: '100%',
+    width: "100%",
   },
   imageFull: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   statusOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingHorizontal: 24,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    backgroundColor: "rgba(0,0,0,0.18)",
   },
   retryLabel: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
+    color: "#FFFFFF",
+    fontWeight: "600",
+    textAlign: "center",
   },
   retryHint: {
-    color: 'rgba(255,255,255,0.78)',
-    fontWeight: '600',
+    color: "rgba(255,255,255,0.78)",
+    fontWeight: "600",
   },
   missingIntrinsic: {
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
   loadingImage: {
     opacity: 0,
   },
   debugIndex: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginHorizontal: 8,
     marginVertical: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    color: '#FFD60A',
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    backgroundColor: "rgba(0,0,0,0.72)",
+    color: "#FFD60A",
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
     zIndex: 2,
   },
   debugIndexOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    color: '#FFD60A',
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    backgroundColor: "rgba(0,0,0,0.72)",
+    color: "#FFD60A",
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
     zIndex: 2,
   },
   text: {
     padding: 24,
     fontSize: 17,
     lineHeight: 24,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
 });

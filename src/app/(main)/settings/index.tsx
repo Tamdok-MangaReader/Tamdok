@@ -2,9 +2,8 @@ import { Stack, useRouter, type Href } from "expo-router";
 import Constants from "expo-constants";
 import { Image } from "expo-image";
 import * as MailComposer from "expo-mail-composer";
-import { useCallback, useEffect, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { Linking, Pressable, StyleSheet, Switch, View } from "react-native";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
 
 import { AppIcon } from "@/components/branding/app-icon";
 import { Card, CardSeparator } from "@/components/ui/card";
@@ -15,8 +14,6 @@ import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
-import { getAppSettings, updateAppSettings } from "@/services/app-settings";
-import { subscribeAppSettings } from "@/utils/app-settings-events";
 import { useTheme } from "@/hooks/use-theme";
 
 const GITHUB_URL = "https://github.com/Tamdok-MangaReader/Tamdok";
@@ -70,6 +67,11 @@ const MENU_ITEMS_SECOND = [
 
 const MENU_ITEMS_THIRD = [
   {
+    icon: "lock-closed-outline" as const,
+    labelKey: "section_privacy",
+    path: "/settings/privacy",
+  },
+  {
     icon: "notifications-outline" as const,
     labelKey: "section_notifications",
     path: "/settings/notifications",
@@ -94,22 +96,6 @@ export default function SettingsScreen() {
     Constants.expoConfig?.ios?.buildNumber,
     Constants.expoConfig?.android?.versionCode,
   );
-  const [incognitoMode, setIncognitoMode] = useState(false);
-  const [settingsReady, setSettingsReady] = useState(false);
-
-  const loadSettings = useCallback(async () => {
-    const settings = await getAppSettings();
-    setIncognitoMode(settings.incognitoMode);
-    setSettingsReady(true);
-  }, []);
-
-  useEffect(() => {
-    void loadSettings();
-    return subscribeAppSettings(() => {
-      void loadSettings();
-    });
-  }, [loadSettings]);
-
   const openEmail = async () => {
     if (await MailComposer.isAvailableAsync()) {
       MailComposer.composeAsync({
@@ -119,11 +105,6 @@ export default function SettingsScreen() {
     } else {
       Linking.openURL("mailto:me@sleaf.dev");
     }
-  };
-
-  const toggleIncognitoMode = (value: boolean) => {
-    setIncognitoMode(value);
-    void updateAppSettings({ incognitoMode: value });
   };
 
   return (
@@ -145,23 +126,6 @@ export default function SettingsScreen() {
                 {t("app_build")} {buildNumber}
               </ThemedText>
             </View>
-          </View>
-        </Card>
-
-        <SectionLabel>{t("settings_privacy_section")}</SectionLabel>
-        <Card>
-          <View style={styles.switchRow}>
-            <View style={styles.switchMeta}>
-              <ThemedText variant="body">{t("incognito_mode")}</ThemedText>
-              <ThemedText variant="caption1" color="secondaryLabel">
-                {t("incognito_mode_hint")}
-              </ThemedText>
-            </View>
-            <Switch
-              value={incognitoMode}
-              disabled={!settingsReady}
-              onValueChange={toggleIncognitoMode}
-            />
           </View>
         </Card>
 
@@ -284,18 +248,6 @@ const styles = StyleSheet.create({
   },
   appName: {
     fontWeight: "700",
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  switchMeta: {
-    flex: 1,
-    gap: Spacing.xs,
   },
   supportRow: {
     flexDirection: "row",

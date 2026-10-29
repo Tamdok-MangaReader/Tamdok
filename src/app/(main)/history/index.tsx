@@ -39,7 +39,9 @@ import { useSources } from "@/context/sources-context";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
 import { useTheme } from "@/hooks/use-theme";
 import type { Chapter } from "@/parsers/shared/types";
+import { getAppSettings } from "@/services/app-settings";
 import { getLibraryEntries } from "@/services/library";
+import { subscribeAppSettings } from "@/utils/app-settings-events";
 import {
   getHistoryEntries,
   removeChapterFromHistory,
@@ -661,11 +663,31 @@ export default function HistoryScreen() {
     scheduleLoad();
   }, [scheduleLoad]);
 
+  const [showNsfwHistory, setShowNsfwHistory] = useState(true);
+
+  useEffect(() => {
+    const load = () => {
+      void getAppSettings().then((settings) =>
+        setShowNsfwHistory(settings.privacy.showNsfwHistory),
+      );
+    };
+    load();
+    return subscribeAppSettings(load);
+  }, []);
+
+  const visibleEntries = useMemo(() => {
+    if (showNsfwHistory) return entries;
+    return entries.filter((entry) => {
+      const source = findInstalledSource(installed, entry.sourceId);
+      return (source?.manifest.info.contentRating ?? 0) <= 1;
+    });
+  }, [entries, installed, showNsfwHistory]);
+
   const rows = useMemo(() => {
-    const result = buildRows(entries, groupCacheRef.current);
+    const result = buildRows(visibleEntries, groupCacheRef.current);
     groupCacheRef.current = result.groups;
     return result.rows;
-  }, [entries]);
+  }, [visibleEntries]);
 
   const openManga = useCallback(
     (group: MangaHistoryGroup) => {
@@ -698,7 +720,7 @@ export default function HistoryScreen() {
     [requestReload],
   );
 
-  const hasEntries = entries.length > 0;
+  const hasEntries = visibleEntries.length > 0;
 
   const renderHeaderRight = useCallback(
     () =>

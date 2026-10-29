@@ -1,18 +1,21 @@
-import { getValue, setValue, storageKeys } from '@/constants/storage';
-import { notifyAppSettingsChanged } from '@/utils/app-settings-events';
+import { getValue, setValue, storageKeys } from "@/constants/storage";
+import { notifyAppSettingsChanged } from "@/utils/app-settings-events";
 
-export type ReadingMode = 'default' | 'auto' | 'rtl' | 'ltr' | 'vertical' | 'webtoon' | 'continuous';
-export type ResolvedReadingMode = 'rtl' | 'ltr' | 'vertical' | 'webtoon' | 'continuous';
-export type ReaderBackgroundColor = 'system' | 'white' | 'black';
-export type ReaderOrientation = 'device' | 'portrait' | 'landscape';
-export type TapZones = 'disabled' | 'left-right' | 'l-shaped' | 'kindle' | 'edge' | 'auto';
-export type PagedPageLayout = 'auto' | 'single' | 'double';
-export type TextReaderStyle = 'scroll' | 'paged';
-export type PillarboxOrientation = 'both' | 'horizontal' | 'vertical';
+export type ReadingMode =
+  "default" | "auto" | "rtl" | "ltr" | "vertical" | "webtoon" | "continuous";
+export type ResolvedReadingMode =
+  "rtl" | "ltr" | "vertical" | "webtoon" | "continuous";
+export type ReaderBackgroundColor = "system" | "white" | "black";
+export type ReaderOrientation = "device" | "portrait" | "landscape";
+export type TapZones =
+  "disabled" | "left-right" | "l-shaped" | "kindle" | "edge" | "auto";
+export type PagedPageLayout = "auto" | "single" | "double";
+export type TextReaderStyle = "scroll" | "paged";
+export type PillarboxOrientation = "both" | "horizontal" | "vertical";
 
-export type DictionaryLookupGesture = 'single-tap' | 'long-press';
-export type DictionaryDisplayMode = 'popup' | 'fullWidth';
-export type DictionaryOverlayInteractionMode = 'none' | 'lookup' | 'select';
+export type DictionaryLookupGesture = "single-tap" | "long-press";
+export type DictionaryDisplayMode = "popup" | "fullWidth";
+export type DictionaryOverlayInteractionMode = "none" | "lookup" | "select";
 
 export type DictionarySettings = {
   enable: boolean;
@@ -64,7 +67,7 @@ export type DownloadSettings = {
   deleteAfterReading: boolean;
 };
 
-export type LibrarySortMode = 'unread' | 'title' | 'recent' | 'lastRead';
+export type LibrarySortMode = "unread" | "title" | "recent" | "lastRead";
 
 export type LibraryDisplaySettings = {
   showUnreadBadges: boolean;
@@ -74,7 +77,7 @@ export type LibraryDisplaySettings = {
   showLibraryRefreshStatus: boolean;
   showLibraryRefreshLiveActivity: boolean;
   updateOnWifiOnly: boolean;
-  gridSize: 'small' | 'medium' | 'large' | 'extraLarge';
+  gridSize: "small" | "medium" | "large" | "extraLarge";
   sortMode: LibrarySortMode;
 };
 
@@ -92,6 +95,11 @@ export type CoverDisplaySettings = {
   showRating: boolean;
 };
 
+export type PrivacySettings = {
+  requireBiometrics: boolean;
+  showNsfwHistory: boolean;
+};
+
 export type AppSettings = {
   incognitoMode: boolean;
   reader: ReaderSettings;
@@ -100,51 +108,52 @@ export type AppSettings = {
   libraryDisplay: LibraryDisplaySettings;
   mangaScreen: MangaScreenSettings;
   coverDisplay: CoverDisplaySettings;
+  privacy: PrivacySettings;
   debug: DebugSettings;
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
   incognitoMode: false,
   reader: {
-    readingMode: 'auto',
+    readingMode: "auto",
     skipDuplicateChapters: true,
     markDuplicateChapters: true,
-    downsampleImages: false,
+    downsampleImages: true,
     cropBorders: false,
     disableQuickActions: false,
     disableDoubleTap: false,
     liveText: false,
-    hideBarsOnSwipe: false,
+    hideBarsOnSwipe: true,
     hideStatusBarWithMenu: true,
-    backgroundColor: 'black',
-    orientation: 'device',
-    tapZones: 'left-right',
+    backgroundColor: "black",
+    orientation: "device",
+    tapZones: "left-right",
     invertTapZones: false,
     animatePageTransitions: true,
     pagesToPreload: 4,
-    pagedPageLayout: 'auto',
+    pagedPageLayout: "auto",
     pagedPageOffset: false,
     splitWideImages: false,
     reverseSplitOrder: false,
     verticalInfiniteScroll: true,
     pillarbox: false,
     pillarboxAmount: 15,
-    pillarboxOrientation: 'both',
-    textReaderStyle: 'scroll',
-    textFontFamily: 'System',
+    pillarboxOrientation: "both",
+    textReaderStyle: "scroll",
+    textFontFamily: "System",
     textFontSize: 18,
     textLineSpacing: 8,
     textHorizontalPadding: 24,
   },
   dictionary: {
     enable: false,
-    lookupGesture: 'long-press',
+    lookupGesture: "long-press",
     textOverlayMode: false,
     overlayPadding: 4,
     overlayTextScaleMultiplier: 1,
     restrictOCRLanguages: false,
-    restrictedOCRLanguages: ['en-US'],
-    displayMode: 'popup',
+    restrictedOCRLanguages: ["en-US"],
+    displayMode: "popup",
     popupWidth: 320,
     popupHeight: 240,
   },
@@ -160,8 +169,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     showLibraryRefreshStatus: false,
     showLibraryRefreshLiveActivity: true,
     updateOnWifiOnly: false,
-    gridSize: 'medium',
-    sortMode: 'unread',
+    gridSize: "medium",
+    sortMode: "unread",
   },
   mangaScreen: {
     showBigMangaCover: false,
@@ -171,41 +180,84 @@ const DEFAULT_SETTINGS: AppSettings = {
     showStatusBadge: true,
     showRating: true,
   },
+  privacy: {
+    requireBiometrics: false,
+    showNsfwHistory: true,
+  },
   debug: {
     showReaderPageNumbers: false,
   },
 };
 
 async function readSettings(): Promise<AppSettings> {
-  const stored = await getValue<Partial<AppSettings> | null>(storageKeys.APP_SETTINGS, null);
+  const stored = await getValue<Partial<AppSettings> | null>(
+    storageKeys.APP_SETTINGS,
+    null,
+  );
   if (!stored) return DEFAULT_SETTINGS;
   return {
     incognitoMode: stored.incognitoMode ?? DEFAULT_SETTINGS.incognitoMode,
     reader: {
       ...DEFAULT_SETTINGS.reader,
       ...(stored.reader ?? {}),
-      readingMode: stored.reader?.readingMode && stored.reader.readingMode !== 'default' ? stored.reader.readingMode : DEFAULT_SETTINGS.reader.readingMode,
-      hideStatusBarWithMenu: stored.reader?.hideStatusBarWithMenu ?? DEFAULT_SETTINGS.reader.hideStatusBarWithMenu,
+      readingMode:
+        stored.reader?.readingMode && stored.reader.readingMode !== "default"
+          ? stored.reader.readingMode
+          : DEFAULT_SETTINGS.reader.readingMode,
+      hideStatusBarWithMenu:
+        stored.reader?.hideStatusBarWithMenu ??
+        DEFAULT_SETTINGS.reader.hideStatusBarWithMenu,
     },
-    dictionary: { ...DEFAULT_SETTINGS.dictionary, ...(stored.dictionary ?? {}) },
+    dictionary: {
+      ...DEFAULT_SETTINGS.dictionary,
+      ...(stored.dictionary ?? {}),
+    },
     downloads: { ...DEFAULT_SETTINGS.downloads, ...stored.downloads },
     libraryDisplay: {
       ...DEFAULT_SETTINGS.libraryDisplay,
       ...stored.libraryDisplay,
-      gridSize: stored.libraryDisplay?.gridSize ?? DEFAULT_SETTINGS.libraryDisplay.gridSize,
-      sortMode: stored.libraryDisplay?.sortMode ?? DEFAULT_SETTINGS.libraryDisplay.sortMode,
-      showCategoryCountBadges: stored.libraryDisplay?.showCategoryCountBadges ?? DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
-      showEmptyCategoryCountBadges: stored.libraryDisplay?.showEmptyCategoryCountBadges ?? DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,
-      showLibraryRefreshStatus: stored.libraryDisplay?.showLibraryRefreshStatus ?? DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshStatus,
-      showLibraryRefreshLiveActivity: stored.libraryDisplay?.showLibraryRefreshLiveActivity ?? DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshLiveActivity,
+      gridSize:
+        stored.libraryDisplay?.gridSize ??
+        DEFAULT_SETTINGS.libraryDisplay.gridSize,
+      sortMode:
+        stored.libraryDisplay?.sortMode ??
+        DEFAULT_SETTINGS.libraryDisplay.sortMode,
+      showCategoryCountBadges:
+        stored.libraryDisplay?.showCategoryCountBadges ??
+        DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
+      showEmptyCategoryCountBadges:
+        stored.libraryDisplay?.showEmptyCategoryCountBadges ??
+        DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,
+      showLibraryRefreshStatus:
+        stored.libraryDisplay?.showLibraryRefreshStatus ??
+        DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshStatus,
+      showLibraryRefreshLiveActivity:
+        stored.libraryDisplay?.showLibraryRefreshLiveActivity ??
+        DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshLiveActivity,
     },
     mangaScreen: {
-      showBigMangaCover: stored.mangaScreen?.showBigMangaCover ?? DEFAULT_SETTINGS.mangaScreen.showBigMangaCover,
-      showChapterNumber: stored.mangaScreen?.showChapterNumber ?? DEFAULT_SETTINGS.mangaScreen.showChapterNumber,
+      showBigMangaCover:
+        stored.mangaScreen?.showBigMangaCover ??
+        DEFAULT_SETTINGS.mangaScreen.showBigMangaCover,
+      showChapterNumber:
+        stored.mangaScreen?.showChapterNumber ??
+        DEFAULT_SETTINGS.mangaScreen.showChapterNumber,
     },
     coverDisplay: {
-      showStatusBadge: stored.coverDisplay?.showStatusBadge ?? DEFAULT_SETTINGS.coverDisplay.showStatusBadge,
-      showRating: stored.coverDisplay?.showRating ?? DEFAULT_SETTINGS.coverDisplay.showRating,
+      showStatusBadge:
+        stored.coverDisplay?.showStatusBadge ??
+        DEFAULT_SETTINGS.coverDisplay.showStatusBadge,
+      showRating:
+        stored.coverDisplay?.showRating ??
+        DEFAULT_SETTINGS.coverDisplay.showRating,
+    },
+    privacy: {
+      requireBiometrics:
+        stored.privacy?.requireBiometrics ??
+        DEFAULT_SETTINGS.privacy.requireBiometrics,
+      showNsfwHistory:
+        stored.privacy?.showNsfwHistory ??
+        DEFAULT_SETTINGS.privacy.showNsfwHistory,
     },
     debug: {
       ...DEFAULT_SETTINGS.debug,
@@ -222,7 +274,9 @@ export async function getAppSettings(): Promise<AppSettings> {
   return readSettings();
 }
 
-export async function updateAppSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+export async function updateAppSettings(
+  patch: Partial<AppSettings>,
+): Promise<AppSettings> {
   const current = await readSettings();
   const next: AppSettings = {
     incognitoMode: patch.incognitoMode ?? current.incognitoMode,
@@ -232,6 +286,7 @@ export async function updateAppSettings(patch: Partial<AppSettings>): Promise<Ap
     libraryDisplay: { ...current.libraryDisplay, ...patch.libraryDisplay },
     mangaScreen: { ...current.mangaScreen, ...patch.mangaScreen },
     coverDisplay: { ...current.coverDisplay, ...patch.coverDisplay },
+    privacy: { ...current.privacy, ...patch.privacy },
     debug: { ...current.debug, ...patch.debug },
   };
   await writeSettings(next);
@@ -241,7 +296,10 @@ export async function updateAppSettings(patch: Partial<AppSettings>): Promise<Ap
 
 export async function getShowLibraryBadges(): Promise<boolean> {
   const settings = await readSettings();
-  return settings.libraryDisplay.showUnreadBadges || settings.libraryDisplay.showDownloadedBadges;
+  return (
+    settings.libraryDisplay.showUnreadBadges ||
+    settings.libraryDisplay.showDownloadedBadges
+  );
 }
 
 export async function resetAppSettings(): Promise<void> {
@@ -249,13 +307,15 @@ export async function resetAppSettings(): Promise<void> {
   notifyAppSettingsChanged();
 }
 
-export function libraryGridColumns(gridSize: LibraryDisplaySettings['gridSize']): number {
+export function libraryGridColumns(
+  gridSize: LibraryDisplaySettings["gridSize"],
+): number {
   switch (gridSize) {
-    case 'small':
+    case "small":
       return 4;
-    case 'large':
+    case "large":
       return 2;
-    case 'extraLarge':
+    case "extraLarge":
       return 1;
     default:
       return 3;

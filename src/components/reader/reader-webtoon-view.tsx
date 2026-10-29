@@ -719,7 +719,11 @@ export function ReaderWebtoonView({
     shiftViewportBy(delta);
   }, [heightTick, shiftViewportBy]);
 
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
   const requestNextChapter = useCallback(() => {
+    if (!settingsRef.current.verticalInfiniteScroll) return;
     if (!userScrolledRef.current || !canLoadNextRef.current) return;
     if (restoringRef.current || programmaticScrollRef.current) return;
     canLoadNextRef.current = false;
@@ -1058,6 +1062,9 @@ export function ReaderWebtoonView({
         ListHeaderComponent={chapterStart}
         ListFooterComponent={chapterEnd}
         scrollEventThrottle={16}
+        {...(Platform.OS === "ios" && settings.liveText
+          ? ({ delaysContentTouches: false } as object)
+          : {})}
         onScroll={handleScroll}
         onScrollBeginDrag={handleScrollBegin}
         onScrollEndDrag={handleScrollSettled}
