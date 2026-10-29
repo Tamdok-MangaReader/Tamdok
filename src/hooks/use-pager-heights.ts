@@ -1,8 +1,18 @@
 import { useCallback, useReducer, useRef } from "react";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const TAB_BAR_HEIGHT = 49;
 
 export function usePagerHeights(pageIds: readonly string[], selectedIndex: number) {
   const { height: windowHeight } = useWindowDimensions();
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
+  const minHeight = Math.max(
+    windowHeight - headerHeight - insets.bottom - TAB_BAR_HEIGHT,
+    0,
+  );
   const [, bump] = useReducer((value: number) => value + 1, 0);
   const heights = useRef<Record<string, number>>({});
   const selectedId = pageIds[selectedIndex] ?? "";
@@ -15,7 +25,7 @@ export function usePagerHeights(pageIds: readonly string[], selectedIndex: numbe
     if (id === selectedRef.current) bump();
   }, []);
 
-  const pagerHeight = Math.max(heights.current[selectedId] ?? 0, windowHeight * 0.6);
+  const pagerHeight = Math.max(heights.current[selectedId] ?? 0, minHeight);
 
   return { pagerHeight, onHeight };
 }

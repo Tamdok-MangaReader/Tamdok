@@ -73,6 +73,7 @@ const TransferSourceSection = memo(function TransferSourceSection({
 
   useEffect(() => {
     let alive = true;
+    const cancel = { cancelled: false };
     setGroup({ source, entries: [], status: "loading" });
 
     void (async () => {
@@ -83,11 +84,12 @@ const TransferSourceSection = memo(function TransferSourceSection({
             source,
             origin.mangaKey,
             origin.title,
+            cancel,
           );
           if (direct) entries = [direct];
         }
         if (entries.length === 0) {
-          entries = await searchTransferCandidates(source, origin);
+          entries = await searchTransferCandidates(source, origin, cancel);
         }
         if (alive) setGroup({ source, entries, status: "done" });
       } catch (error) {
@@ -103,6 +105,7 @@ const TransferSourceSection = memo(function TransferSourceSection({
 
     return () => {
       alive = false;
+      cancel.cancelled = true;
     };
   }, [source, origin, twin, attempt]);
 

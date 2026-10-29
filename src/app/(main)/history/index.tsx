@@ -649,7 +649,6 @@ export default function HistoryScreen() {
   const [loaded, setLoaded] = useState(false);
 
   const entriesRef = useRef<HistoryEntry[]>([]);
-  const groupCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
   const installedRef = useRef(installed);
   installedRef.current = installed;
 

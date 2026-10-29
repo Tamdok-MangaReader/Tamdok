@@ -5,13 +5,10 @@ import { useNearEnd } from "@/hooks/use-near-end";
 import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
-  memo,
   useCallback,
   useMemo,
   useRef,
   useState,
-  type ComponentProps,
-  type ReactElement,
   type ReactNode,
 } from "react";
 import * as Haptics from "expo-haptics";
@@ -19,10 +16,7 @@ import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 import {
   ActivityIndicator,
-  FlatList,
-  Platform,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
@@ -40,10 +34,7 @@ import { SourceOverflowMenu } from "@/components/sources/source-overflow-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MangaGridSkeleton } from "@/components/ui/skeleton";
 import { HeaderIconButton } from "@/components/ui/header-icon-button";
-import {
-  LiquidGlassScrollComponent,
-  LiquidGlassScrollRoot,
-} from "@/components/ui/liquid-glass-scroll-root";
+import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -69,10 +60,6 @@ function decodeSourceRouteId(id: string): string {
     return id;
   }
 }
-
-const renderScrollComponent = (
-  props: ComponentProps<typeof LiquidGlassScrollComponent>,
-) => <LiquidGlassScrollComponent {...props} />;
 
 const HOME_SECTION_ESTIMATE = 280;
 
@@ -218,7 +205,6 @@ export default function SourceHomeScreen() {
     Boolean(combinedError) && (hasCachedContent || hasHomeContent);
   const showHomePlaceholder =
     (isLoading || runnerLoading) && !hasCachedContent && !hasHomeContent;
-  const showCategoryTabs = categoryTabs.length > 1;
 
   const alertBanner = useMemo(
     () =>

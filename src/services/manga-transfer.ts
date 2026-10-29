@@ -3,8 +3,11 @@ import { sanitizeChapterNumber } from "@/parsers/shared/chapter-number";
 import { readMangaDetailCache } from "@/services/manga-detail-cache";
 import {
   getMangaChapterProgress,
+  getMangaHistoryForEntry,
   importChapterReadStates,
+  removeMangaHistoryGroup,
 } from "@/services/manga-tracking";
+import { removeMangaDownloads } from "@/services/downloads";
 import { replaceLibraryEntry } from "@/services/library";
 import {
   getOrCreateSourceRunner,
@@ -14,6 +17,8 @@ import {
 const MAX_CANDIDATES = 3;
 const MAX_CONCURRENT_SEARCHES = 3;
 const MAX_ALT_QUERIES = 2;
+
+export type TransferCancel = { cancelled: boolean };
 
 export type TransferOrigin = {
   sourceId: string;
@@ -89,17 +94,20 @@ function titleScore(normalizedQuery: string, candidate: Manga): number {
   return best;
 }
 
+const SEARCH_CACHE_LIMIT = 200;
 const searchCache = new Map<string, Promise<Manga[]>>();
 
 function searchOne(
   source: InstalledSource,
   query: string,
+  cancel?: TransferCancel,
 ): Promise<Manga[]> {
   const cacheKey = `${source.kind}:${source.id}|${query}`;
   const cached = searchCache.get(cacheKey);
   if (cached) return cached;
 
   const pending = withSlot(async () => {
+    if (cancel?.cancelled) throw new Error("cancelled");
     const runner = await getOrCreateSourceRunner(source);
     const page = await runner.getSearchMangaList({ query, page: 1 });
     return page.entries;
@@ -108,12 +116,17 @@ function searchOne(
     throw error;
   });
   searchCache.set(cacheKey, pending);
+  if (searchCache.size > SEARCH_CACHE_LIMIT) {
+    const oldest = searchCache.keys().next().value;
+    if (oldest !== undefined) searchCache.delete(oldest);
+  }
   return pending;
 }
 
 export async function searchTransferCandidates(
   source: InstalledSource,
   origin: Pick<TransferOrigin, "title" | "altTitles">,
+  cancel?: TransferCancel,
 ): Promise<Manga[]> {
   const normalizedTitle = normalizeTitle(origin.title);
   const queries = [
@@ -128,7 +141,8 @@ export async function searchTransferCandidates(
 
   for (const query of queries) {
     const normalizedQuery = normalizeTitle(query);
-    const entries = await searchOne(source, query);
+    if (cancel?.cancelled) break;
+    const entries = await searchOne(source, query, cancel);
     for (const manga of entries) {
       if (merged.has(manga.key)) continue;
       const score = Math.max(
@@ -179,9 +193,11 @@ export async function findMangaByKey(
   source: InstalledSource,
   mangaKey: string,
   title: string,
+  cancel?: TransferCancel,
 ): Promise<Manga | null> {
   try {
     const runner = await withSlot(() => getOrCreateSourceRunner(source));
+    if (cancel?.cancelled) return null;
     const manga = await withSlot(() =>
       runner.getMangaUpdate({ key: mangaKey, title }, true, false),
     );
@@ -259,6 +275,25 @@ export async function transferManga(
   );
 
   await importChapterReadStates(targetSource.id, merged.key, imports);
+
+  const sameEntry =
+    origin.sourceId === targetSource.id && origin.mangaKey === merged.key;
+  if (!sameEntry) {
+    try {
+      const history = await getMangaHistoryForEntry(
+        origin.sourceId,
+        origin.mangaKey,
+      );
+      await Promise.all([
+        removeMangaDownloads(origin.sourceId, origin.mangaKey),
+        removeMangaHistoryGroup(
+          origin.sourceId,
+          origin.mangaKey,
+          history.map((entry) => entry.chapterKey),
+        ),
+      ]);
+    } catch {}
+  }
 
   return { sourceRoute: `${targetSource.kind}:${targetSource.id}`, manga: merged };
 }

@@ -16,7 +16,6 @@ import {
 import {
   ActivityIndicator,
   Alert,
-  FlatList as NativeFlatList,
   Pressable,
   StyleSheet,
   View,
@@ -66,12 +65,6 @@ import type { InstalledSource } from "@/parsers/shared/types";
 import { getSourceLayoutKey, sourceRouteId } from "@/services/sources";
 import { isSearchActive, matchesInstalledSource } from "@/utils/source-search";
 
-type SourceSection = {
-  key: string;
-  title: string;
-  data: InstalledSource[];
-};
-
 type SourceListRow =
   | { kind: "header"; id: string; title: string; isFirst: boolean }
   | { kind: "source"; id: string; source: InstalledSource };
@@ -95,13 +88,6 @@ function isNsfwSource(source: InstalledSource): boolean {
 }
 const SOURCE_ROW_ESTIMATE = 72;
 const PIN_SWIPE_COLOR = "#E5B800";
-
-const NORMAL_LIST_PROPS = {
-  initialNumToRender: 14,
-  maxToRenderPerBatch: 8,
-  windowSize: 9,
-  updateCellsBatchingPeriod: 50,
-} as const;
 
 const LIST_FOOTER = <View style={{ height: Spacing.lg }} />;
 
@@ -627,7 +613,8 @@ export default function SourcesScreen() {
     [installed, separateNsfw],
   );
   const mainSources = useMemo(
-    () => (separateNsfw ? installed.filter((s) => !isNsfwSource(s)) : installed),
+    () =>
+      separateNsfw ? installed.filter((s) => !isNsfwSource(s)) : installed,
     [installed, separateNsfw],
   );
 
@@ -815,6 +802,7 @@ export default function SourcesScreen() {
           placeholder={t("sources_search_placeholder")}
           {...stackSearchBarProps}
           placement="integratedButton"
+          tintColor={colors.tint}
           hideWhenScrolling
           onChangeText={handleSearchText}
           onSearchButtonPress={handleSearchText}

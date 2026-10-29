@@ -74,6 +74,7 @@ export type LibraryDisplaySettings = {
   showDownloadedBadges: boolean;
   showCategoryCountBadges: boolean;
   showEmptyCategoryCountBadges: boolean;
+  hideEmptyCategories: boolean;
   showLibraryRefreshStatus: boolean;
   showLibraryRefreshLiveActivity: boolean;
   updateOnWifiOnly: boolean;
@@ -169,6 +170,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     showDownloadedBadges: true,
     showCategoryCountBadges: true,
     showEmptyCategoryCountBadges: false,
+    hideEmptyCategories: true,
     showLibraryRefreshStatus: false,
     showLibraryRefreshLiveActivity: true,
     updateOnWifiOnly: false,
@@ -231,6 +233,9 @@ async function readSettings(): Promise<AppSettings> {
       showCategoryCountBadges:
         stored.libraryDisplay?.showCategoryCountBadges ??
         DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
+      hideEmptyCategories:
+        stored.libraryDisplay?.hideEmptyCategories ??
+        DEFAULT_SETTINGS.libraryDisplay.hideEmptyCategories,
       showEmptyCategoryCountBadges:
         stored.libraryDisplay?.showEmptyCategoryCountBadges ??
         DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,

@@ -223,10 +223,6 @@ export default function LibraryScreen() {
             .map((category) => category.id)
         : [],
     );
-    const nextCategories =
-      hiddenCategoryIds.size === 0
-        ? rawCategories
-        : rawCategories.filter((category) => !hiddenCategoryIds.has(category.id));
     const nextEntries =
       hiddenCategoryIds.size === 0
         ? rawEntries
@@ -234,6 +230,14 @@ export default function LibraryScreen() {
             (entry) =>
               !entry.categoryIds.some((id) => hiddenCategoryIds.has(id)),
           );
+    const hideEmpty = settings.libraryDisplay.hideEmptyCategories ?? true;
+    const nextCategories = rawCategories.filter(
+      (category) =>
+        !hiddenCategoryIds.has(category.id) &&
+        (!hideEmpty ||
+          isAllCategory(category.id) ||
+          libraryCategoryCount(nextEntries, category.id) > 0),
+    );
 
     const isFirstLoad = !loadedOnceRef.current;
     const wantedCategoryId = isFirstLoad

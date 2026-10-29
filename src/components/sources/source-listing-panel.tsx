@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from "react-native";
@@ -47,6 +48,7 @@ export function SourceListingPanel({
       setError(null);
       try {
         const result = await runner.getMangaList(listing, nextPage);
+        lastAddedRef.current = result.entries.length > 0;
         setEntries((current) =>
           append ? [...current, ...result.entries] : result.entries,
         );
@@ -81,11 +83,43 @@ export function SourceListingPanel({
     return () => registerLoadMore(pageId, null);
   }, [pageId, registerLoadMore]);
 
+  const { height: windowHeight } = useWindowDimensions();
+  const contentHeightRef = useRef(0);
+  const lastAddedRef = useRef(true);
+
+  const fillIfShort = useCallback(() => {
+    const state = stateRef.current;
+    const height = contentHeightRef.current;
+    if (
+      state.isLoading ||
+      !state.hasNextPage ||
+      !lastAddedRef.current ||
+      height <= 0 ||
+      height >= windowHeight
+    ) {
+      return;
+    }
+    void state.load(state.page + 1, true);
+  }, [windowHeight]);
+
+  const reportHeight = useCallback(
+    (id: string, height: number) => {
+      contentHeightRef.current = height;
+      onHeight(id, height);
+      fillIfShort();
+    },
+    [onHeight, fillIfShort],
+  );
+
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) =>
-      onHeight(pageId, event.nativeEvent.layout.height),
-    [onHeight, pageId],
+      reportHeight(pageId, event.nativeEvent.layout.height),
+    [reportHeight, pageId],
   );
+
+  useEffect(() => {
+    if (!isLoading) fillIfShort();
+  }, [isLoading, entries.length, fillIfShort]);
 
   if (!runner?.getMangaList) {
     return (
@@ -129,7 +163,7 @@ export function SourceListingPanel({
       entries={entries}
       sourceId={sourceId}
       pageId={pageId}
-      onHeight={onHeight}
+      onHeight={reportHeight}
       onPressManga={onPressManga}
       showRating={entries[0] && entries[0].rating !== undefined}
       footer={

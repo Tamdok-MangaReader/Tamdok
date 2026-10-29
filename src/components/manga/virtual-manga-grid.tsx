@@ -123,7 +123,7 @@ export function VirtualMangaGrid({
     const result: GridRow[] = [];
     for (let i = 0; i < list.length; i += columns) {
       const items = list.slice(i, i + columns);
-      result.push({ key: items[0].key, items });
+      result.push({ key: `${i}:${items[0].key}`, items });
     }
     return result;
   }, [entries, columns]);

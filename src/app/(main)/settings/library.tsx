@@ -116,6 +116,7 @@ export default function LibrarySettingsScreen() {
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
   const [showCategoryCountBadges, setShowCategoryCountBadges] = useState(true);
+  const [hideEmptyCategories, setHideEmptyCategories] = useState(true);
   const [showEmptyCategoryCountBadges, setShowEmptyCategoryCountBadges] =
     useState(false);
   const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] =
@@ -163,6 +164,7 @@ export default function LibrarySettingsScreen() {
     setShowCategoryCountBadges(
       appSettings.libraryDisplay.showCategoryCountBadges ?? true,
     );
+    setHideEmptyCategories(appSettings.libraryDisplay.hideEmptyCategories ?? true);
     setShowEmptyCategoryCountBadges(
       appSettings.libraryDisplay.showEmptyCategoryCountBadges ?? false,
     );
@@ -423,7 +425,19 @@ export default function LibrarySettingsScreen() {
         }}
       />
       <ScreenContent>
-        <SectionLabel isFirst>{t("library_categories")}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t("library_hide_empty_categories")}
+            hint={t("library_hide_empty_categories_hint")}
+            value={hideEmptyCategories}
+            onChange={(value) => {
+              setHideEmptyCategories(value);
+              patchLibraryDisplay({ hideEmptyCategories: value });
+            }}
+            isLast
+          />
+        </Card>
+        <SectionLabel>{t("library_categories")}</SectionLabel>
         <SwipeableRowsProvider>
           <Card style={styles.categoriesCard}>
             {categories.length === 0 ? (
