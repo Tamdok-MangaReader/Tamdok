@@ -79,7 +79,7 @@ export const Typography = {
   body: { fontSize: 17, lineHeight: 22, fontWeight: "400" as const },
   callout: { fontSize: 16, lineHeight: 21, fontWeight: "400" as const },
   subheadline: { fontSize: 15, lineHeight: 20, fontWeight: "400" as const },
-  footnote: { fontSize: 13, lineHeight: 18, fontWeight: "400" as const },
+  footnote: { fontSize: 14, lineHeight: 18, fontWeight: "400" as const },
   caption1: { fontSize: 12, lineHeight: 16, fontWeight: "400" as const },
   caption2: { fontSize: 11, lineHeight: 13, fontWeight: "400" as const },
 } as const;

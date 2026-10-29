@@ -10,7 +10,11 @@ import { t } from "@/constants/locales";
 import { useAidokuSourceRequests } from "@/hooks/use-aidoku-source-requests";
 import type { InstalledSource, Manga } from "@/parsers/shared/types";
 import type { SourceRunner } from "@/parsers/shared/source-runner";
-import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
+import {
+  cancelAidokuSourceRequests,
+  isAidokuRequestCancelled,
+} from "@/parsers/aidoku/wasm-bridge";
+import { cancelTamdokSourceRequests } from "@/parsers/tamdok/runtime";
 import {
   peekMangaDetailCache,
   readMangaDetailCache,
@@ -68,11 +72,14 @@ export function useMangaDetail({
     cachedSnapshot?.hasCachedContent ?? false,
   );
   const requestIdRef = useRef(0);
+  const activeFetchRef = useRef(0);
+  const sourceIdRef = useRef(source?.id);
+  sourceIdRef.current = source?.id;
   const mangaRef = useRef(initialManga);
   mangaRef.current = manga;
 
   // Cancels in-flight Aidoku fetches when user navigates away from this source.
-  useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
+  useAidokuSourceRequests(source?.id);
 
   useLayoutEffect(() => {
     requestIdRef.current += 1;
@@ -120,6 +127,7 @@ export function useMangaDetail({
       }
 
       const requestId = ++requestIdRef.current;
+      activeFetchRef.current = requestId;
       // Ignore stale responses when user switched manga before fetch finished.
       const hasDisplayedContent =
         hadCachedContent ||
@@ -188,6 +196,7 @@ export function useMangaDetail({
         setLoadError(message);
       } finally {
         clearTimeout(timeout);
+        if (activeFetchRef.current === requestId) activeFetchRef.current = 0;
         if (requestId === requestIdRef.current) {
           setIsLoading(false);
           setIsRefreshing(false);
@@ -223,6 +232,17 @@ export function useMangaDetail({
       requestIdRef.current += 1;
     };
   }, [fetchManga, cacheSourceId, runner?.sourceId, mangaKey]);
+
+  useEffect(
+    () => () => {
+      const sourceId = sourceIdRef.current;
+      if (!sourceId || activeFetchRef.current === 0) return;
+      activeFetchRef.current = 0;
+      cancelAidokuSourceRequests(sourceId);
+      cancelTamdokSourceRequests(sourceId);
+    },
+    [cacheSourceId, mangaKey],
+  );
 
   const refresh = useCallback(() => {
     void fetchManga({ force: true });

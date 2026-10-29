@@ -8,10 +8,70 @@ import * as SecureStore from "expo-secure-store";
 import { sharedFetch } from "../../shared/http";
 import { parse } from "node-html-parser";
 
+const sourceControllers = new Map<string, Set<AbortController>>();
+const sourceWatchers = new Map<string, number>();
+
+export function retainTamdokSourceRequests(sourceId: string): void {
+  sourceWatchers.set(sourceId, (sourceWatchers.get(sourceId) ?? 0) + 1);
+}
+
+export function releaseTamdokSourceRequests(sourceId: string): void {
+  const next = (sourceWatchers.get(sourceId) ?? 0) - 1;
+  if (next > 0) {
+    sourceWatchers.set(sourceId, next);
+    return;
+  }
+  sourceWatchers.delete(sourceId);
+  cancelTamdokSourceRequests(sourceId);
+}
+
+export function cancelTamdokSourceRequests(sourceId: string): void {
+  const controllers = sourceControllers.get(sourceId);
+  if (!controllers) return;
+  sourceControllers.delete(sourceId);
+  for (const controller of controllers) controller.abort();
+}
+
 async function performRequest(
   url: string,
   init: RequestInit | undefined,
   sourceBaseUrl?: string,
+  sourceId?: string,
+): Promise<TamdokResponse> {
+  const controller = new AbortController();
+  const outer = init?.signal;
+  const onOuterAbort = () => controller.abort();
+  if (outer) {
+    if (outer.aborted) controller.abort();
+    else outer.addEventListener("abort", onOuterAbort, { once: true });
+  }
+  let tracked: Set<AbortController> | undefined;
+  if (sourceId) {
+    tracked = sourceControllers.get(sourceId);
+    if (!tracked) {
+      tracked = new Set();
+      sourceControllers.set(sourceId, tracked);
+    }
+    tracked.add(controller);
+  }
+  try {
+    return await performRequestInner(
+      url,
+      init,
+      sourceBaseUrl,
+      controller.signal,
+    );
+  } finally {
+    tracked?.delete(controller);
+    outer?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+async function performRequestInner(
+  url: string,
+  init: RequestInit | undefined,
+  sourceBaseUrl: string | undefined,
+  signal: AbortSignal,
 ): Promise<TamdokResponse> {
   const initHeaders = headersFromInit(init?.headers);
   const method = init?.method ?? "GET";
@@ -25,20 +85,23 @@ async function performRequest(
     method,
     headers: initHeaders,
     body: init?.body,
-    signal: init?.signal,
+    signal,
     sourceBaseUrl,
     passthrough: passthrough as RequestInit,
   });
   return createResponse(result);
 }
 
-export function createRequest(sourceBaseUrl?: string): TamdokRequest {
+export function createRequest(
+  sourceBaseUrl?: string,
+  sourceId?: string,
+): TamdokRequest {
   return {
     get: (url, init) =>
-      performRequest(url, { ...init, method: "GET" }, sourceBaseUrl),
+      performRequest(url, { ...init, method: "GET" }, sourceBaseUrl, sourceId),
     post: (url, init) =>
-      performRequest(url, { ...init, method: "POST" }, sourceBaseUrl),
-    fetch: (url, init) => performRequest(url, init, sourceBaseUrl),
+      performRequest(url, { ...init, method: "POST" }, sourceBaseUrl, sourceId),
+    fetch: (url, init) => performRequest(url, init, sourceBaseUrl, sourceId),
   };
 }
 
@@ -122,7 +185,7 @@ export function createSourceContext(
 ): TamdokSourceContext {
   return {
     sourceId,
-    request: createRequest(sourceBaseUrl),
+    request: createRequest(sourceBaseUrl, sourceId),
     cookies: getCookies(sourceId),
     defaults: createDefaults(sourceId),
   };

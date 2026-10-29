@@ -77,7 +77,7 @@ export default function SourceSearchScreen() {
   const hasNextRef = useRef(false);
   const busyRef = useRef(false);
 
-  useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
+  useAidokuSourceRequests(source?.id);
 
   useEffect(() => {
     setQuery(initialQuery);

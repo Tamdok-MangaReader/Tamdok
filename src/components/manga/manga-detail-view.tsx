@@ -63,7 +63,7 @@ import {
 const DESCRIPTION_PREVIEW_LINES = 4;
 const TAG_PREVIEW_COUNT = 6;
 const DOWNLOADED_COLOR = "#007AFF";
-const COVER_WIDTH = 132;
+const COVER_WIDTH = 160;
 const COVER_HEIGHT = Math.round(COVER_WIDTH * 1.45);
 
 const EMPTY_CHAPTERS: Chapter[] = [];
@@ -183,7 +183,7 @@ const DescriptionBlock = memo(function DescriptionBlock({
       {canExpand ? (
         <Pressable onPress={toggle} hitSlop={8}>
           <ThemedText
-            variant="footnote"
+            variant="subheadline"
             color="tint"
             style={styles.expandButton}
           >
@@ -212,10 +212,14 @@ const TagsBlock = memo(function TagsBlock({ tags }: { tags: string[] }) {
       </ThemedText>
       <View style={styles.tagsWrap}>
         {visibleTags.map((tag) => (
-          <GlassSurface key={tag} borderRadius={radius.pill}>
+          <GlassSurface
+            key={tag}
+            borderRadius={radius.pill}
+            glassStyle="regular"
+          >
             <View style={styles.tagPill}>
               <ThemedText
-                variant="footnote"
+                variant="subheadline"
                 color="secondaryLabel"
                 numberOfLines={1}
               >
@@ -228,7 +232,7 @@ const TagsBlock = memo(function TagsBlock({ tags }: { tags: string[] }) {
       {canExpand ? (
         <Pressable onPress={toggle} hitSlop={8}>
           <ThemedText
-            variant="footnote"
+            variant="subheadline"
             color="tint"
             style={styles.expandButton}
           >
@@ -326,6 +330,26 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     [manga.cover, coverHeaders],
   );
 
+  const libraryButtonContent = (
+    <>
+      <Ionicons
+        name={inLibrary ? "bookmark" : "bookmark-outline"}
+        size={18}
+        color={inLibrary ? colors.tint : colors.onTint}
+      />
+      <ThemedText variant="body" color={inLibrary ? "tint" : "onTint"}>
+        {inLibrary ? t("manga_in_library") : t("manga_add_to_library")}
+      </ThemedText>
+      {hasCustomCategories ? (
+        <Ionicons
+          name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
+          size={14}
+          color={inLibrary ? colors.tint : colors.onTint}
+        />
+      ) : null}
+    </>
+  );
+
   const coverStyle = useMemo(
     () => [
       styles.cover,
@@ -360,6 +384,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         {showBigMangaCover && coverSource ? (
           <MangaBackground source={coverSource} />
         ) : null}
+
         <View style={coverStyle}>
           {coverSource ? (
             <Image
@@ -416,13 +441,13 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           </ThemedText>
           {sourceName ? (
             <View style={styles.sourceRow}>
-              <ThemedText variant="footnote" color="tint">
+              <ThemedText variant="subheadline" color="tint">
                 {sourceName}
               </ThemedText>
               {sourceKind ? (
                 <GlassSurface borderRadius={radius.pill}>
                   <ThemedText
-                    variant="caption2"
+                    variant="footnote"
                     color="secondaryLabel"
                     style={styles.kindBadge}
                   >
@@ -435,24 +460,22 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           {altTitles.length > 0 ? (
             <View style={styles.altTitles}>
               <ThemedText
-                variant="subheadline"
+                variant="callout"
                 color="tertiaryLabel"
                 numberOfLines={1}
               >
                 {altTitles[0]}
               </ThemedText>
               {altTitles.length > 1 ? (
-                <View
-                  style={[
-                    styles.caltTitleBadge,
-                    { backgroundColor: colors.fill },
-                  ]}
+                <GlassSurface
+                  glassStyle="regular"
+                  style={[styles.caltTitleBadge]}
                 >
                   <ThemedText
-                    variant="caption1"
+                    variant="footnote"
                     color="tertiaryLabel"
                   >{`+${altTitles.length - 1}`}</ThemedText>
-                </View>
+                </GlassSurface>
               ) : null}
             </View>
           ) : null}
@@ -466,7 +489,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
               {artists}
             </ThemedText>
           ) : null}
-          {rating ? <StarRating rating={rating} /> : null}
+          {rating ? <StarRating rating={rating} bigger /> : null}
           <View style={styles.pills}>
             {statusPill && manga.status ? (
               <GlassSurface
@@ -476,12 +499,12 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
               >
                 <SFSymbolIcon
                   name={statusPill.icon}
-                  size={13}
+                  size={16}
                   color={colors.secondaryLabel}
                   fallback="globe-outline"
                 />
                 <ThemedText
-                  variant="caption1"
+                  variant="footnote"
                   color="secondaryLabel"
                   style={styles.statusText}
                 >
@@ -492,7 +515,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             {manga.viewer ? (
               <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
                 <ThemedText
-                  variant="caption1"
+                  variant="footnote"
                   color="secondaryLabel"
                   style={styles.typeText}
                 >
@@ -510,38 +533,29 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
                   hitSlop={8}
                   style={libraryPressableStyle}
                 >
-                  <View
-                    style={[
-                      styles.libraryButton,
-                      {
-                        borderRadius: radius.pill,
-                        backgroundColor: inLibrary
-                          ? colors.secondaryFill
-                          : colors.tint,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={inLibrary ? "bookmark" : "bookmark-outline"}
-                      size={16}
-                      color={inLibrary ? colors.tint : colors.onTint}
-                    />
-                    <ThemedText
-                      variant="footnote"
-                      color={inLibrary ? "tint" : "onTint"}
+                  {inLibrary ? (
+                    <GlassSurface
+                      borderRadius={radius.pill}
+                      style={[styles.libraryButton]}
+                      interactive
                     >
-                      {inLibrary
-                        ? t("manga_in_library")
-                        : t("manga_add_to_library")}
-                    </ThemedText>
-                    {hasCustomCategories ? (
-                      <Ionicons
-                        name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
-                        size={13}
-                        color={inLibrary ? colors.tint : colors.onTint}
-                      />
-                    ) : null}
-                  </View>
+                      {libraryButtonContent}
+                    </GlassSurface>
+                  ) : (
+                    <View
+                      style={[
+                        styles.libraryButton,
+                        {
+                          borderRadius: radius.pill,
+                          backgroundColor: inLibrary
+                            ? colors.secondaryFill
+                            : colors.tint,
+                        },
+                      ]}
+                    >
+                      {libraryButtonContent}
+                    </View>
+                  )}
                 </Pressable>
                 {canOpenInBrowser ? (
                   <Pressable
@@ -556,7 +570,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
                     >
                       <SFSymbolIcon
                         name="safari"
-                        size={16}
+                        size={18}
                         color={colors.tint}
                         fallback="globe-outline"
                       />
@@ -888,12 +902,12 @@ export function MangaDetailView({
     () =>
       onRefresh ? (
         <RefreshControl
-          refreshing={isRefreshing}
+          refreshing={false}
           onRefresh={onRefresh}
           tintColor={colors.tint}
         />
       ) : undefined,
-    [onRefresh, isRefreshing, colors.tint],
+    [onRefresh, colors.tint],
   );
 
   return (
@@ -980,7 +994,6 @@ const ChapterRow = memo(function ChapterRow({
     () => chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter),
     [chapter],
   );
-  // Форматтер кэширован, а строка даты считается один раз на главу
   const dateLabel = useMemo(
     () =>
       chapter.dateUploaded ? formatUploadDate(chapter.dateUploaded) : null,
@@ -1222,6 +1235,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: "relative",
   },
+  coverView: {
+    gap: Spacing.sm,
+  },
   coverBookmark: {
     position: "absolute",
     top: Spacing.xs,
@@ -1310,10 +1326,11 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   libraryButtonPressable: {
-    flexShrink: 1,
+    flex: 1,
   },
   libraryButton: {
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
@@ -1422,7 +1439,9 @@ const styles = StyleSheet.create({
   pills: {
     display: "flex",
     flexDirection: "row",
+    paddingVertical: Spacing.xs,
     gap: Spacing.xs,
+    flex: 1,
   },
   altTitles: {
     display: "flex",

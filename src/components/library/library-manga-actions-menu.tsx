@@ -1,15 +1,15 @@
-import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { FullWindowOverlay } from 'react-native-screens';
+import * as Haptics from "expo-haptics";
+import { useState } from "react";
+import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import { FullWindowOverlay } from "react-native-screens";
 
-import { GlassSurface } from '@/components/ui/glass-surface';
-import { SFSymbolIcon } from '@/components/ui/sf-symbol-icon';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import { t } from '@/constants/locales';
-import { useTheme } from '@/hooks/use-theme';
-import { isAllCategory, type LibraryCategory } from '@/services/library';
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import { t } from "@/constants/locales";
+import { useTheme } from "@/hooks/use-theme";
+import { isAllCategory, type LibraryCategory } from "@/services/library";
 
 type LibraryMangaActionsMenuProps = {
   visible: boolean;
@@ -36,10 +36,17 @@ function MenuRow({
 }: {
   label: string;
   sfSymbol: string;
-  fallback: 'checkmark-done-outline' | 'checkmark-circle-outline' | 'ellipse-outline' | 'folder-outline' | 'trash-outline' | 'checkbox-outline' | 'square-outline';
+  fallback:
+    | "checkmark-done-outline"
+    | "checkmark-circle-outline"
+    | "ellipse-outline"
+    | "folder-outline"
+    | "trash-outline"
+    | "checkbox-outline"
+    | "square-outline";
   destructive?: boolean;
   showDivider?: boolean;
-  trailing?: 'up' | 'down' | 'check';
+  trailing?: "up" | "down" | "check";
   selected?: boolean;
   inset?: boolean;
   onPress: () => void;
@@ -52,26 +59,39 @@ function MenuRow({
       style={({ pressed }) => [
         styles.row,
         inset && styles.rowInset,
-        showDivider && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
+        showDivider && {
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.separator,
+        },
         pressed && { backgroundColor: colors.quaternaryFill },
       ]}
       onPress={onPress}
-      accessibilityRole='button'>
-      <SFSymbolIcon name={sfSymbol} fallback={fallback} size={18} color={color} />
-      <ThemedText variant='body' color={destructive ? 'destructive' : 'label'} style={styles.label}>
+      accessibilityRole="button"
+    >
+      <SFSymbolIcon
+        name={sfSymbol}
+        fallback={fallback}
+        size={18}
+        color={color}
+      />
+      <ThemedText
+        variant="body"
+        color={destructive ? "destructive" : "label"}
+        style={styles.label}
+      >
         {label}
       </ThemedText>
-      {trailing === 'check' || selected ? (
+      {trailing === "check" || selected ? (
         <SFSymbolIcon
-          name={selected ? 'checkmark' : 'circle'}
-          fallback={selected ? 'checkbox-outline' : 'square-outline'}
+          name={selected ? "checkmark" : "circle"}
+          fallback={selected ? "checkbox-outline" : "square-outline"}
           size={16}
           color={selected ? colors.tint : colors.tertiaryLabel}
         />
       ) : trailing ? (
         <SFSymbolIcon
-          name={trailing === 'up' ? 'chevron.up' : 'chevron.down'}
-          fallback='chevron-down'
+          name={trailing === "up" ? "chevron.up" : "chevron.down"}
+          fallback="chevron-down"
           size={16}
           color={colors.tertiaryLabel}
         />
@@ -94,7 +114,9 @@ export function LibraryMangaActionsMenu({
   const { radius } = useTheme();
   const [markExpanded, setMarkExpanded] = useState(false);
   const [categoryExpanded, setCategoryExpanded] = useState(false);
-  const orderedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+  const orderedCategories = [...categories].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
 
   if (!visible) return null;
 
@@ -114,31 +136,40 @@ export function LibraryMangaActionsMenu({
     <Pressable style={styles.backdrop} onPress={close}>
       <View style={styles.anchor}>
         <Pressable onPress={(event) => event.stopPropagation()}>
-          <GlassSurface borderRadius={radius.md} style={styles.card}>
-            <ThemedText variant='footnote' color='secondaryLabel' style={styles.title} numberOfLines={2}>
+          <GlassSurface
+            borderRadius={radius.md}
+            style={styles.card}
+            glassStyle="regular"
+          >
+            <ThemedText
+              variant="footnote"
+              color="secondaryLabel"
+              style={styles.title}
+              numberOfLines={2}
+            >
               {title}
             </ThemedText>
             <MenuRow
-              label={t('library_mark_chapters')}
-              sfSymbol='checkmark.rectangle.stack'
-              fallback='checkmark-done-outline'
-              trailing={markExpanded ? 'up' : 'down'}
+              label={t("library_mark_chapters")}
+              sfSymbol="checkmark.rectangle.stack"
+              fallback="checkmark-done-outline"
+              trailing={markExpanded ? "up" : "down"}
               onPress={() => setMarkExpanded((value) => !value)}
             />
             {markExpanded ? (
               <>
                 <MenuRow
-                  label={t('manga_mark_all_read')}
-                  sfSymbol='checkmark.circle'
-                  fallback='checkmark-circle-outline'
+                  label={t("manga_mark_all_read")}
+                  sfSymbol="checkmark.circle"
+                  fallback="checkmark-circle-outline"
                   showDivider
                   inset
                   onPress={() => run(onMarkAllRead)}
                 />
                 <MenuRow
-                  label={t('manga_mark_all_unread')}
-                  sfSymbol='circle'
-                  fallback='ellipse-outline'
+                  label={t("manga_mark_all_unread")}
+                  sfSymbol="circle"
+                  fallback="ellipse-outline"
                   showDivider
                   inset
                   onPress={() => run(onMarkAllUnread)}
@@ -146,25 +177,30 @@ export function LibraryMangaActionsMenu({
               </>
             ) : null}
             <MenuRow
-              label={t('manga_edit_categories')}
-              sfSymbol='folder'
-              fallback='folder-outline'
+              label={t("manga_edit_categories")}
+              sfSymbol="folder"
+              fallback="folder-outline"
               showDivider
-              trailing={categoryExpanded ? 'up' : 'down'}
+              trailing={categoryExpanded ? "up" : "down"}
               onPress={() => setCategoryExpanded((value) => !value)}
             />
             {categoryExpanded
               ? orderedCategories.map((category) => {
                   const selected = isAllCategory(category.id)
-                    ? selectedCategoryIds.length === 0 || selectedCategoryIds.every((id) => isAllCategory(id))
+                    ? selectedCategoryIds.length === 0 ||
+                      selectedCategoryIds.every((id) => isAllCategory(id))
                     : selectedCategoryIds.includes(category.id);
-                  const label = isAllCategory(category.id) ? t('library_category_all') : category.name;
+                  const label = isAllCategory(category.id)
+                    ? t("library_category_all")
+                    : category.name;
                   return (
                     <MenuRow
                       key={category.id}
                       label={label}
-                      sfSymbol={selected ? 'checkmark.circle.fill' : 'circle'}
-                      fallback={selected ? 'checkbox-outline' : 'square-outline'}
+                      sfSymbol={selected ? "checkmark.circle.fill" : "circle"}
+                      fallback={
+                        selected ? "checkbox-outline" : "square-outline"
+                      }
                       showDivider
                       inset
                       selected={selected}
@@ -177,9 +213,9 @@ export function LibraryMangaActionsMenu({
                 })
               : null}
             <MenuRow
-              label={t('manga_remove_from_library')}
-              sfSymbol='trash'
-              fallback='trash-outline'
+              label={t("manga_remove_from_library")}
+              sfSymbol="trash"
+              fallback="trash-outline"
               destructive
               showDivider
               onPress={() => {
@@ -193,16 +229,16 @@ export function LibraryMangaActionsMenu({
     </Pressable>
   );
 
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === "ios") {
     return (
-      <Modal visible transparent animationType='fade' onRequestClose={close}>
+      <Modal visible transparent animationType="fade" onRequestClose={close}>
         <FullWindowOverlay>{menu}</FullWindowOverlay>
       </Modal>
     );
   }
 
   return (
-    <Modal visible transparent animationType='fade' onRequestClose={close}>
+    <Modal visible transparent animationType="fade" onRequestClose={close}>
       {menu}
     </Modal>
   );
@@ -211,17 +247,17 @@ export function LibraryMangaActionsMenu({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.18)",
+    justifyContent: "center",
     paddingHorizontal: Spacing.xl,
   },
   anchor: {
-    width: '100%',
+    width: "100%",
     maxWidth: 360,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   card: {
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   title: {
     paddingHorizontal: Spacing.lg,
@@ -229,8 +265,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,

@@ -1,36 +1,43 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from "react-native";
 
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-import type { ParsedRating } from '@/utils/manga-description';
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import type { ParsedRating } from "@/utils/manga-description";
 
 type StarRatingProps = {
   rating: ParsedRating;
   compact?: boolean;
+  bigger?: boolean;
 };
 
-export function StarRating({ rating, compact }: StarRatingProps) {
+export function StarRating({ rating, compact, bigger }: StarRatingProps) {
   const { colors } = useTheme();
   const stars: string[] = [];
 
   for (let index = 0; index < rating.filled; index += 1) {
-    stars.push('★');
+    stars.push("★");
   }
   if (rating.half) {
-    stars.push('✮');
+    stars.push("✮");
   }
   for (let index = 0; index < rating.empty; index += 1) {
-    stars.push('☆');
+    stars.push("☆");
   }
 
   return (
     <View style={styles.row}>
-      <ThemedText variant={compact ? 'caption2' : 'footnote'} style={{ color: colors.tint }}>
-        {stars.join('')}
+      <ThemedText
+        variant={compact ? "caption2" : bigger ? "subheadline" : "footnote"}
+        style={{ color: colors.tint }}
+      >
+        {stars.join("")}
       </ThemedText>
       {rating.score ? (
-        <ThemedText variant={compact ? 'caption2' : 'footnote'} color='secondaryLabel'>
+        <ThemedText
+          variant={compact ? "caption2" : bigger ? "subheadline" : "footnote"}
+          color="secondaryLabel"
+        >
           {rating.score}
         </ThemedText>
       ) : null}
@@ -40,8 +47,8 @@ export function StarRating({ rating, compact }: StarRatingProps) {
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.xs,
   },
 });

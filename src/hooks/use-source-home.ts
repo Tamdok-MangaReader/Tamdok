@@ -32,7 +32,7 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
   const [hasCachedContent, setHasCachedContent] = useState(false);
   const requestIdRef = useRef(0);
 
-  useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
+  useAidokuSourceRequests(source?.id);
 
   const fetchHome = useCallback(
     async (options?: { force?: boolean; fromPull?: boolean }) => {

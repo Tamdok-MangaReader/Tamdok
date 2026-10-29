@@ -260,12 +260,12 @@ export default function SourceHomeScreen() {
   const refreshControl = useMemo(
     () => (
       <RefreshControl
-        refreshing={isRefreshing}
+        refreshing={false}
         onRefresh={refresh}
         tintColor={colors.tint}
       />
     ),
-    [isRefreshing, refresh, colors.tint],
+    [refresh, colors.tint],
   );
 
   const headerRight = useCallback(

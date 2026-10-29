@@ -104,12 +104,12 @@ const LibraryPage = memo(function LibraryPage({
     () =>
       isEmpty ? null : (
         <RefreshControl
-          refreshing={refreshing}
+          refreshing={false}
           onRefresh={onRefresh}
           tintColor={tintColor}
         />
       ),
-    [isEmpty, refreshing, onRefresh, tintColor],
+    [isEmpty, onRefresh, tintColor],
   );
 
   return (

@@ -55,7 +55,7 @@ export default function SourceListingScreen() {
   const hasNextRef = useRef(false);
   const busyRef = useRef(false);
 
-  useAidokuSourceRequests(source?.id, source?.kind === "aidoku");
+  useAidokuSourceRequests(source?.id);
 
   const listing = useMemo<Listing>(
     () => ({
