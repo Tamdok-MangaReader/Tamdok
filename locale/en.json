@@ -273,6 +273,8 @@
   "manga_remove_downloads": "Remove downloads",
   "manga_share": "Share",
   "history_today": "Today",
+  "history_tab_main": "Main",
+  "history_tab_nsfw": "NSFW",
   "history_yesterday": "Yesterday",
   "history_show_more": "Show {count} more",
   "history_unknown_chapter": "Chapter",

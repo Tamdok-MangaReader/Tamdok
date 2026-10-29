@@ -1,5 +1,10 @@
+import { useHeaderHeight } from "@react-navigation/elements";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
+import Animated, { useSharedValue } from "react-native-reanimated";
+import PagerView from "react-native-pager-view";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -13,6 +18,10 @@ import {
   type ScrollViewProps,
 } from "react-native";
 
+import {
+  LibraryCategoryTabs,
+  type LibraryCategoryTab,
+} from "@/components/library/library-category-tabs";
 import { HistoryOverflowMenu } from "@/components/history/history-overflow-menu";
 import {
   SwipeableRow,
@@ -37,6 +46,7 @@ import {
   useSourceCoverHeadersReady,
 } from "@/context/source-cover-context";
 import { useSources } from "@/context/sources-context";
+import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
 import { useTheme } from "@/hooks/use-theme";
 import type { Chapter } from "@/parsers/shared/types";
@@ -56,6 +66,8 @@ import { coverImageSource } from "@/utils/cover-image-source";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 import { mangaHref, readerHref } from "@/utils/manga-route";
 
+const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
+
 const VISIBLE_CHAPTER_LIMIT = 5;
 const RELOAD_DEBOUNCE_MS = 100;
 const PRESSED_STYLE = { opacity: 0.72 } as const;
@@ -73,7 +85,7 @@ type MangaHistoryGroup = {
 };
 
 type HistoryRow =
-  | { kind: "header"; id: string; title: string; isFirst: boolean }
+  | { kind: "header"; id: string; title: string; isFirst: boolean; count: number }
   | { kind: "group"; id: string; group: MangaHistoryGroup };
 
 let timeFormat: Intl.DateTimeFormat | null = null;
@@ -209,7 +221,14 @@ function buildRows(
   let isFirst = true;
 
   for (const [title, dateEntries] of byDate) {
-    rows.push({ kind: "header", id: `header:${title}`, title, isFirst });
+    const headerRow: Extract<HistoryRow, { kind: "header" }> = {
+      kind: "header",
+      id: `header:${title}`,
+      title,
+      isFirst,
+      count: 0,
+    };
+    rows.push(headerRow);
     isFirst = false;
 
     const byManga = new Map<string, HistoryEntry[]>();
@@ -245,6 +264,7 @@ function buildRows(
       groups.push(group);
     }
 
+    headerRow.count = groups.length;
     groups.sort((a, b) => b.chapters[0]!.dateRead - a.chapters[0]!.dateRead);
     for (const group of groups) {
       rows.push({ kind: "group", id: `${title}:${group.key}`, group });
@@ -272,21 +292,31 @@ const LIST_HEADER = <IncognitoModeBanner />;
 
 const HistoryHeaderRow = memo(function HistoryHeaderRow({
   title,
+  count,
   isFirst,
 }: {
   title: string;
+  count: number;
   isFirst: boolean;
 }) {
+  const { colors } = useTheme();
+
   return (
-    <ThemedText
-      variant="headline"
+    <View
       style={[
-        styles.sectionTitle,
+        styles.sectionHeader,
         isFirst ? styles.sectionTitleFirst : styles.sectionTitleNext,
       ]}
     >
-      {title}
-    </ThemedText>
+      <ThemedText variant="title3" style={styles.sectionTitle}>
+        {title}
+      </ThemedText>
+      <View style={[styles.countBadge, { backgroundColor: colors.tertiaryFill }]}>
+        <ThemedText variant="caption1" color="secondaryLabel">
+          {count}
+        </ThemedText>
+      </View>
+    </View>
   );
 });
 
@@ -335,6 +365,11 @@ const HistoryChapterRow = memo(function HistoryChapterRow({
   return (
     <SwipeableRow rowId={rowId} actions={actions} fullSwipeActionKey="delete">
       <Pressable style={chapterRowStyle} onPress={handlePress}>
+        <Ionicons
+          name="bookmark-outline"
+          size={15}
+          color={colors.tertiaryLabel}
+        />
         <ThemedText
           variant="subheadline"
           numberOfLines={2}
@@ -344,9 +379,13 @@ const HistoryChapterRow = memo(function HistoryChapterRow({
         </ThemedText>
         <View style={styles.chapterMeta}>
           {pageLabel ? (
-            <ThemedText variant="caption1" color="secondaryLabel">
-              {pageLabel}
-            </ThemedText>
+            <View
+              style={[styles.pageChip, { backgroundColor: colors.tertiaryFill }]}
+            >
+              <ThemedText variant="caption2" color="secondaryLabel">
+                {pageLabel}
+              </ThemedText>
+            </View>
           ) : null}
           <ThemedText variant="caption1" color="tertiaryLabel">
             {time}
@@ -463,12 +502,20 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     [radius.sm, colors.secondaryFill],
   );
   const chapterListStyle = useMemo(
-    () => [styles.chapterList, { borderLeftColor: colors.separator }],
+    () => [styles.chapterList, { borderTopColor: colors.separator }],
     [colors.separator],
   );
 
   return (
-    <View style={styles.mangaGroup}>
+    <View
+      style={[
+        styles.mangaGroup,
+        {
+          backgroundColor: colors.secondarySystemBackground,
+          borderRadius: radius.md,
+        },
+      ]}
+    >
       <SwipeableRow
         rowId={`${group.key}:manga`}
         actions={deleteMangaActions}
@@ -491,22 +538,43 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
             )}
           </View>
           <View style={styles.mangaMeta}>
-            <ThemedText variant="body" numberOfLines={2}>
+            <ThemedText variant="headline" numberOfLines={2}>
               {group.mangaTitle}
             </ThemedText>
-            <ThemedText
-              variant="footnote"
-              color="secondaryLabel"
-              numberOfLines={1}
-            >
-              {sourceLabel}
-            </ThemedText>
+            <View style={styles.metaLine}>
+              <View
+                style={[
+                  styles.sourceChip,
+                  { backgroundColor: colors.tertiaryFill },
+                ]}
+              >
+                <ThemedText
+                  variant="caption1"
+                  color="secondaryLabel"
+                  numberOfLines={1}
+                >
+                  {sourceLabel}
+                </ThemedText>
+              </View>
+            </View>
             {group.timeRange ? (
-              <ThemedText variant="caption1" color="tertiaryLabel">
-                {group.timeRange}
-              </ThemedText>
+              <View style={styles.metaLine}>
+                <Ionicons
+                  name="time-outline"
+                  size={13}
+                  color={colors.tertiaryLabel}
+                />
+                <ThemedText variant="caption1" color="tertiaryLabel">
+                  {group.timeRange}
+                </ThemedText>
+              </View>
             ) : null}
           </View>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={colors.tertiaryLabel}
+          />
         </Pressable>
       </SwipeableRow>
 
@@ -531,6 +599,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
               <ThemedText variant="subheadline" color="tint">
                 {t("history_show_more", { count: String(hiddenCount) })}
               </ThemedText>
+              <Ionicons name="chevron-down" size={14} color={colors.tint} />
             </Pressable>
           ) : null}
         </View>
@@ -679,19 +748,91 @@ export default function HistoryScreen() {
     return subscribeAppSettings(load);
   }, []);
 
-  const visibleEntries = useMemo(() => {
-    if (showNsfwHistory) return entries;
-    return entries.filter((entry) => {
+  const isNsfwEntry = useCallback(
+    (entry: HistoryEntry) => {
       const source = findInstalledSource(installed, entry.sourceId);
-      return (source?.manifest.info.contentRating ?? 0) <= 1;
-    });
-  }, [entries, installed, showNsfwHistory]);
+      return (source?.manifest.info.contentRating ?? 0) > 1;
+    },
+    [installed],
+  );
 
-  const rows = useMemo(() => {
-    const result = buildRows(visibleEntries, groupCacheRef.current);
-    groupCacheRef.current = result.groups;
+  const { mainEntries, nsfwEntries } = useMemo(() => {
+    const main: HistoryEntry[] = [];
+    const nsfw: HistoryEntry[] = [];
+    for (const entry of entries) {
+      if (isNsfwEntry(entry)) nsfw.push(entry);
+      else main.push(entry);
+    }
+    return { mainEntries: main, nsfwEntries: nsfw };
+  }, [entries, isNsfwEntry]);
+
+  const [activatedPages, setActivatedPages] = useState<Set<HistoryPageId>>(
+    () => new Set<HistoryPageId>(["main"]),
+  );
+  const [selectedPage, setSelectedPage] = useState<HistoryPageId>("main");
+  const pagerRef = useRef<PagerView>(null);
+  const progress = useSharedValue(0);
+  const headerHeight = useHeaderHeight();
+  const mainCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
+  const nsfwCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
+
+  const showTabs = showNsfwHistory;
+
+  const mainRows = useMemo(() => {
+    const result = buildRows(mainEntries, mainCacheRef.current);
+    mainCacheRef.current = result.groups;
     return result.rows;
-  }, [visibleEntries]);
+  }, [mainEntries]);
+
+  const nsfwActive = showTabs && activatedPages.has("nsfw");
+  const nsfwRows = useMemo(() => {
+    if (!nsfwActive) return EMPTY_ROWS;
+    const result = buildRows(nsfwEntries, nsfwCacheRef.current);
+    nsfwCacheRef.current = result.groups;
+    return result.rows;
+  }, [nsfwActive, nsfwEntries]);
+
+  const historyTabs = useMemo<LibraryCategoryTab[]>(
+    () => [
+      { id: "main", label: t("history_tab_main") },
+      { id: "nsfw", label: t("history_tab_nsfw") },
+    ],
+    [],
+  );
+
+  const activatePage = useCallback((id: HistoryPageId) => {
+    setActivatedPages((previous) =>
+      previous.has(id) ? previous : new Set(previous).add(id),
+    );
+  }, []);
+
+  const pageScrollHandler = usePageScrollHandler({
+    onPageScroll: (event) => {
+      "worklet";
+      progress.value = event.position + event.offset;
+    },
+  });
+
+  const handleTabPress = useCallback(
+    (index: number) => {
+      const id = historyTabs[index]?.id as HistoryPageId | undefined;
+      if (!id) return;
+      activatePage(id);
+      pagerRef.current?.setPage(index);
+    },
+    [historyTabs, activatePage],
+  );
+
+  const handlePageSelected = useCallback(
+    (index: number) => {
+      const id = historyTabs[index]?.id as HistoryPageId | undefined;
+      if (!id) return;
+      setSelectedPage(id);
+      activatePage(id);
+      void Haptics.selectionAsync();
+    },
+    [historyTabs, activatePage],
+  );
 
   const openManga = useCallback(
     (group: MangaHistoryGroup) => {
@@ -724,7 +865,9 @@ export default function HistoryScreen() {
     [requestReload],
   );
 
-  const hasEntries = visibleEntries.length > 0;
+  const hasEntries = showTabs
+    ? entries.length > 0
+    : mainEntries.length > 0;
 
   const renderHeaderRight = useCallback(
     () =>
@@ -764,7 +907,13 @@ export default function HistoryScreen() {
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<HistoryRow>) => {
       if (item.kind === "header") {
-        return <HistoryHeaderRow title={item.title} isFirst={item.isFirst} />;
+        return (
+          <HistoryHeaderRow
+            title={item.title}
+            count={item.count}
+            isFirst={item.isFirst}
+          />
+        );
       }
       return (
         <HistoryGroupRow
@@ -790,21 +939,60 @@ export default function HistoryScreen() {
     );
   }
 
-  if (!hasEntries) {
-    return (
-      <>
-        <Stack.Screen options={screenOptions} />
-        <Stack.Title>{t("history")}</Stack.Title>
-        <ScreenContent centerContent>
+  const renderPage = (
+    rows: HistoryRow[],
+    emptyKey: "main" | "nsfw",
+    withHeaderInset: boolean,
+  ) => {
+    if (rows.length === 0) {
+      return (
+        <ScreenContent centerContent scrollEnabled={false}>
           <View style={styles.emptyWrap}>
-            <IncognitoModeBanner />
+            {withHeaderInset ? null : <IncognitoModeBanner />}
             <EmptyState
-              icon="time-outline"
+              icon={emptyKey === "nsfw" ? "eye-off-outline" : "time-outline"}
               title={t("history_empty_title")}
               description={t("history_empty_desc")}
             />
           </View>
         </ScreenContent>
+      );
+    }
+    return (
+      <FlatList
+        style={styles.root}
+        data={rows}
+        keyExtractor={rowKeyExtractor}
+        renderItem={renderItem}
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={withHeaderInset ? undefined : LIST_HEADER}
+        renderScrollComponent={renderScrollComponent}
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        updateCellsBatchingPeriod={50}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === "android"}
+      />
+    );
+  };
+
+  if (!showTabs) {
+    if (mainRows.length === 0) {
+      return (
+        <>
+          <Stack.Screen options={screenOptions} />
+          <Stack.Title>{t("history")}</Stack.Title>
+          {renderPage(mainRows, "main", false)}
+        </>
+      );
+    }
+    return (
+      <>
+        <Stack.Screen options={screenOptions} />
+        <Stack.Title>{t("history")}</Stack.Title>
+        <SwipeableRowsProvider>{renderPage(mainRows, "main", false)}</SwipeableRowsProvider>
       </>
     );
   }
@@ -813,27 +1001,46 @@ export default function HistoryScreen() {
     <>
       <Stack.Screen options={screenOptions} />
       <Stack.Title>{t("history")}</Stack.Title>
-      <SwipeableRowsProvider>
-        <FlatList
-          style={styles.root}
-          data={rows}
-          keyExtractor={rowKeyExtractor}
-          renderItem={renderItem}
-          contentInsetAdjustmentBehavior="automatic"
-          automaticallyAdjustsScrollIndicatorInsets
-          contentContainerStyle={styles.list}
-          ListHeaderComponent={LIST_HEADER}
-          renderScrollComponent={renderScrollComponent}
-          initialNumToRender={8}
-          maxToRenderPerBatch={6}
-          updateCellsBatchingPeriod={50}
-          windowSize={7}
-          removeClippedSubviews={Platform.OS === "android"}
-        />
-      </SwipeableRowsProvider>
+      <View style={styles.root}>
+        <View style={{ paddingTop: headerHeight }}>
+          <IncognitoModeBanner />
+          <LibraryCategoryTabs
+            tabs={historyTabs}
+            progress={progress}
+            onPress={handleTabPress}
+          />
+        </View>
+        <SwipeableRowsProvider>
+          <AnimatedPagerView
+            ref={pagerRef}
+            style={styles.root}
+            initialPage={selectedPage === "nsfw" ? 1 : 0}
+            onPageScroll={pageScrollHandler}
+            onPageSelected={(event) =>
+              handlePageSelected(event.nativeEvent.position)
+            }
+            offscreenPageLimit={1}
+          >
+            <View key="main" collapsable={false} style={styles.root}>
+              {renderPage(mainRows, "main", true)}
+            </View>
+            <View key="nsfw" collapsable={false} style={styles.root}>
+              {nsfwActive ? (
+                renderPage(nsfwRows, "nsfw", true)
+              ) : (
+                <HistorySkeleton />
+              )}
+            </View>
+          </AnimatedPagerView>
+        </SwipeableRowsProvider>
+      </View>
     </>
   );
 }
+
+const EMPTY_ROWS: HistoryRow[] = [];
+
+type HistoryPageId = "main" | "nsfw";
 
 function rowKeyExtractor(row: HistoryRow): string {
   return row.id;
@@ -848,15 +1055,29 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: BottomTabInset + Spacing.lg,
   },
-  sectionTitle: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
     paddingHorizontal: Spacing.xs,
     marginBottom: Spacing.md,
   },
+  sectionTitle: {
+    fontWeight: "700",
+  },
+  countBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sectionTitleFirst: {
-    marginTop: Spacing.xl,
+    marginTop: Spacing.sm,
   },
   sectionTitleNext: {
-    marginTop: Spacing.xl - Spacing.md,
+    marginTop: Spacing.lg,
   },
   groupRow: {
     marginBottom: Spacing.md,
@@ -866,37 +1087,46 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
   mangaGroup: {
-    gap: Spacing.xs,
+    overflow: "hidden",
   },
   mangaRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
   },
   cover: {
-    width: 48,
-    height: 68,
+    width: 56,
+    height: 80,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
   mangaMeta: {
     flex: 1,
-    gap: 2,
+    gap: 4,
+  },
+  metaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  sourceChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    maxWidth: "100%",
   },
   chapterList: {
-    marginLeft: 24,
-    paddingLeft: Spacing.md,
-    borderLeftWidth: StyleSheet.hairlineWidth * 2,
-    gap: Spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.xs,
   },
   chapterRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
   },
   chapterTitle: {
@@ -907,8 +1137,17 @@ const styles = StyleSheet.create({
     gap: 2,
     flexShrink: 0,
   },
+  pageChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+  },
   showMoreButton: {
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
 });

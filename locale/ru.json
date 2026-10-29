@@ -273,6 +273,8 @@
   "manga_remove_downloads": "Удалить загрузки",
   "manga_share": "Поделиться",
   "history_today": "Сегодня",
+  "history_tab_main": "Основная",
+  "history_tab_nsfw": "NSFW",
   "history_yesterday": "Вчера",
   "history_show_more": "Показать ещё {count}",
   "history_unknown_chapter": "Глава",
