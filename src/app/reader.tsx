@@ -10,6 +10,7 @@ import {
 } from "react";
 import { ActivityIndicator, Pressable, View, StyleSheet } from "react-native";
 
+import { resolveMangaPageUrl } from "@/utils/manga-url";
 import { ReaderView } from "@/components/reader/reader-view";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -38,6 +39,8 @@ import {
   prefetchReaderUrls,
   READER_PRELOAD_AHEAD,
 } from "@/utils/reader-prefetch";
+import { setReaderSlowMode, waitForSlowTurn } from "@/utils/reader-slow-mode";
+import { getMangaSlowMode } from "@/services/reader-manga-settings";
 import { useTheme } from "@/hooks/use-theme";
 
 const PRELOAD_DELAY_MS = 600;
@@ -114,6 +117,7 @@ async function loadPagesForChapter(
   if (cachedPages?.length) return cachedPages;
 
   if (!runner) return [];
+  await waitForSlowTurn();
   const nextPages = filterRenderablePages(
     await runner.getPageList(manga, target),
   );
@@ -184,7 +188,11 @@ const ReaderLoadedContent = memo(function ReaderLoadedContent({
   loadChapterPages,
   onStatusBarHiddenChange,
   startAtEnd,
+  mangaPageUrl,
+  showModeHint,
 }: {
+  showModeHint: boolean;
+  mangaPageUrl?: string;
   sourceId: string;
   manga: Manga;
   chapter: Chapter;
@@ -242,6 +250,8 @@ const ReaderLoadedContent = memo(function ReaderLoadedContent({
 
   return (
     <ReaderView
+      showModeHint={showModeHint}
+      mangaPageUrl={mangaPageUrl}
       sourceId={sourceId}
       manga={manga}
       chapter={chapter}
@@ -264,6 +274,7 @@ export default function MangaReaderScreen() {
     mangaTitle?: string;
     cover?: string;
     page?: string;
+    switched?: string;
   }>();
   const sourceRoute = decodeParam(params.sourceId);
   const mangaKey = decodeParam(params.mangaKey);
@@ -310,6 +321,11 @@ export default function MangaReaderScreen() {
     };
   }, [manifestSourceId, mangaKey, params.cover, params.mangaTitle]);
 
+  const mangaPageUrl = useMemo(
+    () => resolveMangaPageUrl(manga, source?.manifest.info.url),
+    [manga, source?.manifest.info.url],
+  );
+
   const chapter: Chapter = useMemo(() => {
     const cached = peekMangaDetailCache(
       manifestSourceId,
@@ -320,9 +336,22 @@ export default function MangaReaderScreen() {
     );
   }, [chapterKey, manifestSourceId, mangaKey, params.chapterTitle]);
 
+  const hasSourceRef = useRef(Boolean(source));
+  hasSourceRef.current = Boolean(source);
+
   const applyPages = useCallback((next: Page[]) => {
     setPages((previous) => (samePages(previous, next) ? previous : next));
   }, []);
+
+  const slowModeReady = useMemo(
+    () =>
+      getMangaSlowMode(manifestSourceId, mangaKey)
+        .then((value) => setReaderSlowMode(value))
+        .catch(() => undefined),
+    [manifestSourceId, mangaKey],
+  );
+
+  useEffect(() => () => setReaderSlowMode(false), []);
 
   const applyChapters = useCallback((next: Chapter[]) => {
     setChapters((previous) => (sameChapters(previous, next) ? previous : next));
@@ -376,11 +405,15 @@ export default function MangaReaderScreen() {
       }
 
       if (!runner) {
-        if (!cachedPages?.length) setContentLoading(false);
+        if (!cachedPages?.length && !hasSourceRef.current) {
+          setContentLoading(false);
+        }
         return;
       }
 
       try {
+        await slowModeReady;
+        await waitForSlowTurn();
         const nextPages = filterRenderablePages(
           await runner.getPageList(manga, chapter),
         );
@@ -508,6 +541,8 @@ export default function MangaReaderScreen() {
     body = (
       <SourceCoverHeadersProvider source={source}>
         <ReaderLoadedContent
+          showModeHint={decodeParam(params.switched) !== "1"}
+          mangaPageUrl={mangaPageUrl}
           sourceId={manifestSourceId}
           manga={manga}
           chapter={chapter}

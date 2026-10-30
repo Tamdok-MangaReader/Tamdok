@@ -22,7 +22,12 @@ import {
   notifyNewChapters,
   type NewChapterNotice,
 } from "@/services/notifications";
-import { setLibraryRefreshProgress } from "@/services/library-refresh-progress";
+import {
+  clearLibraryRefreshQueue,
+  markLibraryRefreshEntryDone,
+  setLibraryRefreshProgress,
+  setLibraryRefreshQueue,
+} from "@/services/library-refresh-progress";
 import {
   findInstalledSource,
   getOrCreateSourceRunner,
@@ -279,6 +284,8 @@ async function runRefresh(
     pending.sort((a, b) => lastTouched(a) - lastTouched(b));
   }
 
+  if (!options.silent) setLibraryRefreshQueue(pending);
+
   const timeoutMs = options.entryTimeoutMs ?? FOREGROUND_ENTRY_TIMEOUT_MS;
   const deadline =
     options.budgetMs != null ? startedAt + options.budgetMs : null;
@@ -345,6 +352,8 @@ async function runRefresh(
         });
       }
 
+      markLibraryRefreshEntryDone(entry.sourceId, entry.mangaKey);
+
       if (batch.length >= COMMIT_BATCH_SIZE) await commit();
     }
 
@@ -356,7 +365,10 @@ async function runRefresh(
 
     return { refreshed, skipped, failed, completed };
   } finally {
-    if (!options.silent) setLibraryRefreshProgress(null);
+    if (!options.silent) {
+      setLibraryRefreshProgress(null);
+      clearLibraryRefreshQueue();
+    }
     await flushPreferences();
   }
 }

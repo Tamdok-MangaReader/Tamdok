@@ -5,11 +5,14 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { Button, ContextMenu, Host, RNHostView } from "@expo/ui/swift-ui";
+import { ChapterListSkeleton } from "@/components/ui/skeleton";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -711,6 +714,7 @@ type MangaDetailViewProps = {
   sourceKind?: "aidoku" | "tamdok";
   chapters: Chapter[];
   readChapterKeys: Set<string>;
+  bookmarkedChapterKeys?: Set<string>;
   chapterDownloads: Record<string, DownloadEntry>;
   downloadedChapterKeys: Set<string>;
   inLibrary: boolean;
@@ -736,6 +740,9 @@ type MangaDetailViewProps = {
   onOpenInBrowser: () => void;
   onMarkChapterRead: (chapter: Chapter) => void;
   onMarkChapterUnread: (chapter: Chapter) => void;
+  onToggleChapterBookmark?: (chapter: Chapter) => void;
+  onDownloadChapter?: (chapter: Chapter) => void;
+  onRemoveChapterDownload?: (chapter: Chapter) => void;
   onToggleChapterSelected?: (chapter: Chapter) => void;
   onSelectAllChapters?: () => void;
   onDeselectAllChapters?: () => void;
@@ -747,6 +754,7 @@ export function MangaDetailView({
   sourceKind,
   chapters,
   readChapterKeys,
+  bookmarkedChapterKeys,
   chapterDownloads,
   downloadedChapterKeys,
   inLibrary,
@@ -772,6 +780,9 @@ export function MangaDetailView({
   onOpenInBrowser,
   onMarkChapterRead,
   onMarkChapterUnread,
+  onToggleChapterBookmark,
+  onDownloadChapter,
+  onRemoveChapterDownload,
   onToggleChapterSelected,
   onSelectAllChapters,
   onDeselectAllChapters,
@@ -802,6 +813,9 @@ export function MangaDetailView({
     onToggleChapterSelected,
     onMarkChapterRead,
     onMarkChapterUnread,
+    onToggleChapterBookmark,
+    onDownloadChapter,
+    onRemoveChapterDownload,
     onContinueReading,
     onOpenInBrowser,
     onDismissInlineError,
@@ -815,6 +829,9 @@ export function MangaDetailView({
     onToggleChapterSelected,
     onMarkChapterRead,
     onMarkChapterUnread,
+    onToggleChapterBookmark,
+    onDownloadChapter,
+    onRemoveChapterDownload,
     onContinueReading,
     onOpenInBrowser,
     onDismissInlineError,
@@ -838,6 +855,18 @@ export function MangaDetailView({
   );
   const stableMarkUnread = useCallback(
     (c: Chapter) => handlersRef.current.onMarkChapterUnread(c),
+    [],
+  );
+  const stableToggleBookmark = useCallback(
+    (c: Chapter) => handlersRef.current.onToggleChapterBookmark?.(c),
+    [],
+  );
+  const stableDownload = useCallback(
+    (c: Chapter) => handlersRef.current.onDownloadChapter?.(c),
+    [],
+  );
+  const stableRemoveDownload = useCallback(
+    (c: Chapter) => handlersRef.current.onRemoveChapterDownload?.(c),
     [],
   );
   const stableContinue = useCallback(
@@ -883,6 +912,12 @@ export function MangaDetailView({
 
   const total = chapters.length;
 
+  const [chapterMenusReady, setChapterMenusReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setChapterMenusReady(true), 700);
+    return () => clearTimeout(timer);
+  }, []);
+
   const renderChapter: ListRenderItem<Chapter> = useCallback(
     ({ item, index }) => (
       <ChapterRow
@@ -893,16 +928,23 @@ export function MangaDetailView({
         showChapterNumber={showChapterNumber}
         isSelected={selectedChapterKeys?.has(item.key) ?? false}
         isRead={readChapterKeys.has(item.key)}
+        isBookmarked={bookmarkedChapterKeys?.has(item.key) ?? false}
         isDownloaded={downloadedChapterKeys.has(item.key)}
         downloadEntry={chapterDownloads[item.key]}
         isLast={index === total - 1}
+        menuEnabled={chapterMenusReady}
         onOpen={stableOpenChapter}
         onToggleSelected={stableToggleSelected}
         onMarkRead={stableMarkRead}
         onMarkUnread={stableMarkUnread}
+        onToggleBookmark={stableToggleBookmark}
+        onDownload={stableDownload}
+        onRemoveDownload={stableRemoveDownload}
       />
     ),
     [
+      chapterMenusReady,
+      bookmarkedChapterKeys,
       chapterDownloads,
       chapterSelectMode,
       downloadedChapterKeys,
@@ -914,6 +956,9 @@ export function MangaDetailView({
       stableToggleSelected,
       stableMarkRead,
       stableMarkUnread,
+      stableToggleBookmark,
+      stableDownload,
+      stableRemoveDownload,
     ],
   );
 
@@ -952,7 +997,7 @@ export function MangaDetailView({
   const listEmpty = useMemo(
     () =>
       isLoading ? (
-        <ActivityIndicator style={styles.loading} />
+        <ChapterListSkeleton />
       ) : (
         <EmptyState icon="book-outline" title={t("manga_no_chapters")} />
       ),
@@ -999,7 +1044,7 @@ export function MangaDetailView({
           initialNumToRender={10}
           maxToRenderPerBatch={6}
           updateCellsBatchingPeriod={50}
-          windowSize={7}
+          windowSize={5}
           removeClippedSubviews={Platform.OS === "android"}
         />
       </SwipeableRowsProvider>
@@ -1023,14 +1068,19 @@ type ChapterRowProps = {
   selectMode: boolean;
   isSelected: boolean;
   isRead: boolean;
+  isBookmarked?: boolean;
   isDownloaded: boolean;
   downloadEntry?: DownloadEntry;
   isLast: boolean;
+  menuEnabled?: boolean;
   showChapterNumber?: boolean;
   onOpen: (chapter: Chapter) => void;
   onToggleSelected?: (chapter: Chapter) => void;
   onMarkRead: (chapter: Chapter) => void;
   onMarkUnread: (chapter: Chapter) => void;
+  onToggleBookmark: (chapter: Chapter) => void;
+  onDownload: (chapter: Chapter) => void;
+  onRemoveDownload: (chapter: Chapter) => void;
 };
 
 const ChapterRow = memo(function ChapterRow({
@@ -1040,21 +1090,31 @@ const ChapterRow = memo(function ChapterRow({
   selectMode,
   isSelected,
   isRead,
+  isBookmarked = false,
   isDownloaded,
   downloadEntry,
   isLast,
+  menuEnabled = false,
   onOpen,
   onToggleSelected,
   onMarkRead,
   onMarkUnread,
+  onToggleBookmark,
+  onDownload,
+  onRemoveDownload,
   showChapterNumber,
 }: ChapterRowProps) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, isDark } = useTheme();
   const isLocked = chapter.locked === true;
   const status = downloadEntry?.status;
   const isDownloading = status === "downloading" || status === "pending";
   const isFailed = status === "failed";
   const isFirst = index === 0;
+  const loneReadIcon =
+    isRead &&
+    !isLocked &&
+    !isFailed &&
+    (isDownloading || !isDownloaded);
 
   const chapterNumberLabel = showChapterNumber
     ? formatChapterNumber(chapter, index, total)
@@ -1093,6 +1153,25 @@ const ChapterRow = memo(function ChapterRow({
             },
           ],
     [isRead, chapter, onMarkRead, onMarkUnread],
+  );
+
+  const leadingActions = useMemo<SwipeAction[]>(
+    () => [
+      {
+        key: "bookmark",
+        label: t(isBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add"),
+        icon: isBookmarked ? "bookmark-outline" : "bookmark",
+        sfSymbol: isBookmarked ? "bookmark.slash.fill" : "bookmark.fill",
+        color: "#0A84FF",
+        onPress: () => onToggleBookmark(chapter),
+      },
+    ],
+    [isBookmarked, chapter, onToggleBookmark],
+  );
+
+  const handleFullSwipeLeading = useCallback(
+    () => onToggleBookmark(chapter),
+    [chapter, onToggleBookmark],
   );
 
   const handleFullSwipe = useCallback(
@@ -1165,7 +1244,15 @@ const ChapterRow = memo(function ChapterRow({
           size={22}
           color={isSelected ? colors.tint : colors.tertiaryLabel}
         />
-      ) : chapterNumberLabel ? (
+      ) : (
+        <View
+          style={[
+            styles.unreadDot,
+            { backgroundColor: isRead ? "transparent" : colors.tint },
+          ]}
+        />
+      )}
+      {!selectMode && chapterNumberLabel ? (
         <ThemedText
           variant="footnote"
           color="secondaryLabel"
@@ -1176,13 +1263,16 @@ const ChapterRow = memo(function ChapterRow({
       ) : null}
       <View style={styles.chapterMeta}>
         <View style={styles.chapterTitleRow}>
+          {isBookmarked ? (
+            <Ionicons name="bookmark" size={14} color={colors.tint} />
+          ) : null}
           <ThemedText
             variant="body"
             numberOfLines={1}
             color={isRead ? "tertiaryLabel" : "label"}
             style={[
               styles.chapterTitle,
-              isRead ? styles.readChapter : undefined,
+              isRead ? undefined : styles.unreadChapter,
             ]}
           >
             {title}
@@ -1204,15 +1294,27 @@ const ChapterRow = memo(function ChapterRow({
         ) : null}
       </View>
       <View style={styles.sourceRowRightInfo}>
-        {dateLabel ? (
-          <View style={dateBadgeStyle}>
-            <ThemedText variant="caption2" style={dateTextStyle}>
-              {dateLabel}
-            </ThemedText>
+        {dateLabel || loneReadIcon ? (
+          <View style={styles.dateRow}>
+            {dateLabel ? (
+              <View style={dateBadgeStyle}>
+                <ThemedText variant="caption2" style={dateTextStyle}>
+                  {dateLabel}
+                </ThemedText>
+              </View>
+            ) : null}
+            {loneReadIcon ? (
+              <SFSymbolIcon
+                name="eye.fill"
+                fallback="eye-outline"
+                size={14}
+                color={colors.tertiaryLabel}
+              />
+            ) : null}
           </View>
         ) : null}
         <View style={styles.chapterIcons}>
-          {isRead ? (
+          {isRead && !loneReadIcon ? (
             <SFSymbolIcon
               name="eye.fill"
               fallback="eye-outline"
@@ -1250,16 +1352,69 @@ const ChapterRow = memo(function ChapterRow({
     </Pressable>
   );
 
+  const canRemoveDownload = isDownloaded && !isDownloading;
+  const canDownload = !isDownloaded && !isDownloading && !isLocked;
+
+  const menuRow =
+    Platform.OS === "ios" && menuEnabled && !selectMode ? (
+      <Host
+        matchContents={{ vertical: true }}
+        colorScheme={isDark ? "dark" : "light"}
+      >
+        <ContextMenu>
+          <ContextMenu.Trigger>
+            <RNHostView matchContents={{ vertical: true }}>{row}</RNHostView>
+          </ContextMenu.Trigger>
+          <ContextMenu.Items>
+            <Button
+              label={t(
+                isBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add",
+              )}
+              systemImage={isBookmarked ? "bookmark.slash" : "bookmark"}
+              onPress={() => onToggleBookmark(chapter)}
+            />
+            <Button
+              label={t(isRead ? "manga_mark_unread" : "manga_mark_read")}
+              systemImage={isRead ? "eye.slash" : "checkmark.circle"}
+              onPress={() =>
+                isRead ? onMarkUnread(chapter) : onMarkRead(chapter)
+              }
+            />
+            {canDownload ? (
+              <Button
+                label={t("chapter_download")}
+                systemImage="arrow.down.circle"
+                onPress={() => onDownload(chapter)}
+              />
+            ) : null}
+            {canRemoveDownload ? (
+              <Button
+                label={t("chapter_remove_download")}
+                systemImage="trash"
+                role="destructive"
+                onPress={() => onRemoveDownload(chapter)}
+              />
+            ) : null}
+          </ContextMenu.Items>
+        </ContextMenu>
+      </Host>
+    ) : (
+      row
+    );
+
   return (
     <View style={cardStyle}>
       <SwipeableRow
         rowId={chapter.key}
         enabled={!selectMode}
         actions={swipeActions}
+        leadingActions={leadingActions}
         fullSwipeActionKey={isRead ? "unread" : "read"}
+        fullSwipeLeadingActionKey="bookmark"
         onFullSwipe={handleFullSwipe}
+        onFullSwipeLeading={handleFullSwipeLeading}
       >
-        {row}
+        {menuRow}
       </SwipeableRow>
       {!isLast ? <View style={separatorStyle} /> : null}
     </View>
@@ -1482,6 +1637,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   chapterIcons: {
     flexDirection: "row",
     alignItems: "center",
@@ -1490,12 +1650,18 @@ const styles = StyleSheet.create({
   chapterTitle: {
     flex: 1,
   },
-  readChapter: {
-    textDecorationLine: "line-through",
+  unreadChapter: {
+    fontWeight: "600",
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: Spacing.lg,
+    marginLeft: Spacing.lg + 8 + Spacing.md,
+    marginRight: Spacing.lg,
   },
   loading: {
     paddingVertical: Spacing.xl,

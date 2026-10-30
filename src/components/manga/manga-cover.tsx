@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
 import { LongPressScalePressable } from "@/components/ui/long-press-scale-pressable";
@@ -31,6 +31,7 @@ type MangaCoverProps = {
   scaleBadges?: boolean;
   showTitleOverlay?: boolean;
   updateFailed?: boolean;
+  refreshing?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
 };
@@ -81,6 +82,7 @@ export const MangaCover = memo(function MangaCover({
   scaleBadges = false,
   showTitleOverlay = true,
   updateFailed = false,
+  refreshing = false,
   isRatingCompact = true,
   onPress,
   onLongPress,
@@ -210,6 +212,14 @@ export const MangaCover = memo(function MangaCover({
               </Text>
             </View>
           ) : null}
+        </View>
+      ) : null}
+
+      {refreshing ? (
+        <View style={styles.refreshOverlay} pointerEvents="none">
+          <View style={styles.refreshBadge}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          </View>
         </View>
       ) : null}
 
@@ -350,6 +360,21 @@ const styles = StyleSheet.create({
   },
   unreadBadge: { backgroundColor: "#FF3B30" },
   downloadedBadge: { backgroundColor: "#007AFF" },
+  refreshOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.32)",
+    zIndex: 4,
+  },
+  refreshBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
   updateFailedBadge: {
     position: "absolute",
     right: Spacing.xs,

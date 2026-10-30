@@ -1,13 +1,16 @@
 import * as Haptics from "expo-haptics";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { usePanGesture, GestureDetector } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
 
+import { READER_GLASS_TINT } from "@/utils/reader-glass";
+import { GlassSurface } from "@/components/ui/glass-surface";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 
@@ -20,14 +23,17 @@ type ReaderPageSliderProps = {
   onSeek: (page: number) => void;
 };
 
-const THUMB_SIZE = 16;
-const TRACK_HEIGHT = 10;
-const SECTION_GAP = 2;
+const THUMB_WIDTH = 42;
+const THUMB_HEIGHT = 28;
+const BAR_HEIGHT = 52;
+const PRESS_SPRING = { damping: 16, stiffness: 220, mass: 0.7 };
+const TRACK_HEIGHT = 6;
 
 export function ReaderPageSlider({
   currentPage,
   totalPages,
   accentColor,
+  labelColor,
   inverted = false,
   onSeek,
 }: ReaderPageSliderProps) {
@@ -42,6 +48,7 @@ export function ReaderPageSlider({
   const maxSV = useSharedValue(Math.max(0, totalPages - 1));
   const progressSV = useSharedValue(currentPage);
   const invertedSV = useSharedValue(inverted);
+  const pressSV = useSharedValue(0);
   const invertedRef = useRef(inverted);
 
   const currentPageRef = useRef(currentPage);
@@ -85,7 +92,14 @@ export function ReaderPageSlider({
     setSlideValue(next);
     if (haptic && next !== lastHapticRef.current) {
       lastHapticRef.current = next;
-      void Haptics.selectionAsync();
+      if (max > 0 && (next === 0 || next === max)) {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        setTimeout(() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        }, 90);
+      } else {
+        void Haptics.selectionAsync();
+      }
     }
   };
 
@@ -128,6 +142,7 @@ export function ReaderPageSlider({
     shouldCancelWhenOutside: false,
     onActivate: (event) => {
       "worklet";
+      pressSV.value = withSpring(1, PRESS_SPRING);
       scheduleOnRN(beginSlide, event.absoluteX);
     },
     onUpdate: (event) => {
@@ -145,6 +160,7 @@ export function ReaderPageSlider({
     },
     onDeactivate: (event) => {
       "worklet";
+      pressSV.value = withSpring(0, PRESS_SPRING);
       if (!event.canceled) {
         scheduleOnRN(endSlide, event.absoluteX);
       } else {
@@ -156,36 +172,43 @@ export function ReaderPageSlider({
   const thumbStyle = useAnimatedStyle(() => {
     const width = widthSV.value;
     const maxPage = Math.max(1, maxSV.value);
-    const travel = Math.max(0, width - THUMB_SIZE);
+    const travel = Math.max(0, width - THUMB_WIDTH);
     const ratio = maxSV.value <= 0 ? 0.5 : progressSV.value / maxPage;
     const visual = invertedSV.value ? 1 - ratio : ratio;
     return {
-      transform: [{ translateX: visual * travel }],
+      transform: [
+        { translateX: visual * travel },
+        { scaleX: 1 + pressSV.value * 0.45 },
+        { scaleY: 1 + pressSV.value * 0.5 },
+      ],
     };
   });
 
-  const sections = useMemo(
-    () => Array.from({ length: Math.max(1, totalPages) }, (_, index) => index),
-    [totalPages],
-  );
+  const thumbWhiteStyle = useAnimatedStyle(() => ({
+    opacity: 1 - pressSV.value,
+  }));
 
-  const bubbleRatio =
-    max <= 0 ? 0.5 : inverted ? 1 - clamped / max : clamped / max;
+  const fillStyle = useAnimatedStyle(() => {
+    const width = widthSV.value;
+    const maxPage = Math.max(1, maxSV.value);
+    const travel = Math.max(0, width - THUMB_WIDTH);
+    const ratio = maxSV.value <= 0 ? 0 : progressSV.value / maxPage;
+    const visual = invertedSV.value ? 1 - ratio : ratio;
+    const filled =
+      Math.max(0, Math.min(travel, visual * travel)) + THUMB_WIDTH / 2;
+    return invertedSV.value
+      ? { width: width - filled, right: 0 }
+      : { width: filled, left: 0 };
+  });
 
   return (
-    <View style={styles.root}>
-      {sliding ? (
-        <View
-          style={[styles.bubbleWrap, { left: `${bubbleRatio * 100}%` }]}
-          pointerEvents="none"
-        >
-          <View style={styles.bubble}>
-            <ThemedText variant="caption1" style={styles.bubbleText}>
-              {clamped + 1}
-            </ThemedText>
-          </View>
-        </View>
-      ) : null}
+    <GlassSurface borderRadius={BAR_HEIGHT / 2} glassStyle="clear" tintColor={READER_GLASS_TINT} style={styles.glass}>
+      <ThemedText
+        variant="footnote"
+        style={[styles.label, { color: labelColor }]}
+      >
+        {inverted ? totalPages : clamped + 1}
+      </ThemedText>
       <GestureDetector gesture={panGesture}>
         <View
           ref={trackRef}
@@ -200,80 +223,73 @@ export function ReaderPageSlider({
             });
           }}
         >
-          <View style={[styles.sections, inverted && styles.sectionsReversed]}>
-            {sections.map((index) => (
-              <View
-                key={index}
-                style={[
-                  styles.section,
-                  {
-                    backgroundColor:
-                      index <= clamped ? accentColor : "rgba(255,255,255,0.22)",
-                  },
-                ]}
-              />
-            ))}
+          <View style={styles.track}>
+            <Animated.View
+              style={[styles.fill, { backgroundColor: accentColor }, fillStyle]}
+            />
           </View>
-          <Animated.View
-            style={[styles.thumb, { backgroundColor: accentColor }, thumbStyle]}
-          />
+          <Animated.View style={[styles.thumb, thumbStyle]}>
+            <GlassSurface
+              borderRadius={THUMB_HEIGHT / 2}
+              glassStyle="clear"
+              interactive
+              style={StyleSheet.absoluteFill}
+            />
+            <Animated.View style={[styles.thumbWhite, thumbWhiteStyle]} />
+          </Animated.View>
         </View>
       </GestureDetector>
-    </View>
+      <ThemedText
+        variant="footnote"
+        style={[styles.label, { color: labelColor }]}
+      >
+        {inverted ? clamped + 1 : totalPages}
+      </ThemedText>
+    </GlassSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    paddingTop: Spacing.lg,
-  },
-  bubbleWrap: {
-    position: "absolute",
-    top: 0,
-    transform: [{ translateX: -16 }],
-  },
-  bubble: {
-    minWidth: 32,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.78)",
+  glass: {
+    height: BAR_HEIGHT,
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
   },
-  bubbleText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+  label: {
+    minWidth: 24,
+    textAlign: "center",
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
   },
   trackHit: {
-    height: 44,
+    flex: 1,
+    height: BAR_HEIGHT,
     justifyContent: "center",
   },
-  sections: {
+  track: {
     height: TRACK_HEIGHT,
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: SECTION_GAP,
+    borderRadius: TRACK_HEIGHT / 2,
+    backgroundColor: "rgba(255,255,255,0.25)",
     overflow: "hidden",
-    borderRadius: 5,
   },
-  sectionsReversed: {
-    flexDirection: "row-reverse",
+  fill: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
   },
-  section: {
-    flex: 1,
-    minWidth: 1,
-    borderRadius: 2,
+  thumbWhite: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: THUMB_HEIGHT / 2,
+    backgroundColor: "#FFFFFF",
   },
   thumb: {
     position: "absolute",
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    top: (44 - THUMB_SIZE) / 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 3,
+    width: THUMB_WIDTH,
+    height: THUMB_HEIGHT,
+    borderRadius: THUMB_HEIGHT / 2,
+    top: (BAR_HEIGHT - THUMB_HEIGHT) / 2,
   },
 });

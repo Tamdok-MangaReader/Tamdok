@@ -1,86 +1,279 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from "@expo/vector-icons";
+import { Button, Host, Menu, RNHostView } from "@expo/ui/swift-ui";
+import {
+  buttonStyle,
+  menuIndicator,
+  menuStyle,
+} from "@expo/ui/swift-ui/modifiers";
+import { useCallback, useRef, useState } from "react";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useReader } from '@/components/reader/reader-context';
-import { GlassIconButton } from '@/components/ui/glass-icon-button';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
+import { READER_GLASS_TINT } from "@/utils/reader-glass";
+import { useReader } from "@/components/reader/reader-context";
+import { GlassIconButton } from "@/components/ui/glass-icon-button";
+import { GlassSurface } from "@/components/ui/glass-surface";
+import {
+  InlineActionMenu,
+  type InlineActionMenuAnchor,
+} from "@/components/ui/inline-action-menu";
+import { ThemedText } from "@/components/ui/themed-text";
+import { t } from "@/constants/locales";
+import { Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import {
+  chapterTitleForDisplay,
+  formatChapterLabel,
+} from "@/utils/chapter-label";
 
 type ReaderNavBarProps = {
   visible: boolean;
 };
 
-const BUTTON_SIZE = 52;
-const ICON_SIZE = 26;
+const BUTTON_SIZE = 44;
+const ICON_SIZE = 22;
+const SIDE_GAP = Spacing.sm;
+
+function TitlePill({
+  title,
+  subtitle,
+  color,
+  maxWidth,
+}: {
+  title: string;
+  subtitle: string;
+  color: string;
+  maxWidth: number;
+}) {
+  return (
+    <GlassSurface
+      borderRadius={22}
+      glassStyle="clear"
+      tintColor={READER_GLASS_TINT}
+      interactive
+      style={[styles.titleSurface, { maxWidth }]}
+    >
+      <View style={styles.titleRow}>
+        <View style={styles.titleText}>
+          <ThemedText
+            variant="subheadline"
+            numberOfLines={1}
+            style={[styles.title, { color }]}
+          >
+            {title}
+          </ThemedText>
+          {subtitle ? (
+            <ThemedText
+              variant="caption1"
+              numberOfLines={1}
+              style={[styles.subtitle, { color }]}
+            >
+              {subtitle}
+            </ThemedText>
+          ) : null}
+        </View>
+        <Ionicons name="chevron-down" size={16} color={color} />
+      </View>
+    </GlassSurface>
+  );
+}
 
 export function ReaderNavBar({ visible }: ReaderNavBarProps) {
   const insets = useSafeAreaInsets();
-  const { chrome, actions, foregroundColor, chapter } = useReader();
+  const { width: windowWidth } = useWindowDimensions();
+  const { colors, isDark } = useTheme();
+  const { chrome, actions, foregroundColor, chapter, chapters } = useReader();
+  const [menuAnchor, setMenuAnchor] = useState<InlineActionMenuAnchor | null>(
+    null,
+  );
+  const menuButtonRef = useRef<View>(null);
+
+  const openFallbackMenu = useCallback(() => {
+    menuButtonRef.current?.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({ x, y, width, height });
+    });
+  }, []);
+
+  const closeFallbackMenu = useCallback(() => setMenuAnchor(null), []);
 
   if (!visible) return null;
+
+  const scanlators = chapter.scanlators?.length
+    ? chapter.scanlators.join(", ")
+    : "";
+  const titleMaxWidth =
+    windowWidth - Spacing.sm * 2 - BUTTON_SIZE * 2 - SIDE_GAP * 2 - 8;
+  const titleText = chrome.chapterTitle || chrome.mangaTitle;
+  const isIOS = Platform.OS === "ios";
 
   return (
     <Animated.View
       entering={FadeIn.duration(180)}
       exiting={FadeOut.duration(180)}
-      style={[styles.root, { paddingTop: Math.max(insets.top, Spacing.sm) }]}
-      pointerEvents='box-none'>
-      <LinearGradient colors={['#000000', 'rgba(0,0,0,0.72)', 'transparent']} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} pointerEvents='none' />
-      <View style={styles.row}>
+      style={[
+        styles.root,
+        { paddingTop: Math.max(insets.top, Spacing.sm) },
+      ]}
+      pointerEvents="box-none"
+    >
+      <View style={styles.row} pointerEvents="box-none">
         <GlassIconButton
-          icon='close'
+          icon="chevron-back"
           onPress={actions.closeReader}
           iconColor={foregroundColor}
+          glassStyle="clear"
+          tintColor={READER_GLASS_TINT}
           size={BUTTON_SIZE}
           iconSize={ICON_SIZE}
-          accessibilityLabel='Close'
+          accessibilityLabel={t("reader_back")}
         />
-        <View style={styles.center}>
-          <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'left', fontWeight: '600' }}>
-            {chrome.chapterTitle || chrome.mangaTitle}
-          </ThemedText>
-          {chapter.chapterNumber ? (
-            <ThemedText variant='subheadline' numberOfLines={1} style={{ color: foregroundColor, textAlign: 'left', fontWeight: '600' }}>
-              {`#${chapter.chapterNumber}`}
-            </ThemedText>
-          ) : null}
+        <View style={styles.center} pointerEvents="box-none">
+          {isIOS ? (
+            <Host
+              matchContents
+              seedColor={colors.tint}
+              colorScheme={isDark ? "dark" : "light"}
+              style={styles.titleHost}
+            >
+              <Menu
+                label={
+                  <RNHostView matchContents>
+                    <TitlePill
+                      title={titleText}
+                      subtitle={scanlators}
+                      color={foregroundColor}
+                      maxWidth={titleMaxWidth}
+                    />
+                  </RNHostView>
+                }
+                modifiers={[
+                  menuStyle("button"),
+                  buttonStyle("plain"),
+                  menuIndicator("hidden"),
+                ]}
+              >
+                {chapters.map((item) => {
+                  const label = `${item.chapterNumber ? `${item.chapterNumber}. ` : ""}${chapterTitleForDisplay(item) || formatChapterLabel(item)}`;
+                  return (
+                    <Button
+                      key={item.key}
+                      label={label}
+                      systemImage={
+                        item.key === chapter.key ? "checkmark" : undefined
+                      }
+                      onPress={() => {
+                        if (item.key !== chapter.key)
+                          actions.selectChapter(item);
+                      }}
+                    />
+                  );
+                })}
+              </Menu>
+            </Host>
+          ) : (
+            <Pressable
+              onPress={actions.openChapterList}
+              accessibilityRole="button"
+            >
+              <TitlePill
+                title={titleText}
+                subtitle={scanlators}
+                color={foregroundColor}
+                maxWidth={titleMaxWidth}
+              />
+            </Pressable>
+          )}
         </View>
-        <View style={styles.actions}>
-          <GlassIconButton
-            icon='list'
-            onPress={actions.openChapterList}
-            iconColor={foregroundColor}
-            size={BUTTON_SIZE}
-            iconSize={ICON_SIZE}
-            accessibilityLabel='Chapters'
-          />
-          <GlassIconButton
-            icon='globe-outline'
-            onPress={actions.openChapterUrl}
-            iconColor={foregroundColor}
-            size={BUTTON_SIZE}
-            iconSize={ICON_SIZE}
-            accessibilityLabel='Open in browser'
-          />
-          <GlassIconButton
-            icon='settings-outline'
-            onPress={actions.openReaderSettings}
-            iconColor={foregroundColor}
-            size={BUTTON_SIZE}
-            iconSize={ICON_SIZE}
-            accessibilityLabel='Reader settings'
-          />
-        </View>
+        {isIOS ? (
+          <Host
+            matchContents
+            seedColor={colors.tint}
+            colorScheme={isDark ? "dark" : "light"}
+            style={styles.dotsHost}
+          >
+            <Menu
+              label={
+                <RNHostView matchContents>
+                  <GlassIconButton
+                    icon="ellipsis-horizontal"
+                    onPress={() => {}}
+                    iconColor={foregroundColor}
+                    glassStyle="clear"
+                    tintColor={READER_GLASS_TINT}
+                    size={BUTTON_SIZE}
+                    iconSize={ICON_SIZE}
+                    accessibilityLabel={t("reader_more")}
+                  />
+                </RNHostView>
+              }
+              modifiers={[
+                menuStyle("button"),
+                buttonStyle("plain"),
+                menuIndicator("hidden"),
+              ]}
+            >
+              <Button
+                label={t("reader_share")}
+                systemImage="square.and.arrow.up"
+                onPress={actions.shareManga}
+              />
+              <Button
+                label={t("reader_open_web_view")}
+                systemImage="safari"
+                onPress={actions.openChapterUrl}
+              />
+            </Menu>
+          </Host>
+        ) : (
+          <View ref={menuButtonRef} collapsable={false}>
+            <GlassIconButton
+              icon="ellipsis-horizontal"
+              onPress={openFallbackMenu}
+              iconColor={foregroundColor}
+              glassStyle="clear"
+              tintColor={READER_GLASS_TINT}
+              size={BUTTON_SIZE}
+              iconSize={ICON_SIZE}
+              accessibilityLabel={t("reader_more")}
+            />
+          </View>
+        )}
       </View>
+      <InlineActionMenu
+        visible={menuAnchor !== null}
+        anchor={menuAnchor}
+        onClose={closeFallbackMenu}
+        items={[
+          {
+            key: "share",
+            label: t("reader_share"),
+            sfSymbol: "square.and.arrow.up",
+            fallbackIcon: "share-outline",
+            onPress: actions.shareManga,
+          },
+          {
+            key: "web",
+            label: t("reader_open_web_view"),
+            sfSymbol: "safari",
+            fallbackIcon: "globe-outline",
+            onPress: actions.openChapterUrl,
+          },
+        ]}
+      />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     top: 0,
@@ -88,17 +281,41 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SIDE_GAP,
   },
   center: {
     flex: 1,
     minWidth: 0,
+    alignItems: "center",
   },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
+  titleHost: {
+    alignSelf: "center",
+  },
+  dotsHost: {
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
+  },
+  titleSurface: {
+    overflow: "hidden",
+  },
+  titleRow: {
+    minHeight: BUTTON_SIZE,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 6,
+  },
+  titleText: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  title: {
+    fontWeight: "600",
+  },
+  subtitle: {
+    opacity: 0.65,
   },
 });

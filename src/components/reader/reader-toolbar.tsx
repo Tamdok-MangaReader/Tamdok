@@ -1,10 +1,11 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { READER_GLASS_TINT } from "@/utils/reader-glass";
 import { useReader } from "@/components/reader/reader-context";
 import { ReaderPageSlider } from "@/components/reader/reader-page-slider";
+import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
@@ -17,7 +18,7 @@ type ReaderToolbarProps = {
 export function ReaderToolbar({ visible }: ReaderToolbarProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { chrome, actions, foregroundColor, mode } = useReader();
+  const { chrome, actions, foregroundColor, mode, bookmarked } = useReader();
 
   if (!visible) return null;
 
@@ -34,33 +35,38 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
       ]}
       pointerEvents="box-none"
     >
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.72)", "#000000"]}
-        locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <View style={[styles.row, inverted && styles.rowReversed]}>
-        <ThemedText variant="footnote" style={{ color: foregroundColor }}>
-          {t("reader_page_counter", {
-            current: String(chrome.currentPage + 1),
-            total: String(totalPages),
-          })}
-        </ThemedText>
-        <ThemedText variant="footnote" color="tertiaryLabel">
-          {t("reader_pages_remaining", {
-            count: String(Math.max(0, totalPages - chrome.currentPage - 1)),
-          })}
-        </ThemedText>
+      <View style={styles.controls}>
+        <GlassIconButton
+          icon={bookmarked ? "bookmark" : "bookmark-outline"}
+          onPress={actions.toggleBookmark}
+          iconColor={bookmarked ? colors.tint : foregroundColor}
+          size={52}
+          glassStyle="clear"
+          tintColor={READER_GLASS_TINT}
+          iconSize={24}
+          accessibilityLabel={t(
+            bookmarked ? "reader_bookmark_remove" : "reader_bookmark_add",
+          )}
+        />
+        <ReaderPageSlider
+          currentPage={chrome.currentPage}
+          totalPages={totalPages}
+          accentColor={colors.tint}
+          labelColor={foregroundColor}
+          inverted={inverted}
+          onSeek={(page) => actions.goToPage(page, false)}
+        />
+        <GlassIconButton
+          icon="settings-outline"
+          onPress={actions.openReaderSettings}
+          iconColor={foregroundColor}
+          size={52}
+          glassStyle="clear"
+          tintColor={READER_GLASS_TINT}
+          iconSize={24}
+          accessibilityLabel="Reader settings"
+        />
       </View>
-      <ReaderPageSlider
-        currentPage={chrome.currentPage}
-        totalPages={totalPages}
-        accentColor={colors.tint}
-        labelColor={foregroundColor}
-        inverted={inverted}
-        onSeek={(page) => actions.goToPage(page, false)}
-      />
       {chrome.incognito ? (
         <ThemedText
           variant="caption2"
@@ -87,6 +93,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  controls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   rowReversed: {
     flexDirection: "row-reverse",

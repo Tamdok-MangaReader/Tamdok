@@ -71,7 +71,77 @@ export function HistorySkeleton({ rows = 7 }: { rows?: number }) {
   );
 }
 
+export function ChapterListSkeleton({ rows = 7 }: { rows?: number }) {
+  const { colors, radius } = useTheme();
+
+  return (
+    <View
+      style={[
+        styles.chapterCard,
+        {
+          backgroundColor: colors.secondarySystemBackground,
+          borderRadius: radius.md,
+        },
+      ]}
+    >
+      {Array.from({ length: rows }, (_, index) => (
+        <View key={index} style={styles.chapterRow}>
+          <View style={styles.chapterText}>
+            <SkeletonBlock
+              style={{ width: `${55 + ((index * 13) % 30)}%`, height: 14, borderRadius: 7 }}
+            />
+            <SkeletonBlock style={{ width: "32%", height: 11, borderRadius: 6 }} />
+          </View>
+          <SkeletonBlock style={{ width: 54, height: 20, borderRadius: 10 }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function MangaDetailSkeleton() {
+  const { radius } = useTheme();
+
+  return (
+    <View style={styles.detail}>
+      <View style={styles.detailHeader}>
+        <SkeletonBlock style={{ width: 110, height: 160, borderRadius: radius.md }} />
+        <View style={styles.historyText}>
+          <SkeletonBlock style={{ width: "80%", height: 18, borderRadius: 9 }} />
+          <SkeletonBlock style={{ width: "50%", height: 13, borderRadius: 7 }} />
+          <SkeletonBlock style={{ width: "35%", height: 13, borderRadius: 7 }} />
+        </View>
+      </View>
+      <SkeletonBlock style={{ width: "100%", height: 46, borderRadius: radius.md }} />
+      <ChapterListSkeleton />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  chapterCard: {
+    overflow: "hidden",
+  },
+  chapterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  chapterText: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  detail: {
+    gap: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  detailHeader: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",

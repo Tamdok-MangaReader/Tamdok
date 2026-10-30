@@ -14,6 +14,7 @@ type GlassIconButtonProps = {
   iconColor?: string;
   disabled?: boolean;
   glassStyle?: GlassEffectStyle;
+  tintColor?: string;
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 };
@@ -29,6 +30,7 @@ export function GlassIconButton({
   iconColor,
   disabled = false,
   glassStyle,
+  tintColor,
   style,
   accessibilityLabel,
 }: GlassIconButtonProps) {
@@ -41,6 +43,7 @@ export function GlassIconButton({
       <GlassView
         style={[styles.glass, { width: size, height: size, borderRadius: size / 2 }, style]}
         glassEffectStyle={effectStyle}
+        tintColor={tintColor}
         isInteractive={!disabled}>
         <Pressable
           style={[styles.pressable, { width: size, height: size, borderRadius: size / 2 }]}

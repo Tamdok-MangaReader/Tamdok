@@ -4,6 +4,7 @@ import type { ReadingMode, ResolvedReadingMode } from "@/services/app-settings";
 const READING_MODE_KEY = "reader_manga_reading_mode_v1";
 const AUTO_RESOLVED_MODE_KEY = "reader_manga_auto_resolved_mode_v1";
 const PAGE_OFFSET_KEY = "reader_manga_page_offset_v1";
+const SLOW_MODE_KEY = "reader_manga_slow_mode_v1";
 
 type ReadingModeStore = Record<string, ReadingMode | "default">;
 type AutoResolvedModeStore = Record<string, ResolvedReadingMode>;
@@ -171,5 +172,26 @@ export async function setMangaPageOffset(
     sourceId,
     mangaKey,
     enabled == null ? undefined : enabled,
+  );
+}
+
+export async function getMangaSlowMode(
+  sourceId: string,
+  mangaKey: string,
+): Promise<boolean> {
+  const store = await readStore<PageOffsetStore>(SLOW_MODE_KEY);
+  return readEntry(store, candidateKeys(sourceId, mangaKey)) === true;
+}
+
+export async function setMangaSlowMode(
+  sourceId: string,
+  mangaKey: string,
+  enabled: boolean,
+): Promise<void> {
+  await updateStore<PageOffsetStore>(
+    SLOW_MODE_KEY,
+    sourceId,
+    mangaKey,
+    enabled ? true : undefined,
   );
 }

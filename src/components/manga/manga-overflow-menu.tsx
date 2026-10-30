@@ -1,3 +1,9 @@
+import { Button, Host, Menu, RNHostView } from "@expo/ui/swift-ui";
+import {
+  buttonStyle,
+  menuIndicator,
+  menuStyle,
+} from "@expo/ui/swift-ui/modifiers";
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
@@ -101,7 +107,7 @@ function MenuRow({
   );
 }
 
-export function MangaOverflowMenu({
+function MangaOverflowMenuFallback({
   chapterSelectMode,
   hasDownloads,
   canShare,
@@ -394,6 +400,10 @@ export function MangaOverflowMenu({
 }
 
 const styles = StyleSheet.create({
+  nativeHost: {
+    width: 28,
+    height: 28,
+  },
   overlayRoot: {
     ...StyleSheet.absoluteFill,
   },
@@ -422,3 +432,144 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+function MangaOverflowMenuNative(props: MangaOverflowMenuProps) {
+  const { colors, isDark } = useTheme();
+  const {
+    chapterSelectMode,
+    hasDownloads,
+    canShare,
+    canDownload,
+    onShare,
+    onSelectChapters,
+    onMarkAllRead,
+    onMarkAllUnread,
+    onMarkSelectedRead,
+    onMarkSelectedUnread,
+    onSelectAll,
+    onDeselectAll,
+    onRefresh,
+    onDownloadAll,
+    onDownloadSelected,
+    onRemoveDownloads,
+  } = props;
+
+  return (
+    <Host
+      matchContents
+      seedColor={colors.tint}
+      colorScheme={isDark ? "dark" : "light"}
+      style={styles.nativeHost}
+    >
+      <Menu
+        label={
+          <RNHostView matchContents>
+            <HeaderIconButton
+              icon="ellipsis-horizontal"
+              accessibilityLabel={t("manga")}
+            />
+          </RNHostView>
+        }
+        modifiers={[
+          menuStyle("button"),
+          buttonStyle("plain"),
+          menuIndicator("hidden"),
+        ]}
+      >
+        {!chapterSelectMode ? (
+          <>
+            {canShare ? (
+              <Button
+                label={t("manga_share")}
+                systemImage="square.and.arrow.up"
+                onPress={onShare}
+              />
+            ) : null}
+            <Menu
+              label={t("manga_mark_all")}
+              systemImage="checkmark.rectangle.stack"
+            >
+              <Button
+                label={t("manga_read")}
+                systemImage="checkmark.circle"
+                onPress={onMarkAllRead}
+              />
+              <Button
+                label={t("manga_unread")}
+                systemImage="circle"
+                onPress={onMarkAllUnread}
+              />
+            </Menu>
+            <Button
+              label={t("manga_select_chapters")}
+              systemImage="checklist"
+              onPress={onSelectChapters}
+            />
+            <Button
+              label={t("manga_refresh")}
+              systemImage="arrow.clockwise"
+              onPress={onRefresh}
+            />
+            {canDownload ? (
+              <Button
+                label={t("manga_download_all")}
+                systemImage="arrow.down.circle"
+                onPress={onDownloadAll}
+              />
+            ) : null}
+            {hasDownloads ? (
+              <Button
+                label={t("manga_remove_downloads")}
+                systemImage="trash"
+                role="destructive"
+                onPress={onRemoveDownloads}
+              />
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Menu
+              label={t("manga_mark_selected")}
+              systemImage="checkmark.rectangle.stack"
+            >
+              <Button
+                label={t("manga_read")}
+                systemImage="checkmark.circle"
+                onPress={onMarkSelectedRead}
+              />
+              <Button
+                label={t("manga_unread")}
+                systemImage="circle"
+                onPress={onMarkSelectedUnread}
+              />
+            </Menu>
+            <Menu label={t("manga_selection")} systemImage="checklist">
+              <Button
+                label={t("manga_select_all")}
+                systemImage="checkmark.circle.fill"
+                onPress={onSelectAll}
+              />
+              <Button
+                label={t("manga_deselect_all")}
+                systemImage="circle"
+                onPress={onDeselectAll}
+              />
+            </Menu>
+            {canDownload ? (
+              <Button
+                label={t("manga_download_selected")}
+                systemImage="arrow.down.circle"
+                onPress={onDownloadSelected}
+              />
+            ) : null}
+          </>
+        )}
+      </Menu>
+    </Host>
+  );
+}
+
+export function MangaOverflowMenu(props: MangaOverflowMenuProps) {
+  if (Platform.OS === "ios") return <MangaOverflowMenuNative {...props} />;
+  return <MangaOverflowMenuFallback {...props} />;
+}

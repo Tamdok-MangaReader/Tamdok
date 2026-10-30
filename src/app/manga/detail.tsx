@@ -21,6 +21,7 @@ import {
   MangaDetailHeaderRight,
 } from "@/components/manga/manga-detail-header";
 import { MangaDetailView } from "@/components/manga/manga-detail-view";
+import { MangaDetailSkeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { t } from "@/constants/locales";
@@ -34,6 +35,7 @@ import type { Chapter } from "@/parsers/shared/types";
 import {
   getMangaDownloads,
   queueChapterDownloads,
+  removeChapterDownload,
   removeMangaDownloads,
   type DownloadEntry,
 } from "@/services/downloads";
@@ -60,6 +62,10 @@ import {
   sourceRouteId,
 } from "@/services/sources";
 import { chaptersOldestFirst, formatChapterLabel } from "@/utils/chapter-label";
+import {
+  getBookmarkedChapterKeys,
+  toggleChapterBookmark,
+} from "@/services/chapter-bookmarks";
 import { subscribeMangaData } from "@/utils/manga-events";
 import {
   mangaFromParams,
@@ -213,6 +219,9 @@ export default function MangaDetailScreen() {
   const [readChapterKeys, setReadChapterKeys] = useState<Set<string>>(
     () => new Set(),
   );
+  const [bookmarkedChapterKeys, setBookmarkedChapterKeys] = useState<
+    Set<string>
+  >(() => new Set());
   const [chapterDownloads, setChapterDownloads] = useState<
     Record<string, DownloadEntry>
   >({});
@@ -331,7 +340,14 @@ export default function MangaDetailScreen() {
   );
 
   const refreshProgress = useCallback(async () => {
-    applyProgress(await getMangaChapterProgress(manifestSourceId, mangaKey));
+    const [progress, bookmarks] = await Promise.all([
+      getMangaChapterProgress(manifestSourceId, mangaKey),
+      getBookmarkedChapterKeys(manifestSourceId, mangaKey),
+    ]);
+    applyProgress(progress);
+    setBookmarkedChapterKeys((prev) =>
+      setsEqual(prev, bookmarks) ? prev : bookmarks,
+    );
   }, [manifestSourceId, mangaKey, applyProgress]);
 
   useFocusEffect(
@@ -622,6 +638,38 @@ export default function MangaDetailScreen() {
     setDownloadedChapterKeys(new Set());
   }, [manifestSourceId, mangaKey]);
 
+  const handleToggleChapterBookmark = useCallback(
+    (chapter: Chapter) => {
+      setBookmarkedChapterKeys((previous) => {
+        const next = new Set(previous);
+        if (next.has(chapter.key)) next.delete(chapter.key);
+        else next.add(chapter.key);
+        return next;
+      });
+      void toggleChapterBookmark(manifestSourceId, mangaKey, chapter.key);
+    },
+    [manifestSourceId, mangaKey],
+  );
+
+  const handleDownloadChapter = useCallback(
+    async (chapter: Chapter) => {
+      if (!live.current.inLibrary) {
+        Alert.alert(t("manga_download_requires_library"));
+        return;
+      }
+      await queueDownloads(new Set([chapter.key]));
+    },
+    [queueDownloads],
+  );
+
+  const handleRemoveChapterDownload = useCallback(
+    async (chapter: Chapter) => {
+      await removeChapterDownload(manifestSourceId, mangaKey, chapter.key);
+      await refreshDownloads();
+    },
+    [manifestSourceId, mangaKey, refreshDownloads],
+  );
+
   const exitChapterSelectMode = useCallback(() => {
     setChapterSelectMode(false);
     setSelectedChapterKeys(new Set());
@@ -835,8 +883,8 @@ export default function MangaDetailScreen() {
     return (
       <SourceCoverHeadersProvider source={source}>
         <Stack.Screen options={errorOnlyOptions} />
-        <ScreenContent centerContent>
-          <ActivityIndicator />
+        <ScreenContent>
+          <MangaDetailSkeleton />
         </ScreenContent>
       </SourceCoverHeadersProvider>
     );
@@ -851,6 +899,7 @@ export default function MangaDetailScreen() {
         sourceKind={source.kind}
         chapters={chapters}
         readChapterKeys={readChapterKeys}
+        bookmarkedChapterKeys={bookmarkedChapterKeys}
         chapterDownloads={chapterDownloads}
         downloadedChapterKeys={downloadedChapterKeys}
         inLibrary={inLibrary}
@@ -874,6 +923,11 @@ export default function MangaDetailScreen() {
         onOpenInBrowser={handleOpenInBrowser}
         onMarkChapterRead={handleMarkChapterRead}
         onMarkChapterUnread={handleMarkChapterUnread}
+        onToggleChapterBookmark={handleToggleChapterBookmark}
+        onDownloadChapter={(chapter) => void handleDownloadChapter(chapter)}
+        onRemoveChapterDownload={(chapter) =>
+          void handleRemoveChapterDownload(chapter)
+        }
         onToggleChapterSelected={toggleChapterSelected}
         onSelectAllChapters={selectAllChapters}
         onDeselectAllChapters={deselectAllChapters}

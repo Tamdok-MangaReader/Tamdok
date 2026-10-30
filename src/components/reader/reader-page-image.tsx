@@ -9,6 +9,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   View,
+  type LayoutChangeEvent,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -29,6 +30,7 @@ import type {
 } from "@/services/app-settings";
 import { coverImageSource } from "@/utils/cover-image-source";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
+import { useSlowRelease } from "@/utils/reader-slow-mode";
 import {
   READER_DEFAULT_ASPECT_RATIO,
   readerPageAspectFromSize,
@@ -56,6 +58,19 @@ type ReaderPageImageProps = {
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
+
+function panLimit(
+  zoom: number,
+  viewW: number,
+  viewH: number,
+): { x: number; y: number } {
+  "worklet";
+  return {
+    x: Math.max(0, ((zoom - 1) * viewW) / 2),
+    y: Math.max(0, ((zoom - 1) * viewH) / 2),
+  };
+}
+const DOUBLE_TAP_SCALE = 2.5;
 const ZOOM_EPSILON = 1.01;
 
 function initialAspectRatio(
@@ -111,6 +126,13 @@ export function ReaderPageImage({
   const translateY = useSharedValue(0);
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
+  const viewWidth = useSharedValue(0);
+  const viewHeight = useSharedValue(0);
+  const pinching = useSharedValue(false);
+  const panLastX = useSharedValue(0);
+  const panLastY = useSharedValue(0);
+  const pinchFocalX = useSharedValue(0);
+  const pinchFocalY = useSharedValue(0);
 
   const handleSingleTapJS = useCallback(
     (x: number, y: number) => {
@@ -139,18 +161,49 @@ export function ReaderPageImage({
   const composed = useMemo(() => {
     // Pinch zoom only; pan activates once zoomed so taps still reach the reader chrome.
     const pinch = Gesture.Pinch()
-      .onStart(() => {
+      .onStart((event) => {
+        pinching.value = true;
         savedScale.value = scale.value;
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+        pinchFocalX.value = event.focalX;
+        pinchFocalY.value = event.focalY;
       })
       .onUpdate((event) => {
-        scale.value = Math.min(
+        const next = Math.min(
           MAX_SCALE,
           Math.max(MIN_SCALE, savedScale.value * event.scale),
         );
+        const ratio = next / savedScale.value;
+        const cx = viewWidth.value / 2;
+        const cy = viewHeight.value / 2;
+        const limit = panLimit(
+          next,
+          viewWidth.value,
+          viewHeight.value,
+        );
+        const maxX = limit.x;
+        const maxY = limit.y;
+        const tx =
+          savedTranslateX.value +
+          (1 - ratio) * (pinchFocalX.value - cx - savedTranslateX.value) +
+          (event.focalX - pinchFocalX.value);
+        const ty =
+          savedTranslateY.value +
+          (1 - ratio) * (pinchFocalY.value - cy - savedTranslateY.value) +
+          (event.focalY - pinchFocalY.value);
+        scale.value = next;
+        translateX.value = Math.min(maxX, Math.max(-maxX, tx));
+        translateY.value = Math.min(maxY, Math.max(-maxY, ty));
+      })
+      .onFinalize(() => {
+        pinching.value = false;
       })
       .onEnd(() => {
         if (scale.value > MIN_SCALE) {
           savedScale.value = scale.value;
+          savedTranslateX.value = translateX.value;
+          savedTranslateY.value = translateY.value;
           return;
         }
         scale.value = withTiming(MIN_SCALE);
@@ -169,27 +222,49 @@ export function ReaderPageImage({
           state.fail();
         }
       })
-      .onTouchesMove((_event, state) => {
-        if (scale.value > ZOOM_EPSILON) {
-          state.activate();
-        } else {
+      .onTouchesMove((event, state) => {
+        if (scale.value <= ZOOM_EPSILON) {
           state.fail();
+          return;
+        }
+        if (event.numberOfTouches === 1 && !pinching.value) {
+          state.activate();
         }
       })
-      .onStart(() => {
-        savedTranslateX.value = translateX.value;
-        savedTranslateY.value = translateY.value;
+      .onStart((event) => {
+        panLastX.value = event.translationX;
+        panLastY.value = event.translationY;
       })
       .onUpdate((event) => {
-        translateX.value = savedTranslateX.value + event.translationX;
-        translateY.value = savedTranslateY.value + event.translationY;
+        const deltaX = event.translationX - panLastX.value;
+        const deltaY = event.translationY - panLastY.value;
+        panLastX.value = event.translationX;
+        panLastY.value = event.translationY;
+        if (pinching.value) return;
+        const limit = panLimit(
+          scale.value,
+          viewWidth.value,
+          viewHeight.value,
+        );
+        const maxX = limit.x;
+        const maxY = limit.y;
+        translateX.value = Math.min(
+          maxX,
+          Math.max(-maxX, translateX.value + deltaX),
+        );
+        translateY.value = Math.min(
+          maxY,
+          Math.max(-maxY, translateY.value + deltaY),
+        );
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
       });
 
     const doubleTap = Gesture.Tap()
       .numberOfTaps(2)
       .maxDelay(220)
       .enabled(!disableDoubleTap)
-      .onEnd((_event, success) => {
+      .onEnd((event, success) => {
         if (!success) return;
         if (scale.value > ZOOM_EPSILON) {
           scale.value = withTiming(MIN_SCALE);
@@ -200,8 +275,24 @@ export function ReaderPageImage({
           savedTranslateY.value = 0;
           return;
         }
-        scale.value = withTiming(2);
-        savedScale.value = 2;
+        const target = DOUBLE_TAP_SCALE;
+        const cx = viewWidth.value / 2;
+        const cy = viewHeight.value / 2;
+        const limit = panLimit(
+          target,
+          viewWidth.value,
+          viewHeight.value,
+        );
+        const maxX = limit.x;
+        const maxY = limit.y;
+        const tx = Math.min(maxX, Math.max(-maxX, (1 - target) * (event.x - cx)));
+        const ty = Math.min(maxY, Math.max(-maxY, (1 - target) * (event.y - cy)));
+        scale.value = withTiming(target);
+        translateX.value = withTiming(tx);
+        translateY.value = withTiming(ty);
+        savedScale.value = target;
+        savedTranslateX.value = tx;
+        savedTranslateY.value = ty;
       });
 
     const singleTap = Gesture.Tap()
@@ -248,13 +339,30 @@ export function ReaderPageImage({
     onSingleTap,
     quickActionsLongPress,
     liveText,
+    panLastX,
+    panLastY,
+    pinching,
+    pinchFocalX,
+    pinchFocalY,
     savedScale,
     savedTranslateX,
     savedTranslateY,
     scale,
     translateX,
     translateY,
+    viewHeight,
+    viewWidth,
   ]);
+
+  const slowReleased = useSlowRelease(page.url);
+
+  const handleViewLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      viewWidth.value = event.nativeEvent.layout.width;
+      viewHeight.value = event.nativeEvent.layout.height;
+    },
+    [viewHeight, viewWidth],
+  );
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -347,12 +455,18 @@ export function ReaderPageImage({
   }, [page.url, retryTick]);
 
   useEffect(() => {
-    if (loadState !== "loading" || layout !== "fill" || !page.url) return;
+    if (
+      loadState !== "loading" ||
+      layout !== "fill" ||
+      !page.url ||
+      !slowReleased
+    )
+      return;
     const timer = setTimeout(() => {
       setLoadState((current) => (current === "loading" ? "ready" : current));
     }, 1200);
     return () => clearTimeout(timer);
-  }, [layout, loadState, page.url, retryTick]);
+  }, [layout, loadState, page.url, retryTick, slowReleased]);
 
   const resolvedFit =
     contentFit ??
@@ -413,24 +527,26 @@ export function ReaderPageImage({
         <ActivityIndicator color="#FFFFFF" />
       </View>
     ) : loadState === "error" ? (
-      <Pressable
-        style={styles.statusOverlay}
-        onPress={() => {
-          setLoadError(null);
-          setLoadState("loading");
-          setRetryTick((value) => value + 1);
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={t("reader_image_retry")}
-      >
-        <Ionicons name="alert-circle-outline" size={28} color="#FFFFFF" />
-        <ThemedText variant="subheadline" style={styles.retryLabel}>
-          {loadError ?? t("reader_image_failed")}
-        </ThemedText>
-        <ThemedText variant="footnote" style={styles.retryHint}>
-          {t("reader_image_retry")}
-        </ThemedText>
-      </Pressable>
+      <View style={styles.statusOverlayPassive} pointerEvents="box-none">
+        <Pressable
+          style={styles.retryButton}
+          onPress={() => {
+            setLoadError(null);
+            setLoadState("loading");
+            setRetryTick((value) => value + 1);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={t("reader_image_retry")}
+        >
+          <Ionicons name="alert-circle-outline" size={28} color="#FFFFFF" />
+          <ThemedText variant="subheadline" style={styles.retryLabel}>
+            {loadError ?? t("reader_image_failed")}
+          </ThemedText>
+          <ThemedText variant="footnote" style={styles.retryHint}>
+            {t("reader_image_retry")}
+          </ThemedText>
+        </Pressable>
+      </View>
     ) : null;
 
   const debugIndex = debugShowPageNumbers ? (page.sourceIndex ?? 0) + 1 : null;
@@ -463,6 +579,11 @@ export function ReaderPageImage({
       <GestureDetector gesture={composed}>
         <Animated.View
           collapsable={false}
+          onLayout={handleViewLayout}
+          style={layout === "intrinsic" ? styles.gestureIntrinsic : styles.gestureFill}
+        >
+        <Animated.View
+          collapsable={false}
           style={[
             layout === "intrinsic" ? styles.intrinsicContent : styles.content,
             animatedStyle,
@@ -485,7 +606,7 @@ export function ReaderPageImage({
             >
               <Image
                 key={`${page.url}:${retryTick}`}
-                source={imageSource}
+                source={slowReleased ? imageSource : undefined}
                 style={[
                   imageStyle,
                   showPlaceholder ? styles.loadingImage : null,
@@ -559,6 +680,7 @@ export function ReaderPageImage({
             </View>
           ) : null}
         </Animated.View>
+        </Animated.View>
       </GestureDetector>
     </View>
   );
@@ -568,6 +690,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     overflow: "hidden",
+  },
+  gestureFill: {
+    flex: 1,
+  },
+  gestureIntrinsic: {
+    width: "100%",
   },
   intrinsicContainer: {
     overflow: "hidden",
@@ -613,6 +741,24 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 24,
     backgroundColor: "rgba(0,0,0,0.18)",
+  },
+  statusOverlayPassive: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  retryButton: {
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
   retryLabel: {
     color: "#FFFFFF",

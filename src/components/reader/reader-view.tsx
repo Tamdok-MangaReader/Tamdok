@@ -1,4 +1,3 @@
-import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRouter } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as WebBrowser from "expo-web-browser";
@@ -12,6 +11,7 @@ import {
 } from "react";
 import {
   Platform,
+  Share,
   StatusBar,
   StyleSheet,
   useColorScheme,
@@ -56,6 +56,11 @@ import {
   setMangaAutoResolvedMode,
   setMangaPageOffset,
 } from "@/services/reader-manga-settings";
+import {
+  getBookmarkedChapterKeys,
+  toggleChapterBookmark,
+} from "@/services/chapter-bookmarks";
+import { subscribeMangaData } from "@/utils/manga-events";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
 import { extractTextFromImage } from "expo-text-extractor";
@@ -104,6 +109,8 @@ type ModeChangeHandler = NonNullable<
 >;
 
 type ReaderViewProps = {
+  showModeHint?: boolean;
+  mangaPageUrl?: string;
   sourceId: string;
   manga: Manga;
   chapter: Chapter;
@@ -133,6 +140,8 @@ function applyStatusBarHidden(
 }
 
 export function ReaderView({
+  showModeHint = true,
+  mangaPageUrl,
   sourceId,
   manga,
   chapter,
@@ -518,11 +527,11 @@ export function ReaderView({
   const stripEnabled = isStripMode(mode);
 
   useEffect(() => {
-    if (!settings || !prefsReady || autoPending) return;
+    if (!showModeHint || !settings || !prefsReady || autoPending) return;
     setModeHintVisible(true);
     const timer = setTimeout(() => setModeHintVisible(false), MODE_HINT_MS);
     return () => clearTimeout(timer);
-  }, [autoPending, mode, prefsReady, settings]);
+  }, [autoPending, mode, prefsReady, settings, showModeHint]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -839,6 +848,7 @@ export function ReaderView({
           chapterTitle: formatChapterLabel(nextChapter),
           mangaTitle: manga.title,
           ...(manga.cover ? { cover: manga.cover } : {}),
+          switched: "1",
           ...(openAtEnd ? { page: "last" } : {}),
         },
       });
@@ -983,6 +993,38 @@ export function ReaderView({
   );
 
   const activeChapterUrl = activeChapter.url;
+  const activeChapterKey = activeChapter.key;
+  const [bookmarked, setBookmarked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void getBookmarkedChapterKeys(sourceId, manga.key).then((keys) => {
+        if (!cancelled) setBookmarked(keys.has(activeChapterKey));
+      });
+    };
+    load();
+    const unsubscribe = subscribeMangaData(load);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [sourceId, manga.key, activeChapterKey]);
+
+  const toggleBookmark = useCallback(() => {
+    setBookmarked((value) => !value);
+    void toggleChapterBookmark(sourceId, manga.key, activeChapterKey).then(
+      setBookmarked,
+    );
+  }, [sourceId, manga.key, activeChapterKey]);
+
+  const shareManga = useCallback(() => {
+    const url = mangaPageUrl ?? activeChapterUrl;
+    if (!url) return;
+    void Share.share(
+      Platform.OS === "ios" ? { url, message: manga.title } : { message: url },
+    );
+  }, [mangaPageUrl, activeChapterUrl, manga.title]);
 
   const actions: ReaderActions = useMemo(
     () => ({
@@ -997,12 +1039,15 @@ export function ReaderView({
       goNextChapter,
       openChapterList: () => setChapterSheetOpen(true),
       closeReader: () => {
-        router.back();
+        if (router.canGoBack()) router.back();
+        else router.replace("/");
       },
       openChapterUrl: () => {
-        if (activeChapterUrl)
-          void WebBrowser.openBrowserAsync(activeChapterUrl);
+        const url = mangaPageUrl ?? activeChapterUrl;
+        if (url) void WebBrowser.openBrowserAsync(url);
       },
+      toggleBookmark,
+      shareManga,
       openSettings: () => router.navigate("/settings/reader"),
       openReaderSettings: () => setReaderSettingsOpen(true),
       selectChapter: (nextChapter) => navigateChapter(nextChapter),
@@ -1013,6 +1058,9 @@ export function ReaderView({
     }),
     [
       activeChapterUrl,
+      mangaPageUrl,
+      toggleBookmark,
+      shareManga,
       goNext,
       goNextChapter,
       goPrevious,
@@ -1078,6 +1126,8 @@ export function ReaderView({
       chrome,
       actions,
       chapterUrl: activeChapterUrl,
+      mangaPageUrl,
+      bookmarked,
       stripSegments: segments,
       debugShowPageNumbers,
     };
@@ -1085,6 +1135,8 @@ export function ReaderView({
     actions,
     activeChapter,
     activeChapterUrl,
+    mangaPageUrl,
+    bookmarked,
     activePages,
     backgroundColor,
     chapters,
@@ -1152,31 +1204,6 @@ export function ReaderView({
           />
         )}
 
-        {barsVisible ? (
-          <>
-            <LinearGradient
-              pointerEvents="none"
-              colors={["#000000", "rgba(0,0,0,0.45)", "transparent"]}
-              locations={[0, 0.55, 1]}
-              style={[
-                styles.edgeFade,
-                styles.edgeFadeTop,
-                { height: insets.top + 96 },
-              ]}
-            />
-            <LinearGradient
-              pointerEvents="none"
-              colors={["transparent", "rgba(0,0,0,0.45)", "#000000"]}
-              locations={[0, 0.45, 1]}
-              style={[
-                styles.edgeFade,
-                styles.edgeFadeBottom,
-                { height: insets.bottom + 96 },
-              ]}
-            />
-          </>
-        ) : null}
-
         <ReaderNavBar visible={barsVisible} />
         <ReaderToolbar visible={barsVisible} />
         {modeHintVisible ? <ReaderModeHint mode={mode} /> : null}
@@ -1213,16 +1240,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     alignItems: "center",
     justifyContent: "center",
-  },
-  edgeFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-  },
-  edgeFadeTop: {
-    top: 0,
-  },
-  edgeFadeBottom: {
-    bottom: 0,
   },
 });

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import { MangaCover } from "@/components/manga/manga-cover";
+import { useLibraryEntryRefreshing } from "@/services/library-refresh-progress";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { Spacing } from "@/constants/theme";
 import {
@@ -88,6 +89,11 @@ export const MangaGridCell = memo(function MangaGridCell({
     return parseRatingText(raw) ?? undefined;
   }, [showRating, item.rating, item.description]);
 
+  const refreshing = useLibraryEntryRefreshing(
+    item.inLibrary ? (sourceId ?? item.sourceId) : undefined,
+    item.key,
+  );
+
   const handlePress = useCallback(() => onPress(item), [onPress, item]);
   const handleLongPress = useMemo(
     () => (onLongPress ? () => onLongPress(item) : undefined),
@@ -103,6 +109,7 @@ export const MangaGridCell = memo(function MangaGridCell({
       unreadCount={enriched.unreadCount}
       downloadedCount={enriched.downloadedCount}
       updateFailed={enriched.updateFailed}
+      refreshing={refreshing}
       showBookmark={showBookmark}
       scaleBadges={scaleBadges}
       showStatus={!!item.status}

@@ -32,7 +32,8 @@ export type InlineActionMenuItem = {
     | "download-outline"
     | "checkmark-circle-outline"
     | "create-outline"
-    | "star-outline";
+    | "star-outline"
+    | "globe-outline";
   destructive?: boolean;
   onPress: () => void;
 };

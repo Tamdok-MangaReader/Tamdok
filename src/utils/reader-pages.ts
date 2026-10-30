@@ -5,6 +5,7 @@ import type { Page } from "@/parsers/shared/types";
 import type { ReaderSettings } from "@/services/app-settings";
 import { coverImageSource } from "@/utils/cover-image-source";
 import { releaseImageRef } from "@/utils/image-memory";
+import { isReaderSlowMode, waitForSlowTurn } from "@/utils/reader-slow-mode";
 import { readImageSizeFromPrefix } from "@/utils/image-size-from-prefix";
 
 export type ReaderPage = Page & {
@@ -183,6 +184,7 @@ export async function probeReaderImageDimensions(
   url: string,
   headers?: Record<string, string>,
 ): Promise<ImageSize | null> {
+  await waitForSlowTurn();
   const fromPrefix = await withTimeout(
     readImageSizeFromPrefix(url, headers),
     2_200,
@@ -242,6 +244,7 @@ async function resolvePageSize(
   if (!page.url) return null;
   const cached = sizeCache.get(page.url);
   if (cached) return cached;
+  await waitForSlowTurn();
   const size = await probeImageSize(
     page.url,
     { ...requestHeaders, ...page.headers },
@@ -259,7 +262,7 @@ export async function materializeReaderPages(
   measure: "headers" | "full" = "headers",
 ): Promise<ReaderPage[]> {
   let built = buildReaderPages(pages, settings, idPrefix);
-  const sizes = await mapPool(built, PROBE_CONCURRENCY, (page) =>
+  const sizes = await mapPool(built, isReaderSlowMode() ? 1 : PROBE_CONCURRENCY, (page) =>
     resolvePageSize(page, requestHeaders, measure),
   );
   built = built.map((page, index) => {

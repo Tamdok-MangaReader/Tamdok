@@ -25,6 +25,8 @@ export type ReaderActions = {
   openChapterList: () => void;
   closeReader: () => void;
   openChapterUrl: () => void;
+  toggleBookmark: () => void;
+  shareManga: () => void;
   openSettings: () => void;
   openReaderSettings: () => void;
   selectChapter: (chapter: Chapter) => void;
@@ -47,6 +49,8 @@ export type ReaderContextValue = {
   chrome: ReaderChromeState;
   actions: ReaderActions;
   chapterUrl?: string;
+  mangaPageUrl?: string;
+  bookmarked: boolean;
   stripSegments: ChapterSegment[];
   debugShowPageNumbers: boolean;
 };
