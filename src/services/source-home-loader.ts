@@ -7,7 +7,9 @@ import { peekSourceHomeCache, readSourceHomeCache } from '@/services/source-home
 import { withLatestChapterOnly } from '@/utils/chapter-label';
 
 const DEFAULT_BIG_SCROLLER_INTERVAL = 5;
-const NHENTAI_SOURCE_ID = 'multi.nhentai';
+function isNhentaiSource(sourceId?: string): boolean {
+  return Boolean(sourceId?.toLowerCase().includes('nhentai'));
+}
 
 function isRemangaSource(sourceId?: string): boolean {
   return Boolean(sourceId?.toLowerCase().includes('remanga'));
@@ -93,19 +95,17 @@ async function enrichHomeLayout(
   sourceId?: string,
   previousDetails?: Map<string, Manga>,
 ): Promise<HomeLayout> {
-  const components: HomeComponent[] = [];
-  const skipListingFallback = sourceId === NHENTAI_SOURCE_ID;
+  const skipListingFallback = isNhentaiSource(sourceId);
   // Aidoku home already ships latest chapters; re-fetching every tile is slow and can 429.
-  const skipEntryEnrichment = runner.kind === 'aidoku' || sourceId === NHENTAI_SOURCE_ID;
+  const skipEntryEnrichment = runner.kind === 'aidoku' || isNhentaiSource(sourceId);
 
-  for (const component of home.components) {
+  const results = await Promise.all(home.components.map(async (component): Promise<HomeComponent | null> => {
     if (isRemangaSource(sourceId) && component.kind === 'scroller' && component.entries.length > 0) {
-      components.push({
+      return {
         ...component,
         kind: 'mangaGrid',
         pageSize: component.pageSize ?? component.entries.length,
-      });
-      continue;
+      };
     }
 
     const treatAsBigScroller =
@@ -126,24 +126,23 @@ async function enrichHomeLayout(
         }
       }
 
-      if (entries.length === 0) continue;
+      if (entries.length === 0) return null;
 
       entries = entries.slice(0, 12);
 
       // Reuse cached description/tags; only fetch tiles that have never been seen.
-      if (sourceId !== NHENTAI_SOURCE_ID) {
+      if (!isNhentaiSource(sourceId)) {
         entries = await enrichBigScrollerEntries(runner, entries, sourceId, previousDetails);
       }
       if (!skipEntryEnrichment) {
         entries = await enrichWithLatestChapters(runner, entries);
       }
-      components.push({
+      return {
         ...component,
         kind: 'bigScroller',
         entries,
         autoScrollInterval: component.autoScrollInterval ?? DEFAULT_BIG_SCROLLER_INTERVAL,
-      });
-      continue;
+      };
     }
 
     if (component.kind === 'scroller' && component.entries.length > 0) {
@@ -167,12 +166,11 @@ async function enrichHomeLayout(
         });
       }
 
-      components.push({
+      return {
         ...component,
         entries,
         scrollerEntries,
-      });
-      continue;
+      };
     }
 
     if (
@@ -186,24 +184,25 @@ async function enrichHomeLayout(
       const useGrid = component.kind === 'mangaGrid' || isRemangaSource(sourceId);
       const limit = component.pageSize ?? (useGrid ? 9 : 12);
       let entries = page.entries.slice(0, limit);
-      if (entries.length === 0) continue;
+      if (entries.length === 0) return null;
       if (component.kind === 'scroller' && !skipEntryEnrichment) {
         entries = await enrichWithLatestChapters(runner, entries);
       }
-      components.push({
+      return {
         ...component,
         kind: useGrid ? 'mangaGrid' : component.kind,
         entries,
-      });
-      continue;
+      };
     }
 
     if (component.entries.length === 0 && component.kind !== 'mangaChapterList') {
-      continue;
+      return null;
     }
 
-    components.push(component);
-  }
+    return component;
+  }));
+
+  const components = results.filter((item): item is HomeComponent => item !== null);
 
   return { components };
 }
