@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Alert, Pressable, Switch, View, StyleSheet } from 'react-native';
+import { Alert, Pressable, Switch, TextInput, View, StyleSheet } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { Card, CardSeparator } from '@/components/ui/card';
@@ -24,6 +24,8 @@ import { replayWelcome } from '@/utils/welcome-data-loader';
 export default function AdvancedSettingsScreen() {
   const { refresh } = useSources();
   const [showReaderPageNumbers, setShowReaderPageNumbers] = useState(false);
+  const [showImageSize, setShowImageSize] = useState(false);
+  const [maxHeightRatio, setMaxHeightRatio] = useState('100');
   const tapCountRef = useRef(0);
   const lastTapRef = useRef(0);
 
@@ -38,16 +40,36 @@ export default function AdvancedSettingsScreen() {
   }, []);
 
   useEffect(() => {
-    const apply = (value: boolean) => setShowReaderPageNumbers(value);
-    void getAppSettings().then((settings) => apply(settings.debug.showReaderPageNumbers));
+    const apply = (settings: Awaited<ReturnType<typeof getAppSettings>>) => {
+      setShowReaderPageNumbers(settings.debug.showReaderPageNumbers);
+      setShowImageSize(settings.debug.showReaderImageSize);
+    };
+    void getAppSettings().then((settings) => {
+      apply(settings);
+      setMaxHeightRatio(String(settings.debug.readerMaxHeightRatio));
+    });
     return subscribeAppSettings(() => {
-      void getAppSettings().then((settings) => apply(settings.debug.showReaderPageNumbers));
+      void getAppSettings().then(apply);
     });
   }, []);
 
   const togglePageNumbers = (value: boolean) => {
     setShowReaderPageNumbers(value);
     void updateAppSettings({ debug: { showReaderPageNumbers: value } });
+  };
+
+  const toggleImageSize = (value: boolean) => {
+    setShowImageSize(value);
+    void updateAppSettings({ debug: { showReaderImageSize: value } });
+  };
+
+  const changeMaxHeightRatio = (text: string) => {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setMaxHeightRatio(cleaned);
+    const parsed = Number(cleaned);
+    if (Number.isFinite(parsed) && parsed >= 1) {
+      void updateAppSettings({ debug: { readerMaxHeightRatio: parsed } });
+    }
   };
 
   const clearHistory = () => {
@@ -123,7 +145,7 @@ export default function AdvancedSettingsScreen() {
           <SectionLabel>{t('advanced_debug_section')}</SectionLabel>
         </Pressable>
         <Card>
-          <View style={[styles.switchRow, styles.switchRowFirst, styles.switchRowLast]}>
+          <View style={[styles.switchRow, styles.switchRowFirst]}>
             <View style={styles.switchText}>
               <ThemedText variant='body'>{t('advanced_debug_page_numbers')}</ThemedText>
               <ThemedText variant='footnote' color='secondaryLabel'>
@@ -131,6 +153,31 @@ export default function AdvancedSettingsScreen() {
               </ThemedText>
             </View>
             <Switch value={showReaderPageNumbers} onValueChange={togglePageNumbers} />
+          </View>
+          <CardSeparator />
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <ThemedText variant='body'>{t('advanced_debug_image_size')}</ThemedText>
+              <ThemedText variant='footnote' color='secondaryLabel'>
+                {t('advanced_debug_image_size_hint')}
+              </ThemedText>
+            </View>
+            <Switch value={showImageSize} onValueChange={toggleImageSize} />
+          </View>
+          <CardSeparator />
+          <View style={[styles.switchRow, styles.switchRowLast]}>
+            <View style={styles.switchText}>
+              <ThemedText variant='body'>{t('advanced_debug_max_height')}</ThemedText>
+              <ThemedText variant='footnote' color='secondaryLabel'>
+                {t('advanced_debug_max_height_hint')}
+              </ThemedText>
+            </View>
+            <TextInput
+              value={maxHeightRatio}
+              onChangeText={changeMaxHeightRatio}
+              keyboardType='number-pad'
+              style={styles.ratioInput}
+            />
           </View>
         </Card>
         <SectionLabel>{t('advanced_maintenance_section')}</SectionLabel>
@@ -162,6 +209,11 @@ const styles = StyleSheet.create({
   },
   switchRowLast: {
     paddingBottom: Spacing.lg,
+  },
+  ratioInput: {
+    minWidth: 64,
+    textAlign: 'right',
+    fontSize: 16,
   },
   switchText: {
     flex: 1,

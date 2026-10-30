@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -14,6 +14,7 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import type { InstalledSource, RegistryEntry } from "@/parsers/shared/types";
+import { useSources } from "@/context/sources-context";
 import { useTheme } from "@/hooks/use-theme";
 import { getSuggestiveAgeLabel } from "@/utils/age-rating";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
@@ -184,11 +185,21 @@ function formatLanguagesLabel(languages: string[]): string {
   return `${visible.join(", ")} +${remaining}`;
 }
 
+export function useHasMultipleSourceKinds(): boolean {
+  const { installed } = useSources();
+  return useMemo(() => {
+    const first = installed[0]?.kind;
+    return installed.some((source) => source.kind !== first);
+  }, [installed]);
+}
+
 export function installedSourceSubtitle(
   source: InstalledSource,
   updateVersion?: number,
+  showKind = true,
 ): string {
-  const base = `${source.kind.toUpperCase()} · v${source.manifest.info.version} · ${formatLanguagesLabel(source.manifest.info.languages)}`;
+  const kind = showKind ? `${source.kind.toUpperCase()} · ` : "";
+  const base = `${kind}v${source.manifest.info.version} · ${formatLanguagesLabel(source.manifest.info.languages)}`;
   if (updateVersion && updateVersion > source.manifest.info.version) {
     return `${base} · ${t("source_update_available")}`;
   }
@@ -244,6 +255,7 @@ const styles = StyleSheet.create({
   updateBadge: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,

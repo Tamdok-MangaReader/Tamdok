@@ -1,3 +1,4 @@
+import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -215,6 +216,7 @@ export default function SourceSearchScreen() {
   }
 
   return (
+    <SourceCoverHeadersProvider source={source}>
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={rootStyle}
@@ -312,6 +314,7 @@ export default function SourceSearchScreen() {
         )}
       </ScreenContent>
     </KeyboardAvoidingView>
+    </SourceCoverHeadersProvider>
   );
 }
 

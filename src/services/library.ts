@@ -830,6 +830,28 @@ export async function updateLibraryUpdateSettings(
   }
 }
 
+export async function getLibraryUnreadTotal(
+  onlyUpdatable: boolean,
+): Promise<number> {
+  const store = await readStore();
+  let total = 0;
+  for (const entry of store.entries) {
+    const unread = entry.unreadCount ?? 0;
+    if (unread <= 0) continue;
+    if (
+      onlyUpdatable &&
+      entry.categoryIds.length > 0 &&
+      !entry.categoryIds.some(
+        (categoryId) => !store.excludedCategoryIds.includes(categoryId),
+      )
+    ) {
+      continue;
+    }
+    total += unread;
+  }
+  return total;
+}
+
 export async function shouldRefreshLibraryEntry(
   entry: LibraryEntry,
 ): Promise<boolean> {

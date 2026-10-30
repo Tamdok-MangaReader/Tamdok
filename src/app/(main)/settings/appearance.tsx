@@ -16,7 +16,7 @@ import type { AccentColorId } from '@/constants/accent-colors';
 import type { AppIconId } from '@/constants/app-icons';
 import { useAppearance } from '@/context/appearance-context';
 import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
-import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
+import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 
 const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
@@ -32,6 +32,11 @@ export default function AppearanceScreen() {
   const [showChapterNumber, setShowChapterNumber] = useState(true);
   const [showStatusBadge, setShowStatusBadge] = useState(true);
   const [showRating, setShowRating] = useState(true);
+  const [tabBadges, setTabBadges] = useState<TabBadgeSettings>({
+    sourceUpdates: true,
+    libraryUnread: true,
+    libraryUnreadUpdatableOnly: true,
+  });
 
   const load = useCallback(async () => {
     const settings = await getAppSettings();
@@ -40,6 +45,7 @@ export default function AppearanceScreen() {
     setShowChapterNumber(settings.mangaScreen.showChapterNumber);
     setShowStatusBadge(settings.coverDisplay.showStatusBadge);
     setShowRating(settings.coverDisplay.showRating);
+    setTabBadges(settings.tabBadges);
   }, []);
 
   useEffect(() => {
@@ -67,6 +73,11 @@ export default function AppearanceScreen() {
     );
   };
 
+  const updateTabBadges = (next: Partial<TabBadgeSettings>) => {
+    setTabBadges((previous) => ({ ...previous, ...next }));
+    void updateAppSettings({ tabBadges: next });
+  };
+
   const handleAppIconSelect = (id: AppIconId) => {
     if (Platform.OS !== 'ios') {
       Alert.alert(t('app_icon_ios_only_title'), t('app_icon_ios_only_desc'));
@@ -86,6 +97,7 @@ export default function AppearanceScreen() {
     onChange,
     isFirst,
     isLast,
+    disabled,
   }: {
     label: string;
     hint?: string;
@@ -93,9 +105,16 @@ export default function AppearanceScreen() {
     onChange: (value: boolean) => void;
     isFirst?: boolean;
     isLast?: boolean;
+    disabled?: boolean;
   }) {
     return (
-      <View style={[styles.switchRow, isFirst && { paddingTop: Spacing.lg }, isLast && { paddingBottom: Spacing.lg }]}>
+      <View
+        style={[
+          styles.switchRow,
+          isFirst && { paddingTop: Spacing.lg },
+          isLast && { paddingBottom: Spacing.lg },
+          disabled && { opacity: 0.4 },
+        ]}>
         <View style={styles.switchText}>
           <ThemedText variant='body'>{label}</ThemedText>
           {hint ? (
@@ -104,7 +123,7 @@ export default function AppearanceScreen() {
             </ThemedText>
           ) : null}
         </View>
-        <Switch value={value} onValueChange={onChange} />
+        <Switch value={value} onValueChange={onChange} disabled={disabled} />
       </View>
     );
   }
@@ -149,6 +168,33 @@ export default function AppearanceScreen() {
           <ThemedText variant='footnote' color='secondaryLabel'>
             {t('appearance_app_icon_hint')}
           </ThemedText>
+        </Card>
+
+        <SectionLabel>{t('appearance_tab_badges_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('appearance_badge_sources')}
+            hint={t('appearance_badge_sources_hint')}
+            value={tabBadges.sourceUpdates}
+            onChange={(value) => updateTabBadges({ sourceUpdates: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_badge_library')}
+            hint={t('appearance_badge_library_hint')}
+            value={tabBadges.libraryUnread}
+            onChange={(value) => updateTabBadges({ libraryUnread: value })}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_badge_library_updatable')}
+            hint={t('appearance_badge_library_updatable_hint')}
+            value={tabBadges.libraryUnreadUpdatableOnly}
+            onChange={(value) => updateTabBadges({ libraryUnreadUpdatableOnly: value })}
+            disabled={!tabBadges.libraryUnread}
+            isLast
+          />
         </Card>
 
         <SectionLabel>{t('library_display_section')}</SectionLabel>

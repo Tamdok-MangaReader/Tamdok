@@ -1,3 +1,5 @@
+import { useSourceTrouble } from "@/utils/source-connection-status";
+import { MangaRefreshStatus } from "@/components/manga/manga-refresh-status";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import {
   Stack,
@@ -742,18 +744,15 @@ export default function MangaDetailScreen() {
   const hasDownloads = downloadedChapterKeys.size > 0;
 
   const showHeaderSpinner = isRefreshing || isLoading;
+  const headerError = error ?? loadError;
 
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        {showHeaderSpinner ? (
-          <View style={styles.refreshIndicator}>
-            <ActivityIndicator
-              size="small"
-              color={showBigMangaCover ? colors.tint : undefined}
-            />
-          </View>
-        ) : null}
+        <MangaRefreshStatus
+          busy={showHeaderSpinner}
+          error={headerError}
+        />
         <MangaDetailHeaderRight
           chapterSelectMode={chapterSelectMode}
           hasDownloads={hasDownloads}
@@ -782,6 +781,7 @@ export default function MangaDetailScreen() {
       hasDownloads,
       inLibrary,
       showHeaderSpinner,
+      headerError,
       mangaPageUrl,
       showBigMangaCover,
       colors.tint,
@@ -819,6 +819,7 @@ export default function MangaDetailScreen() {
   );
 
   const combinedError = error ?? loadError;
+  const sourceTrouble = useSourceTrouble(source?.id);
   const hasDisplayContent =
     hasCachedContent ||
     Boolean(manga.title?.trim()) ||
@@ -915,6 +916,7 @@ export default function MangaDetailScreen() {
         showBigMangaCover={showBigMangaCover}
         showChapterNumber={showChapterNumber}
         inlineError={showInlineError ? combinedError : null}
+        retrying={sourceTrouble && (isRefreshing || isLoading)}
         onDismissInlineError={dismissError}
         isLoading={showChapterLoading}
         isRefreshing={isRefreshing}

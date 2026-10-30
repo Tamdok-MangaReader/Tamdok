@@ -1,3 +1,8 @@
+import {
+  getReaderMaxHeightRatio,
+  getReaderMinAspect,
+  shouldShowReaderImageSize,
+} from "@/utils/reader-debug";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -102,6 +107,7 @@ export function ReaderPageImage({
   containerWidth,
 }: ReaderPageImageProps) {
   const { debugShowPageNumbers } = useReader();
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const dictionaryEnabled = dictionarySettings?.enable ?? false;
   const dictionaryLongPress =
     dictionaryEnabled && dictionarySettings?.lookupGesture === "long-press";
@@ -489,7 +495,7 @@ export function ReaderPageImage({
       : aspectRatio;
   const showPlaceholder = layout === "intrinsic" && loadState !== "ready";
   const frameHeight = Math.round(
-    intrinsicWidth / Math.max(displayAspectRatio, 0.04),
+    intrinsicWidth / Math.max(displayAspectRatio, getReaderMinAspect()),
   );
   const frameStyle =
     pillarboxPadding > 0
@@ -556,15 +562,22 @@ export function ReaderPageImage({
       : page.splitTotal && page.splitTotal > 1
         ? `${debugIndex}.${(page.splitIndex ?? 0) + 1}`
         : String(debugIndex);
+  const sizeLabel = shouldShowReaderImageSize()
+    ? `${naturalSize ? `${naturalSize.width}×${naturalSize.height}` : "?"} → ${frameHeight}px (max ${Math.round(intrinsicWidth * getReaderMaxHeightRatio())}px)`
+    : null;
+  const combinedLabel =
+    debugLabel != null && sizeLabel != null
+      ? `${debugLabel} · ${sizeLabel}`
+      : (debugLabel ?? sizeLabel);
   const debugBadge =
-    debugLabel != null ? (
+    combinedLabel != null ? (
       <ThemedText
         variant="footnote"
         style={
           layout === "intrinsic" ? styles.debugIndex : styles.debugIndexOverlay
         }
       >
-        {debugLabel}
+        {combinedLabel}
       </ThemedText>
     ) : null;
 
@@ -629,6 +642,7 @@ export function ReaderPageImage({
                   const { width: loadedWidth, height: loadedHeight } =
                     event.source;
                   if (loadedWidth && loadedHeight) {
+                    setNaturalSize({ width: loadedWidth, height: loadedHeight });
                     commitAspectRatio(loadedWidth, loadedHeight, {
                       viewWidth: intrinsicWidth,
                       viewHeight: frameHeight,

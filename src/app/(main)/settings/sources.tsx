@@ -76,6 +76,7 @@ import {
 import { isSearchActive, matchesCatalogEntry } from "@/utils/source-search";
 
 const AVAILABLE_PAGE_SIZE = 24;
+const INSTALLED_COLLAPSED_COUNT = 4;
 const PRESS_SPRING = { damping: 14, stiffness: 320, mass: 0.6 };
 
 type ListRow =
@@ -87,6 +88,12 @@ type ListRow =
       total: number;
     }
   | { type: "controls"; key: "controls" }
+  | {
+      type: "installed-toggle";
+      key: "installed-toggle";
+      hidden: number;
+      expanded: boolean;
+    }
   | {
       type: "available";
       key: string;
@@ -141,6 +148,7 @@ export default function SettingsSourcesScreen() {
     useState(AVAILABLE_PAGE_SIZE);
   const [updatingSourceId, setUpdatingSourceId] = useState<string | null>(null);
   const [catalogVisible, setCatalogVisible] = useState(false);
+  const [installedExpanded, setInstalledExpanded] = useState(false);
   const deferredSearch = useDeferredValue(availableSearch);
 
   useEffect(() => {
@@ -556,15 +564,29 @@ export default function SettingsSourcesScreen() {
     const rows: ListRow[] = [];
 
     if (!isLoading) {
-      installedWithoutPendingUpdates.forEach((source, index) => {
+      const all = installedWithoutPendingUpdates;
+      const collapsible = all.length > INSTALLED_COLLAPSED_COUNT;
+      const shown =
+        collapsible && !installedExpanded
+          ? all.slice(0, INSTALLED_COLLAPSED_COUNT)
+          : all;
+      shown.forEach((source, index) => {
         rows.push({
           type: "installed",
           key: `installed:${source.id}`,
           source,
           index,
-          total: installedWithoutPendingUpdates.length,
+          total: shown.length,
         });
       });
+      if (collapsible) {
+        rows.push({
+          type: "installed-toggle",
+          key: "installed-toggle",
+          hidden: all.length - INSTALLED_COLLAPSED_COUNT,
+          expanded: installedExpanded,
+        });
+      }
     }
 
     rows.push({ type: "controls", key: "controls" });
@@ -628,6 +650,7 @@ export default function SettingsSourcesScreen() {
     catalogBase.length,
     catalogVisible,
     filteredAvailableEntries.length,
+    installedExpanded,
     installedWithoutPendingUpdates,
     isCatalogLoading,
     isLoading,
@@ -678,7 +701,9 @@ export default function SettingsSourcesScreen() {
                               color="onTint"
                               style={styles.updateButtonLabel}
                             >
-                              {t("source_update_action")}
+                              {t("source_update_to", {
+                                version: String(update.availableVersion),
+                              })}
                             </ThemedText>
                           </Pressable>
                         )
@@ -747,6 +772,21 @@ export default function SettingsSourcesScreen() {
               />
             </SwipeableRow>
           </GroupedCard>
+        );
+      }
+
+      if (item.type === "installed-toggle") {
+        return (
+          <Pressable
+            style={styles.secondaryAction}
+            onPress={() => setInstalledExpanded((value) => !value)}
+          >
+            <ThemedText variant="callout" color="tint">
+              {item.expanded
+                ? t("sources_installed_collapse")
+                : t("sources_installed_show_all", { count: String(item.hidden) })}
+            </ThemedText>
+          </Pressable>
         );
       }
 

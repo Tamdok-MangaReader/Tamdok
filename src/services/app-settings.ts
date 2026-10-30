@@ -83,8 +83,16 @@ export type LibraryDisplaySettings = {
   sortMode: LibrarySortMode;
 };
 
+export type TabBadgeSettings = {
+  sourceUpdates: boolean;
+  libraryUnread: boolean;
+  libraryUnreadUpdatableOnly: boolean;
+};
+
 export type DebugSettings = {
   showReaderPageNumbers: boolean;
+  showReaderImageSize: boolean;
+  readerMaxHeightRatio: number;
 };
 
 export type MangaScreenSettings = {
@@ -114,6 +122,7 @@ export type AppSettings = {
   mangaScreen: MangaScreenSettings;
   coverDisplay: CoverDisplaySettings;
   privacy: PrivacySettings;
+  tabBadges: TabBadgeSettings;
   debug: DebugSettings;
 };
 
@@ -194,8 +203,15 @@ const DEFAULT_SETTINGS: AppSettings = {
     nsfwKillSwitch: false,
     hideCategorizedNsfwInAll: false,
   },
+  tabBadges: {
+    sourceUpdates: true,
+    libraryUnread: true,
+    libraryUnreadUpdatableOnly: true,
+  },
   debug: {
     showReaderPageNumbers: false,
+    showReaderImageSize: false,
+    readerMaxHeightRatio: 100,
   },
 };
 
@@ -281,6 +297,10 @@ async function readSettings(): Promise<AppSettings> {
         stored.privacy?.hideCategorizedNsfwInAll ??
         DEFAULT_SETTINGS.privacy.hideCategorizedNsfwInAll,
     },
+    tabBadges: {
+      ...DEFAULT_SETTINGS.tabBadges,
+      ...(stored.tabBadges ?? {}),
+    },
     debug: {
       ...DEFAULT_SETTINGS.debug,
       ...(stored.debug ?? {}),
@@ -296,8 +316,14 @@ export async function getAppSettings(): Promise<AppSettings> {
   return readSettings();
 }
 
+export type AppSettingsPatch = {
+  [K in keyof AppSettings]?: AppSettings[K] extends object
+    ? Partial<AppSettings[K]>
+    : AppSettings[K];
+};
+
 export async function updateAppSettings(
-  patch: Partial<AppSettings>,
+  patch: AppSettingsPatch,
 ): Promise<AppSettings> {
   const current = await readSettings();
   const next: AppSettings = {
@@ -309,6 +335,7 @@ export async function updateAppSettings(
     mangaScreen: { ...current.mangaScreen, ...patch.mangaScreen },
     coverDisplay: { ...current.coverDisplay, ...patch.coverDisplay },
     privacy: { ...current.privacy, ...patch.privacy },
+    tabBadges: { ...current.tabBadges, ...patch.tabBadges },
     debug: { ...current.debug, ...patch.debug },
   };
   await writeSettings(next);

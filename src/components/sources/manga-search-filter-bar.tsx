@@ -319,6 +319,15 @@ function FilterDropdown({
           compact
         />
       );
+    case "range":
+      return (
+        <RangeOptions
+          definition={definition}
+          values={values}
+          onApply={onApply}
+          compact
+        />
+      );
     default:
       return null;
   }
@@ -461,6 +470,12 @@ function MangaFilterModal({
                     />
                   ) : definition.type === "check" ? (
                     <CheckOptions
+                      definition={definition}
+                      values={draft}
+                      onApply={applyDraft}
+                    />
+                  ) : definition.type === "range" ? (
+                    <RangeOptions
                       definition={definition}
                       values={draft}
                       onApply={applyDraft}
@@ -1214,7 +1229,101 @@ function CheckOptionsImpl({
   );
 }
 
+function formatRangeBound(value: number | undefined): string {
+  return value == null || !Number.isFinite(value) ? "" : String(value);
+}
+
+function parseRangeBound(text: string): number | undefined {
+  const normalized = text.trim().replace(",", ".");
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function RangeOptionsImpl({
+  definition,
+  values,
+  onApply,
+  compact,
+}: {
+  definition: Extract<FilterDefinition, { type: "range" }>;
+  values: FilterValue[];
+  onApply: (next: FilterValue) => void;
+  compact?: boolean;
+}) {
+  const { colors, radius } = useTheme();
+  const current = values.find(
+    (entry): entry is Extract<FilterValue, { type: "range" }> =>
+      entry.id === definition.id && entry.type === "range",
+  );
+  const [fromText, setFromText] = useState(formatRangeBound(current?.from));
+  const [toText, setToText] = useState(formatRangeBound(current?.to));
+
+  useEffect(() => {
+    if (parseRangeBound(fromText) !== current?.from) {
+      setFromText(formatRangeBound(current?.from));
+    }
+    if (parseRangeBound(toText) !== current?.to) {
+      setToText(formatRangeBound(current?.to));
+    }
+  }, [current?.from, current?.to]);
+
+  const inputStyle = [
+    styles.rangeInput,
+    {
+      color: colors.label,
+      backgroundColor: colors.secondaryFill,
+      borderRadius: radius.sm,
+    },
+  ];
+
+  return (
+    <View style={[styles.rangeRow, compact && styles.dropdown]}>
+      <TextInput
+        value={fromText}
+        onChangeText={(text) => {
+          setFromText(text);
+          onApply({
+            type: "range",
+            id: definition.id,
+            from: parseRangeBound(text),
+            to: parseRangeBound(toText),
+          });
+        }}
+        keyboardType="decimal-pad"
+        placeholder={
+          definition.min != null ? String(definition.min) : t("filter_range_from")
+        }
+        placeholderTextColor={colors.tertiaryLabel}
+        style={inputStyle}
+      />
+      <ThemedText variant="body" color="secondaryLabel">
+        –
+      </ThemedText>
+      <TextInput
+        value={toText}
+        onChangeText={(text) => {
+          setToText(text);
+          onApply({
+            type: "range",
+            id: definition.id,
+            from: parseRangeBound(fromText),
+            to: parseRangeBound(text),
+          });
+        }}
+        keyboardType="decimal-pad"
+        placeholder={
+          definition.max != null ? String(definition.max) : t("filter_range_to")
+        }
+        placeholderTextColor={colors.tertiaryLabel}
+        style={inputStyle}
+      />
+    </View>
+  );
+}
+
 const SelectOptions = memo(SelectOptionsImpl, sameFilterProps);
+const RangeOptions = memo(RangeOptionsImpl, sameFilterProps);
 const SortOptions = memo(SortOptionsImpl, sameFilterProps);
 const TextOptions = memo(TextOptionsImpl, sameFilterProps);
 const CheckOptions = memo(CheckOptionsImpl, sameFilterProps);
@@ -1352,6 +1461,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     minHeight: 60,
+    fontSize: 16,
+  },
+  rangeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+  },
+  rangeInput: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    minHeight: 44,
     fontSize: 16,
   },
   textInputView: {

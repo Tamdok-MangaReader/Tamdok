@@ -38,6 +38,7 @@ import { SearchDismissRow } from "@/components/sources/search-dismiss-row";
 import {
   SourceListItem,
   installedSourceSubtitle,
+  useHasMultipleSourceKinds,
 } from "@/components/sources/source-list-item";
 import {
   SwipeableRow,
@@ -138,6 +139,7 @@ type SourceRowProps = {
   onUnpin: (source: InstalledSource) => void;
   onReorder: () => void;
   onDelete: (source: InstalledSource) => void;
+  onUpdate: (source: InstalledSource) => void;
 };
 
 const SourceRow = memo(function SourceRow({
@@ -154,6 +156,7 @@ const SourceRow = memo(function SourceRow({
   onUnpin,
   onReorder,
   onDelete,
+  onUpdate,
 }: SourceRowProps) {
   const leadingActions = useMemo<SwipeAction[]>(
     () =>
@@ -192,7 +195,12 @@ const SourceRow = memo(function SourceRow({
   const handlePin = useCallback(() => onPin(source), [onPin, source]);
   const handleUnpin = useCallback(() => onUnpin(source), [onUnpin, source]);
   const handleDelete = useCallback(() => onDelete(source), [onDelete, source]);
-  const subtitle = useMemo(() => installedSourceSubtitle(source), [source]);
+  const handleUpdate = useCallback(() => onUpdate(source), [onUpdate, source]);
+  const showKind = useHasMultipleSourceKinds();
+  const subtitle = useMemo(
+    () => installedSourceSubtitle(source, undefined, showKind),
+    [source, showKind],
+  );
 
   return (
     <SearchDismissRow visible={visible} searchActive={searchActive}>
@@ -213,6 +221,8 @@ const SourceRow = memo(function SourceRow({
               onUnpin={handleUnpin}
               onReorder={onReorder}
               onDelete={handleDelete}
+              updateVersion={updateVersion ?? undefined}
+              onUpdate={updateVersion != null ? handleUpdate : undefined}
             >
               <SourceListItem
                 title={source.manifest.info.name}
@@ -242,7 +252,11 @@ const ReorderRow = memo(function ReorderRow({
   isActive: boolean;
 }) {
   const { colors } = useTheme();
-  const subtitle = useMemo(() => installedSourceSubtitle(source), [source]);
+  const showKind = useHasMultipleSourceKinds();
+  const subtitle = useMemo(
+    () => installedSourceSubtitle(source, undefined, showKind),
+    [source, showKind],
+  );
 
   return (
     <View style={[styles.reorderItem, isActive && styles.reorderItemActive]}>
@@ -278,12 +292,13 @@ const DragPlaceholder = memo(function DragPlaceholder({
 }: {
   source: InstalledSource;
 }) {
+  const showKind = useHasMultipleSourceKinds();
   return (
     <View style={styles.reorderItem}>
       <Card style={[styles.card, styles.dragPlaceholder]}>
         <SourceListItem
           title={source.manifest.info.name}
-          subtitle={installedSourceSubtitle(source)}
+          subtitle={installedSourceSubtitle(source, undefined, showKind)}
           iconUri={source.iconUri}
           rating={source.manifest.info.contentRating}
           trailing={<View style={styles.reorderHandleSpacer} />}
@@ -309,6 +324,7 @@ type SourcesPageProps = {
   onUnpin: (source: InstalledSource) => void;
   onReorder: () => void;
   onDelete: (source: InstalledSource) => void;
+  onUpdate: (source: InstalledSource) => void;
 };
 
 const SourcesPage = memo(function SourcesPage({
@@ -327,6 +343,7 @@ const SourcesPage = memo(function SourcesPage({
   onUnpin,
   onReorder,
   onDelete,
+  onUpdate,
 }: SourcesPageProps) {
   const { visibilityById, matchingCount } = useMemo(() => {
     if (!searchActive) {
@@ -384,6 +401,7 @@ const SourcesPage = memo(function SourcesPage({
           onUnpin={onUnpin}
           onReorder={onReorder}
           onDelete={onDelete}
+          onUpdate={onUpdate}
         />
       );
     },
@@ -400,6 +418,7 @@ const SourcesPage = memo(function SourcesPage({
       onUnpin,
       onReorder,
       onDelete,
+      onUpdate,
     ],
   );
 
@@ -523,6 +542,7 @@ export default function SourcesScreen() {
     reorderSources,
     uninstall,
     getSourceUpdate,
+    updateSource,
   } = useSources();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
@@ -543,6 +563,8 @@ export default function SourcesScreen() {
     unpinSource,
     reorderSources,
     uninstall,
+    updateSource,
+    getSourceUpdate,
   });
   latest.current = {
     router,
@@ -551,6 +573,8 @@ export default function SourcesScreen() {
     unpinSource,
     reorderSources,
     uninstall,
+    updateSource,
+    getSourceUpdate,
   };
 
   const openSource = useCallback((source: InstalledSource) => {
@@ -587,6 +611,17 @@ export default function SourcesScreen() {
         },
       ],
     );
+  }, []);
+
+  const handleUpdateSource = useCallback((source: InstalledSource) => {
+    const update = latest.current.getSourceUpdate(source.id);
+    if (!update) return;
+    latest.current.updateSource(update).catch((error: unknown) => {
+      Alert.alert(
+        t("source_update_failed"),
+        error instanceof Error ? error.message : String(error),
+      );
+    });
   }, []);
 
   const enterReorderMode = useCallback(() => {
@@ -893,6 +928,7 @@ export default function SourcesScreen() {
                     onUnpin={handleUnpin}
                     onReorder={enterReorderMode}
                     onDelete={confirmUninstall}
+                    onUpdate={handleUpdateSource}
                   />
                 ))}
               </AnimatedPagerView>

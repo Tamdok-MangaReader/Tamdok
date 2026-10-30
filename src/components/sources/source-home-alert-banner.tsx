@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
@@ -8,11 +8,13 @@ import { useTheme } from "@/hooks/use-theme";
 type SourceHomeAlertBannerProps = {
   message: string;
   onDismiss?: () => void;
+  loading?: boolean;
 };
 
 export function SourceHomeAlertBanner({
   message,
   onDismiss,
+  loading = false,
 }: SourceHomeAlertBannerProps) {
   const { colors, radius } = useTheme();
 
@@ -27,12 +29,16 @@ export function SourceHomeAlertBanner({
         },
       ]}
     >
-      <Ionicons
-        name="alert-circle-outline"
-        size={18}
-        color={colors.destructive}
-        style={styles.icon}
-      />
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.tint} style={styles.icon} />
+      ) : (
+        <Ionicons
+          name="alert-circle-outline"
+          size={18}
+          color={colors.destructive}
+          style={styles.icon}
+        />
+      )}
       <ThemedText variant="footnote" color="label" style={styles.message}>
         {message}
       </ThemedText>

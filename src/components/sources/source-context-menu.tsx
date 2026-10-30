@@ -11,6 +11,8 @@ export type SourceContextMenuOptions = {
   onUnpin: () => void;
   onReorder: () => void;
   onDelete: () => void;
+  updateVersion?: number;
+  onUpdate?: () => void;
 };
 
 export function triggerSourceMenuHaptic(): void {

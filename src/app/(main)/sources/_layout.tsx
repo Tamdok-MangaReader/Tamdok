@@ -10,7 +10,11 @@ export default function SourcesLayout() {
       <Stack.Screen name="index" options={{ headerLargeTitle: false }} />
       <Stack.Screen
         name="[id]/index"
-        options={{ headerLargeTitle: false, title: "" }}
+        options={{
+          headerLargeTitle: false,
+          title: "",
+          headerBackButtonDisplayMode: "minimal",
+        }}
       />
       <Stack.Screen
         name="[id]/settings"
@@ -22,7 +26,11 @@ export default function SourcesLayout() {
       />
       <Stack.Screen
         name="[id]/listing"
-        options={{ headerLargeTitle: false, title: "" }}
+        options={{
+          headerLargeTitle: false,
+          title: "",
+          headerBackButtonDisplayMode: "minimal",
+        }}
       />
     </Stack>
   );

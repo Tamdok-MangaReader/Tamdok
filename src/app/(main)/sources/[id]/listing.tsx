@@ -1,3 +1,4 @@
+import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -166,6 +167,7 @@ export default function SourceListingScreen() {
   }
 
   return (
+    <SourceCoverHeadersProvider source={source}>
     <>
       <Stack.Screen options={screenOptions} />
       <ScreenContent
@@ -201,6 +203,7 @@ export default function SourceListingScreen() {
         )}
       </ScreenContent>
     </>
+    </SourceCoverHeadersProvider>
   );
 }
 

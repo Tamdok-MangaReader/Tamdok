@@ -1,3 +1,4 @@
+import { getReaderMinAspect } from "@/utils/reader-debug";
 import { Image as ExpoImage } from "expo-image";
 import { Image } from "react-native";
 
@@ -62,7 +63,7 @@ export function readerPageFrameHeight(
   }
   const aspect =
     page.splitTotal && page.splitTotal > 1 ? base / page.splitTotal : base;
-  return Math.max(1, Math.round(containerWidth / Math.max(aspect, 0.04)));
+  return Math.max(1, Math.round(containerWidth / Math.max(aspect, getReaderMinAspect())));
 }
 
 export function isRenderableReaderPage(page: Page): boolean {

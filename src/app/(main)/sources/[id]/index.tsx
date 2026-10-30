@@ -23,6 +23,7 @@ import {
 } from "react-native";
 
 import { HomePlaceholderLayout } from "@/components/manga/home-placeholder-layout";
+import { MangaRefreshStatus } from "@/components/manga/manga-refresh-status";
 import { HomeSection } from "@/components/manga/home-section";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import {
@@ -236,11 +237,10 @@ function RealSourceHomeScreen() {
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        {showHeaderSpinner ? (
-          <View style={styles.refreshIndicator}>
-            <ActivityIndicator size="small" />
-          </View>
-        ) : null}
+        <MangaRefreshStatus
+          busy={showHeaderSpinner}
+          error={combinedError ?? null}
+        />
         <HeaderIconButton icon="search" onPress={openSearch} />
         <SourceOverflowMenu
           onOpenSettings={openSettings}
@@ -248,7 +248,7 @@ function RealSourceHomeScreen() {
         />
       </View>
     ),
-    [showHeaderSpinner, openSearch, openSettings, websiteUrl],
+    [showHeaderSpinner, combinedError, openSearch, openSettings, websiteUrl],
   );
 
   const sourceName = source?.manifest.info.name;

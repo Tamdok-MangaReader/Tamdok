@@ -37,8 +37,26 @@ type MenuItem = {
   onPress: () => void;
 };
 
+function updateLabelFor(options: SourceContextMenuOptions): string | null {
+  return options.updateVersion != null && options.onUpdate
+    ? t("source_update_to", { version: String(options.updateVersion) })
+    : null;
+}
+
 function buildMenuItems(options: SourceContextMenuOptions): MenuItem[] {
+  const updateLabel = updateLabelFor(options);
+  const onUpdate = options.onUpdate;
   return [
+    ...(updateLabel && onUpdate
+      ? [
+          {
+            key: "update",
+            label: updateLabel,
+            icon: "arrow-down-circle-outline" as const,
+            onPress: onUpdate,
+          },
+        ]
+      : []),
     {
       key: "pin",
       label: options.isPinned ? t("sources_unpin") : t("sources_pin"),
@@ -113,6 +131,7 @@ function SourceInstalledActionsNative({
 }: SourceInstalledActionsProps) {
   const { isDark } = useTheme();
   const pinLabel = menuProps.isPinned ? t("sources_unpin") : t("sources_pin");
+  const updateLabel = updateLabelFor(menuProps);
 
   if (!isValidElement(children)) return children;
 
@@ -132,6 +151,13 @@ function SourceInstalledActionsNative({
           </RNHostView>
         </ContextMenu.Trigger>
         <ContextMenu.Items>
+          {updateLabel ? (
+            <Button
+              label={updateLabel}
+              systemImage="arrow.down.circle"
+              onPress={() => menuProps.onUpdate?.()}
+            />
+          ) : null}
           <Button
             label={pinLabel}
             systemImage={menuProps.isPinned ? "pin.slash" : "pin"}

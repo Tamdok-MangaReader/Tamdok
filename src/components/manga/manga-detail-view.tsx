@@ -289,6 +289,7 @@ type HeaderProps = {
   chapterSelectMode: boolean;
   showBigMangaCover?: boolean;
   inlineError?: string | null;
+  retrying?: boolean;
   isLoading: boolean;
   isRefreshing: boolean;
   chaptersCount: number;
@@ -315,6 +316,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   chapterSelectMode,
   showBigMangaCover,
   inlineError,
+  retrying,
   isLoading,
   isRefreshing,
   chaptersCount,
@@ -579,6 +581,8 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           message={inlineError}
           onDismiss={onDismissInlineError}
         />
+      ) : retrying ? (
+        <SourceHomeAlertBanner message={t("source_connection_retrying")} loading />
       ) : null}
       <IncognitoModeBanner />
 
@@ -690,6 +694,8 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             <ThemedText
               variant="headline"
               color="onTint"
+              numberOfLines={2}
+              ellipsizeMode="tail"
               style={styles.continueButtonText}
             >
               {continueLabel}
@@ -705,7 +711,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
               ? t("manga_select_chapters")
               : `${t("manga_chapters")}${chaptersCount > 0 ? ` (${chaptersCount})` : ""}`}
           </ThemedText>
-          {isRefreshing ? <ActivityIndicator size="small" /> : null}
+          {isRefreshing ? (
+            <ActivityIndicator size="small" color={colors.tint} />
+          ) : null}
         </View>
         {chapterSelectMode ? (
           <View style={styles.selectActions}>
@@ -747,6 +755,7 @@ type MangaDetailViewProps = {
   showBigMangaCover?: boolean;
   showChapterNumber?: boolean;
   inlineError?: string | null;
+  retrying?: boolean;
   onDismissInlineError?: () => void;
   isLoading: boolean;
   isRefreshing?: boolean;
@@ -787,6 +796,7 @@ export function MangaDetailView({
   showBigMangaCover,
   showChapterNumber,
   inlineError,
+  retrying = false,
   onDismissInlineError,
   isLoading,
   isRefreshing = false,
@@ -993,6 +1003,7 @@ export function MangaDetailView({
       chapterSelectMode={chapterSelectMode}
       showBigMangaCover={showBigMangaCover}
       inlineError={inlineError}
+      retrying={retrying}
       isLoading={isLoading}
       isRefreshing={isRefreshing}
       chaptersCount={total}

@@ -1,3 +1,4 @@
+import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAidokuSourceRequests } from "@/hooks/use-aidoku-source-requests";
@@ -8,6 +9,7 @@ import type {
 } from "@/parsers/shared/types";
 import type { SourceRunner } from "@/parsers/shared/source-runner";
 import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
+import { cancelTamdokSourceRequestsBefore } from "@/parsers/tamdok/runtime";
 import {
   peekSourceHomeCache,
   readSourceHomeCache,
@@ -38,6 +40,11 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [hasCachedContent, setHasCachedContent] = useState(Boolean(peeked));
   const requestIdRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const interruptedRef = useRef(false);
+  const fetchHomeRef = useRef<() => Promise<void>>(async () => undefined);
+  const sourceIdRef = useRef(source?.id);
+  sourceIdRef.current = source?.id;
 
   useAidokuSourceRequests(source?.id);
 
@@ -70,6 +77,7 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
       }
 
       const requestId = ++requestIdRef.current;
+      inFlightRef.current = true;
       const homeTimeoutMs =
         source.id.toLowerCase().includes("nhentai")
           ? NHENTAI_HOME_LOAD_TIMEOUT_MS
@@ -132,12 +140,31 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
       } finally {
         clearTimeout(timeout);
         if (requestId === requestIdRef.current) {
+          inFlightRef.current = false;
           setIsLoading(false);
           setIsRefreshing(false);
         }
       }
     },
     [runner, source],
+  );
+
+  fetchHomeRef.current = () => fetchHome();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (interruptedRef.current) {
+        interruptedRef.current = false;
+        void fetchHomeRef.current();
+      }
+      return () => {
+        const sourceId = sourceIdRef.current;
+        if (!sourceId || !inFlightRef.current) return;
+        interruptedRef.current = true;
+        requestIdRef.current += 1;
+        cancelTamdokSourceRequestsBefore(sourceId, Date.now());
+      };
+    }, []),
   );
 
   useEffect(() => {

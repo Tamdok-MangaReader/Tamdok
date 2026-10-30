@@ -1,3 +1,4 @@
+import { configureReaderDebug } from "@/utils/reader-debug";
 import { useNavigation, useRouter } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as WebBrowser from "expo-web-browser";
@@ -273,6 +274,10 @@ export function ReaderView({
     );
     setIncognito(value.incognitoMode);
     setDebugShowPageNumbers(value.debug.showReaderPageNumbers);
+    configureReaderDebug({
+      showImageSize: value.debug.showReaderImageSize,
+      maxHeightRatio: value.debug.readerMaxHeightRatio,
+    });
     deleteAfterReadingRef.current = value.downloads.deleteAfterReading;
   }, []);
 

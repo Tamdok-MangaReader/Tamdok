@@ -7,10 +7,15 @@ import type {
 import * as SecureStore from "expo-secure-store";
 import { sharedFetch } from "../../shared/http";
 import { parse } from "node-html-parser";
+import {
+  reportSourceHealthy,
+  reportSourceTrouble,
+} from "@/utils/source-connection-status";
 
 const sourceControllers = new Map<string, Set<AbortController>>();
 const sourceWatchers = new Map<string, number>();
 const sourceBlockedUntil = new Map<string, number>();
+const controllerCreatedAt = new WeakMap<AbortController, number>();
 const CANCEL_BLOCK_MS = 4000;
 
 function cancelledError(): Error {
@@ -42,6 +47,20 @@ export function cancelTamdokSourceRequests(sourceId: string): void {
   for (const controller of controllers) controller.abort();
 }
 
+export function cancelTamdokSourceRequestsBefore(
+  sourceId: string,
+  cutoff: number,
+): void {
+  const controllers = sourceControllers.get(sourceId);
+  if (!controllers) return;
+  for (const controller of [...controllers]) {
+    if ((controllerCreatedAt.get(controller) ?? 0) <= cutoff) {
+      controllers.delete(controller);
+      controller.abort();
+    }
+  }
+}
+
 async function performRequest(
   url: string,
   init: RequestInit | undefined,
@@ -56,6 +75,7 @@ async function performRequest(
     throw cancelledError();
   }
   const controller = new AbortController();
+  controllerCreatedAt.set(controller, Date.now());
   const outer = init?.signal;
   const onOuterAbort = () => controller.abort();
   if (outer) {
@@ -77,6 +97,7 @@ async function performRequest(
       init,
       sourceBaseUrl,
       controller.signal,
+      sourceId,
     );
   } finally {
     tracked?.delete(controller);
@@ -89,6 +110,7 @@ async function performRequestInner(
   init: RequestInit | undefined,
   sourceBaseUrl: string | undefined,
   signal: AbortSignal,
+  sourceId?: string,
 ): Promise<TamdokResponse> {
   const initHeaders = headersFromInit(init?.headers);
   const method = init?.method ?? "GET";
@@ -97,15 +119,33 @@ async function performRequestInner(
   delete passthrough.method;
   delete passthrough.body;
   delete passthrough.signal;
-  const result = await sharedFetch({
-    url,
-    method,
-    headers: initHeaders,
-    body: init?.body,
-    signal,
-    sourceBaseUrl,
-    passthrough: passthrough as RequestInit,
-  });
+  let result: Awaited<ReturnType<typeof sharedFetch>>;
+  try {
+    result = await sharedFetch({
+      url,
+      method,
+      headers: initHeaders,
+      body: init?.body,
+      signal,
+      sourceBaseUrl,
+      passthrough: passthrough as RequestInit,
+      onLog: (_level, message) => {
+        if (sourceId && /retry/i.test(message)) reportSourceTrouble(sourceId);
+      },
+    });
+  } catch (error) {
+    if (sourceId && (error as Error)?.name !== "AbortError") {
+      reportSourceTrouble(sourceId);
+    }
+    throw error;
+  }
+  if (sourceId) {
+    if (result.status === 429 || result.status >= 500) {
+      reportSourceTrouble(sourceId);
+    } else if (result.status < 400) {
+      reportSourceHealthy(sourceId);
+    }
+  }
   return createResponse(result);
 }
 
