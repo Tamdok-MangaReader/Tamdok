@@ -1,3 +1,4 @@
+import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -209,12 +210,7 @@ export default function SourceSearchScreen() {
 
   if (!source) {
     return (
-      <ScreenContent centerContent>
-        <EmptyState
-          icon="alert-circle-outline"
-          title={t("sources_not_found")}
-        />
-      </ScreenContent>
+      <SourceNotFound />
     );
   }
 

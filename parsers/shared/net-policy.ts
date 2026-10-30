@@ -22,9 +22,13 @@ export function baseGapForHost(host: string): number {
     host.includes('hentailib') ||
     host.includes('slashlib')
   ) {
-    return 80;
+    return 250;
   }
-  if (host.includes('nhentai')) return 120;
+  if (host.includes('nhentai')) return 200;
+  if (host.includes('mangadex')) return 220;
+  if (host.includes('senkuro') || host.includes('senkognito')) return 250;
+  if (host.includes('remanga')) return 200;
+  if (host.includes('asura')) return 150;
   return 0;
 }
 

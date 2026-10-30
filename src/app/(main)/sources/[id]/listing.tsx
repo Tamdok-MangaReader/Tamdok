@@ -1,3 +1,4 @@
+import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
@@ -159,12 +160,7 @@ export default function SourceListingScreen() {
     return (
       <>
         <Stack.Screen options={{ title: t("sources") }} />
-        <ScreenContent centerContent>
-          <EmptyState
-            icon="alert-circle-outline"
-            title={t("sources_not_found")}
-          />
-        </ScreenContent>
+        <SourceNotFound />
       </>
     );
   }

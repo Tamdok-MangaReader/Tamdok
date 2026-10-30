@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 import {
+  Fragment,
   memo,
   useCallback,
   useDeferredValue,
@@ -47,7 +48,6 @@ import { usePagerHeights } from "@/hooks/use-pager-heights";
 import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { getAppSettings } from "@/services/app-settings";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
-import { VirtualRows } from "@/components/ui/virtual-rows";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
@@ -435,16 +435,16 @@ const SourcesPage = memo(function SourcesPage({
 
   return (
     <View collapsable={false} style={styles.root}>
-      <VirtualRows
-        rows={rows}
-        rowHeight={SOURCE_ROW_ESTIMATE}
-        keyOf={itemKeyExtractor}
-        renderRow={renderRow}
-        pageId={pageId}
-        onHeight={onHeight}
+      <View
+        collapsable={false}
+        onLayout={handleEmptyLayout}
         style={contentContainerStyle}
-        footer={LIST_FOOTER}
-      />
+      >
+        {rows.map((row) => (
+          <Fragment key={itemKeyExtractor(row)}>{renderRow(row)}</Fragment>
+        ))}
+        {LIST_FOOTER}
+      </View>
     </View>
   );
 });

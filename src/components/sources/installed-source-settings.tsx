@@ -1,3 +1,4 @@
+import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -388,12 +389,7 @@ export function InstalledSourceSettings({
     return (
       <>
         <Stack.Screen options={{ title: t("source_settings_title") }} />
-        <ScreenContent centerContent>
-          <EmptyState
-            icon="alert-circle-outline"
-            title={t("sources_not_found")}
-          />
-        </ScreenContent>
+        <SourceNotFound />
       </>
     );
   }

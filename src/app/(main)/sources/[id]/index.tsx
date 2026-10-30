@@ -1,3 +1,4 @@
+import { SourceNotFound } from "@/components/sources/source-not-found";
 import { MeasuredPage } from "@/components/ui/measured-page";
 import { VirtualRows } from "@/components/ui/virtual-rows";
 import { usePagerHeights } from "@/hooks/use-pager-heights";
@@ -305,12 +306,7 @@ function RealSourceHomeScreen() {
     return (
       <>
         <Stack.Screen options={{ title: t("sources") }} />
-        <ScreenContent centerContent>
-          <EmptyState
-            icon="alert-circle-outline"
-            title={t("sources_not_found")}
-          />
-        </ScreenContent>
+        <SourceNotFound />
       </>
     );
   }

@@ -17,7 +17,6 @@ import { loadSourceHomeData } from "@/services/source-home-loader";
 
 const HOME_LOAD_TIMEOUT_MS = 90_000;
 const NHENTAI_HOME_LOAD_TIMEOUT_MS = 90_000;
-const NHENTAI_SOURCE_ID = "multi.nhentai";
 
 type UseSourceHomeOptions = {
   source: InstalledSource | undefined;
@@ -72,7 +71,7 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
 
       const requestId = ++requestIdRef.current;
       const homeTimeoutMs =
-        source.id === NHENTAI_SOURCE_ID
+        source.id.toLowerCase().includes("nhentai")
           ? NHENTAI_HOME_LOAD_TIMEOUT_MS
           : HOME_LOAD_TIMEOUT_MS;
 
@@ -99,6 +98,16 @@ export function useSourceHome({ source, runner }: UseSourceHomeOptions) {
           runner,
           source,
           manifestListings,
+          () => requestId !== requestIdRef.current,
+          (partial, partialListings) => {
+            if (requestId !== requestIdRef.current) return;
+            setHome(partial);
+            setListings(partialListings);
+            setHasCachedContent(true);
+            setLoadError(null);
+            setIsLoading(false);
+            setIsRefreshing(true);
+          },
         );
         if (requestId !== requestIdRef.current) return;
 

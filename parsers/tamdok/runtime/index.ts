@@ -10,8 +10,17 @@ import { parse } from "node-html-parser";
 
 const sourceControllers = new Map<string, Set<AbortController>>();
 const sourceWatchers = new Map<string, number>();
+const sourceBlockedUntil = new Map<string, number>();
+const CANCEL_BLOCK_MS = 4000;
+
+function cancelledError(): Error {
+  const error = new Error("Request aborted");
+  error.name = "AbortError";
+  return error;
+}
 
 export function retainTamdokSourceRequests(sourceId: string): void {
+  sourceBlockedUntil.delete(sourceId);
   sourceWatchers.set(sourceId, (sourceWatchers.get(sourceId) ?? 0) + 1);
 }
 
@@ -26,6 +35,7 @@ export function releaseTamdokSourceRequests(sourceId: string): void {
 }
 
 export function cancelTamdokSourceRequests(sourceId: string): void {
+  sourceBlockedUntil.set(sourceId, Date.now() + CANCEL_BLOCK_MS);
   const controllers = sourceControllers.get(sourceId);
   if (!controllers) return;
   sourceControllers.delete(sourceId);
@@ -38,6 +48,13 @@ async function performRequest(
   sourceBaseUrl?: string,
   sourceId?: string,
 ): Promise<TamdokResponse> {
+  if (
+    sourceId &&
+    !sourceWatchers.get(sourceId) &&
+    Date.now() < (sourceBlockedUntil.get(sourceId) ?? 0)
+  ) {
+    throw cancelledError();
+  }
   const controller = new AbortController();
   const outer = init?.signal;
   const onOuterAbort = () => controller.abort();

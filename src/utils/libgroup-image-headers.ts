@@ -8,9 +8,10 @@ const LIBGROUP_SITE_IDS: Record<string, string> = {
   'ru.hentailib': '4',
 };
 
-function isLibgroupSource(source: InstalledSource, settings: Record<string, unknown>): boolean {
-  if (source.kind !== 'aidoku') return false;
-  return typeof settings.apiUrl === 'string' && typeof settings.imageServerUrl === 'string';
+const LIBGROUP_DEFAULT_API = 'https://api.cdnlibs.org';
+
+function libgroupIdentity(source: InstalledSource): string {
+  return source.id.endsWith('.tamdok') ? source.id.slice(0, -'.tamdok'.length) : source.id;
 }
 
 function encodeBasicAuth(username: string, password: string): string {
@@ -63,14 +64,12 @@ export function resolveLibgroupCoverHeaders(source: InstalledSource, settings: R
     };
   }
 
-  if (!isLibgroupSource(source, settings)) return undefined;
-
-  const siteId = LIBGROUP_SITE_IDS[source.id];
+  const siteId = LIBGROUP_SITE_IDS[libgroupIdentity(source)];
   if (!siteId) return undefined;
 
-  const baseUrl = String(settings.baseUrl ?? source.manifest.info.url ?? '').replace(/\/$/, '');
-  const apiUrl = String(settings.apiUrl ?? '').replace(/\/$/, '');
-  if (!baseUrl || !apiUrl) return undefined;
+  const baseUrl = String(settings.baseUrl || source.manifest.info.url || '').replace(/\/$/, '');
+  const apiUrl = String(settings.apiUrl || LIBGROUP_DEFAULT_API).replace(/\/$/, '');
+  if (!baseUrl) return undefined;
 
   return {
     Origin: baseUrl,

@@ -45,6 +45,8 @@ export async function loadSourceHomeData(
   runner: SourceRunner,
   source: { id?: string; manifest: { listings?: Listing[] } } | undefined,
   manifestListings: Listing[],
+  isCancelled: () => boolean = () => false,
+  onPartial?: (home: HomeLayout, listings: Listing[]) => void,
 ): Promise<SourceHomeLoadResult> {
   let homeLayout = await loadSourceHome(runner, manifestListings, source?.id);
   const sourceListings = (await runner.getListings?.()) ?? manifestListings;
@@ -54,8 +56,18 @@ export async function loadSourceHomeData(
   }
 
   const previousDetails = await loadPreviousHomeDetails(source?.id);
+
+  if (onPartial && !isCancelled()) {
+    const quick = buildQuickHome(homeLayout, source?.id, previousDetails);
+    if (quick.components.length > 0) {
+      onPartial(
+        quick,
+        sourceListings.filter((listing) => listing.name || listing.id),
+      );
+    }
+  }
   homeLayout =
-    (await enrichHomeLayout(runner, homeLayout, sourceListings, source?.id, previousDetails)) ?? {
+    (await enrichHomeLayout(runner, homeLayout, sourceListings, source?.id, previousDetails, isCancelled)) ?? {
       components: [],
     };
 
@@ -67,6 +79,41 @@ export async function loadSourceHomeData(
     home: homeLayout,
     listings: sourceListings.filter((listing) => listing.name || listing.id),
   };
+}
+
+function buildQuickHome(
+  home: HomeLayout,
+  sourceId?: string,
+  previousDetails?: Map<string, Manga>,
+): HomeLayout {
+  const components: HomeComponent[] = [];
+  for (const component of home.components) {
+    if (component.entries.length === 0 && component.kind !== 'mangaChapterList') continue;
+    if (isRemangaSource(sourceId) && component.kind === 'scroller') {
+      components.push({
+        ...component,
+        kind: 'mangaGrid',
+        pageSize: component.pageSize ?? component.entries.length,
+      });
+      continue;
+    }
+    const treatAsBigScroller =
+      component.kind === 'bigScroller' ||
+      (component.kind === 'scroller' && isPopularHomeComponent(component));
+    if (treatAsBigScroller) {
+      components.push({
+        ...component,
+        kind: 'bigScroller',
+        entries: component.entries
+          .slice(0, 12)
+          .map((manga) => preserveHomeCover(manga.cover, overlayCachedDetails(manga, previousDetails?.get(manga.key)))),
+        autoScrollInterval: component.autoScrollInterval ?? DEFAULT_BIG_SCROLLER_INTERVAL,
+      });
+      continue;
+    }
+    components.push(component);
+  }
+  return { components };
 }
 
 async function loadSourceHome(
@@ -94,6 +141,7 @@ async function enrichHomeLayout(
   listings: Listing[],
   sourceId?: string,
   previousDetails?: Map<string, Manga>,
+  isCancelled: () => boolean = () => false,
 ): Promise<HomeLayout> {
   const skipListingFallback = isNhentaiSource(sourceId);
   // Aidoku home already ships latest chapters; re-fetching every tile is slow and can 429.
@@ -132,10 +180,10 @@ async function enrichHomeLayout(
 
       // Reuse cached description/tags; only fetch tiles that have never been seen.
       if (!isNhentaiSource(sourceId)) {
-        entries = await enrichBigScrollerEntries(runner, entries, sourceId, previousDetails);
+        entries = await enrichBigScrollerEntries(runner, entries, sourceId, previousDetails, isCancelled);
       }
       if (!skipEntryEnrichment) {
-        entries = await enrichWithLatestChapters(runner, entries);
+        entries = await enrichWithLatestChapters(runner, entries, isCancelled);
       }
       return {
         ...component,
@@ -148,7 +196,7 @@ async function enrichHomeLayout(
     if (component.kind === 'scroller' && component.entries.length > 0) {
       let entries = skipEntryEnrichment
         ? component.entries
-        : await enrichWithLatestChapters(runner, component.entries);
+        : await enrichWithLatestChapters(runner, component.entries, isCancelled);
       let scrollerEntries = component.scrollerEntries;
 
       if (scrollerEntries?.length) {
@@ -186,7 +234,7 @@ async function enrichHomeLayout(
       let entries = page.entries.slice(0, limit);
       if (entries.length === 0) return null;
       if (component.kind === 'scroller' && !skipEntryEnrichment) {
-        entries = await enrichWithLatestChapters(runner, entries);
+        entries = await enrichWithLatestChapters(runner, entries, isCancelled);
       }
       return {
         ...component,
@@ -248,16 +296,21 @@ function preserveHomeCover(homeCover: string | undefined, manga: Manga): Manga {
   return { ...manga, cover: homeCover };
 }
 
-async function enrichWithLatestChapters(runner: SourceRunner, entries: Manga[]): Promise<Manga[]> {
+async function enrichWithLatestChapters(
+  runner: SourceRunner,
+  entries: Manga[],
+  isCancelled: () => boolean = () => false,
+): Promise<Manga[]> {
   if (!runner.getMangaUpdate) return entries;
 
   const needsEnrichment = entries.filter((manga) => !manga.chapters?.length);
   if (needsEnrichment.length === 0) return entries;
 
   const enriched = new Map<string, Manga>();
-  const concurrency = 4;
+  const concurrency = 2;
 
   for (let index = 0; index < needsEnrichment.length; index += concurrency) {
+    if (isCancelled()) break;
     const batch = needsEnrichment.slice(index, index + concurrency);
     const results = await Promise.all(
       batch.map(async (manga) => {
@@ -284,6 +337,7 @@ async function enrichBigScrollerEntries(
   entries: Manga[],
   sourceId?: string,
   previousDetails?: Map<string, Manga>,
+  isCancelled: () => boolean = () => false,
 ): Promise<Manga[]> {
   const detailCache = sourceId
     ? await readMangaDetailsMap(
@@ -306,9 +360,10 @@ async function enrichBigScrollerEntries(
   if (needsFetch.length === 0) return hydrated;
 
   const fetched = new Map<string, Manga>();
-  const concurrency = 4;
+  const concurrency = 2;
 
   for (let index = 0; index < needsFetch.length; index += concurrency) {
+    if (isCancelled()) break;
     const batch = needsFetch.slice(index, index + concurrency);
     const results = await Promise.all(
       batch.map(async (manga) => {

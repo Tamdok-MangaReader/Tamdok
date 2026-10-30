@@ -20,6 +20,8 @@ import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useTheme } from "@/hooks/use-theme";
 
+const noop = () => {};
+
 type SourceListItemProps = ComponentProps<typeof SourceListItem>;
 
 type SourceInstalledActionsProps = SourceContextMenuOptions & {
@@ -122,7 +124,11 @@ function SourceInstalledActionsNative({
       <ContextMenu>
         <ContextMenu.Trigger>
           <RNHostView matchContents={{ vertical: true }}>
-            {cloneElement(children, { onPress })}
+            {cloneElement(children, {
+              onPress,
+              onLongPress: noop,
+              delayLongPress: 250,
+            })}
           </RNHostView>
         </ContextMenu.Trigger>
         <ContextMenu.Items>

@@ -30,6 +30,7 @@ type SourceListItemProps = {
   trailing?: React.ReactNode;
   onPress?: () => void;
   onLongPress?: () => void;
+  delayLongPress?: number;
   imageTransition?: number;
 };
 
@@ -45,6 +46,7 @@ export const SourceListItem = memo(function SourceListItem({
   trailing,
   onPress,
   onLongPress,
+  delayLongPress,
   imageTransition = 150,
 }: SourceListItemProps) {
   const { colors, radius } = useTheme();
@@ -63,6 +65,7 @@ export const SourceListItem = memo(function SourceListItem({
     const pressable = containerProps as React.ComponentProps<typeof Pressable>;
     pressable.onPress = onPress;
     pressable.onLongPress = onLongPress;
+    pressable.delayLongPress = delayLongPress;
     pressable.style = ({ pressed }: { pressed: boolean }) => [
       styles.row,
       pressed && onPress != null && { backgroundColor: colors.quaternaryFill },

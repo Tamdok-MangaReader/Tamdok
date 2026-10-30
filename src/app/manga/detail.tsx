@@ -1,3 +1,4 @@
+import { SourceNotFound } from "@/components/sources/source-not-found";
 import {
   Stack,
   useFocusEffect,
@@ -834,34 +835,33 @@ export default function MangaDetailScreen() {
   const missingAlertShown = useRef(false);
   useEffect(() => {
     if (source || missingAlertShown.current || !installedReady) return;
-    missingAlertShown.current = true;
-    Alert.alert(t("sources_not_found"), t("manga_source_missing_message"), [
-      { text: t("ok"), style: "cancel" },
-      {
-        text: t("manga_transfer"),
-        onPress: () =>
-          router.replace(
-            mangaTransferHref(
-              sourceRoute,
-              mangaKey,
-              initialManga.title,
-              initialManga.cover,
+    const timer = setTimeout(() => {
+      if (missingAlertShown.current) return;
+      missingAlertShown.current = true;
+      Alert.alert(t("sources_not_found"), t("manga_source_missing_message"), [
+        { text: t("ok"), style: "cancel" },
+        {
+          text: t("manga_transfer"),
+          onPress: () =>
+            router.replace(
+              mangaTransferHref(
+                sourceRoute,
+                mangaKey,
+                initialManga.title,
+                initialManga.cover,
+              ),
             ),
-          ),
-      },
-    ]);
+        },
+      ]);
+    }, 450);
+    return () => clearTimeout(timer);
   }, [source, installedReady, router, sourceRoute, mangaKey, initialManga]);
 
   if (!source) {
     return (
       <>
         <Stack.Screen options={{ title: t("sources_not_found") }} />
-        <ScreenContent>
-          <EmptyState
-            icon="alert-circle-outline"
-            title={t("sources_not_found")}
-          />
-        </ScreenContent>
+        <SourceNotFound />
       </>
     );
   }
