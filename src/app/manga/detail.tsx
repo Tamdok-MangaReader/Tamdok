@@ -4,6 +4,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
+import { useTheme } from "@/hooks/use-theme";
 import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -175,6 +176,7 @@ export default function MangaDetailScreen() {
   }>();
   const sourceRoute = decodeParam(params.sourceId);
   const mangaKey = decodeParam(params.mangaKey);
+  const { colors } = useTheme();
   const { installed, isLoading: sourcesLoading } = useSources();
   const installedReady = !sourcesLoading;
   const source = findInstalledSource(installed, sourceRoute);
@@ -695,7 +697,10 @@ export default function MangaDetailScreen() {
       <View style={styles.headerActions}>
         {isRefreshing ? (
           <View style={styles.refreshIndicator}>
-            <ActivityIndicator size="small" />
+            <ActivityIndicator
+              size="small"
+              color={showBigMangaCover ? colors.tint : undefined}
+            />
           </View>
         ) : null}
         <MangaDetailHeaderRight
@@ -721,7 +726,15 @@ export default function MangaDetailScreen() {
         />
       </View>
     ),
-    [chapterSelectMode, hasDownloads, inLibrary, isRefreshing, mangaPageUrl],
+    [
+      chapterSelectMode,
+      hasDownloads,
+      inLibrary,
+      isRefreshing,
+      mangaPageUrl,
+      showBigMangaCover,
+      colors.tint,
+    ],
   );
 
   const headerLeft = useCallback(
