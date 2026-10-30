@@ -1,3 +1,10 @@
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import {
@@ -34,6 +41,7 @@ import {
   SwipeableRowsProvider,
   type SwipeAction,
 } from "@/components/sources/swipeable-row";
+import { CoverPreview } from "@/components/manga/cover-preview";
 import { MangaBackground } from "@/components/manga/manga-image-background";
 import { EmptyState } from "@/components/ui/empty-state";
 import { GlassSurface } from "@/components/ui/glass-surface";
@@ -385,6 +393,23 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     [radius.md, colors.secondaryFill],
   );
 
+  const coverScale = useSharedValue(1);
+  const coverPressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: coverScale.value }],
+  }));
+  const handleCoverPressIn = useCallback(() => {
+    coverScale.value = withTiming(0.94, { duration: 220 });
+  }, [coverScale]);
+  const handleCoverPressOut = useCallback(() => {
+    coverScale.value = withSpring(1, { damping: 14, stiffness: 220 });
+  }, [coverScale]);
+  const [coverPreviewOpen, setCoverPreviewOpen] = useState(false);
+  const handleCoverLongPress = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setCoverPreviewOpen(true);
+  }, []);
+  const closeCoverPreview = useCallback(() => setCoverPreviewOpen(false), []);
+
   const statusPill =
     manga.status && manga.status !== "unknown"
       ? getStatusPill(manga.status)
@@ -547,8 +572,22 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       ) : null}
       <IncognitoModeBanner />
 
+      <CoverPreview
+        visible={coverPreviewOpen}
+        source={coverSource}
+        onClose={closeCoverPreview}
+      />
+
       <View style={styles.hero}>
-        <View style={coverStyle}>
+        <Pressable
+          onLongPress={handleCoverLongPress}
+          onPressIn={handleCoverPressIn}
+          onPressOut={handleCoverPressOut}
+          delayLongPress={250}
+          disabled={!coverSource}
+          accessibilityRole="imagebutton"
+        >
+        <Animated.View style={[coverStyle, coverPressStyle]}>
           {coverSource ? (
             <Image
               source={coverSource}
@@ -596,7 +635,8 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
               ) : null}
             </View>
           ) : null}
-        </View>
+        </Animated.View>
+        </Pressable>
 
         {!showBigMangaCover ? (
           <View style={styles.heroMeta}>{heroMeta}</View>
