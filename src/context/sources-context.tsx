@@ -42,6 +42,7 @@ import {
   getRegistryUrls,
   getShowNsfwSources,
   getSourceLayout,
+  getSourceLayoutKey,
   initializeSources,
   installFromRegistry,
   installSourcePackage,
@@ -171,6 +172,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
     pinned: [],
   });
   const installedRef = useRef<InstalledSource[]>([]);
+  const autoPinnedRef = useRef<Set<string>>(new Set());
   const lastForegroundCheckRef = useRef(0);
 
   const setInstalled = useCallback((next: InstalledSource[]) => {
@@ -253,9 +255,16 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       setPendingUpdates(updates);
 
       if (updates.length > 0) {
+        const before = await getSourceLayout();
         const nextLayout = await pinSources(
           updates.map((update) => update.source),
         );
+        for (const update of updates) {
+          const key = getSourceLayoutKey(update.source);
+          if (!before.pinned.includes(key) && nextLayout.pinned.includes(key)) {
+            autoPinnedRef.current.add(update.source.id);
+          }
+        }
         setSourceLayout(nextLayout);
         setInstalled(sortInstalledSources(liveSources, nextLayout));
       }
@@ -469,6 +478,16 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
         clearAidokuWasmExportCache(update.sourceId);
         await clearSourceHomeCache(update.sourceId);
         await refresh();
+        if (autoPinnedRef.current.delete(update.sourceId)) {
+          const target = installedRef.current.find(
+            (item) => item.id === update.sourceId,
+          );
+          if (target && isSourcePinned(target, await getSourceLayout(), installedRef.current)) {
+            const next = await unpinSource(target);
+            setInstalled(next);
+            setSourceLayout(await getSourceLayout());
+          }
+        }
       },
       uninstall: async (source) => {
         if (isIllustrationSource(source)) return;
@@ -477,11 +496,13 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
         await refresh();
       },
       pinSource: async (source) => {
+        autoPinnedRef.current.delete(source.id);
         const next = await pinSource(source);
         setInstalled(next);
         setSourceLayout(await getSourceLayout());
       },
       unpinSource: async (source) => {
+        autoPinnedRef.current.delete(source.id);
         const next = await unpinSource(source);
         setInstalled(next);
         setSourceLayout(await getSourceLayout());
