@@ -37,6 +37,7 @@ import { ReaderModeHint } from "@/components/reader/reader-mode-hint";
 import { useReaderChapterWindow } from "@/hooks/use-reader-chapter-window";
 import type { Chapter, Manga, Page } from "@/parsers/shared/types";
 import { getAppSettings } from "@/services/app-settings";
+import { syncReadingLiveActivity } from "@/services/library-live-activity";
 import { removeChapterDownload } from "@/services/downloads";
 import {
   lookupWord,
@@ -1023,6 +1024,21 @@ export function ReaderView({
   );
 
   const totalPages = activePages.length;
+  const liveChapterLabel = formatChapterLabel(activeChapter);
+  const liveMangaTitle = manga.title;
+
+  useEffect(() => {
+    if (totalPages <= 0) return;
+    syncReadingLiveActivity({
+      mangaTitle: liveMangaTitle,
+      chapterLabel: liveChapterLabel,
+      page: Math.min(currentPage + 1, totalPages),
+      total: totalPages,
+    });
+  }, [currentPage, totalPages, liveChapterLabel, liveMangaTitle]);
+
+  useEffect(() => () => syncReadingLiveActivity(null), []);
+
   const chrome: ReaderChromeState = useMemo(
     () => ({
       barsVisible,

@@ -52,10 +52,9 @@ export function normalizeRegistryContentRatings(
   if (!Array.isArray(registry.sources)) return registry;
   return {
     ...registry,
-    sources: registry.sources.map((entry) =>
-      registryEntryKind(registryUrl, entry) === "aidoku"
-        ? { ...entry, contentRating: shiftAidokuContentRating(entry.contentRating) }
-        : entry,
-    ),
+    sources: registry.sources.map((entry) => ({
+      ...entry,
+      contentRating: shiftAidokuContentRating(entry.contentRating),
+    })),
   };
 }

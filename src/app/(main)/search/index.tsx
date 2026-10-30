@@ -1,3 +1,4 @@
+import { useHeaderHeight } from "@react-navigation/elements";
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -76,6 +77,8 @@ export default function SearchScreen() {
   const router = useRouter();
   const { stackSearchBarProps, isDark } = useNavigationTheme();
   const { installed } = useSources();
+  const headerHeight = useHeaderHeight();
+  const listRef = useRef<FlatList<SourceSearchGroup>>(null);
   const [query, setQuery] = useState("");
   const [committedQuery, setCommittedQuery] = useState("");
   const [filters, setFilters] = useState<GlobalSearchFilters>(
@@ -319,6 +322,10 @@ export default function SearchScreen() {
     ],
   );
 
+  useEffect(() => {
+    listRef.current?.scrollToOffset({ offset: -headerHeight, animated: true });
+  }, [resetKey, headerHeight]);
+
   const filterBar = useMemo(
     () => (
       <GlobalSearchFilterBar
@@ -429,6 +436,7 @@ export default function SearchScreen() {
       ) : (
         <ThemedView color="groupedBackground" style={styles.root}>
           <FlatList
+            ref={listRef}
             style={styles.list}
             data={listData}
             keyExtractor={keyExtractor}

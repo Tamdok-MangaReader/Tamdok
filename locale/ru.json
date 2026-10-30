@@ -405,6 +405,8 @@
   "reader_crop_borders": "Обрезать поля",
   "reader_disable_quick_actions": "Отключить быстрые действия",
   "reader_disable_double_tap": "Отключить зум двойным нажатием",
+  "reader_reading_live_activity": "Live Activity при чтении",
+  "reader_live_activity_title": "Читаю",
   "reader_live_text": "Live Text",
   "reader_live_text_hint": "Выделять и копировать текст со страниц (iOS).",
   "reader_background_color": "Цвет фона",

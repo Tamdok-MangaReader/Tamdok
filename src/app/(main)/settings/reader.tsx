@@ -176,6 +176,12 @@ export default function ReaderSettingsScreen() {
           />
           <CardSeparator />
           <SettingSwitch
+            label={t('reader_reading_live_activity')}
+            value={settings.showReadingLiveActivity}
+            onChange={(value) => patch({ showReadingLiveActivity: value })}
+          />
+          <CardSeparator />
+          <SettingSwitch
             label={t('reader_hide_bars_on_swipe')}
             value={settings.hideBarsOnSwipe}
             onChange={(value) => patch({ hideBarsOnSwipe: value })}

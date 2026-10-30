@@ -15,6 +15,7 @@ import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import type { InstalledSource, RegistryEntry } from "@/parsers/shared/types";
 import { useTheme } from "@/hooks/use-theme";
+import { getSuggestiveAgeLabel } from "@/utils/age-rating";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 
 type SourceListItemProps = {
@@ -139,7 +140,7 @@ export const SourceListItem = memo(function SourceListItem({
             ]}
           >
             <ThemedText variant="caption2" style={styles.updateBadgeText}>
-              {rating === 3 ? "nsfw" : rating === 2 ? "16+" : "safe"}
+              {rating === 3 ? "nsfw" : rating === 2 ? getSuggestiveAgeLabel() : "safe"}
             </ThemedText>
           </View>
         )}

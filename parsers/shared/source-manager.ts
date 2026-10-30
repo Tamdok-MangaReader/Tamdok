@@ -78,7 +78,6 @@ export async function listInstalledSources(): Promise<InstalledSource[]> {
 }
 
 function adaptManifestRating(manifest: SourceManifest, kind: SourceKind): SourceManifest {
-  if (kind !== 'aidoku') return manifest;
   return {
     ...manifest,
     info: { ...manifest.info, contentRating: shiftAidokuContentRating(manifest.info.contentRating) },
@@ -169,7 +168,7 @@ export async function installTamdokPackage(data: Uint8Array): Promise<InstalledS
   return {
     id: pkg.manifest.info.id,
     kind: 'tamdok',
-    manifest: pkg.manifest,
+    manifest: adaptManifestRating(pkg.manifest, 'tamdok'),
     installPath: dir,
     iconUri: pkg.icon ? normalizeInstalledIconPath(joinInstallPath(dir, 'icon.png')) : undefined,
   };

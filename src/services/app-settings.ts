@@ -39,6 +39,7 @@ export type ReaderSettings = {
   disableQuickActions: boolean;
   disableDoubleTap: boolean;
   liveText: boolean;
+  showReadingLiveActivity: boolean;
   hideBarsOnSwipe: boolean;
   hideStatusBarWithMenu: boolean;
   backgroundColor: ReaderBackgroundColor;
@@ -127,6 +128,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     disableQuickActions: false,
     disableDoubleTap: false,
     liveText: false,
+    showReadingLiveActivity: true,
     hideBarsOnSwipe: true,
     hideStatusBarWithMenu: true,
     backgroundColor: "black",

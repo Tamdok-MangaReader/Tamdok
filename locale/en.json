@@ -406,6 +406,8 @@
   "reader_disable_quick_actions": "Disable quick actions",
   "reader_disable_double_tap": "Disable double tap zoom",
   "reader_live_text": "Live Text",
+  "reader_reading_live_activity": "Reading Live Activity",
+  "reader_live_activity_title": "Reading",
   "reader_live_text_hint": "Select and copy text from page images (iOS).",
   "reader_background_color": "Background color",
   "reader_background_system": "System",

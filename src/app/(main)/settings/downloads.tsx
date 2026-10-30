@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -76,6 +77,13 @@ function formatStatus(entry: DownloadEntry): string {
   return t('downloads_status_pending');
 }
 
+function statusIcon(status: DownloadEntry['status']): keyof typeof Ionicons.glyphMap {
+  if (status === 'completed') return 'checkmark-circle';
+  if (status === 'failed') return 'alert-circle';
+  if (status === 'downloading') return 'arrow-down-circle-outline';
+  return 'time-outline';
+}
+
 function sourceKindLabel(kind: string): string {
   return kind.toUpperCase();
 }
@@ -122,9 +130,9 @@ function DownloadMangaGroupRow({
   });
 
   return (
-    <View style={styles.mangaGroup}>
+    <View style={[styles.mangaGroup, { backgroundColor: colors.secondarySystemBackground, borderRadius: radius.md }]}>
       <SwipeableRow rowId={`${group.key}:manga`} actions={[deleteMangaAction]} fullSwipeActionKey='delete'>
-        <Pressable style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]} onPress={() => onOpenManga(group)}>
+        <Pressable style={styles.mangaRow} onPress={() => onOpenManga(group)}>
           <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
             {group.cover && coverHeadersReady ? (
               <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling />
@@ -135,21 +143,29 @@ function DownloadMangaGroupRow({
             )}
           </View>
           <View style={styles.mangaMeta}>
-            <ThemedText variant='body' numberOfLines={2}>
+            <ThemedText variant='headline' numberOfLines={2}>
               {group.mangaTitle}
             </ThemedText>
-            <ThemedText variant='footnote' color='secondaryLabel' numberOfLines={1}>
-              {sourceLabel}
-            </ThemedText>
-            <ThemedText variant='caption1' color='tertiaryLabel'>
-              {t('downloads_chapter_count', { count: String(group.chapters.length) })}
-            </ThemedText>
+            <View style={styles.metaLine}>
+              <View style={[styles.sourceChip, { backgroundColor: colors.tertiaryFill }]}>
+                <ThemedText variant='caption1' color='secondaryLabel' numberOfLines={1}>
+                  {sourceLabel}
+                </ThemedText>
+              </View>
+            </View>
+            <View style={styles.metaLine}>
+              <Ionicons name='download-outline' size={13} color={colors.tertiaryLabel} />
+              <ThemedText variant='caption1' color='tertiaryLabel'>
+                {t('downloads_chapter_count', { count: String(group.chapters.length) })}
+              </ThemedText>
+            </View>
           </View>
+          <Ionicons name='chevron-forward' size={16} color={colors.tertiaryLabel} />
         </Pressable>
       </SwipeableRow>
 
       {group.chapters.length > 0 ? (
-        <View style={[styles.chapterList, { borderLeftColor: colors.separator }]}>
+        <View style={[styles.chapterList, { borderTopColor: colors.separator }]}>
           {visibleChapters.map((chapter) => (
             <SwipeableRow
               key={`${chapter.chapterKey}:${chapter.dateAdded}`}
@@ -157,12 +173,21 @@ function DownloadMangaGroupRow({
               actions={[deleteChapterAction(chapter)]}
               fullSwipeActionKey='delete'>
               <View style={styles.chapterRow}>
+                <Ionicons
+                  name={statusIcon(chapter.status)}
+                  size={15}
+                  color={chapter.status === 'failed' ? colors.destructive : chapter.status === 'completed' ? colors.tint : colors.tertiaryLabel}
+                />
                 <ThemedText variant='subheadline' numberOfLines={2} style={styles.chapterTitle}>
                   {formatDownloadChapterLabel(chapter)}
                 </ThemedText>
-                <ThemedText variant='caption1' color='secondaryLabel'>
-                  {formatStatus(chapter)}
-                </ThemedText>
+                <View style={[styles.statusChip, { backgroundColor: colors.tertiaryFill }]}>
+                  <ThemedText variant='caption2' color={chapter.status === 'failed' ? 'destructive' : 'secondaryLabel'}>
+                    {chapter.status === 'downloading' && chapter.progress > 0
+                      ? `${formatStatus(chapter)} ${Math.round(chapter.progress * 100)}%`
+                      : formatStatus(chapter)}
+                  </ThemedText>
+                </View>
               </View>
             </SwipeableRow>
           ))}
@@ -172,6 +197,7 @@ function DownloadMangaGroupRow({
               <ThemedText variant='subheadline' color='tint'>
                 {t('history_show_more', { count: String(hiddenCount) })}
               </ThemedText>
+              <Ionicons name='chevron-down' size={14} color={colors.tint} />
             </Pressable>
           ) : null}
         </View>
@@ -364,44 +390,63 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   mangaGroup: {
-    gap: Spacing.xs,
+    overflow: 'hidden',
   },
   mangaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
   },
   cover: {
-    width: 48,
-    height: 68,
+    width: 56,
+    height: 80,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   mangaMeta: {
     flex: 1,
-    gap: 2,
+    gap: 4,
+  },
+  metaLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sourceChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    maxWidth: '100%',
   },
   chapterList: {
-    marginLeft: 24,
-    paddingLeft: Spacing.md,
-    borderLeftWidth: StyleSheet.hairlineWidth * 2,
-    gap: Spacing.xs,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.xs,
   },
   chapterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
   },
   chapterTitle: {
     flex: 1,
   },
+  statusChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
   showMoreButton: {
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
   },
 });

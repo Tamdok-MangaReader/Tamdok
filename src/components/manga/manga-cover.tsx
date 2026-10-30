@@ -98,7 +98,8 @@ export const MangaCover = memo(function MangaCover({
   const showDownloaded = inLibrary && downloadedCount > 0;
   const showBookmarkBadge = showBookmark && inLibrary;
   const coverDisplay = useCoverDisplay();
-  const showStatusBadge = showStatus && coverDisplay.showStatusBadge && !updateFailed;
+  const showStatusBadge =
+    showStatus && coverDisplay.showStatusBadge && !updateFailed;
 
   const pressableStyle = useMemo(() => [styles.pressable, { width }], [width]);
 
@@ -343,7 +344,6 @@ const styles = StyleSheet.create({
   countBadge: {
     minWidth: 20,
     height: 20,
-    borderRadius: 10,
     paddingHorizontal: 6,
     alignItems: "center",
     justifyContent: "center",

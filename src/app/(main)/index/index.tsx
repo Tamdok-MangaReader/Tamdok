@@ -1,7 +1,13 @@
 import { Stack, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, RefreshControl, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from "react-native";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 
@@ -637,24 +643,25 @@ export default function LibraryScreen() {
       </View>
     ) : null;
 
-  const listHeader = (
-    <>
-      <IncognitoModeBanner />
-      {refreshStatus}
-    </>
-  );
+  const listHeader = <IncognitoModeBanner />;
+  const isRefreshingAny = refreshing || refreshProgress != null;
 
   return (
     <>
       <Stack.Screen
         options={{
-          headerRight: () => (
-            <HeaderIconButton
-              icon="refresh-outline"
-              accessibilityLabel={t("library_refresh_all")}
-              onPress={handleRefresh}
-            />
-          ),
+          headerRight: () =>
+            isRefreshingAny ? (
+              <View style={styles.headerSpinner}>
+                <ActivityIndicator color={colors.tint} />
+              </View>
+            ) : (
+              <HeaderIconButton
+                icon="refresh-outline"
+                accessibilityLabel={t("library_refresh_all")}
+                onPress={handleRefresh}
+              />
+            ),
         }}
       />
 
@@ -679,6 +686,7 @@ export default function LibraryScreen() {
           >
             {listHeader}
             <View style={{ height: spacerHeight }} />
+            {refreshStatus}
             <AnimatedPagerView
               ref={pagerRef}
               key={pagerKey}
@@ -734,6 +742,12 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  headerSpinner: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   refreshStatus: {
     alignItems: "center",

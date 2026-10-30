@@ -328,11 +328,10 @@ export async function saveDownloadedPages(
   chapterKey: string,
   pageUrls: string[],
   headers?: Record<string, string>,
+  pageHeaders?: (Record<string, string> | undefined)[],
 ): Promise<void> {
   const dir = downloadDirectory(sourceId, mangaKey, chapterKey);
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-  const options =
-    headers && Object.keys(headers).length > 0 ? { headers } : undefined;
 
   const files: (string | null)[] = new Array(pageUrls.length).fill(null);
   let nextIndex = 0;
@@ -348,6 +347,9 @@ export async function saveDownloadedPages(
       if (url) {
         const target = `${dir}page_${String(index).padStart(4, "0")}.jpg`;
         try {
+          const merged = { ...headers, ...pageHeaders?.[index] };
+          const options =
+            Object.keys(merged).length > 0 ? { headers: merged } : undefined;
           const result = await FileSystem.downloadAsync(url, target, options);
           if (result.status < 200 || result.status >= 300) {
             throw new Error(`HTTP ${result.status}`);
@@ -436,6 +438,7 @@ export async function getDownloadStats(): Promise<{
 export type DownloadPageList = {
   urls: string[];
   headers?: Record<string, string>;
+  pageHeaders?: (Record<string, string> | undefined)[];
 };
 
 let queueTail: Promise<void> = Promise.resolve();
@@ -483,6 +486,9 @@ export async function processDownloadQueue(
           );
           const urls = Array.isArray(fetched) ? fetched : fetched.urls;
           const headers = Array.isArray(fetched) ? undefined : fetched.headers;
+          const pageHeaders = Array.isArray(fetched)
+            ? undefined
+            : fetched.pageHeaders;
           if (urls.length === 0) {
             await updateDownloadStatus(
               entry.sourceId,
@@ -500,6 +506,7 @@ export async function processDownloadQueue(
             entry.chapterKey,
             urls,
             headers,
+            pageHeaders,
           );
         } catch (error) {
           await updateDownloadStatus(

@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Platform,
   StyleSheet,
   TextInput,
@@ -11,7 +12,9 @@ import {
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { MangaGrid } from "@/components/manga/manga-grid";
+import { useHeaderHeight } from "@react-navigation/elements";
+
+import { MangaGrid, type MangaGridItem } from "@/components/manga/manga-grid";
 import { MangaSearchFilterBar } from "@/components/sources/manga-search-filter-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
@@ -66,6 +69,8 @@ export default function SourceSearchScreen() {
     setValues: setFilters,
     isLoading: filtersLoading,
   } = useSourceFilters(runner);
+  const headerHeight = useHeaderHeight();
+  const listRef = useRef<FlatList<MangaGridItem>>(null);
   const [query, setQuery] = useState(initialQuery);
   const [entries, setEntries] = useState<Manga[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -143,6 +148,7 @@ export default function SourceSearchScreen() {
   useEffect(() => {
     if (!runner || filtersLoading) return;
     const timer = setTimeout(() => {
+      listRef.current?.scrollToOffset({ offset: -headerHeight, animated: true });
       void load(1, false);
     }, SEARCH_DEBOUNCE_MS);
     return () => {
@@ -150,7 +156,7 @@ export default function SourceSearchScreen() {
       busyRef.current = false;
       clearTimeout(timer);
     };
-  }, [runner, query, filters, load, filtersLoading]);
+  }, [runner, query, filters, load, filtersLoading, headerHeight]);
 
   const submitQuery = useCallback(() => {
     router.setParams({ q: query });
@@ -290,6 +296,7 @@ export default function SourceSearchScreen() {
         ) : (
           <View style={styles.gridWrap}>
             <ResultsGrid
+              listRef={listRef}
               entries={entries}
               sourceId={sourceId}
               showRating={showRating}

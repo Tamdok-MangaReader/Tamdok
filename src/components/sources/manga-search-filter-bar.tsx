@@ -1082,6 +1082,11 @@ function MultiSelectOptionsImpl({
           placeholderTextColor={colors.tertiaryLabel}
           style={[styles.genreSearch, { color: colors.label }]}
           clearButtonMode="while-editing"
+          autoCorrect={false}
+          autoCapitalize="none"
+          spellCheck={false}
+          autoComplete="off"
+          textContentType="none"
         />
       </View>
 

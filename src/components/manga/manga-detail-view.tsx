@@ -54,6 +54,7 @@ import {
   formatChapterNumberValue,
 } from "@/utils/chapter-label";
 import { coverImageSource } from "@/utils/cover-image-source";
+import { getSuggestiveAgeLabel } from "@/utils/age-rating";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 import {
   parseMangaDescription,
@@ -228,7 +229,7 @@ const TagsBlock = memo(function TagsBlock({
               color="label"
               style={styles.typeText}
             >
-              {`${contentRating === "suggestive" ? "16+" : "NSFW"}`}
+              {`${contentRating === "suggestive" ? getSuggestiveAgeLabel() : "NSFW"}`}
             </ThemedText>
           </GlassSurface>
         ) : null}
@@ -389,10 +390,155 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       ? getStatusPill(manga.status)
       : null;
 
+  const heroMeta = (
+    <>
+      <ThemedText variant="title2" numberOfLines={2}>
+        {manga.title}
+      </ThemedText>
+      {sourceName ? (
+        <View style={styles.sourceRow}>
+          <ThemedText
+            variant="subheadline"
+            color="tint"
+            style={showBigMangaCover ? styles.sourceNameBold : undefined}
+          >
+            {sourceName}
+          </ThemedText>
+          {sourceKind ? (
+            <GlassSurface borderRadius={radius.pill}>
+              <ThemedText
+                variant="footnote"
+                color="secondaryLabel"
+                style={styles.kindBadge}
+              >
+                {sourceKind === "aidoku" ? "Aidoku" : "Tamdok"}
+              </ThemedText>
+            </GlassSurface>
+          ) : null}
+        </View>
+      ) : null}
+      {altTitles.length > 0 ? (
+        <View style={styles.altTitles}>
+          <ThemedText
+            variant="callout"
+            color={showBigMangaCover ? "secondaryLabel" : "tertiaryLabel"}
+            numberOfLines={1}
+          >
+            {altTitles[0]}
+          </ThemedText>
+        </View>
+      ) : null}
+      {authors ? (
+        <ThemedText variant="subheadline" color="secondaryLabel">
+          {authors}
+        </ThemedText>
+      ) : null}
+      {artists && artists !== authors ? (
+        <ThemedText variant="footnote" color="secondaryLabel">
+          {artists}
+        </ThemedText>
+      ) : null}
+      {rating ? <StarRating rating={rating} bigger /> : null}
+      <View style={styles.pills}>
+        {statusPill && manga.status ? (
+          <GlassSurface
+            borderRadius={radius.pill}
+            style={styles.statusPill}
+            tintColor={statusPill.tint}
+          >
+            <SFSymbolIcon
+              name={statusPill.icon}
+              size={16}
+              color={colors.secondaryLabel}
+              fallback="globe-outline"
+            />
+            <ThemedText
+              variant="footnote"
+              color="secondaryLabel"
+              style={styles.statusText}
+            >
+              {formatStatus(manga.status)}
+            </ThemedText>
+          </GlassSurface>
+        ) : null}
+        {manga.viewer ? (
+          <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
+            <ThemedText
+              variant="footnote"
+              color="secondaryLabel"
+              style={styles.typeText}
+            >
+              {manga.viewer === "webtoon" ? "Webtoon" : "Manga"}
+            </ThemedText>
+          </GlassSurface>
+        ) : null}
+      </View>
+      {!chapterSelectMode ? (
+        <View style={styles.librarySection}>
+          <View style={styles.libraryRow}>
+            <Pressable
+              ref={libraryButtonRef}
+              onPress={onLibraryPress}
+              hitSlop={8}
+              style={libraryPressableStyle}
+            >
+              {inLibrary ? (
+                <GlassSurface
+                  borderRadius={radius.pill}
+                  style={[styles.libraryButton]}
+                  interactive
+                >
+                  {libraryButtonContent}
+                </GlassSurface>
+              ) : (
+                <View
+                  style={[
+                    styles.libraryButton,
+                    {
+                      borderRadius: radius.pill,
+                      backgroundColor: inLibrary
+                        ? colors.secondaryFill
+                        : colors.tint,
+                    },
+                  ]}
+                >
+                  {libraryButtonContent}
+                </View>
+              )}
+            </Pressable>
+            {canOpenInBrowser ? (
+              <Pressable
+                onPress={onOpenInBrowser}
+                hitSlop={8}
+                accessibilityRole="button"
+              >
+                <GlassSurface
+                  borderRadius={radius.pill}
+                  style={styles.safariButton}
+                  interactive
+                >
+                  <SFSymbolIcon
+                    name="safari"
+                    size={18}
+                    color={colors.tint}
+                    fallback="globe-outline"
+                  />
+                </GlassSurface>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+
   const showCounts = inLibrary && (unreadCount > 0 || downloadedCount > 0);
 
   return (
     <View style={styles.header}>
+      {showBigMangaCover && coverSource ? (
+        <MangaBackground source={coverSource} />
+      ) : null}
       {inlineError ? (
         <SourceHomeAlertBanner
           message={inlineError}
@@ -402,10 +548,6 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       <IncognitoModeBanner />
 
       <View style={styles.hero}>
-        {showBigMangaCover && coverSource ? (
-          <MangaBackground source={coverSource} />
-        ) : null}
-
         <View style={coverStyle}>
           {coverSource ? (
             <Image
@@ -456,152 +598,16 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           ) : null}
         </View>
 
-        <View style={styles.heroMeta}>
-          <ThemedText variant="title2" numberOfLines={2}>
-            {manga.title}
-          </ThemedText>
-          {sourceName ? (
-            <View style={styles.sourceRow}>
-              <ThemedText variant="subheadline" color="tint">
-                {sourceName}
-              </ThemedText>
-              {sourceKind ? (
-                <GlassSurface borderRadius={radius.pill}>
-                  <ThemedText
-                    variant="footnote"
-                    color="secondaryLabel"
-                    style={styles.kindBadge}
-                  >
-                    {sourceKind === "aidoku" ? "Aidoku" : "Tamdok"}
-                  </ThemedText>
-                </GlassSurface>
-              ) : null}
-            </View>
-          ) : null}
-          {altTitles.length > 0 ? (
-            <View style={styles.altTitles}>
-              <ThemedText
-                variant="callout"
-                color="tertiaryLabel"
-                numberOfLines={1}
-              >
-                {altTitles[0]}
-              </ThemedText>
-              {altTitles.length > 1 ? (
-                <GlassSurface
-                  glassStyle="regular"
-                  style={[styles.caltTitleBadge]}
-                >
-                  <ThemedText
-                    variant="footnote"
-                    color="tertiaryLabel"
-                  >{`+${altTitles.length - 1}`}</ThemedText>
-                </GlassSurface>
-              ) : null}
-            </View>
-          ) : null}
-          {authors ? (
-            <ThemedText variant="subheadline" color="secondaryLabel">
-              {authors}
-            </ThemedText>
-          ) : null}
-          {artists && artists !== authors ? (
-            <ThemedText variant="footnote" color="secondaryLabel">
-              {artists}
-            </ThemedText>
-          ) : null}
-          {rating ? <StarRating rating={rating} bigger /> : null}
-          <View style={styles.pills}>
-            {statusPill && manga.status ? (
-              <GlassSurface
-                borderRadius={radius.pill}
-                style={styles.statusPill}
-                tintColor={statusPill.tint}
-              >
-                <SFSymbolIcon
-                  name={statusPill.icon}
-                  size={16}
-                  color={colors.secondaryLabel}
-                  fallback="globe-outline"
-                />
-                <ThemedText
-                  variant="footnote"
-                  color="secondaryLabel"
-                  style={styles.statusText}
-                >
-                  {formatStatus(manga.status)}
-                </ThemedText>
-              </GlassSurface>
-            ) : null}
-            {manga.viewer ? (
-              <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
-                <ThemedText
-                  variant="footnote"
-                  color="secondaryLabel"
-                  style={styles.typeText}
-                >
-                  {manga.viewer === "webtoon" ? "Webtoon" : "Manga"}
-                </ThemedText>
-              </GlassSurface>
-            ) : null}
-          </View>
-          {!chapterSelectMode ? (
-            <View style={styles.librarySection}>
-              <View style={styles.libraryRow}>
-                <Pressable
-                  ref={libraryButtonRef}
-                  onPress={onLibraryPress}
-                  hitSlop={8}
-                  style={libraryPressableStyle}
-                >
-                  {inLibrary ? (
-                    <GlassSurface
-                      borderRadius={radius.pill}
-                      style={[styles.libraryButton]}
-                      interactive
-                    >
-                      {libraryButtonContent}
-                    </GlassSurface>
-                  ) : (
-                    <View
-                      style={[
-                        styles.libraryButton,
-                        {
-                          borderRadius: radius.pill,
-                          backgroundColor: inLibrary
-                            ? colors.secondaryFill
-                            : colors.tint,
-                        },
-                      ]}
-                    >
-                      {libraryButtonContent}
-                    </View>
-                  )}
-                </Pressable>
-                {canOpenInBrowser ? (
-                  <Pressable
-                    onPress={onOpenInBrowser}
-                    hitSlop={8}
-                    accessibilityRole="button"
-                  >
-                    <GlassSurface
-                      borderRadius={radius.pill}
-                      style={styles.safariButton}
-                      interactive
-                    >
-                      <SFSymbolIcon
-                        name="safari"
-                        size={18}
-                        color={colors.tint}
-                        fallback="globe-outline"
-                      />
-                    </GlassSurface>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
-        </View>
+        {!showBigMangaCover ? (
+          <View style={styles.heroMeta}>{heroMeta}</View>
+        ) : (
+          <GlassSurface
+            glassStyle="regular"
+            style={[styles.heroMeta, { padding: Spacing.sm }]}
+          >
+            {heroMeta}
+          </GlassSurface>
+        )}
       </View>
 
       {descriptionText ? (
@@ -1246,6 +1252,9 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.xl,
     paddingBottom: Spacing.sm,
+  },
+  sourceNameBold: {
+    fontWeight: "700",
   },
   hero: {
     flexDirection: "row",

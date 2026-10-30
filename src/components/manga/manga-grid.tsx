@@ -47,6 +47,7 @@ type MangaGridProps = {
   extraData?: unknown;
   scrollEnabled?: boolean;
   contentInsetAdjustmentBehavior?: "automatic" | "never";
+  listRef?: React.Ref<FlatList<MangaGridItem>>;
 };
 
 type CellProps = {
@@ -138,6 +139,7 @@ export function MangaGrid({
   extraData,
   scrollEnabled = true,
   contentInsetAdjustmentBehavior = "automatic",
+  listRef,
 }: MangaGridProps) {
   const { width } = useWindowDimensions();
   const itemWidth = useMemo(
@@ -200,6 +202,7 @@ export function MangaGrid({
 
   return (
     <FlatList
+      ref={listRef}
       key={`manga-grid-${columns}`}
       style={styles.root}
       data={entries as MangaGridItem[]}
