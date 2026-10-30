@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { isIllustrationMode } from "@/services/illustration-mode";
 import { Stack } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -149,7 +150,14 @@ export default function LibrarySettingsScreen() {
       getAppSettings(),
       getLibraryUpdateSettings(),
     ]);
-    setCategories(nextCategories);
+    setCategories(
+      isIllustrationMode()
+        ? nextCategories.filter(
+            (category) =>
+              isAllCategory(category.id) || !/nsfw/i.test(category.name),
+          )
+        : nextCategories,
+    );
     setDefaultCategoryIdState(nextDefault);
     setExcludedCategoryIds(nextExcluded);
     setUpdateOnWifiOnlyState(updateSettings.updateOnWifiOnly);

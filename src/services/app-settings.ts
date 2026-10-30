@@ -180,7 +180,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     sortMode: "unread",
   },
   mangaScreen: {
-    showBigMangaCover: false,
+    showBigMangaCover: true,
     showChapterNumber: true,
   },
   coverDisplay: {

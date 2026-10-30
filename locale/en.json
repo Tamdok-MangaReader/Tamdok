@@ -469,6 +469,7 @@
   "reader_chapter_bookmarked": "Bookmarked",
   "chapter_download": "Download",
   "chapter_remove_download": "Remove download",
+  "illustration_empty": "Nothing here yet",
   "reader_pages_remaining": "{count} pages left",
   "reader_chapter_started": "{title} started",
   "reader_chapter_started_hint": "Tap to show reader controls",

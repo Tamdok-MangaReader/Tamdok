@@ -469,6 +469,7 @@
   "reader_chapter_bookmarked": "В закладках",
   "chapter_download": "Загрузить",
   "chapter_remove_download": "Удалить из загрузок",
+  "illustration_empty": "Пока ничего нет",
   "reader_pages_remaining": "Осталось {count} стр.",
   "reader_chapter_started": "Начало: {title}",
   "reader_chapter_started_hint": "Нажмите, чтобы показать меню читалки",

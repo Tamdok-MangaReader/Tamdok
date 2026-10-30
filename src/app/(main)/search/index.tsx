@@ -1,4 +1,5 @@
 import { useHeaderHeight } from "@react-navigation/elements";
+import { isIllustrationSource } from "@/services/illustration-mode";
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -76,7 +77,11 @@ const renderScrollComponent = (props: ScrollViewProps) => (
 export default function SearchScreen() {
   const router = useRouter();
   const { stackSearchBarProps, isDark } = useNavigationTheme();
-  const { installed } = useSources();
+  const { visibleInstalled } = useSources();
+  const installed = useMemo(
+    () => visibleInstalled.filter((source) => !isIllustrationSource(source)),
+    [visibleInstalled],
+  );
   const headerHeight = useHeaderHeight();
   const listRef = useRef<FlatList<SourceSearchGroup>>(null);
   const [query, setQuery] = useState("");

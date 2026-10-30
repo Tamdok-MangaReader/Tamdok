@@ -46,6 +46,8 @@ import { sourceWebsiteUrl } from "@/hooks/use-source-filters";
 import { useSourceRunner } from "@/hooks/use-source-runner";
 import { useTheme } from "@/hooks/use-theme";
 import type { FilterValue, Manga } from "@/parsers/shared/types";
+import { IllustrationSourceScreen } from "@/components/sources/illustration-source-screen";
+import { isIllustrationSourceRoute } from "@/services/illustration-mode";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { mangaHref, sourceSearchHref } from "@/utils/manga-route";
 
@@ -67,7 +69,7 @@ type HomeRow = { key: string; component: HomeComponent };
 
 const homeRowKey = (row: HomeRow) => row.key;
 
-export default function SourceHomeScreen() {
+function RealSourceHomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
@@ -499,3 +501,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
+export default function SourceHomeScreen() {
+  const { id: rawId } = useLocalSearchParams<{ id: string }>();
+  if (isIllustrationSourceRoute(rawId ?? "")) return <IllustrationSourceScreen />;
+  return <RealSourceHomeScreen />;
+}

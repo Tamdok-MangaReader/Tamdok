@@ -28,7 +28,7 @@ export default function AppearanceScreen() {
   const isDark = resolvedColorScheme === 'dark';
   const selectedIndex = THEME_MODES.indexOf(themeMode);
   const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
-  const [showBigMangaCover, setShowBigMangaCover] = useState(false);
+  const [showBigMangaCover, setShowBigMangaCover] = useState(true);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
   const [showStatusBadge, setShowStatusBadge] = useState(true);
   const [showRating, setShowRating] = useState(true);

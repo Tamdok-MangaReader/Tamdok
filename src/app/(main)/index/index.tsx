@@ -1,4 +1,5 @@
 import { Stack, useRouter } from "expo-router";
+import { isIllustrationMode, useIllustrationMode } from "@/services/illustration-mode";
 import * as Haptics from "expo-haptics";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -161,6 +162,7 @@ export default function LibraryScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { installed } = useSources();
+  const illustration = useIllustrationMode();
   const refreshTick = useMangaDataRefresh();
 
   const pagerRef = useRef<PagerView>(null);
@@ -219,7 +221,7 @@ export default function LibraryScreen() {
     ]);
 
     const hiddenCategoryIds = new Set(
-      settings.privacy.nsfwKillSwitch
+      settings.privacy.nsfwKillSwitch || isIllustrationMode()
         ? rawCategories
             .filter(
               (category) =>
@@ -353,20 +355,34 @@ export default function LibraryScreen() {
     categories.findIndex((category) => category.id === selectedCategoryId),
   );
 
+  const visibleEntries = useMemo(
+    () =>
+      illustration
+        ? allEntries.filter(
+            (entry) =>
+              (findInstalledSource(installed, entry.sourceId)?.manifest.info
+                .contentRating ?? 0) < 3,
+          )
+        : allEntries,
+    [illustration, allEntries, installed],
+  );
+
   const pagesData = useMemo(() => {
     const map = new Map<string, MangaGridItem[]>();
 
     for (const category of categories) {
       const filtered = isAllCategory(category.id)
         ? hideCategorizedNsfw
-          ? allEntries.filter(
+          ? visibleEntries.filter(
               (entry) =>
                 entry.categoryIds.length === 0 ||
                 (findInstalledSource(installed, entry.sourceId)?.manifest.info
                   .contentRating ?? 0) < 3,
             )
-          : allEntries
-        : allEntries.filter((entry) => entry.categoryIds.includes(category.id));
+          : visibleEntries
+        : visibleEntries.filter((entry) =>
+            entry.categoryIds.includes(category.id),
+          );
 
       map.set(
         category.id,
@@ -390,7 +406,7 @@ export default function LibraryScreen() {
     return map;
   }, [
     categories,
-    allEntries,
+    visibleEntries,
     hideCategorizedNsfw,
     installed,
     sortMode,

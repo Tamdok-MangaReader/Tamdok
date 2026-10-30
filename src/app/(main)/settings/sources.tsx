@@ -113,11 +113,12 @@ export default function SettingsSourcesScreen() {
   }>();
   const { colors, radius } = useTheme();
   const {
-    installed,
+    visibleInstalled: installed,
     installedIds,
-    catalogEntries,
-    pendingUpdates,
+    visibleCatalogEntries: catalogEntries,
+    visiblePendingUpdates: pendingUpdates,
     registries,
+    visibleRegistries,
     registryCatalogs,
     showNsfw,
     isLoading,
@@ -568,7 +569,7 @@ export default function SettingsSourcesScreen() {
 
     rows.push({ type: "controls", key: "controls" });
 
-    if (registries.length === 0) {
+    if (visibleRegistries.length === 0) {
       rows.push({
         type: "available-status",
         key: "status",
@@ -799,7 +800,7 @@ export default function SettingsSourcesScreen() {
               {t("settings_sources_registries")}
             </SectionLabel>
             <Card>
-              {registries.length === 0 ? (
+              {visibleRegistries.length === 0 ? (
                 <View style={styles.registryEmpty}>
                   <ThemedText
                     variant="subheadline"
@@ -810,7 +811,7 @@ export default function SettingsSourcesScreen() {
                   </ThemedText>
                 </View>
               ) : (
-                registries.map((registry, index) => (
+                visibleRegistries.map((registry, index) => (
                   <View key={registry.url}>
                     <SwipeableRow
                       actions={registryActions(registry)}
@@ -830,7 +831,7 @@ export default function SettingsSourcesScreen() {
                         imageTransition={0}
                       />
                     </SwipeableRow>
-                    {index < registries.length - 1 && <CardSeparator />}
+                    {index < visibleRegistries.length - 1 && <CardSeparator />}
                   </View>
                 ))
               )}
@@ -866,7 +867,7 @@ export default function SettingsSourcesScreen() {
             </View>
 
             <SectionLabel>{t("settings_sources_available")}</SectionLabel>
-            {registries.length > 0 ? (
+            {visibleRegistries.length > 0 ? (
               <>
                 <TextInput
                   value={availableSearch}
@@ -996,6 +997,7 @@ export default function SettingsSourcesScreen() {
       radius,
       refreshInBackground,
       registries,
+      visibleRegistries,
       registryActions,
       registryCatalogs,
       setShowNsfw,

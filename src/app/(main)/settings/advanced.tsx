@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Switch, View, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+import { Alert, Pressable, Switch, View, StyleSheet } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { Card, CardSeparator } from '@/components/ui/card';
@@ -17,11 +18,24 @@ import { invalidateLibraryCache } from '@/services/library';
 import { resetRegistryUrlsToDefault } from '@/services/sources';
 import { subscribeAppSettings } from '@/utils/app-settings-events';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
+import { isIllustrationMode, setIllustrationMode } from '@/services/illustration-mode';
 import { replayWelcome } from '@/utils/welcome-data-loader';
 
 export default function AdvancedSettingsScreen() {
   const { refresh } = useSources();
   const [showReaderPageNumbers, setShowReaderPageNumbers] = useState(false);
+  const tapCountRef = useRef(0);
+  const lastTapRef = useRef(0);
+
+  const handleSecretTap = useCallback(() => {
+    const now = Date.now();
+    tapCountRef.current = now - lastTapRef.current < 700 ? tapCountRef.current + 1 : 1;
+    lastTapRef.current = now;
+    if (tapCountRef.current < 7) return;
+    tapCountRef.current = 0;
+    void setIllustrationMode(!isIllustrationMode());
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, []);
 
   useEffect(() => {
     const apply = (value: boolean) => setShowReaderPageNumbers(value);
@@ -105,7 +119,9 @@ export default function AdvancedSettingsScreen() {
             isLast
           />
         </Card>
-        <SectionLabel>{t('advanced_debug_section')}</SectionLabel>
+        <Pressable onPress={handleSecretTap} accessible={false}>
+          <SectionLabel>{t('advanced_debug_section')}</SectionLabel>
+        </Pressable>
         <Card>
           <View style={[styles.switchRow, styles.switchRowFirst, styles.switchRowLast]}>
             <View style={styles.switchText}>

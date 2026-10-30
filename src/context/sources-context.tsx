@@ -14,6 +14,13 @@ import type {
   RegistryEntry,
   SourceRegistry,
 } from "@/parsers/shared/types";
+import {
+  ILLUSTRATION_SOURCE,
+  illustrationModeReady,
+  isIllustrationSource,
+  useIllustrationMode,
+} from "@/services/illustration-mode";
+import { DEFAULT_REGISTRY_URL } from "@/utils/registry-deep-link";
 import { clearAidokuWasmExportCache } from "@/parsers/aidoku/runner";
 import { clearSourceHomeCache } from "@/services/source-home-cache";
 import { runLibraryAutoRefreshIfNeeded } from "@/services/library-auto-refresh";
@@ -57,6 +64,10 @@ import {
 
 type SourcesContextValue = {
   installed: InstalledSource[];
+  visibleInstalled: InstalledSource[];
+  visibleCatalogEntries: CatalogSourceEntry[];
+  visiblePendingUpdates: SourceUpdateInfo[];
+  visibleRegistries: SourceRegistryList[];
   installedIds: Set<string>;
   catalogEntries: CatalogSourceEntry[];
   pendingUpdates: SourceUpdateInfo[];
@@ -93,6 +104,10 @@ type SourcesContextValue = {
 };
 
 const SourcesContext = createContext<SourcesContextValue | null>(null);
+
+const ILLUSTRATION_INSTALLED: InstalledSource[] = [ILLUSTRATION_SOURCE];
+const EMPTY_CATALOG: CatalogSourceEntry[] = [];
+const EMPTY_UPDATES: SourceUpdateInfo[] = [];
 
 const FOREGROUND_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
 const AUTO_REFRESH_POLL_MS = 15 * 60 * 1000;
@@ -194,6 +209,27 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
     [registries, registryCatalogs, showNsfw],
   );
 
+  const illustration = useIllustrationMode();
+  const visibleInstalled = useMemo(
+    () => (illustration ? ILLUSTRATION_INSTALLED : installed),
+    [illustration, installed],
+  );
+  const visibleCatalogEntries = useMemo(
+    () => (illustration ? EMPTY_CATALOG : catalogEntries),
+    [illustration, catalogEntries],
+  );
+  const visiblePendingUpdates = useMemo(
+    () => (illustration ? EMPTY_UPDATES : pendingUpdates),
+    [illustration, pendingUpdates],
+  );
+  const visibleRegistries = useMemo(
+    () =>
+      illustration
+        ? registries.filter((item) => item.url === DEFAULT_REGISTRY_URL)
+        : registries,
+    [illustration, registries],
+  );
+
   const applyUpdateCheck = useCallback(
     async (
       sources: InstalledSource[],
@@ -288,6 +324,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
     let layout: SourceLayout = { order: [], pinned: [] };
 
     try {
+      await illustrationModeReady;
       await initNotifications();
       const initialized = await initializeSources();
       sources = initialized.sources;
@@ -391,6 +428,10 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<SourcesContextValue>(
     () => ({
       installed,
+      visibleInstalled,
+      visibleCatalogEntries,
+      visiblePendingUpdates,
+      visibleRegistries,
       installedIds,
       catalogEntries,
       pendingUpdates,
@@ -419,6 +460,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
         await refresh();
       },
       uninstall: async (source) => {
+        if (isIllustrationSource(source)) return;
         await removeSource(source);
         await clearSourceHomeCache(source.id);
         await refresh();
@@ -465,6 +507,10 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       installed,
+      visibleInstalled,
+      visibleCatalogEntries,
+      visiblePendingUpdates,
+      visibleRegistries,
       installedIds,
       catalogEntries,
       pendingUpdates,

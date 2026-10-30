@@ -370,7 +370,11 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         size={18}
         color={inLibrary ? colors.tint : colors.onTint}
       />
-      <ThemedText variant="body" color={inLibrary ? "tint" : "onTint"}>
+      <ThemedText
+        variant="body"
+        color={inLibrary ? "tint" : "onTint"}
+        style={{ flexShrink: 1, textAlign: "center" }}
+      >
         {inLibrary ? t("manga_in_library") : t("manga_add_to_library")}
       </ThemedText>
       {hasCustomCategories ? (
@@ -590,55 +594,66 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           disabled={!coverSource}
           accessibilityRole="imagebutton"
         >
-        <Animated.View style={[coverStyle, coverPressStyle]}>
-          {coverSource ? (
-            <Image
-              source={coverSource}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              recyclingKey={manga.cover}
-              cachePolicy={IMAGE_CACHE_POLICY}
-              allowDownscaling
-              transition={200}
-            />
-          ) : (
-            <ThemedText variant="title1" color="tertiaryLabel">
-              {manga.title.slice(0, 1)}
-            </ThemedText>
-          )}
-          {inLibrary ? (
-            <View
-              style={[styles.coverBookmark, { backgroundColor: colors.tint }]}
-            >
-              <SFSymbolIcon
-                name="bookmark.fill"
-                size={11}
-                color={colors.onTint}
-                fallback="bookmark"
+          <Animated.View style={[coverStyle, coverPressStyle]}>
+            {coverSource ? (
+              <Image
+                source={coverSource}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                recyclingKey={manga.cover}
+                cachePolicy={IMAGE_CACHE_POLICY}
+                allowDownscaling
+                transition={200}
               />
-            </View>
-          ) : null}
-          {showCounts ? (
-            <View style={styles.coverCountRow}>
-              {unreadCount > 0 ? (
-                <View style={[styles.coverCountBadge, styles.coverUnreadBadge]}>
-                  <ThemedText variant="caption2" style={styles.coverCountText}>
-                    {formatCount(unreadCount)}
-                  </ThemedText>
-                </View>
-              ) : null}
-              {downloadedCount > 0 ? (
-                <View
-                  style={[styles.coverCountBadge, styles.coverDownloadedBadge]}
-                >
-                  <ThemedText variant="caption2" style={styles.coverCountText}>
-                    {formatCount(downloadedCount)}
-                  </ThemedText>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-        </Animated.View>
+            ) : (
+              <ThemedText variant="title1" color="tertiaryLabel">
+                {manga.title.slice(0, 1)}
+              </ThemedText>
+            )}
+            {inLibrary ? (
+              <View
+                style={[styles.coverBookmark, { backgroundColor: colors.tint }]}
+              >
+                <SFSymbolIcon
+                  name="bookmark.fill"
+                  size={11}
+                  color={colors.onTint}
+                  fallback="bookmark"
+                />
+              </View>
+            ) : null}
+            {showCounts ? (
+              <View style={styles.coverCountRow}>
+                {unreadCount > 0 ? (
+                  <View
+                    style={[styles.coverCountBadge, styles.coverUnreadBadge]}
+                  >
+                    <ThemedText
+                      variant="caption2"
+                      style={styles.coverCountText}
+                    >
+                      {formatCount(unreadCount)}
+                    </ThemedText>
+                  </View>
+                ) : null}
+                {downloadedCount > 0 ? (
+                  <View
+                    style={[
+                      styles.coverCountBadge,
+                      styles.coverDownloadedBadge,
+                    ]}
+                  >
+                    <ThemedText
+                      variant="caption2"
+                      style={styles.coverCountText}
+                    >
+                      {formatCount(downloadedCount)}
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </Animated.View>
         </Pressable>
 
         {!showBigMangaCover ? (
@@ -1111,10 +1126,7 @@ const ChapterRow = memo(function ChapterRow({
   const isFailed = status === "failed";
   const isFirst = index === 0;
   const loneReadIcon =
-    isRead &&
-    !isLocked &&
-    !isFailed &&
-    (isDownloading || !isDownloaded);
+    isRead && !isLocked && !isFailed && (isDownloading || !isDownloaded);
 
   const chapterNumberLabel = showChapterNumber
     ? formatChapterNumber(chapter, index, total)
@@ -1159,7 +1171,9 @@ const ChapterRow = memo(function ChapterRow({
     () => [
       {
         key: "bookmark",
-        label: t(isBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add"),
+        label: t(
+          isBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add",
+        ),
         icon: isBookmarked ? "bookmark-outline" : "bookmark",
         sfSymbol: isBookmarked ? "bookmark.slash.fill" : "bookmark.fill",
         color: "#0A84FF",

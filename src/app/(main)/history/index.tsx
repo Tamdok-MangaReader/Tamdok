@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useIllustrationMode } from "@/services/illustration-mode";
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
@@ -411,6 +412,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
   onChanged: () => void;
 }) {
   const router = useRouter();
+  const illustration = useIllustrationMode();
   const { colors, radius } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
   const coverHeadersReady = useSourceCoverHeadersReady();
@@ -428,9 +430,11 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     [expanded, hiddenCount, group.chapters],
   );
 
-  const sourceLabel = source
-    ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
-    : group.sourceId;
+  const sourceLabel = illustration
+    ? "Komga"
+    : source
+      ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
+      : group.sourceId;
 
   const coverSource = useMemo(
     () =>
@@ -779,7 +783,8 @@ export default function HistoryScreen() {
   const mainCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
   const nsfwCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
 
-  const showTabs = showNsfwHistory && !nsfwKillSwitch;
+  const illustration = useIllustrationMode();
+  const showTabs = showNsfwHistory && !nsfwKillSwitch && !illustration;
 
   const mainRows = useMemo(() => {
     const result = buildRows(mainEntries, mainCacheRef.current);

@@ -515,7 +515,7 @@ export default function SourcesScreen() {
   const { stackSearchBarProps } = useNavigationTheme();
   const insets = useSafeAreaInsets();
   const {
-    installed,
+    visibleInstalled: installed,
     isLoading,
     isPinned,
     pinSource,
