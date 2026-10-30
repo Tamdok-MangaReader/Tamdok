@@ -238,7 +238,18 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       nsfw: boolean,
       notify: boolean,
     ) => {
-      const updates = findSourceUpdates(sources, catalogs, registryUrls, nsfw);
+      const present = new Set(
+        (await getInstalledSources()).map((source) => source.installPath),
+      );
+      const liveSources = sources.filter((source) =>
+        present.has(source.installPath),
+      );
+      const updates = findSourceUpdates(
+        liveSources,
+        catalogs,
+        registryUrls,
+        nsfw,
+      );
       setPendingUpdates(updates);
 
       if (updates.length > 0) {
@@ -246,7 +257,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
           updates.map((update) => update.source),
         );
         setSourceLayout(nextLayout);
-        setInstalled(sortInstalledSources(sources, nextLayout));
+        setInstalled(sortInstalledSources(liveSources, nextLayout));
       }
 
       if (notify) {
