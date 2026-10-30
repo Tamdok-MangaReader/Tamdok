@@ -35,6 +35,7 @@ export type ReaderActions = {
 };
 
 export type ReaderContextValue = {
+  sourceId: string;
   manga: Manga;
   chapter: Chapter;
   chapters: Chapter[];

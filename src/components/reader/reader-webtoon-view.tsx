@@ -327,6 +327,38 @@ export function ReaderWebtoonView({
     return items;
   }, [ghosts, segments]);
 
+  const listEpochRef = useRef(0);
+  const initialIndexRef = useRef<number | undefined>(undefined);
+  const remountPendingRef = useRef(false);
+  const epochGuardRef = useRef<StripListItem[] | null>(null);
+  if (epochGuardRef.current !== stripItems) {
+    const previousStrip = epochGuardRef.current;
+    epochGuardRef.current = stripItems;
+    const previousFirst = previousStrip?.[0]?.id;
+    const movedFirst = previousFirst
+      ? stripItems.findIndex((item) => item.id === previousFirst)
+      : -1;
+    if (previousStrip && previousStrip.length > 0 && movedFirst > 0) {
+      const anchorIndex = visibleIdRef.current
+        ? stripItems.findIndex((item) => item.id === visibleIdRef.current)
+        : -1;
+      listEpochRef.current += 1;
+      initialIndexRef.current = anchorIndex >= 0 ? anchorIndex : movedFirst;
+      remountPendingRef.current = true;
+    }
+  }
+  const listEpoch = listEpochRef.current;
+
+  const handleScrollToIndexFailed = useCallback(
+    (info: { index: number; averageItemLength: number }) => {
+      listRef.current?.scrollToOffset({
+        offset: info.index * info.averageItemLength,
+        animated: false,
+      });
+    },
+    [],
+  );
+
   const stripItemsRef = useRef(stripItems);
   const segmentsRef = useRef(segments);
   const ghostsRef = useRef(ghosts);
@@ -673,6 +705,20 @@ export function ReaderWebtoonView({
       if (index >= 0) visibleIndexRef.current = index;
     }
     if (previousItems.length === 0 || previousItems === stripItems) return;
+
+    if (remountPendingRef.current) {
+      remountPendingRef.current = false;
+      const target = initialIndexRef.current ?? 0;
+      programmaticScrollRef.current = true;
+      visibleIndexRef.current = target;
+      visibleIdRef.current = stripItems[target]?.id ?? null;
+      lastOffsetYRef.current = offsetForIndex(target, stripItems);
+      if (seekClearTimerRef.current) clearTimeout(seekClearTimerRef.current);
+      seekClearTimerRef.current = setTimeout(() => {
+        programmaticScrollRef.current = false;
+      }, 500);
+      return;
+    }
 
     const newAnchorIndex = anchorId
       ? stripItems.findIndex((item) => item.id === anchorId)
@@ -1045,6 +1091,7 @@ export function ReaderWebtoonView({
   return (
     <View style={rootStyle}>
       <FlatList
+        key={`strip-${listEpoch}`}
         ref={listRef}
         data={stripItems}
         keyExtractor={stripKeyExtractor}
@@ -1057,6 +1104,8 @@ export function ReaderWebtoonView({
         maxToRenderPerBatch={4}
         updateCellsBatchingPeriod={50}
         removeClippedSubviews={Platform.OS === "android"}
+        initialScrollIndex={listEpoch > 0 ? initialIndexRef.current : undefined}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         extraData={extraData}
         getItemLayout={getItemLayout}
         ListHeaderComponent={chapterStart}

@@ -96,7 +96,6 @@ import { prefetchReaderPagesAhead } from "@/utils/reader-prefetch";
 import { clearDecodedImageCache } from "@/utils/image-memory";
 import type { ResolvedReadingMode } from "@/services/app-settings";
 
-const BARS_IDLE_HIDE_MS = 12_000;
 const MODE_HINT_MS = 2_200;
 
 type AppSettings = Awaited<ReturnType<typeof getAppSettings>>;
@@ -187,14 +186,6 @@ export function ReaderView({
     barsIdleTimerRef.current = null;
   }, []);
 
-  const scheduleBarsIdleHide = useCallback(() => {
-    clearBarsIdleTimer();
-    barsIdleTimerRef.current = setTimeout(() => {
-      setBarsVisible(false);
-      barsIdleTimerRef.current = null;
-    }, BARS_IDLE_HIDE_MS);
-  }, [clearBarsIdleTimer]);
-
   const hideBars = useCallback(() => {
     clearBarsIdleTimer();
     setBarsVisible(false);
@@ -205,11 +196,7 @@ export function ReaderView({
     if (hideBarsOnSwipe) hideBars();
   }, [hideBarsOnSwipe, hideBars]);
 
-  useEffect(() => {
-    if (barsVisible) scheduleBarsIdleHide();
-    else clearBarsIdleTimer();
-    return clearBarsIdleTimer;
-  }, [barsVisible, clearBarsIdleTimer, scheduleBarsIdleHide]);
+  useEffect(() => clearBarsIdleTimer, [clearBarsIdleTimer]);
 
   const [chapterSheetOpen, setChapterSheetOpen] = useState(false);
   const [readerSettingsOpen, setReaderSettingsOpen] = useState(false);
@@ -1112,6 +1099,7 @@ export function ReaderView({
   const providerValue = useMemo<ReaderValue | null>(() => {
     if (!settings || !dictionarySettings) return null;
     return {
+      sourceId,
       manga,
       chapter: activeChapter,
       chapters,

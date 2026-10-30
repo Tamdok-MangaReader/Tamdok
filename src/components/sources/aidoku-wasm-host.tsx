@@ -13,6 +13,8 @@ import type { WebViewMessageEvent } from 'react-native-webview';
 
 import {
   handleHostMessage,
+  requestAidokuHostRestart,
+  setAidokuHostRestarter,
   setAidokuHostInjector,
   setAidokuHostPoster,
   type HostInboundMessage,
@@ -208,6 +210,13 @@ export function AidokuWasmHost() {
     };
   }, []);
 
+  useEffect(() => {
+    setAidokuHostRestarter(() => {
+      setHostKey((value) => value + 1);
+    });
+    return () => setAidokuHostRestarter(null);
+  }, []);
+
   const pollHostReady = () => {
     webViewRef.current?.injectJavaScript(HOST_READY_POLL);
   };
@@ -232,6 +241,8 @@ export function AidokuWasmHost() {
         source={source}
         allowingReadAccessToURL={readAccessUri ? `file://${readAccessUri}` : undefined}
         onMessage={onMessage}
+        onContentProcessDidTerminate={() => requestAidokuHostRestart('content process terminated')}
+        onRenderProcessGone={() => requestAidokuHostRestart('render process gone')}
         onLoadEnd={pollHostReady}
         onLoadStart={() => {
           logAidokuWasm('debug', 'WebView load started');

@@ -12,6 +12,8 @@ import { ActivityIndicator, Pressable, View, StyleSheet } from "react-native";
 
 import { resolveMangaPageUrl } from "@/utils/manga-url";
 import { ReaderView } from "@/components/reader/reader-view";
+import { GlassIconButton } from "@/components/ui/glass-icon-button";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
@@ -24,7 +26,9 @@ import {
 import { useSources } from "@/context/sources-context";
 import { useSourceRunner } from "@/hooks/use-source-runner";
 import type { Chapter, Manga, Page } from "@/parsers/shared/types";
-import { getDownloadedPageUrls } from "@/services/downloads";
+import { getDownloadedPageUrls, getDownloads } from "@/services/downloads";
+import { cancelAidokuSourceRequests } from "@/parsers/aidoku/wasm-bridge";
+import { cancelTamdokSourceRequests } from "@/parsers/tamdok/runtime";
 import { getChapterProgress } from "@/services/manga-tracking";
 import { peekMangaDetailCache } from "@/services/manga-detail-cache";
 import {
@@ -126,9 +130,24 @@ async function loadPagesForChapter(
 }
 
 function LoadingView() {
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.loading}>
       <ActivityIndicator color="#fff" />
+      <View
+        style={[
+          styles.loadingBack,
+          { top: insets.top + Spacing.sm, left: Spacing.lg },
+        ]}
+      >
+        <GlassIconButton
+          icon="chevron-back"
+          iconColor="#fff"
+          glassStyle="clear"
+          accessibilityLabel={t("back")}
+          onPress={() => router.back()}
+        />
+      </View>
     </View>
   );
 }
@@ -303,6 +322,37 @@ export default function MangaReaderScreen() {
   const [statusBarHidden, setStatusBarHidden] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const inflightRef = useRef(new Map<string, Promise<Page[]>>());
+  const activeRequestsRef = useRef(0);
+  const sourceIdRef = useRef(manifestSourceId);
+  sourceIdRef.current = manifestSourceId;
+
+  const track = useCallback(<T,>(promise: Promise<T>): Promise<T> => {
+    activeRequestsRef.current += 1;
+    return promise.finally(() => {
+      activeRequestsRef.current -= 1;
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (activeRequestsRef.current <= 0) return;
+      const sourceId = sourceIdRef.current;
+      void getDownloads()
+        .then((entries) =>
+          entries.some(
+            (entry) =>
+              entry.sourceId === sourceId && entry.status === "downloading",
+          ),
+        )
+        .catch(() => false)
+        .then((busy) => {
+          if (busy) return;
+          cancelAidokuSourceRequests(sourceId);
+          cancelTamdokSourceRequests(sourceId);
+        });
+    },
+    [],
+  );
 
   const manga = useMemo(() => {
     const fromParams = mangaFromParams(
@@ -415,7 +465,7 @@ export default function MangaReaderScreen() {
         await slowModeReady;
         await waitForSlowTurn();
         const nextPages = filterRenderablePages(
-          await runner.getPageList(manga, chapter),
+          await track(runner.getPageList(manga, chapter)),
         );
         if (cancelled) return;
         applyPages(nextPages);
@@ -444,6 +494,7 @@ export default function MangaReaderScreen() {
     chapterKey,
     reloadTick,
     applyPages,
+    track,
   ]);
 
   const pagesReady = pages.length > 0;
@@ -458,8 +509,7 @@ export default function MangaReaderScreen() {
     if (!runner || (contentLoading && !pagesReady)) return;
 
     let cancelled = false;
-    runner
-      .getMangaUpdate(manga, false, true)
+    track(runner.getMangaUpdate(manga, false, true))
       .then((detail) => {
         if (!cancelled) applyChapters(detail.chapters ?? []);
       })
@@ -475,24 +525,22 @@ export default function MangaReaderScreen() {
     contentLoading,
     pagesReady,
     applyChapters,
+    track,
   ]);
 
   const loadChapterPages = useCallback(
     (target: Chapter) => {
       const existing = inflightRef.current.get(target.key);
       if (existing) return existing;
-      const promise = loadPagesForChapter(
-        manifestSourceId,
-        manga,
-        target,
-        runner,
+      const promise = track(
+        loadPagesForChapter(manifestSourceId, manga, target, runner),
       ).finally(() => {
         inflightRef.current.delete(target.key);
       });
       inflightRef.current.set(target.key, promise);
       return promise;
     },
-    [manifestSourceId, manga, runner],
+    [manifestSourceId, manga, runner, track],
   );
 
   const handleRefresh = useCallback(
@@ -570,6 +618,9 @@ export default function MangaReaderScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadingBack: {
+    position: "absolute",
+  },
   loading: {
     flex: 1,
     alignItems: "center",

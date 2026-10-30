@@ -39,6 +39,9 @@ export type HostInboundMessage =
 
 /** Stable message so UI can tell user-initiated cancel apart from real errors. */
 export const AIDOKU_REQUEST_CANCELLED = 'Source request cancelled';
+const AIDOKU_HOST_RESTARTED = 'Aidoku WASM host restarted';
+const HOST_RESTART_MIN_INTERVAL_MS = 2000;
+const MAX_HOST_RESTART_RETRIES = 2;
 
 type PendingCall = {
   sourceId: string;
@@ -120,6 +123,40 @@ export function setAidokuHostPoster(poster: ((message: HostOutboundMessage) => v
 export function setAidokuHostInjector(injector: ((script: string) => void) | null): void {
   injectToHost = injector;
   resolveReadyWaiters();
+}
+
+let hostRestarter: (() => void) | null = null;
+let lastHostRestartAt = 0;
+
+export function setAidokuHostRestarter(restarter: (() => void) | null): void {
+  hostRestarter = restarter;
+}
+
+export function resetAidokuHostState(): void {
+  hostReady = false;
+  bridgeReady = false;
+  registeredWasmSources.clear();
+  wasmRegistrationTasks.clear();
+
+  for (const [id, pending] of [...pendingCalls]) {
+    pendingCalls.delete(id);
+    pending.reject(new Error(AIDOKU_HOST_RESTARTED));
+  }
+
+  for (const [id, inflight] of [...inflightFetches]) {
+    inflightFetches.delete(id);
+    inflight.settled = true;
+    inflight.abort.abort();
+  }
+}
+
+export function requestAidokuHostRestart(reason: string): void {
+  const now = Date.now();
+  if (!hostRestarter || now - lastHostRestartAt < HOST_RESTART_MIN_INTERVAL_MS) return;
+  lastHostRestartAt = now;
+  logAidokuWasm('warn', `restarting host: ${reason}`);
+  resetAidokuHostState();
+  hostRestarter();
 }
 
 export function markAidokuBridgeReady(): void {
@@ -232,6 +269,7 @@ export async function waitForAidokuBridgeReady(timeoutMs = 20000): Promise<void>
           waiter.reject(new Error('Aidoku WASM host timed out while starting'));
         }
         readyWaiters.clear();
+        requestAidokuHostRestart('start timeout');
         reject(new Error('Aidoku WASM host timed out while starting'));
       }, timeoutMs);
     }),
@@ -285,6 +323,17 @@ async function registerWasmInHost(sourceId: string, wasm: Uint8Array): Promise<v
 }
 
 export async function callAidokuWasm(args: AidokuInvokeArgs): Promise<unknown> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await invokeAidokuWasmOnce(args);
+    } catch (error) {
+      const restarted = error instanceof Error && error.message === AIDOKU_HOST_RESTARTED;
+      if (!restarted || attempt >= MAX_HOST_RESTART_RETRIES) throw error;
+    }
+  }
+}
+
+async function invokeAidokuWasmOnce(args: AidokuInvokeArgs): Promise<unknown> {
   await waitForAidokuBridgeReady();
   if (pendingSourceResets.has(args.sourceId)) {
     flushSourceReset(args.sourceId);

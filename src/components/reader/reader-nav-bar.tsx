@@ -1,11 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Button, Host, Menu, RNHostView } from "@expo/ui/swift-ui";
+import {
+  Button,
+  Host,
+  Label,
+  Menu,
+  RNHostView,
+  Text as SwiftText,
+  VStack,
+} from "@expo/ui/swift-ui";
 import {
   buttonStyle,
   menuIndicator,
   menuStyle,
 } from "@expo/ui/swift-ui/modifiers";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -19,11 +27,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { READER_GLASS_TINT } from "@/utils/reader-glass";
 import { useReader } from "@/components/reader/reader-context";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
-import { GlassSurface } from "@/components/ui/glass-surface";
 import {
   InlineActionMenu,
   type InlineActionMenuAnchor,
 } from "@/components/ui/inline-action-menu";
+import { GlassSurface } from "@/components/ui/glass-surface";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
@@ -31,7 +39,10 @@ import { useTheme } from "@/hooks/use-theme";
 import {
   chapterTitleForDisplay,
   formatChapterLabel,
+  formatChapterNumberValue,
 } from "@/utils/chapter-label";
+import { getMangaChapterProgress } from "@/services/manga-tracking";
+import { subscribeMangaData } from "@/utils/manga-events";
 
 type ReaderNavBarProps = {
   visible: boolean;
@@ -89,7 +100,31 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, isDark } = useTheme();
-  const { chrome, actions, foregroundColor, chapter, chapters } = useReader();
+  const { chrome, actions, foregroundColor, chapter, chapters, manga, sourceId } =
+    useReader();
+  const [readKeys, setReadKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      void getMangaChapterProgress(sourceId, manga.key)
+        .then((progress) => {
+          if (cancelled) return;
+          const next = new Set<string>();
+          for (const entry of Object.values(progress)) {
+            if (entry.page === -1) next.add(entry.chapterKey);
+          }
+          setReadKeys(next);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const unsubscribe = subscribeMangaData(load);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [sourceId, manga.key, chapter.key]);
   const [menuAnchor, setMenuAnchor] = useState<InlineActionMenuAnchor | null>(
     null,
   );
@@ -117,10 +152,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
     <Animated.View
       entering={FadeIn.duration(180)}
       exiting={FadeOut.duration(180)}
-      style={[
-        styles.root,
-        { paddingTop: Math.max(insets.top, Spacing.sm) },
-      ]}
+      style={[styles.root, { paddingTop: Math.max(insets.top, Spacing.sm) }]}
       pointerEvents="box-none"
     >
       <View style={styles.row} pointerEvents="box-none">
@@ -139,7 +171,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
             <Host
               matchContents
               seedColor={colors.tint}
-              colorScheme={isDark ? "dark" : "light"}
+              colorScheme={"dark"}
               style={styles.titleHost}
             >
               <Menu
@@ -160,19 +192,35 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
                 ]}
               >
                 {chapters.map((item) => {
-                  const label = `${item.chapterNumber ? `${item.chapterNumber}. ` : ""}${chapterTitleForDisplay(item) || formatChapterLabel(item)}`;
+                  const name = chapterTitleForDisplay(item);
+                  const heading =
+                    item.chapterNumber != null
+                      ? t("reader_chapter_number", {
+                          n: formatChapterNumberValue(item.chapterNumber),
+                        })
+                      : name || formatChapterLabel(item);
+                  const subtitle = item.chapterNumber != null ? name : undefined;
+                  const icon =
+                    item.key === chapter.key
+                      ? "book.fill"
+                      : readKeys.has(item.key)
+                        ? "checkmark.circle.fill"
+                        : "circle";
                   return (
                     <Button
                       key={item.key}
-                      label={label}
-                      systemImage={
-                        item.key === chapter.key ? "checkmark" : undefined
-                      }
                       onPress={() => {
                         if (item.key !== chapter.key)
                           actions.selectChapter(item);
                       }}
-                    />
+                    >
+                      <Label systemImage={icon}>
+                        <VStack alignment="leading">
+                          <SwiftText>{heading}</SwiftText>
+                          {subtitle ? <SwiftText>{subtitle}</SwiftText> : null}
+                        </VStack>
+                      </Label>
+                    </Button>
                   );
                 })}
               </Menu>
@@ -195,7 +243,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
           <Host
             matchContents
             seedColor={colors.tint}
-            colorScheme={isDark ? "dark" : "light"}
+            colorScheme={"dark"}
             style={styles.dotsHost}
           >
             <Menu
@@ -293,6 +341,9 @@ const styles = StyleSheet.create({
   titleHost: {
     alignSelf: "center",
   },
+  titleHidden: {
+    opacity: 0,
+  },
   dotsHost: {
     width: BUTTON_SIZE,
     height: BUTTON_SIZE,
@@ -311,11 +362,14 @@ const styles = StyleSheet.create({
   titleText: {
     flexShrink: 1,
     minWidth: 0,
+    alignItems: "center",
   },
   title: {
     fontWeight: "600",
+    textAlign: "center",
   },
   subtitle: {
     opacity: 0.65,
+    textAlign: "center",
   },
 });
