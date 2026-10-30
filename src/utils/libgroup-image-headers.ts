@@ -21,16 +21,28 @@ function encodeBasicAuth(username: string, password: string): string {
   return '';
 }
 
-function resolveKomgaCoverHeaders(source: InstalledSource, settings: Record<string, unknown>): Record<string, string> | undefined {
-  if (source.id !== 'server.komga.tamdok') return undefined;
-
+function resolveServerCoverHeaders(source: InstalledSource, settings: Record<string, unknown>): Record<string, string> | undefined {
   const headers: Record<string, string> = {};
-  const apiKey = typeof settings.apiKey === 'string' ? settings.apiKey.trim() : '';
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
+  const text = (key: string) => (typeof settings[key] === 'string' ? (settings[key] as string).trim() : '');
+
+  switch (source.id) {
+    case 'server.komga.tamdok': {
+      const apiKey = text('apiKey');
+      if (apiKey) headers['X-API-Key'] = apiKey;
+      break;
+    }
+    case 'server.lanraragi.tamdok': {
+      const apiKey = text('apiKey');
+      if (apiKey && typeof globalThis.btoa === 'function') headers.Authorization = `Bearer ${globalThis.btoa(apiKey)}`;
+      return Object.keys(headers).length > 0 ? headers : undefined;
+    }
+    case 'server.suwayomi.tamdok':
+      break;
+    default:
+      return undefined;
   }
 
-  const username = typeof settings.username === 'string' ? settings.username.trim() : '';
+  const username = text('username');
   const password = typeof settings.password === 'string' ? settings.password : '';
   if (username && password) {
     headers.Authorization = `Basic ${encodeBasicAuth(username, password)}`;
@@ -40,8 +52,8 @@ function resolveKomgaCoverHeaders(source: InstalledSource, settings: Record<stri
 }
 
 export function resolveLibgroupCoverHeaders(source: InstalledSource, settings: Record<string, unknown>): Record<string, string> | undefined {
-  const komgaHeaders = resolveKomgaCoverHeaders(source, settings);
-  if (komgaHeaders) return komgaHeaders;
+  const serverHeaders = resolveServerCoverHeaders(source, settings);
+  if (serverHeaders) return serverHeaders;
 
   if (source.id.toLowerCase().includes('nhentai')) {
     return {

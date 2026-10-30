@@ -740,10 +740,12 @@ export default function MangaDetailScreen() {
 
   const hasDownloads = downloadedChapterKeys.size > 0;
 
+  const showHeaderSpinner = isRefreshing || isLoading;
+
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        {isRefreshing ? (
+        {showHeaderSpinner ? (
           <View style={styles.refreshIndicator}>
             <ActivityIndicator
               size="small"
@@ -778,7 +780,7 @@ export default function MangaDetailScreen() {
       chapterSelectMode,
       hasDownloads,
       inLibrary,
-      isRefreshing,
+      showHeaderSpinner,
       mangaPageUrl,
       showBigMangaCover,
       colors.tint,

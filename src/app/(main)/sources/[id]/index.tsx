@@ -208,6 +208,8 @@ function RealSourceHomeScreen() {
   const showHomePlaceholder =
     (isLoading || runnerLoading) && !hasCachedContent && !hasHomeContent;
 
+  const showHeaderSpinner = isRefreshing || showHomePlaceholder;
+
   const alertBanner = useMemo(
     () =>
       showInlineError && combinedError ? (
@@ -233,7 +235,7 @@ function RealSourceHomeScreen() {
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        {isRefreshing ? (
+        {showHeaderSpinner ? (
           <View style={styles.refreshIndicator}>
             <ActivityIndicator size="small" />
           </View>
@@ -245,7 +247,7 @@ function RealSourceHomeScreen() {
         />
       </View>
     ),
-    [isRefreshing, openSearch, openSettings, websiteUrl],
+    [showHeaderSpinner, openSearch, openSettings, websiteUrl],
   );
 
   const sourceName = source?.manifest.info.name;

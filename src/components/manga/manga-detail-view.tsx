@@ -373,6 +373,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       <ThemedText
         variant="body"
         color={inLibrary ? "tint" : "onTint"}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
         style={{ flexShrink: 1, textAlign: "center" }}
       >
         {inLibrary ? t("manga_in_library") : t("manga_add_to_library")}
