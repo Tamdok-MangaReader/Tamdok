@@ -225,7 +225,8 @@
       "./plugins/with-status-bar-appearance.js",
       "./plugins/with-dev-launcher-strip-script-fix.js",
       "./plugins/with-android-gradle-compat.js",
-      "./plugins/with-android-orientation.js"
+      "./plugins/with-android-orientation.js",
+      "./plugins/with-android-release-signing.js"
     ],
     "experiments": {
       "typedRoutes": true,
