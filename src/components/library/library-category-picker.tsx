@@ -3,7 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/ui/card';
-import { GlassSurface } from '@/components/ui/glass-surface';
+import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
@@ -45,24 +45,19 @@ export function LibraryCategoryPicker({
 
   return (
     <Modal visible={visible} animationType='slide' presentationStyle='pageSheet' onRequestClose={onClose}>
-      <SafeAreaView style={[styles.root, { backgroundColor: colors.systemBackground }]}>
-        <View style={styles.header}>
-          <GlassSurface borderRadius={radius.pill} interactive>
-            <Pressable style={styles.headerButton} onPress={onClose}>
-              <ThemedText variant='headline'>{t('cancel')}</ThemedText>
-            </Pressable>
-          </GlassSurface>
-          <ThemedText variant='headline'>{t('manga_edit_categories')}</ThemedText>
-          <GlassSurface borderRadius={radius.pill} interactive>
-            <Pressable style={styles.headerButton} onPress={() => onConfirm(selectedIds)}>
-              <ThemedText variant='headline' color='tint'>
-                {t('done')}
-              </ThemedText>
-            </Pressable>
-          </GlassSurface>
-        </View>
+      <SafeAreaView edges={['bottom']} style={[styles.root, { backgroundColor: colors.systemBackground }]}>
+        <ModalHeader
+          title={t('manga_edit_categories')}
+          closeLabel={t('cancel')}
+          onClose={onClose}
+          actionLabel={t('done')}
+          onAction={() => onConfirm(selectedIds)}
+        />
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
+          showsVerticalScrollIndicator={false}>
           <ThemedText variant='footnote' color='secondaryLabel'>
             {t('library_category_picker_hint')}
           </ThemedText>
@@ -119,6 +114,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
+    paddingTop: MODAL_HEADER_HEIGHT + Spacing.md,
     gap: Spacing.md,
     paddingBottom: Spacing.xxxl,
   },

@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 type ListRowProps = {
   icon?: keyof typeof Ionicons.glyphMap;
+  iconBackground?: string;
   label: string;
   onPress?: () => void;
   destructive?: boolean;
@@ -15,7 +16,7 @@ type ListRowProps = {
   isLast?: boolean;
 };
 
-export function ListRow({ icon, label, onPress, destructive = false, showChevron = true, isFirst, isLast }: ListRowProps) {
+export function ListRow({ icon, iconBackground, label, onPress, destructive = false, showChevron = true, isFirst, isLast }: ListRowProps) {
   const { colors, radius, spacing } = useTheme();
   const iconColor = destructive ? colors.destructive : colors.tint;
 
@@ -31,7 +32,13 @@ export function ListRow({ icon, label, onPress, destructive = false, showChevron
       onPress={onPress}
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : 'text'}>
-      {icon && <Ionicons name={icon} size={22} color={iconColor} style={styles.icon} />}
+      {icon && iconBackground ? (
+        <View style={[styles.iconBadge, { backgroundColor: iconBackground, borderRadius: 7 }]}>
+          <Ionicons name={icon} size={18} color='#FFFFFF' />
+        </View>
+      ) : icon ? (
+        <Ionicons name={icon} size={22} color={iconColor} style={styles.icon} />
+      ) : null}
       <ThemedText variant='body' color={destructive ? 'destructive' : 'label'} style={styles.label}>
         {label}
       </ThemedText>
@@ -49,6 +56,12 @@ const styles = StyleSheet.create({
   icon: {
     width: 24,
     textAlign: 'center',
+  },
+  iconBadge: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
     flex: 1,

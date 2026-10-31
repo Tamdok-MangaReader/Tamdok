@@ -35,6 +35,7 @@ type LibraryCategoryTabsProps = {
   tabs: LibraryCategoryTab[];
   progress: SharedValue<number>;
   onPress: (index: number) => void;
+  fullWidth?: boolean;
 };
 
 type CategoryTabProps = {
@@ -44,6 +45,7 @@ type CategoryTabProps = {
   progress: SharedValue<number>;
   onPress: (index: number) => void;
   onTabLayout: (index: number, x: number, width: number) => void;
+  stretch?: boolean;
 };
 
 const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
@@ -57,6 +59,7 @@ const CategoryTab = memo(function CategoryTab({
   progress,
   onPress,
   onTabLayout,
+  stretch,
 }: CategoryTabProps) {
   const { colors } = useTheme();
 
@@ -79,11 +82,13 @@ const CategoryTab = memo(function CategoryTab({
 
   return (
     <Pressable
-      style={styles.tab}
+      style={[styles.tab, stretch && styles.tabStretch]}
       onPress={() => onPress(index)}
       onLayout={handleLayout}
     >
-      <Animated.View style={[styles.tabInner, animatedStyle]}>
+      <Animated.View
+        style={[styles.tabInner, stretch && styles.tabInnerStretch, animatedStyle]}
+      >
         <ThemedText variant="subheadline" color="label" numberOfLines={1}>
           {label}
         </ThemedText>
@@ -101,10 +106,11 @@ const CategoryTab = memo(function CategoryTab({
   );
 });
 
-export function LibraryCategoryTabs({
+export const LibraryCategoryTabs = memo(function LibraryCategoryTabs({
   tabs,
   progress,
   onPress,
+  fullWidth = false,
 }: LibraryCategoryTabsProps) {
   const { width: windowWidth } = useWindowDimensions();
   const { colors, isDark, isGlass } = useTheme();
@@ -262,7 +268,13 @@ export function LibraryCategoryTabs({
         styles.track,
         styles.trackFit,
         { maxWidth: windowWidth - Spacing.lg * 2 },
-        fitWidth != null ? { width: fitWidth } : styles.trackHidden,
+        fullWidth
+          ? measured
+            ? { width: windowWidth - Spacing.lg * 2 }
+            : styles.trackHidden
+          : fitWidth != null
+            ? { width: fitWidth }
+            : styles.trackHidden,
       ]}
     >
       {isGlass ? (
@@ -292,7 +304,7 @@ export function LibraryCategoryTabs({
           setFitWidth(width);
         }}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, fullWidth && styles.contentStretch]}
       >
         {isGlass ? (
           <AnimatedGlassView
@@ -300,6 +312,7 @@ export function LibraryCategoryTabs({
             pointerEvents="none"
             glassEffectStyle="regular"
             colorScheme={isDark ? "dark" : "light"}
+            tintColor={isDark ? undefined : "rgba(0, 0, 0, 0.1)"}
             style={[styles.thumb, thumbStyle]}
           />
         ) : (
@@ -317,12 +330,13 @@ export function LibraryCategoryTabs({
             progress={progress}
             onPress={onPress}
             onTabLayout={handleTabLayout}
+            stretch={fullWidth}
           />
         ))}
       </Animated.ScrollView>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   track: {
@@ -351,6 +365,15 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: TRACK_PADDING,
+  },
+  contentStretch: {
+    minWidth: "100%",
+  },
+  tabStretch: {
+    flexGrow: 1,
+  },
+  tabInnerStretch: {
+    justifyContent: "center",
   },
   tab: {
     paddingHorizontal: Spacing.md,

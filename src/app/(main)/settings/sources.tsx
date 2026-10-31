@@ -507,7 +507,7 @@ export default function SettingsSourcesScreen() {
     <RefreshControl
       refreshing={isCheckingUpdates}
       onRefresh={refreshInBackground}
-      tintColor={colors.tint}
+      tintColor={colors.secondaryLabel}
     />
   );
 

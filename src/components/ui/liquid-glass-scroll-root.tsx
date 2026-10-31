@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, StyleSheet, type ScrollViewProps, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { ScrollViewMarker } from 'react-native-screens/experimental';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -29,16 +30,16 @@ export function LiquidGlassScrollRoot({ children, style }: LiquidGlassScrollRoot
 }
 
 /** Use as FlatList / DraggableFlatList `renderScrollComponent` for the same header gradient. */
-export function LiquidGlassScrollComponent(props: ScrollViewProps) {
+export function LiquidGlassScrollComponent(props: React.ComponentProps<typeof Animated.ScrollView>) {
   const { isGlass } = useTheme();
 
   if (!isGlass) {
-    return <ScrollView {...props} />;
+    return <Animated.ScrollView {...props} />;
   }
 
   return (
     <ScrollViewMarker scrollEdgeEffects={liquidGlassScrollEdgeEffects} style={styles.root}>
-      <ScrollView {...props} />
+      <Animated.ScrollView {...props} />
     </ScrollViewMarker>
   );
 }

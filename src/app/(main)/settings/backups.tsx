@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Button, ContextMenu, Host, RNHostView } from "@expo/ui/swift-ui";
 import * as DocumentPicker from "expo-document-picker";
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, StyleSheet, View, type View as ViewType } from "react-native";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { Alert, Platform, StyleSheet, View } from "react-native";
 
 import {
   SwipeableRow,
@@ -10,13 +11,6 @@ import {
   type SwipeAction,
 } from "@/components/sources/swipeable-row";
 import { Card, CardSeparator } from "@/components/ui/card";
-import {
-  InlineActionMenu,
-  type InlineActionMenuAnchor,
-  type InlineActionMenuItem,
-} from "@/components/ui/inline-action-menu";
-import { LongPressScalePressable } from "@/components/ui/long-press-scale-pressable";
-import { ListRow } from "@/components/ui/list-row";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { SectionLabel } from "@/components/ui/section-label";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -34,22 +28,44 @@ import {
   type RestoreProgress,
   type RestoreResult,
 } from "@/services/backup";
+import { BackupOptionsModal } from "@/components/backups/backup-options-modal";
+import type { BackupScope } from "@/services/backup-config";
 
-type BackupItem = { name: string; uri: string; date: number };
+type BackupItem = {
+  name: string;
+  uri: string;
+  date: number;
+  size: number;
+  auto: boolean;
+};
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatBackupDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleString(undefined, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function BackupsSettingsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { refresh } = useSources();
   const [backups, setBackups] = useState<BackupItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const [busyMessage, setBusyMessage] = useState<string | null>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [menuAnchor, setMenuAnchor] = useState<InlineActionMenuAnchor | null>(
+  const [optionsMode, setOptionsMode] = useState<"auto" | "create" | null>(
     null,
   );
-  const [menuBackup, setMenuBackup] = useState<BackupItem | null>(null);
-  const rowRefs = useRef<Record<string, ViewType | null>>({});
-
+  const lastOptionsModeRef = useRef<"auto" | "create">("auto");
+  if (optionsMode) lastOptionsModeRef.current = optionsMode;
+  const [busyMessage, setBusyMessage] = useState<string | null>(null);
   const load = useCallback(async () => {
     setBackups(await listBackups());
   }, []);
@@ -101,12 +117,20 @@ export default function BackupsSettingsScreen() {
     }
   };
 
-  const handleCreate = async () => {
+  const createRef = useRef<() => void>(() => {});
+  const importRef = useRef<() => Promise<void>>(async () => {});
+
+  const handleCreate = async (scope: BackupScope) => {
     setBusy(true);
     setBusyMessage(t("backups_creating"));
     try {
-      await createBackup();
+      await createBackup({ scope });
       await load();
+    } catch (error) {
+      Alert.alert(
+        t("backups_create"),
+        error instanceof Error ? error.message : String(error),
+      );
     } finally {
       setBusy(false);
       setBusyMessage(null);
@@ -156,47 +180,42 @@ export default function BackupsSettingsScreen() {
     ]);
   };
 
-  const openBackupMenu = (backup: BackupItem) => {
-    const ref = rowRefs.current[backup.uri];
-    ref?.measureInWindow((x, y, width, height) => {
-      setMenuAnchor({ x, y, width, height });
-      setMenuBackup(backup);
-      setMenuVisible(true);
-    });
-  };
+  createRef.current = () => setOptionsMode("create");
+  importRef.current = handleImport;
 
-  const closeMenu = () => {
-    setMenuVisible(false);
-    setMenuAnchor(null);
-    setMenuBackup(null);
-  };
-
-  const menuItems: InlineActionMenuItem[] = menuBackup
-    ? [
-        {
-          key: "share",
-          label: t("backups_share"),
-          sfSymbol: "square.and.arrow.up",
-          fallbackIcon: "share-outline",
-          onPress: () => void shareBackup(menuBackup.uri),
-        },
-        {
-          key: "restore",
-          label: t("backups_restore_action"),
-          sfSymbol: "arrow.clockwise",
-          fallbackIcon: "refresh-outline",
-          onPress: () => confirmRestore(menuBackup.uri),
-        },
-        {
-          key: "delete",
-          label: t("backups_delete_action"),
-          sfSymbol: "trash",
-          fallbackIcon: "trash-outline",
-          destructive: true,
-          onPress: () => confirmDelete(menuBackup.uri, menuBackup.name),
-        },
-      ]
-    : [];
+  const renderBackupRow = (backup: BackupItem, row: ReactElement) =>
+    Platform.OS === "ios" ? (
+      <Host
+        matchContents={{ vertical: true }}
+        colorScheme={isDark ? "dark" : "light"}
+      >
+        <ContextMenu>
+          <ContextMenu.Trigger>
+            <RNHostView matchContents={{ vertical: true }}>{row}</RNHostView>
+          </ContextMenu.Trigger>
+          <ContextMenu.Items>
+            <Button
+              label={t("backups_share")}
+              systemImage="square.and.arrow.up"
+              onPress={() => void shareBackup(backup.uri)}
+            />
+            <Button
+              label={t("backups_restore_action")}
+              systemImage="arrow.clockwise"
+              onPress={() => confirmRestore(backup.uri)}
+            />
+            <Button
+              label={t("backups_delete_action")}
+              systemImage="trash"
+              role="destructive"
+              onPress={() => confirmDelete(backup.uri, backup.name)}
+            />
+          </ContextMenu.Items>
+        </ContextMenu>
+      </Host>
+    ) : (
+      row
+    );
 
   const restoreAction = (backup: BackupItem): SwipeAction => ({
     key: "restore",
@@ -219,25 +238,35 @@ export default function BackupsSettingsScreen() {
   return (
     <>
       <Stack.Screen options={{ title: t("backups_settings_title") }} />
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          icon="clock.arrow.circlepath"
+          accessibilityLabel={t("backups_auto_title")}
+          separateBackground
+          tintColor={colors.label}
+          onPress={() => setOptionsMode("auto")}
+        />
+        <Stack.Toolbar.Menu
+          icon="ellipsis"
+          title={t("backups_settings_title")}
+          disabled={busy}
+          tintColor={colors.label}
+        >
+          <Stack.Toolbar.MenuAction
+            icon="plus.circle"
+            onPress={() => createRef.current()}
+          >
+            {t("backups_create")}
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            icon="square.and.arrow.down"
+            onPress={() => void importRef.current()}
+          >
+            {t("backups_import")}
+          </Stack.Toolbar.MenuAction>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
       <ScreenContent>
-        <SectionLabel isFirst>{t("backups_actions")}</SectionLabel>
-        <Card>
-          <ListRow
-            icon="add-circle-outline"
-            label={t("backups_create")}
-            onPress={busy ? undefined : () => void handleCreate()}
-            isFirst
-          />
-          <CardSeparator />
-          <ListRow
-            icon="download-outline"
-            label={t("backups_import")}
-            onPress={busy ? undefined : () => void handleImport()}
-            isLast
-          />
-        </Card>
-
-        <SectionLabel>{t("backups_saved")}</SectionLabel>
         {backups.length === 0 ? (
           <ThemedText
             variant="body"
@@ -260,32 +289,57 @@ export default function BackupsSettingsScreen() {
                     onFullSwipeLeading={() => confirmRestore(backup.uri)}
                     onFullSwipe={() => confirmDelete(backup.uri, backup.name)}
                   >
-                    <LongPressScalePressable
-                      ref={(ref) => {
-                        rowRefs.current[backup.uri] = ref;
-                      }}
-                      style={styles.backupPressable}
-                      onLongPress={() => openBackupMenu(backup)}
-                    >
-                      <View style={styles.backupRow}>
+                    {renderBackupRow(backup, (
+                      <View
+                        style={[
+                          styles.backupRow,
+                          { backgroundColor: colors.secondarySystemBackground },
+                        ]}
+                      >
                         <Ionicons
                           name="document-outline"
                           size={22}
                           color="#888"
                         />
                         <View style={styles.backupText}>
-                          <ThemedText variant="body">{backup.name}</ThemedText>
+                          <View style={styles.nameRow}>
+                            <ThemedText variant="body" style={styles.nameText}>
+                              {backup.name}
+                            </ThemedText>
+                            {backup.auto ? (
+                              <View
+                                style={[
+                                  styles.autoBadge,
+                                  { backgroundColor: colors.tint },
+                                ]}
+                              >
+                                <ThemedText variant="caption2" color="onTint">
+                                  {t("backups_auto_badge")}
+                                </ThemedText>
+                              </View>
+                            ) : null}
+                          </View>
                           <ThemedText variant="footnote" color="tertiaryLabel">
-                            {new Date(backup.date).toLocaleString()}
+                            {formatBackupDate(backup.date)}
                           </ThemedText>
                         </View>
+                        <ThemedText variant="footnote" color="secondaryLabel">
+                          {formatSize(backup.size)}
+                        </ThemedText>
                       </View>
-                    </LongPressScalePressable>
+                    ))}
                   </SwipeableRow>
                   {index < backups.length - 1 ? <CardSeparator /> : null}
                 </View>
               ))}
             </Card>
+            <ThemedText
+              variant="footnote"
+              color="tertiaryLabel"
+              style={styles.footer}
+            >
+              {t("backups_gestures_hint")}
+            </ThemedText>
           </SwipeableRowsProvider>
         )}
         {busy && busyMessage ? (
@@ -299,12 +353,11 @@ export default function BackupsSettingsScreen() {
         ) : null}
       </ScreenContent>
 
-      <InlineActionMenu
-        visible={menuVisible}
-        anchor={menuAnchor}
-        title={menuBackup?.name}
-        items={menuItems}
-        onClose={closeMenu}
+      <BackupOptionsModal
+        visible={optionsMode !== null}
+        mode={lastOptionsModeRef.current}
+        onClose={() => setOptionsMode(null)}
+        onCreate={(scope) => void handleCreate(scope)}
       />
     </>
   );
@@ -328,6 +381,23 @@ const styles = StyleSheet.create({
   backupText: {
     flex: 1,
     gap: 2,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  nameText: {
+    flexShrink: 1,
+  },
+  autoBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  footer: {
+    paddingHorizontal: Spacing.sm,
+    marginTop: -Spacing.xs,
   },
   hint: {
     textAlign: "center",

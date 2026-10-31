@@ -605,16 +605,7 @@ export function ReaderView({
         targetChapter.key,
       );
       const alreadyRead = existing?.page === -1;
-      if (alreadyRead && !isLastPage) {
-        await recordChapterProgress(
-          sourceId,
-          manga.key,
-          targetChapter.key,
-          -1,
-          { ...historyMeta, notify },
-        );
-        return;
-      }
+      if (alreadyRead) return;
       if (isLastPage) {
         if (settings?.markDuplicateChapters) {
           await markChaptersInQueue(

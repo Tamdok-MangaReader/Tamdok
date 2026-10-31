@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { SwipeableRow, SwipeableRowsProvider, type SwipeAction } from '@/components/sources/swipeable-row';
 import { Card, CardSeparator } from '@/components/ui/card';
@@ -20,7 +20,7 @@ import { getAppSettings, updateAppSettings } from '@/services/app-settings';
 import { clearFailedDownloads, getDownloads, removeChapterDownload, removeMangaDownloads, type DownloadEntry } from '@/services/downloads';
 import { processQueuedDownloads } from '@/services/download-processor';
 import { getLibraryEntries } from '@/services/library';
-import { peekMangaDetailCache } from '@/services/manga-detail-cache';
+import { peekMangaDetailCache, readMangaDetailCache } from '@/services/manga-detail-cache';
 import { findInstalledSource, sourceRouteId } from '@/services/sources';
 import { chaptersOldestFirst, formatEntryChapterLabel, formatStoredChapterLabel, looksLikeOpaqueChapterId } from '@/utils/chapter-label';
 import { coverImageSource } from '@/utils/cover-image-source';
@@ -102,6 +102,23 @@ function DownloadMangaGroupRow({
   const coverHeaders = useSourceCoverHeaders();
   const coverHeadersReady = useSourceCoverHeadersReady();
   const [expanded, setExpanded] = useState(false);
+  const [totalChapters, setTotalChapters] = useState<number | null>(
+    () => peekMangaDetailCache(group.sourceId, group.mangaKey)?.manga.chapters?.length ?? null,
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void readMangaDetailCache(group.sourceId, group.mangaKey)
+      .then((cached) => {
+        const count = cached?.manga.chapters?.length;
+        if (!cancelled && count) setTotalChapters(count);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [group.sourceId, group.mangaKey]);
+  const completedCount = group.chapters.filter((chapter) => chapter.status === 'completed').length;
+  const totalCount = Math.max(totalChapters ?? 0, group.chapters.length);
   const source = findInstalledSource(installed, group.sourceId);
   const sourceLabel = source ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}` : group.sourceId;
   const hiddenCount = Math.max(0, group.chapters.length - VISIBLE_CHAPTER_LIMIT);
@@ -156,7 +173,7 @@ function DownloadMangaGroupRow({
             <View style={styles.metaLine}>
               <Ionicons name='download-outline' size={13} color={colors.tertiaryLabel} />
               <ThemedText variant='caption1' color='tertiaryLabel'>
-                {t('downloads_chapter_count', { count: String(group.chapters.length) })}
+                {t('downloads_chapter_progress', { done: String(completedCount), total: String(totalCount) })}
               </ThemedText>
             </View>
           </View>
@@ -200,6 +217,15 @@ function DownloadMangaGroupRow({
               <Ionicons name='chevron-down' size={14} color={colors.tint} />
             </Pressable>
           ) : null}
+
+          {hiddenCount > 0 && expanded ? (
+            <Pressable style={styles.showMoreButton} onPress={() => setExpanded(false)} accessibilityRole='button'>
+              <ThemedText variant='subheadline' color='tint'>
+                {t('manga_show_less')}
+              </ThemedText>
+              <Ionicons name='chevron-up' size={14} color={colors.tint} />
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -212,7 +238,6 @@ export default function DownloadsSettingsScreen() {
   const refreshTick = useMangaDataRefresh();
   const [entries, setEntries] = useState<DownloadEntry[]>([]);
   const [covers, setCovers] = useState<Record<string, string>>({});
-  const [processing, setProcessing] = useState(false);
   const [downloadOnlyOnWifi, setDownloadOnlyOnWifi] = useState(false);
   const [deleteAfterReading, setDeleteAfterReading] = useState(false);
 
@@ -239,13 +264,7 @@ export default function DownloadsSettingsScreen() {
   }, [load, refreshTick]);
 
   const processQueue = useCallback(async () => {
-    setProcessing(true);
-    try {
-      await processQueuedDownloads(installed);
-      await load();
-    } finally {
-      setProcessing(false);
-    }
+    void processQueuedDownloads(installed).then(load);
   }, [installed, load]);
 
   useEffect(() => {
@@ -311,7 +330,7 @@ export default function DownloadsSettingsScreen() {
         options={{
           title: t('downloads_settings_title'),
           headerRight: () => (
-            <ThemedText variant='body' color='tint' onPress={() => void processQueue()} style={{ paddingHorizontal: 8 }}>
+            <ThemedText variant='body' color='label' onPress={() => void processQueue()} style={{ paddingHorizontal: 8 }}>
               {t('downloads_process_queue')}
             </ThemedText>
           ),
@@ -319,8 +338,6 @@ export default function DownloadsSettingsScreen() {
       />
       <SwipeableRowsProvider>
         <ScreenContent>
-          {processing ? <ActivityIndicator style={{ marginBottom: Spacing.md }} /> : null}
-
           <SectionLabel isFirst>{t('downloads_preferences_section')}</SectionLabel>
           <Card>
             <View style={styles.switchRow}>

@@ -129,7 +129,7 @@ function SourceInstalledActionsNative({
   children,
   ...menuProps
 }: SourceInstalledActionsProps) {
-  const { isDark } = useTheme();
+  const { isDark, colors, radius } = useTheme();
   const pinLabel = menuProps.isPinned ? t("sources_unpin") : t("sources_pin");
   const updateLabel = updateLabelFor(menuProps);
 
@@ -143,11 +143,18 @@ function SourceInstalledActionsNative({
       <ContextMenu>
         <ContextMenu.Trigger>
           <RNHostView matchContents={{ vertical: true }}>
-            {cloneElement(children, {
-              onPress,
-              onLongPress: noop,
-              delayLongPress: 250,
-            })}
+            <View
+              style={{
+                backgroundColor: colors.secondarySystemBackground,
+                borderRadius: radius.md,
+              }}
+            >
+              {cloneElement(children, {
+                onPress,
+                onLongPress: noop,
+                delayLongPress: 250,
+              })}
+            </View>
           </RNHostView>
         </ContextMenu.Trigger>
         <ContextMenu.Items>

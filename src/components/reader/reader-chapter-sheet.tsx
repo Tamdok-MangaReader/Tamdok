@@ -1,3 +1,4 @@
+import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,11 +22,11 @@ export function ReaderChapterSheet({ visible, onClose }: ReaderChapterSheetProps
   return (
     <Modal visible={visible} animationType='slide' transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + Spacing.lg, backgroundColor: colors.secondarySystemBackground }]}>
-        <ThemedText variant='headline' style={styles.title}>
-          {t('manga_chapters')}
-        </ThemedText>
-        <ScrollView contentContainerStyle={styles.list}>
+      <View style={[styles.sheet, { backgroundColor: colors.secondarySystemBackground }]}>
+        <ModalHeader title={t('manga_chapters')} closeLabel={t('done')} onClose={onClose} />
+        <ScrollView
+          contentContainerStyle={[styles.list, { paddingTop: MODAL_HEADER_HEIGHT + Spacing.sm, paddingBottom: insets.bottom + Spacing.lg }]}
+          scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}>
           {chapters.map((item) => {
             const selected = item.key === chapter.key;
             return (
@@ -54,19 +55,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
   sheet: {
-    maxHeight: '70%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-  },
-  title: {
-    marginBottom: Spacing.md,
-    fontWeight: '600',
+    maxHeight: '75%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
   },
   list: {
     gap: Spacing.xs,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
   },
   row: {
     borderRadius: 10,

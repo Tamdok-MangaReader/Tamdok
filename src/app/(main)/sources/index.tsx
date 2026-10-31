@@ -46,11 +46,11 @@ import {
   type SwipeAction,
 } from "@/components/sources/swipeable-row";
 import { usePagerHeights } from "@/hooks/use-pager-heights";
-import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { getAppSettings } from "@/services/app-settings";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -518,7 +518,7 @@ function buildCategoryRows(
   if (unpinned.length > 0) {
     rows.push(
       ...toRows(
-        pinned.length > 0 ? t("sources_all") : t("sources"),
+        pinned.length > 0 ? t("sources_all") : "",
         "all",
         unpinned,
         pinned.length === 0,
@@ -712,8 +712,10 @@ export default function SourcesScreen() {
     pages.map((page) => page.id),
     selectedPageIndex,
   );
-  const { spacerHeight, renderOverlay } = usePinnedTabs(
-    categoryTabs.length > 1,
+  const showTabs = categoryTabs.length > 1 && !isLoading;
+  const { onScroll: handlePinnedScroll, spacer, renderTabs } = usePinnedTabs(
+    showTabs,
+    { gap: 0 },
   );
 
   const pageScrollHandler = usePageScrollHandler({
@@ -800,22 +802,27 @@ export default function SourcesScreen() {
         accessibilityRole="button"
         accessibilityLabel={t("done")}
       >
-        <Ionicons name="checkmark" size={24} color={colors.tint} />
+        <Ionicons name="checkmark" size={24} color={colors.label} />
       </Pressable>
     ),
-    [exitReorderMode, colors.tint],
+    [exitReorderMode, colors.label],
   );
 
   const screenOptions = useMemo(
-    () => ({
-      headerLargeTitle: false,
-      headerTransparent: !isReorderMode,
-      headerStyle: isReorderMode
-        ? { backgroundColor: colors.groupedBackground }
-        : undefined,
-      headerShadowVisible: isReorderMode,
-      headerRight: isReorderMode ? renderDoneButton : undefined,
-    }),
+    () =>
+      isReorderMode
+        ? {
+            headerTransparent: false,
+            headerStyle: { backgroundColor: colors.groupedBackground },
+            headerShadowVisible: true,
+            headerRight: renderDoneButton,
+          }
+        : {
+            headerTransparent: true,
+            headerStyle: undefined,
+            headerShadowVisible: true,
+            headerRight: undefined,
+          },
     [isReorderMode, colors.groupedBackground, renderDoneButton],
   );
 
@@ -828,21 +835,9 @@ export default function SourcesScreen() {
   return (
     <>
       <Stack.Screen options={screenOptions} />
-      <Stack.Title>
+      <Stack.Title large={!isReorderMode}>
         {isReorderMode ? t("sources_reorder") : t("sources")}
       </Stack.Title>
-      {!isReorderMode && (
-        <Stack.SearchBar
-          key={isDark ? "sources-search-dark" : "sources-search-light"}
-          placeholder={t("sources_search_placeholder")}
-          {...stackSearchBarProps}
-          placement="integratedButton"
-          tintColor={colors.tint}
-          hideWhenScrolling
-          onChangeText={handleSearchText}
-          onSearchButtonPress={handleSearchText}
-        />
-      )}
       {isLoading || isEmpty ? (
         <ScreenContent centerContent={isLoading || isEmpty}>
           {isLoading ? (
@@ -889,14 +884,16 @@ export default function SourcesScreen() {
           />
         </ThemedView>
       ) : (
-        <ThemedView color="groupedBackground" style={styles.root}>
+        <View style={styles.root}>
           <LiquidGlassScrollComponent
             contentInsetAdjustmentBehavior="automatic"
             automaticallyAdjustsScrollIndicatorInsets
             showsVerticalScrollIndicator={false}
+            onScroll={handlePinnedScroll}
+            scrollEventThrottle={16}
           >
             <IncognitoModeBanner />
-            <View style={{ height: spacerHeight }} />
+            {spacer}
             <SwipeableRowsProvider>
               <AnimatedPagerView
                 ref={pagerRef}
@@ -933,16 +930,28 @@ export default function SourcesScreen() {
                 ))}
               </AnimatedPagerView>
             </SwipeableRowsProvider>
+            {renderTabs(
+              <LibraryCategoryTabs
+                fullWidth
+                key={pagerKey}
+                tabs={categoryTabs}
+                progress={progress}
+                onPress={handleTabPress}
+              />,
+            )}
           </LiquidGlassScrollComponent>
-          {renderOverlay(
-            <LibraryCategoryTabs
-              key={pagerKey}
-              tabs={categoryTabs}
-              progress={progress}
-              onPress={handleTabPress}
-            />,
-          )}
-        </ThemedView>
+        </View>
+      )}
+      {!isReorderMode && (
+        <Stack.SearchBar
+          key={isDark ? "sources-search-dark" : "sources-search-light"}
+          placeholder={t("sources_search_placeholder")}
+          {...stackSearchBarProps}
+          placement="integratedButton"
+          tintColor={colors.tint}
+          onChangeText={handleSearchText}
+          onSearchButtonPress={handleSearchText}
+        />
       )}
     </>
   );

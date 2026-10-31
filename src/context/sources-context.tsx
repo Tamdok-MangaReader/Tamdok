@@ -1,3 +1,10 @@
+import { processQueuedDownloads } from "@/services/download-processor";
+import {
+  hasUnfinishedDownloads,
+  resetStuckDownloadQueue,
+} from "@/services/downloads";
+import { registerCoverHeaders } from "@/utils/cover-headers-store";
+import { subscribeSourceSettings } from "@/utils/source-settings-events";
 import React, {
   createContext,
   useCallback,
@@ -173,6 +180,18 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
   });
   const installedRef = useRef<InstalledSource[]>([]);
   const autoPinnedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    void registerCoverHeaders(installed);
+  }, [installed]);
+
+  useEffect(
+    () =>
+      subscribeSourceSettings(() => {
+        void registerCoverHeaders(installedRef.current);
+      }),
+    [],
+  );
   const lastForegroundCheckRef = useRef(0);
 
   const setInstalled = useCallback((next: InstalledSource[]) => {
@@ -413,6 +432,28 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
   }, [refreshInBackground]);
 
   const hasInstalled = installed.length > 0;
+
+  useEffect(() => {
+    if (!hasInstalled) return;
+    let backgroundedAt = 0;
+    const resume = async (reset: boolean) => {
+      if (!(await hasUnfinishedDownloads())) return;
+      if (reset) await resetStuckDownloadQueue();
+      void processQueuedDownloads(installedRef.current);
+    };
+    void resume(true);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "background") {
+        backgroundedAt = Date.now();
+        return;
+      }
+      if (state !== "active") return;
+      const away = backgroundedAt > 0 ? Date.now() - backgroundedAt : 0;
+      backgroundedAt = 0;
+      void resume(away > 3000);
+    });
+    return () => subscription.remove();
+  }, [hasInstalled]);
 
   useEffect(() => {
     if (!hasInstalled) return;

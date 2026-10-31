@@ -82,6 +82,7 @@ const EMPTY_CHAPTERS: Chapter[] = [];
 const EMPTY_TAGS: string[] = [];
 const PRESSED_72 = { opacity: 0.72 } as const;
 const PRESSED_85 = { opacity: 0.85 } as const;
+const noopChapterLongPress = () => {};
 const ROW_PAD_NUMBERED = { paddingHorizontal: Spacing.md } as const;
 const ROW_PAD_DEFAULT = { paddingHorizontal: Spacing.lg } as const;
 const DATE_TEXT_BASE: TextStyle = {
@@ -1047,7 +1048,7 @@ export function MangaDetailView({
         <RefreshControl
           refreshing={false}
           onRefresh={onRefresh}
-          tintColor={colors.tint}
+          tintColor={colors.secondaryLabel}
         />
       ) : undefined,
     [onRefresh, colors.tint],
@@ -1264,6 +1265,8 @@ const ChapterRow = memo(function ChapterRow({
     <Pressable
       style={pressableStyle}
       onPress={handlePress}
+      onLongPress={menuEnabled && !selectMode ? noopChapterLongPress : undefined}
+      delayLongPress={250}
       accessibilityRole="button"
     >
       {selectMode ? (
@@ -1391,7 +1394,13 @@ const ChapterRow = memo(function ChapterRow({
       >
         <ContextMenu>
           <ContextMenu.Trigger>
-            <RNHostView matchContents={{ vertical: true }}>{row}</RNHostView>
+            <RNHostView matchContents={{ vertical: true }}>
+              <View
+                style={{ backgroundColor: colors.secondarySystemBackground }}
+              >
+                {row}
+              </View>
+            </RNHostView>
           </ContextMenu.Trigger>
           <ContextMenu.Items>
             <Button

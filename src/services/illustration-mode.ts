@@ -12,7 +12,8 @@ export const ILLUSTRATION_SOURCE: InstalledSource = {
   id: ILLUSTRATION_SOURCE_ID,
   kind: "tamdok",
   installPath: "",
-  iconUri: Image.resolveAssetSource(require("../../assets/komga.png"))?.uri,
+  iconUri: Image.resolveAssetSource(require("../../assets/images/komga.png"))
+    ?.uri,
   manifest: {
     info: {
       id: ILLUSTRATION_SOURCE_ID,
@@ -78,6 +79,8 @@ export function isIllustrationSourceRoute(routeId: string): boolean {
   }
 }
 
-export function isIllustrationSource(source: Pick<InstalledSource, "id">): boolean {
+export function isIllustrationSource(
+  source: Pick<InstalledSource, "id">,
+): boolean {
   return source.id === ILLUSTRATION_SOURCE_ID;
 }

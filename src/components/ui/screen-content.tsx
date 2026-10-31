@@ -55,7 +55,7 @@ export function ScreenContent({
       showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior='automatic'
       automaticallyAdjustsScrollIndicatorInsets
-      style={style}
+      style={[styles.root, style]}
       contentContainerStyle={[styles.content, padded && styles.padded, contentContainerStyle]}
       {...scrollProps}
       {...rest}>
@@ -64,18 +64,10 @@ export function ScreenContent({
   );
 
   if (keyboardAware) {
-    return (
-      <ThemedView color='groupedBackground' style={styles.root}>
-        {scrollView}
-      </ThemedView>
-    );
+    return scrollView;
   }
 
-  return (
-    <ThemedView color='groupedBackground' style={styles.root}>
-      <LiquidGlassScrollRoot style={styles.root}>{scrollView}</LiquidGlassScrollRoot>
-    </ThemedView>
-  );
+  return <LiquidGlassScrollRoot style={styles.root}>{scrollView}</LiquidGlassScrollRoot>;
 }
 
 const styles = StyleSheet.create({

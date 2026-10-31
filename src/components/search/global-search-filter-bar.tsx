@@ -1,3 +1,4 @@
+import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -230,25 +231,22 @@ function GlobalSearchFilterModal({
 
   return (
     <Modal visible={visible} animationType='slide' presentationStyle='pageSheet' onRequestClose={onClose}>
-      <View style={[styles.modalRoot, { backgroundColor: colors.systemBackground, paddingTop: Spacing.sm }]}>
-        <View style={styles.modalHeader}>
-          <ModalHeaderButton label={t('cancel')} onPress={onClose} />
-          <ThemedText variant='headline' style={styles.modalTitle}>
-            {t('source_search_filters')}
-          </ThemedText>
-          <ModalHeaderButton
-            label={t('source_search_filters_apply')}
-            onPress={() => {
-              onChange(draft);
-              onClose();
-            }}
-            primary
-          />
-        </View>
+      <View style={[styles.modalRoot, { backgroundColor: colors.systemBackground }]}>
+        <ModalHeader
+          title={t('source_search_filters')}
+          closeLabel={t('cancel')}
+          onClose={onClose}
+          actionLabel={t('source_search_filters_apply')}
+          onAction={() => {
+            onChange(draft);
+            onClose();
+          }}
+        />
 
         <ScrollView
           style={styles.modalScroll}
-          contentContainerStyle={[styles.modalContent, { paddingBottom: Spacing.xxxl }]}
+          contentContainerStyle={[styles.modalContent, { paddingTop: MODAL_HEADER_HEIGHT + Spacing.md, paddingBottom: Spacing.xxxl }]}
+          scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
           keyboardShouldPersistTaps='handled'
           showsVerticalScrollIndicator={false}>
           <SectionLabel isFirst>{t('search_filter_sources')}</SectionLabel>
@@ -508,7 +506,7 @@ const styles = StyleSheet.create({
   modalContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   modalSectionCard: {
     padding: Spacing.lg,

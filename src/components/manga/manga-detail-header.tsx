@@ -20,7 +20,7 @@ export const MangaDetailHeaderLeft = memo(function MangaDetailHeaderLeft({
   if (chapterSelectMode) {
     return (
       <Pressable onPress={onCancelSelect} hitSlop={12}>
-        <ThemedText variant='body' color='tint' style={{ paddingHorizontal: 8 }}>
+        <ThemedText variant='body' color='label' style={{ paddingHorizontal: 8 }}>
           {t('cancel')}
         </ThemedText>
       </Pressable>

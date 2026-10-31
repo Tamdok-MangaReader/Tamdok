@@ -1,3 +1,4 @@
+import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
@@ -867,45 +868,18 @@ export function InstalledSourceSettings({
             { backgroundColor: colors.secondarySystemBackground },
           ]}
         >
-          <View
-            style={[
-              styles.loginHeader,
-              {
-                borderBottomColor: colors.quaternaryFill,
-              },
-            ]}
-          >
-            <GlassSurface interactive style={styles.headerAction}>
-              <Pressable
-                onPress={closeLogin}
-                style={{ flex: 1 }}
-                accessibilityRole="button"
-              >
-                <ThemedText variant="body">{t("source_web_close")}</ThemedText>
-              </Pressable>
-            </GlassSurface>
-
-            <GlassSurface interactive style={styles.headerAction}>
-              <Pressable
-                onPress={() =>
-                  void (loginMode === "cloudflare"
-                    ? saveClearance(loginUrl || "")
-                    : saveCookies(loginUrl || ""))
-                }
-                style={{ flex: 1 }}
-                disabled={isSavingCookies}
-                accessibilityRole="button"
-              >
-                {isSavingCookies ? (
-                  <ActivityIndicator />
-                ) : (
-                  <ThemedText variant="body" style={{ color: colors.tint }}>
-                    {t("source_web_save")}
-                  </ThemedText>
-                )}
-              </Pressable>
-            </GlassSurface>
-          </View>
+          <ModalHeader
+            title={loginHost(loginUrl)}
+            closeLabel={t("source_web_close")}
+            onClose={closeLogin}
+            actionLabel={t("source_web_save")}
+            actionLoading={isSavingCookies}
+            onAction={() =>
+              void (loginMode === "cloudflare"
+                ? saveClearance(loginUrl || "")
+                : saveCookies(loginUrl || ""))
+            }
+          />
 
           {isWebViewLoading ? (
             <View style={styles.webViewLoading}>
@@ -946,6 +920,15 @@ export function InstalledSourceSettings({
       </Modal>
     </>
   );
+}
+
+function loginHost(url: string | null): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 const styles = StyleSheet.create({
@@ -1070,10 +1053,11 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
+    marginTop: MODAL_HEADER_HEIGHT,
   },
   webViewLoading: {
     position: "absolute",
-    top: 70,
+    top: MODAL_HEADER_HEIGHT + 10,
     alignSelf: "center",
     zIndex: 1,
     flexDirection: "row",

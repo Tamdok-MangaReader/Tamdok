@@ -1,3 +1,4 @@
+import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Fragment,
@@ -391,28 +392,27 @@ function MangaFilterModal({
             styles.modal,
             {
               backgroundColor: colors.systemBackground,
-              paddingTop: Spacing.sm,
             },
           ]}
         >
-          <View style={styles.modalHeader}>
-            <ModalHeaderButton label={t("cancel")} onPress={onClose} />
-            <ThemedText variant="headline" style={styles.modalTitle}>
-              {t("source_search_filters")}
-            </ThemedText>
-            <ModalHeaderButton
-              label={t("source_search_filters_apply")}
-              onPress={commitDraft}
-              primary
-            />
-          </View>
+          <ModalHeader
+            title={t("source_search_filters")}
+            closeLabel={t("cancel")}
+            onClose={onClose}
+            actionLabel={t("source_search_filters_apply")}
+            onAction={commitDraft}
+          />
 
           <KeyboardAwareScrollView
             style={styles.modalScroll}
             contentContainerStyle={[
               styles.modalContent,
-              { paddingBottom: Spacing.xxxl },
+              {
+                paddingTop: MODAL_HEADER_HEIGHT + Spacing.md,
+                paddingBottom: Spacing.xxxl,
+              },
             ]}
+            scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bottomOffset={Spacing.lg}
@@ -1512,7 +1512,7 @@ const styles = StyleSheet.create({
   modalContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   modalSectionCard: {
     padding: Spacing.lg,

@@ -442,6 +442,42 @@ export type DownloadPageList = {
 };
 
 let queueTail: Promise<void> = Promise.resolve();
+let queueGeneration = 0;
+
+export async function getActiveDownloads(): Promise<DownloadEntry[]> {
+  const store = await loadStore();
+  return store.entries.filter(
+    (entry) => entry.status === "pending" || entry.status === "downloading",
+  );
+}
+
+export async function getFailedDownloads(): Promise<DownloadEntry[]> {
+  const store = await loadStore();
+  return store.entries.filter((entry) => entry.status === "failed");
+}
+
+export async function hasUnfinishedDownloads(): Promise<boolean> {
+  const store = await loadStore();
+  return store.entries.some(
+    (entry) => entry.status === "pending" || entry.status === "downloading",
+  );
+}
+
+export async function resetStuckDownloadQueue(): Promise<void> {
+  queueGeneration += 1;
+  queueTail = Promise.resolve();
+  await mutateStore((store) => {
+    let changed = false;
+    for (const entry of store.entries) {
+      if (entry.status === "downloading") {
+        entry.status = "pending";
+        entry.progress = 0;
+        changed = true;
+      }
+    }
+    return changed;
+  });
+}
 
 export async function processDownloadQueue(
   fetchPages: (
@@ -454,7 +490,9 @@ export async function processDownloadQueue(
   limit = 3,
 ): Promise<void> {
   const run = queueTail.then(async () => {
+    const generation = queueGeneration;
     while (true) {
+      if (generation !== queueGeneration) break;
       const appSettings = await getAppSettings();
       if (appSettings.downloads.downloadOnlyOnWifi && !(await isOnWifi()))
         break;
@@ -469,6 +507,7 @@ export async function processDownloadQueue(
       if (pending.length === 0) break;
 
       for (const entry of pending) {
+        if (generation !== queueGeneration) break;
         try {
           await updateDownloadStatus(
             entry.sourceId,

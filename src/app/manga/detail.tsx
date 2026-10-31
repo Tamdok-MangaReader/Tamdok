@@ -1,5 +1,8 @@
 import { useSourceTrouble } from "@/utils/source-connection-status";
-import { MangaRefreshStatus } from "@/components/manga/manga-refresh-status";
+import {
+  MangaRefreshStatus,
+  useRefreshStatus,
+} from "@/components/manga/manga-refresh-status";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import {
   Stack,
@@ -746,33 +749,30 @@ export default function MangaDetailScreen() {
   const showHeaderSpinner = isRefreshing || isLoading;
   const headerError = error ?? loadError;
 
+  const refreshStatus = useRefreshStatus(showHeaderSpinner, headerError);
+
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        <MangaRefreshStatus
-          busy={showHeaderSpinner}
-          error={headerError}
-        />
+        <MangaRefreshStatus status={refreshStatus} />
         <MangaDetailHeaderRight
-          chapterSelectMode={chapterSelectMode}
-          hasDownloads={hasDownloads}
-          canShare={Boolean(mangaPageUrl)}
-          canDownload={inLibrary}
-          onApplySelect={() => handlersRef.current.onApplySelect()}
-          onShare={() => handlersRef.current.onShare()}
-          onSelectChapters={() => handlersRef.current.onSelectChapters()}
-          onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
-          onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
-          onMarkSelectedRead={() => handlersRef.current.onMarkSelectedRead()}
-          onMarkSelectedUnread={() =>
-            handlersRef.current.onMarkSelectedUnread()
-          }
-          onSelectAll={() => handlersRef.current.onSelectAll()}
-          onDeselectAll={() => handlersRef.current.onDeselectAll()}
-          onRefresh={() => handlersRef.current.onRefresh()}
-          onDownloadAll={() => handlersRef.current.onDownloadAll()}
-          onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
-          onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
+        chapterSelectMode={chapterSelectMode}
+        hasDownloads={hasDownloads}
+        canShare={Boolean(mangaPageUrl)}
+        canDownload={inLibrary}
+        onApplySelect={() => handlersRef.current.onApplySelect()}
+        onShare={() => handlersRef.current.onShare()}
+        onSelectChapters={() => handlersRef.current.onSelectChapters()}
+        onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
+        onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
+        onMarkSelectedRead={() => handlersRef.current.onMarkSelectedRead()}
+        onMarkSelectedUnread={() => handlersRef.current.onMarkSelectedUnread()}
+        onSelectAll={() => handlersRef.current.onSelectAll()}
+        onDeselectAll={() => handlersRef.current.onDeselectAll()}
+        onRefresh={() => handlersRef.current.onRefresh()}
+        onDownloadAll={() => handlersRef.current.onDownloadAll()}
+        onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
+        onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
         />
       </View>
     ),
@@ -780,11 +780,8 @@ export default function MangaDetailScreen() {
       chapterSelectMode,
       hasDownloads,
       inLibrary,
-      showHeaderSpinner,
-      headerError,
       mangaPageUrl,
-      showBigMangaCover,
-      colors.tint,
+      refreshStatus,
     ],
   );
 
@@ -896,6 +893,7 @@ export default function MangaDetailScreen() {
   return (
     <SourceCoverHeadersProvider source={source}>
       <Stack.Screen options={screenOptions} />
+
       <MangaDetailView
         manga={manga}
         sourceName={source.manifest.info.name}

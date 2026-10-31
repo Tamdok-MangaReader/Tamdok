@@ -1,7 +1,14 @@
+import { Button, ContextMenu, Host, RNHostView } from "@expo/ui/swift-ui";
 import { Ionicons } from "@expo/vector-icons";
 import { isIllustrationMode } from "@/services/illustration-mode";
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import {
   Alert,
   Platform,
@@ -9,7 +16,6 @@ import {
   StyleSheet,
   Switch,
   View,
-  type View as ViewType,
 } from "react-native";
 import DraggableFlatList, {
   ScaleDecorator,
@@ -26,12 +32,6 @@ import {
   type SwipeAction,
 } from "@/components/sources/swipeable-row";
 import { Card, CardSeparator } from "@/components/ui/card";
-import {
-  InlineActionMenu,
-  type InlineActionMenuAnchor,
-  type InlineActionMenuItem,
-} from "@/components/ui/inline-action-menu";
-import { LongPressScalePressable } from "@/components/ui/long-press-scale-pressable";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { SectionLabel } from "@/components/ui/section-label";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -100,7 +100,7 @@ function categoryLabel(category: LibraryCategory): string {
 }
 
 export default function LibrarySettingsScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const refreshTick = useMangaDataRefresh();
   const [categories, setCategories] = useState<LibraryCategory[]>([]);
   const [defaultCategoryId, setDefaultCategoryIdState] =
@@ -125,15 +125,6 @@ export default function LibrarySettingsScreen() {
   const [showLibraryRefreshLiveActivity, setShowLibraryRefreshLiveActivity] =
     useState(true);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("unread");
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [menuAnchor, setMenuAnchor] = useState<InlineActionMenuAnchor | null>(
-    null,
-  );
-  const [menuCategory, setMenuCategory] = useState<LibraryCategory | null>(
-    null,
-  );
-  const rowRefs = useRef<Record<string, ViewType | null>>({});
-
   const allLocked = isAllCategoryLocked(defaultCategoryId);
 
   const load = useCallback(async () => {
@@ -287,56 +278,46 @@ export default function LibrarySettingsScreen() {
     void setDefaultCategoryId(category.id).then(load);
   };
 
-  const openCategoryMenu = (category: LibraryCategory) => {
-    const ref = rowRefs.current[category.id];
-    ref?.measureInWindow((x, y, width, height) => {
-      setMenuAnchor({ x, y, width, height });
-      setMenuCategory(category);
-      setMenuVisible(true);
-    });
+  const renderCategoryMenu = (category: LibraryCategory, row: ReactElement) => {
+    const isAll = isAllCategory(category.id);
+    const isPrimary = category.id === defaultCategoryId;
+    return (
+      <Host
+        matchContents={{ vertical: true }}
+        colorScheme={isDark ? "dark" : "light"}
+      >
+        <ContextMenu>
+          <ContextMenu.Trigger>
+            <RNHostView matchContents={{ vertical: true }}>{row}</RNHostView>
+          </ContextMenu.Trigger>
+          <ContextMenu.Items>
+            {!isPrimary ? (
+              <Button
+                label={t("library_set_primary")}
+                systemImage="star.fill"
+                onPress={() => setPrimaryCategory(category)}
+              />
+            ) : null}
+            {!isAll ? (
+              <Button
+                label={t("library_rename_category")}
+                systemImage="pencil"
+                onPress={() => renameCategory(category)}
+              />
+            ) : null}
+            {!isAll ? (
+              <Button
+                label={t("library_delete_category_action")}
+                systemImage="trash"
+                role="destructive"
+                onPress={() => deleteCategory(category)}
+              />
+            ) : null}
+          </ContextMenu.Items>
+        </ContextMenu>
+      </Host>
+    );
   };
-
-  const closeCategoryMenu = () => {
-    setMenuVisible(false);
-    setMenuAnchor(null);
-    setMenuCategory(null);
-  };
-
-  const menuItems: InlineActionMenuItem[] = useMemo(() => {
-    if (!menuCategory) return [];
-    const isAll = isAllCategory(menuCategory.id);
-    const isPrimary = menuCategory.id === defaultCategoryId;
-    const items: InlineActionMenuItem[] = [];
-    if (!isPrimary) {
-      items.push({
-        key: "primary",
-        label: t("library_set_primary"),
-        sfSymbol: "star.fill",
-        fallbackIcon: "star-outline",
-        onPress: () => setPrimaryCategory(menuCategory),
-      });
-    }
-    if (!isAll) {
-      items.push(
-        {
-          key: "rename",
-          label: t("library_rename_category"),
-          sfSymbol: "pencil",
-          fallbackIcon: "create-outline",
-          onPress: () => renameCategory(menuCategory),
-        },
-        {
-          key: "delete",
-          label: t("library_delete_category_action"),
-          sfSymbol: "trash",
-          fallbackIcon: "trash-outline",
-          destructive: true,
-          onPress: () => deleteCategory(menuCategory),
-        },
-      );
-    }
-    return items;
-  }, [menuCategory, defaultCategoryId]);
 
   const renderCategoryItem = ({
     item,
@@ -369,18 +350,14 @@ export default function LibrarySettingsScreen() {
             fullSwipeActionKey="delete"
             enabled={!isAll}
           >
-            <LongPressScalePressable
-              ref={(ref) => {
-                rowRefs.current[item.id] = ref;
-              }}
-              style={styles.categoryPressable}
-              disabled={!canShowMenu}
-              onPress={canShowMenu ? () => openCategoryMenu(item) : undefined}
-              onLongPress={
-                canShowMenu ? () => openCategoryMenu(item) : undefined
-              }
-            >
-              <View style={styles.categoryRow}>
+            {(() => {
+              const row = (
+              <View
+                style={[
+                  styles.categoryRow,
+                  { backgroundColor: colors.secondarySystemBackground },
+                ]}
+              >
                 <View style={styles.categoryText}>
                   <ThemedText variant="body">{categoryLabel(item)}</ThemedText>
                   {isPrimary ? (
@@ -407,7 +384,11 @@ export default function LibrarySettingsScreen() {
                   </Pressable>
                 ) : null}
               </View>
-            </LongPressScalePressable>
+              );
+              return canShowMenu && Platform.OS === "ios"
+                ? renderCategoryMenu(item, row)
+                : row;
+            })()}
           </SwipeableRow>
           {index < categories.length - 1 ? <CardSeparator /> : null}
         </View>
@@ -423,7 +404,7 @@ export default function LibrarySettingsScreen() {
           headerRight: () => (
             <ThemedText
               variant="body"
-              color="tint"
+              color="label"
               onPress={addCategory}
               style={{ paddingHorizontal: 8 }}
             >
@@ -712,14 +693,6 @@ export default function LibrarySettingsScreen() {
           </ThemedText>
         )}
       </ScreenContent>
-
-      <InlineActionMenu
-        visible={menuVisible}
-        anchor={menuAnchor}
-        title={menuCategory ? categoryLabel(menuCategory) : undefined}
-        items={menuItems}
-        onClose={closeCategoryMenu}
-      />
     </>
   );
 }

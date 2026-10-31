@@ -31,6 +31,10 @@ import {
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MeasuredPage } from "@/components/ui/measured-page";
+import {
+  LiftedActionMenu,
+  type LiftedMenuItem,
+} from "@/components/ui/lifted-action-menu";
 import { VirtualRows } from "@/components/ui/virtual-rows";
 import { usePagerHeights } from "@/hooks/use-pager-heights";
 import { usePinnedTabs } from "@/components/library/pinned-tabs";
@@ -67,6 +71,7 @@ import {
 import { peekMangaDetailCache } from "@/services/manga-detail-cache";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { coverImageSource } from "@/utils/cover-image-source";
+import { useStoredCoverHeaders } from "@/utils/cover-headers-store";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 import { mangaHref, readerHref } from "@/utils/manga-route";
 
@@ -89,7 +94,14 @@ type MangaHistoryGroup = {
 };
 
 type HistoryRow =
-  | { kind: "header"; id: string; title: string; isFirst: boolean; count: number }
+  | {
+      kind: "header";
+      id: string;
+      title: string;
+      isFirst: boolean;
+      count: number;
+      groups: MangaHistoryGroup[];
+    }
   | { kind: "group"; id: string; group: MangaHistoryGroup };
 
 let timeFormat: Intl.DateTimeFormat | null = null;
@@ -231,6 +243,7 @@ function buildRows(
       title,
       isFirst,
       count: 0,
+      groups: [],
     };
     rows.push(headerRow);
     isFirst = false;
@@ -269,6 +282,7 @@ function buildRows(
     }
 
     headerRow.count = groups.length;
+    headerRow.groups = groups;
     groups.sort((a, b) => b.chapters[0]!.dateRead - a.chapters[0]!.dateRead);
     for (const group of groups) {
       rows.push({ kind: "group", id: `${title}:${group.key}`, group });
@@ -294,33 +308,80 @@ const renderScrollComponent = (props: ScrollViewProps) => (
 
 const LIST_HEADER = <IncognitoModeBanner />;
 
+function confirmDelete(message: string, onConfirm: () => void) {
+  Alert.alert(t("history_delete_confirm_title"), message, [
+    { text: t("cancel"), style: "cancel" },
+    { text: t("history_clear_action"), style: "destructive", onPress: onConfirm },
+  ]);
+}
+
 const HistoryHeaderRow = memo(function HistoryHeaderRow({
   title,
   count,
   isFirst,
+  groups,
+  onChanged,
 }: {
   title: string;
   count: number;
   isFirst: boolean;
+  groups: MangaHistoryGroup[];
+  onChanged: () => void;
 }) {
   const { colors } = useTheme();
 
+  const menuItems = useMemo<LiftedMenuItem[]>(
+    () => [
+      {
+        key: "delete",
+        label: t("history_delete_day"),
+        sfSymbol: "trash",
+        fallback: "trash-outline",
+        destructive: true,
+        onPress: () =>
+          confirmDelete(t("history_delete_day_confirm", { title }), () => {
+            void (async () => {
+              for (const group of groups) {
+                await removeMangaHistoryGroup(
+                  group.sourceId,
+                  group.mangaKey,
+                  group.chapters.map((chapter) => chapter.chapterKey),
+                );
+              }
+              onChanged();
+            })();
+          }),
+      },
+    ],
+    [groups, title, onChanged],
+  );
+
   return (
-    <View
-      style={[
-        styles.sectionHeader,
-        isFirst ? styles.sectionTitleFirst : styles.sectionTitleNext,
-      ]}
-    >
-      <ThemedText variant="title3" style={styles.sectionTitle}>
-        {title}
-      </ThemedText>
-      <View style={[styles.countBadge, { backgroundColor: colors.tertiaryFill }]}>
-        <ThemedText variant="caption1" color="secondaryLabel">
-          {count}
-        </ThemedText>
-      </View>
-    </View>
+    <LiftedActionMenu
+      items={menuItems}
+      liftScale={1.02}
+      renderContent={(onLongPress) => (
+        <Pressable
+          onLongPress={onLongPress}
+          delayLongPress={340}
+          style={[
+            styles.sectionHeader,
+            isFirst ? styles.sectionTitleFirst : styles.sectionTitleNext,
+          ]}
+        >
+          <ThemedText variant="title3" style={styles.sectionTitle}>
+            {title}
+          </ThemedText>
+          <View
+            style={[styles.countBadge, { backgroundColor: colors.tertiaryFill }]}
+          >
+            <ThemedText variant="caption1" color="secondaryLabel">
+              {count}
+            </ThemedText>
+          </View>
+        </Pressable>
+      )}
+    />
   );
 });
 
@@ -358,7 +419,10 @@ const HistoryChapterRow = memo(function HistoryChapterRow({
         icon: "trash-outline",
         sfSymbol: "trash",
         color: colors.destructive,
-        onPress: () => onDelete(entry),
+        onPress: () =>
+          confirmDelete(t("history_delete_chapter_confirm"), () =>
+            onDelete(entry),
+          ),
       },
     ],
     [colors.destructive, entry, onDelete],
@@ -384,7 +448,10 @@ const HistoryChapterRow = memo(function HistoryChapterRow({
         <View style={styles.chapterMeta}>
           {pageLabel ? (
             <View
-              style={[styles.pageChip, { backgroundColor: colors.tertiaryFill }]}
+              style={[
+                styles.pageChip,
+                { backgroundColor: colors.tertiaryFill },
+              ]}
             >
               <ThemedText variant="caption2" color="secondaryLabel">
                 {pageLabel}
@@ -414,9 +481,34 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
   const router = useRouter();
   const illustration = useIllustrationMode();
   const { colors, radius } = useTheme();
-  const coverHeaders = useSourceCoverHeaders();
-  const coverHeadersReady = useSourceCoverHeadersReady();
+  const contextCoverHeaders = useSourceCoverHeaders();
+  const storedCoverHeaders = useStoredCoverHeaders(
+    source?.id ?? group.sourceId,
+  );
+  const coverHeaders = contextCoverHeaders ?? storedCoverHeaders;
+  const [coverRetry, setCoverRetry] = useState(0);
+  const coverRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(
+    () => () => {
+      if (coverRetryTimerRef.current) clearTimeout(coverRetryTimerRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setCoverRetry(0);
+  }, [group.cover]);
+
+  const handleCoverError = useCallback(() => {
+    if (coverRetryTimerRef.current) return;
+    coverRetryTimerRef.current = setTimeout(() => {
+      coverRetryTimerRef.current = null;
+      setCoverRetry((value) => (value < 3 ? value + 1 : value));
+    }, 2500 * (coverRetry + 1));
+  }, [coverRetry]);
 
   const hiddenCount = Math.max(
     0,
@@ -438,10 +530,8 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
 
   const coverSource = useMemo(
     () =>
-      group.cover && coverHeadersReady
-        ? coverImageSource(group.cover, coverHeaders)
-        : undefined,
-    [group.cover, coverHeaders, coverHeadersReady],
+      group.cover ? coverImageSource(group.cover, coverHeaders) : undefined,
+    [group.cover, coverHeaders],
   );
 
   const openChapter = useCallback(
@@ -483,13 +573,14 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
         icon: "trash-outline",
         sfSymbol: "trash",
         color: colors.destructive,
-        onPress: () => {
-          void removeMangaHistoryGroup(
-            group.sourceId,
-            group.mangaKey,
-            group.chapters.map((chapter) => chapter.chapterKey),
-          ).then(onChanged);
-        },
+        onPress: () =>
+          confirmDelete(t("history_delete_manga_confirm"), () => {
+            void removeMangaHistoryGroup(
+              group.sourceId,
+              group.mangaKey,
+              group.chapters.map((chapter) => chapter.chapterKey),
+            ).then(onChanged);
+          }),
       },
     ],
     [colors.destructive, group, onChanged],
@@ -499,7 +590,49 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     () => onOpenManga(group),
     [onOpenManga, group],
   );
+  const handleToggleOpen = useCallback(() => setOpen((value) => !value), []);
+
+  const menuItems = useMemo<LiftedMenuItem[]>(() => {
+    const items: LiftedMenuItem[] = [
+      {
+        key: "manga",
+        label: t("history_menu_open_manga"),
+        sfSymbol: "book",
+        fallback: "book-outline",
+        onPress: () => onOpenManga(group),
+      },
+    ];
+    if (source) {
+      items.push({
+        key: "source",
+        label: t("history_menu_open_source"),
+        sfSymbol: "globe",
+        fallback: "globe-outline",
+        onPress: () =>
+          router.navigate(
+            `/sources/${encodeURIComponent(sourceRouteId(source))}`,
+          ),
+      });
+    }
+    items.push({
+      key: "delete",
+      label: t("history_delete_manga"),
+      sfSymbol: "trash",
+      fallback: "trash-outline",
+      destructive: true,
+      onPress: () =>
+        confirmDelete(t("history_delete_manga_confirm"), () => {
+          void removeMangaHistoryGroup(
+            group.sourceId,
+            group.mangaKey,
+            group.chapters.map((chapter) => chapter.chapterKey),
+          ).then(onChanged);
+        }),
+    });
+    return items;
+  }, [group, source, router, onOpenManga, onChanged]);
   const handleShowMore = useCallback(() => setExpanded(true), []);
+  const handleShowLess = useCallback(() => setExpanded(false), []);
 
   const coverBoxStyle = useMemo(
     () => [
@@ -528,11 +661,28 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
         actions={deleteMangaActions}
         fullSwipeActionKey="delete"
       >
-        <Pressable style={mangaRowStyle} onPress={handleOpenManga}>
+        <LiftedActionMenu
+          items={menuItems}
+          renderContent={(onLongPress) => (
+            <View
+              style={{
+                backgroundColor: colors.secondarySystemBackground,
+                borderRadius: radius.md,
+              }}
+            >
+              <Pressable
+                style={mangaRowStyle}
+                onPress={handleToggleOpen}
+                onLongPress={onLongPress}
+                delayLongPress={340}
+              >
           <View style={coverBoxStyle}>
             {coverSource ? (
               <Image
+                key={coverRetry}
                 source={coverSource}
+                recyclingKey={group.cover}
+                onError={coverRetry < 3 ? handleCoverError : undefined}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 cachePolicy={IMAGE_CACHE_POLICY}
@@ -578,14 +728,17 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
             ) : null}
           </View>
           <Ionicons
-            name="chevron-forward"
+            name={open ? "chevron-down" : "chevron-forward"}
             size={16}
             color={colors.tertiaryLabel}
           />
-        </Pressable>
+              </Pressable>
+            </View>
+          )}
+        />
       </SwipeableRow>
 
-      {group.chapters.length > 0 ? (
+      {open && group.chapters.length > 0 ? (
         <View style={chapterListStyle}>
           {visibleChapters.map((chapter) => (
             <HistoryChapterRow
@@ -607,6 +760,19 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
                 {t("history_show_more", { count: String(hiddenCount) })}
               </ThemedText>
               <Ionicons name="chevron-down" size={14} color={colors.tint} />
+            </Pressable>
+          ) : null}
+
+          {hiddenCount > 0 && expanded ? (
+            <Pressable
+              style={styles.showMoreButton}
+              onPress={handleShowLess}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="subheadline" color="tint">
+                {t("manga_show_less")}
+              </ThemedText>
+              <Ionicons name="chevron-up" size={14} color={colors.tint} />
             </Pressable>
           ) : null}
         </View>
@@ -872,9 +1038,7 @@ export default function HistoryScreen() {
     [requestReload],
   );
 
-  const hasEntries = showTabs
-    ? entries.length > 0
-    : mainEntries.length > 0;
+  const hasEntries = showTabs ? entries.length > 0 : mainEntries.length > 0;
 
   const renderHeaderRight = useCallback(
     () =>
@@ -919,6 +1083,8 @@ export default function HistoryScreen() {
             title={item.title}
             count={item.count}
             isFirst={item.isFirst}
+            groups={item.groups}
+            onChanged={requestReload}
           />
         );
       }
@@ -938,10 +1104,12 @@ export default function HistoryScreen() {
     ["main", "nsfw"],
     selectedPage === "nsfw" ? 1 : 0,
   );
-  const { spacerHeight, renderOverlay } = usePinnedTabs(showTabs);
+  const { onScroll: handlePinnedScroll, spacer, renderTabs } =
+    usePinnedTabs(showTabs);
 
   const renderRow = useCallback(
-    (row: HistoryRow) => renderItem({ item: row } as ListRenderItemInfo<HistoryRow>),
+    (row: HistoryRow) =>
+      renderItem({ item: row } as ListRenderItemInfo<HistoryRow>),
     [renderItem],
   );
 
@@ -949,7 +1117,7 @@ export default function HistoryScreen() {
     return (
       <>
         <Stack.Screen options={screenOptions} />
-        <Stack.Title>{t("history")}</Stack.Title>
+        <Stack.Title large>{t("history")}</Stack.Title>
         <ScreenContent padded={false} scrollEnabled={false}>
           <HistorySkeleton />
         </ScreenContent>
@@ -1028,7 +1196,7 @@ export default function HistoryScreen() {
       return (
         <>
           <Stack.Screen options={screenOptions} />
-          <Stack.Title>{t("history")}</Stack.Title>
+          <Stack.Title large>{t("history")}</Stack.Title>
           {renderPage(mainRows, "main", false)}
         </>
       );
@@ -1036,8 +1204,10 @@ export default function HistoryScreen() {
     return (
       <>
         <Stack.Screen options={screenOptions} />
-        <Stack.Title>{t("history")}</Stack.Title>
-        <SwipeableRowsProvider>{renderPage(mainRows, "main", false)}</SwipeableRowsProvider>
+        <Stack.Title large>{t("history")}</Stack.Title>
+        <SwipeableRowsProvider>
+          {renderPage(mainRows, "main", false)}
+        </SwipeableRowsProvider>
       </>
     );
   }
@@ -1045,15 +1215,17 @@ export default function HistoryScreen() {
   return (
     <>
       <Stack.Screen options={screenOptions} />
-      <Stack.Title>{t("history")}</Stack.Title>
+      <Stack.Title large>{t("history")}</Stack.Title>
       <View style={styles.root}>
         <LiquidGlassScrollComponent
           contentInsetAdjustmentBehavior="automatic"
           automaticallyAdjustsScrollIndicatorInsets
           showsVerticalScrollIndicator={false}
+          onScroll={handlePinnedScroll}
+          scrollEventThrottle={16}
         >
           <IncognitoModeBanner />
-          <View style={{ height: spacerHeight }} />
+          {spacer}
           <SwipeableRowsProvider>
             <AnimatedPagerView
               ref={pagerRef}
@@ -1079,14 +1251,15 @@ export default function HistoryScreen() {
               </View>
             </AnimatedPagerView>
           </SwipeableRowsProvider>
+          {renderTabs(
+            <LibraryCategoryTabs
+              fullWidth
+              tabs={historyTabs}
+              progress={progress}
+              onPress={handleTabPress}
+            />,
+          )}
         </LiquidGlassScrollComponent>
-        {renderOverlay(
-          <LibraryCategoryTabs
-            tabs={historyTabs}
-            progress={progress}
-            onPress={handleTabPress}
-          />,
-        )}
       </View>
     </>
   );

@@ -2,8 +2,7 @@ import { Stack, useRouter, type Href } from "expo-router";
 import Constants from "expo-constants";
 import { Image } from "expo-image";
 import * as MailComposer from "expo-mail-composer";
-import { Ionicons } from "@expo/vector-icons";
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 
 import { AppIcon } from "@/components/branding/app-icon";
 import { Card, CardSeparator } from "@/components/ui/card";
@@ -31,22 +30,26 @@ function firstVersionPart(
 
 const MENU_ITEMS_FIRST = [
   {
-    icon: "color-palette-outline" as const,
+    icon: "color-palette" as const,
+    color: "#007AFF",
     labelKey: "section_appearance",
     path: "/settings/appearance",
   },
   {
-    icon: "library-outline" as const,
+    icon: "library" as const,
+    color: "#FF9500",
     labelKey: "library_settings_title",
     path: "/settings/library",
   },
   {
-    icon: "book-outline" as const,
+    icon: "book" as const,
+    color: "#AF52DE",
     labelKey: "reader_settings_title",
     path: "/settings/reader",
   },
   {
-    icon: "globe-outline" as const,
+    icon: "globe" as const,
+    color: "#34C759",
     labelKey: "section_sources",
     path: "/settings/sources",
   },
@@ -54,12 +57,14 @@ const MENU_ITEMS_FIRST = [
 
 const MENU_ITEMS_SECOND = [
   {
-    icon: "download-outline" as const,
+    icon: "download" as const,
+    color: "#5AC8FA",
     labelKey: "downloads_settings_title",
     path: "/settings/downloads",
   },
   {
-    icon: "cloud-upload-outline" as const,
+    icon: "cloud-upload" as const,
+    color: "#5856D6",
     labelKey: "backups_settings_title",
     path: "/settings/backups",
   },
@@ -67,17 +72,20 @@ const MENU_ITEMS_SECOND = [
 
 const MENU_ITEMS_THIRD = [
   {
-    icon: "lock-closed-outline" as const,
+    icon: "lock-closed" as const,
+    color: "#8E8E93",
     labelKey: "section_privacy",
     path: "/settings/privacy",
   },
   {
-    icon: "notifications-outline" as const,
+    icon: "notifications" as const,
+    color: "#FF3B30",
     labelKey: "section_notifications",
     path: "/settings/notifications",
   },
   {
-    icon: "construct-outline" as const,
+    icon: "construct" as const,
+    color: "#636366",
     labelKey: "advanced_settings_title",
     path: "/settings/advanced",
   },
@@ -109,32 +117,48 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Title>{t("settings")}</Stack.Title>
+      <Stack.Title large>{t("settings")}</Stack.Title>
       <ScreenContent>
-        <SectionLabel isFirst>{t("app_info")}</SectionLabel>
-        <Card style={styles.appCard}>
-          <View style={styles.appRow}>
+        <Card style={styles.heroCard}>
+          <View style={styles.heroIcon}>
             <AppIcon />
-            <View style={styles.appMeta}>
-              <ThemedText variant="title3" style={styles.appName}>
-                {t("app_name")}
-              </ThemedText>
-              <ThemedText variant="subheadline" color="secondaryLabel">
-                {t("app_version")} {appVersion}
-              </ThemedText>
-              <ThemedText variant="footnote" color="tertiaryLabel">
-                {t("app_build")} {buildNumber}
-              </ThemedText>
+          </View>
+          <View style={styles.appMeta}>
+            <ThemedText variant="title2" style={styles.appName}>
+              {t("app_name")}
+            </ThemedText>
+            <View style={styles.pillRow}>
+              <View
+                style={[
+                  styles.pill,
+                  { backgroundColor: colors.secondaryFill, borderRadius: radius.pill },
+                ]}
+              >
+                <ThemedText variant="footnote" color="secondaryLabel">
+                  {t("app_version")} {appVersion}
+                </ThemedText>
+              </View>
+              <View
+                style={[
+                  styles.pill,
+                  { backgroundColor: colors.secondaryFill, borderRadius: radius.pill },
+                ]}
+              >
+                <ThemedText variant="footnote" color="secondaryLabel">
+                  {t("app_build")} {buildNumber}
+                </ThemedText>
+              </View>
             </View>
           </View>
         </Card>
 
-        <SectionLabel>{t("settings_sections")}</SectionLabel>
+        <SectionLabel isFirst>{t("settings_sections")}</SectionLabel>
         <Card>
           {MENU_ITEMS_FIRST.map((item, index) => (
             <View key={item.path}>
               <ListRow
                 icon={item.icon}
+                iconBackground={item.color}
                 label={t(item.labelKey)}
                 onPress={() => router.navigate(item.path as Href)}
                 isFirst={index === 0}
@@ -150,6 +174,7 @@ export default function SettingsScreen() {
             <View key={item.path}>
               <ListRow
                 icon={item.icon}
+                iconBackground={item.color}
                 label={t(item.labelKey)}
                 onPress={() => router.navigate(item.path as Href)}
                 isFirst={index === 0}
@@ -165,6 +190,7 @@ export default function SettingsScreen() {
             <View key={item.path}>
               <ListRow
                 icon={item.icon}
+                iconBackground={item.color}
                 label={t(item.labelKey)}
                 onPress={() => router.navigate(item.path as Href)}
                 isFirst={index === 0}
@@ -176,66 +202,79 @@ export default function SettingsScreen() {
         </Card>
 
         <SectionLabel>{t("support")}</SectionLabel>
-        <Card style={{ padding: spacing.lg, gap: spacing.md }}>
-          <View style={styles.supportRow}>
-            <ThemedText variant="body">{t("made_with_love_prefix")}</ThemedText>
-            <SFSymbolIcon
-              name="heart.fill"
-              size={16}
-              color="#FF3B30"
-              fallback="heart"
-              weight="semibold"
-            />
-            <ThemedText variant="body">{t("made_with_love_suffix")}</ThemedText>
+        <Card>
+          <View style={styles.authorRow}>
             <Image
-              style={[styles.avatar, { borderRadius: radius.sm }]}
+              style={[styles.authorAvatar, { borderRadius: radius.lg }]}
               source={require("@/assets/images/SolsticeLeaf.png")}
             />
-          </View>
-          <View style={styles.supportActions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.emailButton,
-                { backgroundColor: colors.tint, borderRadius: radius.md },
-                pressed && styles.pressed,
-              ]}
-              onPress={openEmail}
-              accessibilityRole="button"
-            >
-              <ThemedText variant="headline" color="onTint">
-                {t("contact_email")}
+            <View style={styles.authorMeta}>
+              <ThemedText variant="body" style={styles.authorTitle}>
+                SolsticeLeaf
               </ThemedText>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.githubButton,
-                {
-                  backgroundColor: colors.secondaryFill,
-                  borderRadius: radius.md,
-                },
-                pressed && styles.pressed,
-              ]}
-              onPress={() => void Linking.openURL(GITHUB_URL)}
-              accessibilityRole="button"
-              accessibilityLabel="GitHub"
-            >
-              <Ionicons
-                name="logo-github"
-                size={24}
-                color={colors.secondaryLabel}
-              />
-            </Pressable>
+              <ThemedText variant="footnote" color="secondaryLabel">
+                me@sleaf.dev
+              </ThemedText>
+            </View>
           </View>
+          <CardSeparator />
+          <ListRow
+            icon="mail"
+            iconBackground="#007AFF"
+            label={t("contact_email")}
+            onPress={openEmail}
+          />
+          <CardSeparator />
+          <ListRow
+            icon="logo-github"
+            iconBackground="#24292F"
+            label="GitHub"
+            onPress={() => void Linking.openURL(GITHUB_URL)}
+            isLast
+          />
         </Card>
+        <View style={styles.footer}>
+          <ThemedText variant="footnote" color="secondaryLabel">
+            {t("made_with_love_prefix")}
+          </ThemedText>
+          <SFSymbolIcon
+            name="heart.fill"
+            size={13}
+            color="#FF3B30"
+            fallback="heart"
+            weight="semibold"
+          />
+          <ThemedText variant="footnote" color="secondaryLabel">
+            {t("made_with_love_suffix")} SolsticeLeaf
+          </ThemedText>
+        </View>
       </ScreenContent>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  appCard: {
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
+    gap: Spacing.lg,
+  },
+  heroIcon: {
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  pillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  pill: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
   },
   appRow: {
     flexDirection: "row",
@@ -255,9 +294,30 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.xs,
   },
-  avatar: {
-    width: 20,
-    height: 20,
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingTop: Spacing.md,
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+  },
+  authorAvatar: {
+    width: 52,
+    height: 52,
+  },
+  authorMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  authorTitle: {
+    fontWeight: "600",
   },
   supportActions: {
     flexDirection: "row",

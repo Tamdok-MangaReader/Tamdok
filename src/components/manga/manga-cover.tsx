@@ -1,4 +1,5 @@
-import { memo, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CircularProgress } from "@/components/ui/circular-progress";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,10 +14,12 @@ import { Spacing } from "@/constants/theme";
 import { useSourceCoverHeaders } from "@/context/source-cover-context";
 import { useTheme } from "@/hooks/use-theme";
 import { coverImageSource } from "@/utils/cover-image-source";
+import { useStoredCoverHeaders } from "@/utils/cover-headers-store";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 import { ParsedRating } from "@/utils/manga-description";
 
 type MangaCoverProps = {
+  sourceId?: string;
   rating?: ParsedRating;
   isRatingCompact?: boolean;
   title: string;
@@ -32,13 +35,15 @@ type MangaCoverProps = {
   showTitleOverlay?: boolean;
   updateFailed?: boolean;
   refreshing?: boolean;
+  downloadProgress?: number;
+  downloadFailed?: number;
   onPress?: () => void;
   onLongPress?: () => void;
 };
 
 const GRADIENT_COLORS = ["rgba(0,0,0,0.01)", "rgba(0,0,0,0.72)"] as const;
 const BADGE_REFERENCE_WIDTH = 112;
-const LONG_PRESS_DELAY = 240;
+const LONG_PRESS_DELAY = 340;
 
 const STATUS_META = {
   ongoing: { bg: "rgba(150,150,150,0.9)", icon: "play.fill", whiteIcon: true },
@@ -83,12 +88,38 @@ export const MangaCover = memo(function MangaCover({
   showTitleOverlay = true,
   updateFailed = false,
   refreshing = false,
+  downloadProgress,
+  downloadFailed = 0,
   isRatingCompact = true,
   onPress,
   onLongPress,
+  sourceId,
 }: MangaCoverProps) {
   const { colors, radius } = useTheme();
-  const coverHeaders = useSourceCoverHeaders();
+  const contextHeaders = useSourceCoverHeaders();
+  const storedHeaders = useStoredCoverHeaders(sourceId);
+  const coverHeaders = contextHeaders ?? storedHeaders;
+  const [retry, setRetry] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setRetry(0);
+  }, [cover]);
+
+  const handleImageError = useCallback(() => {
+    if (retryTimerRef.current) return;
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      setRetry((value) => (value < 3 ? value + 1 : value));
+    }, 2500 * (retry + 1));
+  }, [retry]);
 
   const imageSource = useMemo(
     () => (cover ? coverImageSource(cover, coverHeaders) : undefined),
@@ -98,6 +129,8 @@ export const MangaCover = memo(function MangaCover({
   const height = Math.round(width * 1.45);
   const showUnread = inLibrary && unreadCount > 0;
   const showDownloaded = inLibrary && downloadedCount > 0;
+  const showDownloading = downloadProgress != null;
+  const showFailed = downloadFailed > 0;
   const showBookmarkBadge = showBookmark && inLibrary;
   const coverDisplay = useCoverDisplay();
   const showStatusBadge =
@@ -119,7 +152,8 @@ export const MangaCover = memo(function MangaCover({
   );
 
   const countStyles = useMemo(() => {
-    if (!showUnread && !showDownloaded) return null;
+    if (!showUnread && !showDownloaded && !showDownloading && !showFailed)
+      return null;
     const scale = scaleBadges ? coverBadgeScale(width) : 1;
     const size = Math.round(20 * scale);
     const inset = Math.max(4, Math.round(Spacing.xs * scale));
@@ -135,8 +169,17 @@ export const MangaCover = memo(function MangaCover({
         paddingHorizontal: Math.max(4, Math.round(6 * scale)),
       },
       text: { fontSize: Math.max(9, Math.round(11 * scale)) },
+      ringSize: size,
+      iconSize: Math.max(10, Math.round(12 * scale)),
     };
-  }, [showUnread, showDownloaded, scaleBadges, width]);
+  }, [
+    showUnread,
+    showDownloaded,
+    showDownloading,
+    showFailed,
+    scaleBadges,
+    width,
+  ]);
 
   const statusMeta = useMemo(
     () => (showStatusBadge ? getStatusMeta(mangaStatus) : null),
@@ -155,7 +198,9 @@ export const MangaCover = memo(function MangaCover({
     <View style={coverStyle}>
       {imageSource ? (
         <Image
+          key={retry}
           source={imageSource}
+          onError={retry < 3 ? handleImageError : undefined}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           recyclingKey={cover}
@@ -199,16 +244,47 @@ export const MangaCover = memo(function MangaCover({
               </Text>
             </View>
           ) : null}
-          {showDownloaded ? (
+          {showDownloaded || showDownloading ? (
             <View
               style={[
                 styles.countBadge,
                 styles.downloadedBadge,
                 countStyles.badge,
+                showDownloading && styles.downloadedBadgeActive,
               ]}
             >
+              {showDownloading ? (
+                <CircularProgress
+                  size={Math.round(countStyles.ringSize * 0.6)}
+                  thickness={Math.max(2, Math.round(countStyles.ringSize * 0.1))}
+                  progress={downloadProgress ?? 0}
+                  color="#FFFFFF"
+                  trackColor="rgba(255,255,255,0.35)"
+                />
+              ) : null}
+              {showDownloaded ? (
+                <Text style={[styles.countText, countStyles.text]}>
+                  {formatCount(downloadedCount)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+          {showFailed ? (
+            <View
+              style={[
+                styles.countBadge,
+                styles.failedBadge,
+                countStyles.badge,
+              ]}
+            >
+              <SFSymbolIcon
+                name="exclamationmark.circle.fill"
+                fallback="alert-circle"
+                size={countStyles.iconSize}
+                color="#FFFFFF"
+              />
               <Text style={[styles.countText, countStyles.text]}>
-                {formatCount(downloadedCount)}
+                {formatCount(downloadFailed)}
               </Text>
             </View>
           ) : null}
@@ -360,6 +436,15 @@ const styles = StyleSheet.create({
   },
   unreadBadge: { backgroundColor: "#FF3B30" },
   downloadedBadge: { backgroundColor: "#007AFF" },
+  failedBadge: {
+    flexDirection: "row",
+    gap: 3,
+    backgroundColor: "#FF9500",
+  },
+  downloadedBadgeActive: {
+    flexDirection: "row",
+    gap: 4,
+  },
   refreshOverlay: {
     ...StyleSheet.absoluteFill,
     alignItems: "center",

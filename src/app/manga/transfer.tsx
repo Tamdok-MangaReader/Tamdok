@@ -264,7 +264,8 @@ export default function MangaTransferScreen() {
   const screenOptions = useMemo(
     () => ({
       title: t("manga_transfer"),
-      headerRight: () => (
+      headerBackVisible: false as const,
+      headerLeft: () => (
         <HeaderIconButton
           icon="close"
           accessibilityLabel={t("cancel")}

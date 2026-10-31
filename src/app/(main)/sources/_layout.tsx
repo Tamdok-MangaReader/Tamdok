@@ -7,7 +7,7 @@ export default function SourcesLayout() {
 
   return (
     <Stack screenOptions={stackScreenOptions}>
-      <Stack.Screen name="index" options={{ headerLargeTitle: false }} />
+      <Stack.Screen name="index" />
       <Stack.Screen
         name="[id]/index"
         options={{

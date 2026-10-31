@@ -167,11 +167,13 @@ export function useMangaDetail({
         }
 
         const updated = await runner.getMangaUpdate(currentManga, true, true);
-        if (requestId !== requestIdRef.current || timedOut) return;
+        const stale = requestId !== requestIdRef.current || timedOut;
 
-        setManga(updated);
-        setLoadError(null);
-        setHasCachedContent(true);
+        if (!stale) {
+          setManga(updated);
+          setLoadError(null);
+          setHasCachedContent(true);
+        }
         await writeMangaDetailCache(cacheSourceId, mangaKey, {
           manga: updated,
           cachedAt: Date.now(),

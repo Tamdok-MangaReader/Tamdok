@@ -4,11 +4,17 @@ import {
   Platform,
   StyleSheet,
   useWindowDimensions,
+  View,
   type RefreshControlProps,
   type ScrollViewProps,
 } from "react-native";
 
+import { MangaActionsMenu } from "@/components/manga/manga-actions-menu";
 import { MangaCover } from "@/components/manga/manga-cover";
+import {
+  useMangaDownloadFailures,
+  useMangaDownloadProgress,
+} from "@/services/download-progress";
 import { useLibraryEntryRefreshing } from "@/services/library-refresh-progress";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { Spacing } from "@/constants/theme";
@@ -94,14 +100,25 @@ export const MangaGridCell = memo(function MangaGridCell({
     item.key,
   );
 
+  const downloadProgress = useMangaDownloadProgress(
+    sourceId ?? item.sourceId,
+    item.key,
+  );
+
+  const downloadFailed = useMangaDownloadFailures(
+    sourceId ?? item.sourceId,
+    item.key,
+  );
+
   const handlePress = useCallback(() => onPress(item), [onPress, item]);
   const handleLongPress = useMemo(
     () => (onLongPress ? () => onLongPress(item) : undefined),
     [onLongPress, item],
   );
 
-  return (
+  const renderCover = (onCoverLongPress: () => void) => (
     <MangaCover
+      sourceId={sourceId ?? item.sourceId}
       title={item.title}
       cover={item.cover}
       width={width}
@@ -110,6 +127,8 @@ export const MangaGridCell = memo(function MangaGridCell({
       downloadedCount={enriched.downloadedCount}
       updateFailed={enriched.updateFailed}
       refreshing={refreshing}
+      downloadProgress={downloadProgress}
+      downloadFailed={downloadFailed}
       showBookmark={showBookmark}
       scaleBadges={scaleBadges}
       showStatus={!!item.status}
@@ -117,7 +136,17 @@ export const MangaGridCell = memo(function MangaGridCell({
       rating={rating}
       isRatingCompact={isRatingCompact}
       onPress={handlePress}
-      onLongPress={handleLongPress}
+      onLongPress={onCoverLongPress}
+    />
+  );
+
+  if (handleLongPress) return renderCover(handleLongPress);
+
+  return (
+    <MangaActionsMenu
+      sourceId={sourceId ?? item.sourceId}
+      manga={item}
+      renderCover={renderCover}
     />
   );
 });

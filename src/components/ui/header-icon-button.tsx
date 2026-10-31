@@ -13,7 +13,7 @@ type HeaderIconButtonProps = {
 
 export function HeaderIconButton({ icon, onPress, accessibilityLabel }: HeaderIconButtonProps) {
   const { colors } = useTheme();
-  const iconNode = <Ionicons name={icon} size={ICON_SIZE} color={colors.tint} />;
+  const iconNode = <Ionicons name={icon} size={ICON_SIZE} color={colors.label} />;
 
   if (onPress) {
     return (

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -17,9 +17,12 @@ import { useTheme } from "@/hooks/use-theme";
 
 type Result = { ok: true } | { ok: false; message: string };
 
-type Props = {
+export type RefreshStatusState = {
   busy: boolean;
-  error: string | null;
+  result: Result | null;
+  expanded: boolean;
+  visible: boolean;
+  toggle: () => void;
 };
 
 const ICON_HIDE_MS = 8000;
@@ -34,8 +37,10 @@ function shortError(message: string): string {
   return `${clean.slice(0, MAX_MESSAGE_LENGTH - 1)}…`;
 }
 
-function MangaRefreshStatusImpl({ busy, error }: Props) {
-  const { colors } = useTheme();
+export function useRefreshStatus(
+  busy: boolean,
+  error: string | null,
+): RefreshStatusState {
   const [result, setResult] = useState<Result | null>(null);
   const [expanded, setExpanded] = useState(false);
   const wasBusyRef = useRef(false);
@@ -75,10 +80,20 @@ function MangaRefreshStatusImpl({ busy, error }: Props) {
     setExpanded((value) => !value);
   }, []);
 
+  return useMemo(
+    () => ({ busy, result, expanded, visible: busy || result != null, toggle }),
+    [busy, result, expanded, toggle],
+  );
+}
+
+function MangaRefreshStatusImpl({ status }: { status: RefreshStatusState }) {
+  const { colors } = useTheme();
+  const { busy, result, expanded, toggle } = status;
+
   if (busy) {
     return (
       <View style={styles.icon}>
-        <ActivityIndicator size="small" color={colors.tint} />
+        <ActivityIndicator size="small" color={colors.label} />
       </View>
     );
   }

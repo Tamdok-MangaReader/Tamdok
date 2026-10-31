@@ -8,7 +8,7 @@ import {
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -35,6 +35,7 @@ import {
 } from "@/utils/welcome-data-loader";
 import { installImageMemoryReclaimer } from "@/utils/image-memory";
 import { syncBackgroundLibraryUpdates } from "@/services/background-library-update";
+import { runAutoBackupIfNeeded, syncAutoBackupTask } from "@/services/auto-backup";
 import { parseNewChapterResponse } from "@/services/notifications";
 import { mangaHref } from "@/utils/manga-route";
 
@@ -124,6 +125,19 @@ function RootLayoutContent() {
   useEffect(() => {
     if (isLoading || showWelcome) return;
     void syncBackgroundLibraryUpdates();
+    void syncAutoBackupTask();
+    void runAutoBackupIfNeeded();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void runAutoBackupIfNeeded();
+    });
+    const timer = setInterval(
+      () => void runAutoBackupIfNeeded(),
+      15 * 60 * 1000,
+    );
+    return () => {
+      subscription.remove();
+      clearInterval(timer);
+    };
   }, [isLoading, showWelcome]);
 
   useEffect(() => {

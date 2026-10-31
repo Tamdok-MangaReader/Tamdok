@@ -1,7 +1,18 @@
 import { Stack, useRouter } from "expo-router";
-import { isIllustrationMode, useIllustrationMode } from "@/services/illustration-mode";
+import {
+  isIllustrationMode,
+  useIllustrationMode,
+} from "@/services/illustration-mode";
 import * as Haptics from "expo-haptics";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +24,6 @@ import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 
 import { LibraryCategoryTabs } from "@/components/library/library-category-tabs";
-import { LibraryMangaActionsMenu } from "@/components/library/library-manga-actions-menu";
 import { type MangaGridItem } from "@/components/manga/manga-grid";
 import { VirtualMangaGrid } from "@/components/manga/virtual-manga-grid";
 import { usePinnedTabs } from "@/components/library/pinned-tabs";
@@ -89,12 +99,12 @@ function EmptyBelowTabs() {
 }
 
 type LibraryPageProps = {
+  renderMenu?: (manga: MangaGridItem) => ReactNode;
   entries: MangaGridItem[];
   columns: number;
   pageId: string;
   onHeight: (pageId: string, height: number) => void;
   onPressManga: (manga: MangaGridItem) => void;
-  onLongPressManga: (manga: MangaGridItem) => void;
 };
 
 const EMPTY_BELOW_TABS = <EmptyBelowTabs />;
@@ -105,7 +115,7 @@ const LibraryPage = memo(function LibraryPage({
   pageId,
   onHeight,
   onPressManga,
-  onLongPressManga,
+  renderMenu,
 }: LibraryPageProps) {
   return (
     <View collapsable={false} style={styles.root}>
@@ -118,7 +128,7 @@ const LibraryPage = memo(function LibraryPage({
         scaleBadges
         empty={EMPTY_BELOW_TABS}
         onPressManga={onPressManga}
-        onLongPressManga={onLongPressManga}
+        renderMenu={renderMenu}
       />
     </View>
   );
@@ -192,17 +202,6 @@ export default function LibraryScreen() {
   const [lastReadAt, setLastReadAt] = useState<Map<string, number>>(
     () => new Map(),
   );
-  const [libraryCategories, setLibraryCategories] = useState<LibraryCategory[]>(
-    [],
-  );
-  const [menuEntry, setMenuEntry] = useState<LibraryEntry | null>(null);
-
-  const menuEntryRef = useRef<LibraryEntry | null>(null);
-
-  useEffect(() => {
-    menuEntryRef.current = menuEntry;
-  }, [menuEntry]);
-
   const loadLibrary = useCallback(async () => {
     const [
       rawCategories,
@@ -225,8 +224,7 @@ export default function LibraryScreen() {
         ? rawCategories
             .filter(
               (category) =>
-                !isAllCategory(category.id) &&
-                /nsfw/i.test(category.name),
+                !isAllCategory(category.id) && /nsfw/i.test(category.name),
             )
             .map((category) => category.id)
         : [],
@@ -301,11 +299,6 @@ export default function LibraryScreen() {
       }
       return prev;
     });
-    setLibraryCategories((prev) =>
-      JSON.stringify(prev) === JSON.stringify(nextCategories)
-        ? prev
-        : nextCategories,
-    );
     setAllEntries((prev) => reuseEntries(prev, nextEntries));
     setLoaded(true);
     setSelectedCategoryId(validCategoryId);
@@ -478,18 +471,6 @@ export default function LibraryScreen() {
     [installed, router],
   );
 
-  const handleTransfer = useCallback(() => {
-    if (!menuEntry) return;
-    router.navigate(
-      mangaTransferHref(
-        menuEntry.sourceId,
-        menuEntry.mangaKey,
-        menuEntry.title,
-        menuEntry.cover,
-      ),
-    );
-  }, [menuEntry, router]);
-
   const handlePressManga = useCallback(
     (manga: MangaGridItem) => {
       const entry = allEntries.find(
@@ -502,127 +483,19 @@ export default function LibraryScreen() {
     [allEntries, openManga],
   );
 
-  const openMangaMenu = useCallback(
-    (manga: MangaGridItem) => {
-      const entry = allEntries.find(
-        (item) =>
-          item.mangaKey === manga.key && item.sourceId === manga.sourceId,
-      );
-
-      if (entry) setMenuEntry(entry);
-    },
-    [allEntries],
-  );
-
-  const closeMangaMenu = useCallback(() => {
-    setMenuEntry(null);
-  }, []);
-
-  const handleMarkAllRead = useCallback(async () => {
-    const entry = menuEntryRef.current;
-    if (!entry) return;
-
-    const keys = chapterKeysForLibraryEntry(entry);
-
-    if (keys.length === 0) {
-      Alert.alert(t("library_mark_chapters"), t("library_no_chapters_to_mark"));
-      return;
-    }
-
-    await markAllChaptersRead(entry.sourceId, entry.mangaKey, keys, {
-      mangaTitle: entry.title,
-      cover: entry.cover,
-    });
-
-    await updateLibraryEntryMetadata(entry.sourceId, entry.mangaKey, {
-      unreadCount: 0,
-    });
-
-    await loadLibrary();
-  }, [loadLibrary]);
-
-  const handleMarkAllUnread = useCallback(async () => {
-    const entry = menuEntryRef.current;
-    if (!entry) return;
-
-    const keys = chapterKeysForLibraryEntry(entry);
-
-    if (keys.length === 0) {
-      Alert.alert(t("library_mark_chapters"), t("library_no_chapters_to_mark"));
-      return;
-    }
-
-    await markAllChaptersUnread(entry.sourceId, entry.mangaKey, keys);
-
-    await updateLibraryEntryMetadata(entry.sourceId, entry.mangaKey, {
-      unreadCount: keys.length,
-    });
-
-    await loadLibrary();
-  }, [loadLibrary]);
-
-  const handleToggleCategory = useCallback(
-    async (categoryId: string) => {
-      const entry = menuEntryRef.current;
-      if (!entry) return;
-
-      const result = await toggleMangaLibraryCategory(
-        entry.sourceId,
-        entry.mangaKey,
-        categoryId,
-        {
-          title: entry.title,
-          cover: entry.cover,
-          unreadCount: entry.unreadCount,
-          downloadedCount: entry.downloadedCount,
-          knownChapterKeys: entry.knownChapterKeys,
-          status: entry.status,
-        },
-      );
-
-      if (!result.inLibrary) {
-        setMenuEntry(null);
-      } else {
-        setMenuEntry((current) =>
-          current ? { ...current, categoryIds: result.categoryIds } : current,
-        );
-      }
-
-      await loadLibrary();
-    },
-    [loadLibrary],
-  );
-
-  const handleDeleteManga = useCallback(() => {
-    const entry = menuEntryRef.current;
-    if (!entry) return;
-
-    Alert.alert(t("manga_remove_from_library"), entry.title, [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("manga_remove_from_library"),
-        style: "destructive",
-        onPress: async () => {
-          setMenuEntry(null);
-          await removeFromLibrary(entry.sourceId, entry.mangaKey);
-          await loadLibrary();
-        },
-      },
-    ]);
-  }, [loadLibrary]);
-
-  const hasCategoryTabs = showCategoryTabs && categories.length > 0;
+  const hasCategoryTabs = showCategoryTabs && categories.length > 1;
   const { pagerHeight, onHeight: handlePageHeight } = usePagerHeights(
     categories.map((category) => category.id),
     selectedPageIndex,
   );
-  const { spacerHeight, renderOverlay } = usePinnedTabs(hasCategoryTabs);
+  const { onScroll: handlePinnedScroll, spacer, renderTabs } =
+    usePinnedTabs(hasCategoryTabs);
   const refreshControl = useMemo(
     () => (
       <RefreshControl
         refreshing={false}
         onRefresh={handleRefresh}
-        tintColor={colors.tint}
+        tintColor={colors.secondaryLabel}
       />
     ),
     [handleRefresh, colors.tint],
@@ -669,7 +542,7 @@ export default function LibraryScreen() {
           headerRight: () =>
             isRefreshingAny ? (
               <View style={styles.headerSpinner}>
-                <ActivityIndicator color={colors.tint} />
+                <ActivityIndicator color={colors.label} />
               </View>
             ) : (
               <HeaderIconButton
@@ -681,7 +554,7 @@ export default function LibraryScreen() {
         }}
       />
 
-      <Stack.Title>{t("library")}</Stack.Title>
+      <Stack.Title large>{t("library")}</Stack.Title>
 
       {!loaded ? (
         <ScreenContent padded={false} scrollEnabled={false}>
@@ -699,9 +572,11 @@ export default function LibraryScreen() {
             automaticallyAdjustsScrollIndicatorInsets
             showsVerticalScrollIndicator={false}
             refreshControl={isEmpty ? undefined : refreshControl}
+            onScroll={handlePinnedScroll}
+            scrollEventThrottle={16}
           >
             {listHeader}
-            <View style={{ height: spacerHeight }} />
+            {spacer}
             {refreshStatus}
             <AnimatedPagerView
               ref={pagerRef}
@@ -723,34 +598,21 @@ export default function LibraryScreen() {
                   columns={gridColumns}
                   onHeight={handlePageHeight}
                   onPressManga={handlePressManga}
-                  onLongPressManga={openMangaMenu}
                 />
               ))}
             </AnimatedPagerView>
+            {renderTabs(
+              <LibraryCategoryTabs
+                fullWidth
+                key={pagerKey}
+                tabs={categories}
+                progress={progress}
+                onPress={handleTabPress}
+              />,
+            )}
           </LiquidGlassScrollComponent>
-          {renderOverlay(
-            <LibraryCategoryTabs
-              key={pagerKey}
-              tabs={categories}
-              progress={progress}
-              onPress={handleTabPress}
-            />,
-          )}
         </View>
       )}
-
-      <LibraryMangaActionsMenu
-        visible={menuEntry != null}
-        title={menuEntry?.title ?? ""}
-        categories={libraryCategories}
-        selectedCategoryIds={menuEntry?.categoryIds ?? []}
-        onMarkAllRead={() => void handleMarkAllRead()}
-        onMarkAllUnread={() => void handleMarkAllUnread()}
-        onToggleCategory={(categoryId) => void handleToggleCategory(categoryId)}
-        onTransfer={handleTransfer}
-        onDelete={handleDeleteManga}
-        onClose={closeMangaMenu}
-      />
     </>
   );
 }

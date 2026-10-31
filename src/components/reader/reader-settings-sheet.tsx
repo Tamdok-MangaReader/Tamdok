@@ -1,3 +1,4 @@
+import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
@@ -132,29 +133,22 @@ export function ReaderSettingsSheet({
     >
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View
-        style={[
-          styles.sheet,
-          {
-            paddingBottom: insets.bottom + Spacing.lg,
-            backgroundColor: colors.groupedBackground,
-          },
-        ]}
+        style={[styles.sheet, { backgroundColor: colors.groupedBackground }]}
       >
-        <View style={styles.header}>
-          <View style={styles.headerSide} />
-          <ThemedText variant="title3" style={styles.title}>
-            {t("reader_settings_title")}
-          </ThemedText>
-          <GlassIconButton
-            icon="close"
-            size={36}
-            iconSize={20}
-            onPress={onClose}
-            accessibilityLabel={t("done")}
-          />
-        </View>
+        <ModalHeader
+          title={t("reader_settings_title")}
+          closeLabel={t("done")}
+          onClose={onClose}
+        />
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: MODAL_HEADER_HEIGHT + Spacing.md,
+              paddingBottom: insets.bottom + Spacing.lg,
+            },
+          ]}
+          scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
           showsVerticalScrollIndicator={false}
         >
           <ThemedText
@@ -270,11 +264,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   sheet: {
-    maxHeight: "80%",
+    maxHeight: "85%",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingTop: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
     overflow: "hidden",
   },
   header: {
@@ -294,7 +286,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
   },
   sectionLabel: {
     paddingHorizontal: Spacing.xs,

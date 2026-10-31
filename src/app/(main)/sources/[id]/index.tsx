@@ -23,7 +23,10 @@ import {
 } from "react-native";
 
 import { HomePlaceholderLayout } from "@/components/manga/home-placeholder-layout";
-import { MangaRefreshStatus } from "@/components/manga/manga-refresh-status";
+import {
+  MangaRefreshStatus,
+  useRefreshStatus,
+} from "@/components/manga/manga-refresh-status";
 import { HomeSection } from "@/components/manga/home-section";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import {
@@ -228,19 +231,18 @@ function RealSourceHomeScreen() {
       <RefreshControl
         refreshing={false}
         onRefresh={refresh}
-        tintColor={colors.tint}
+        tintColor={colors.secondaryLabel}
       />
     ),
     [refresh, colors.tint],
   );
 
+  const refreshStatus = useRefreshStatus(showHeaderSpinner, combinedError ?? null);
+
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        <MangaRefreshStatus
-          busy={showHeaderSpinner}
-          error={combinedError ?? null}
-        />
+        <MangaRefreshStatus status={refreshStatus} />
         <HeaderIconButton icon="search" onPress={openSearch} />
         <SourceOverflowMenu
           onOpenSettings={openSettings}
@@ -248,7 +250,7 @@ function RealSourceHomeScreen() {
         />
       </View>
     ),
-    [showHeaderSpinner, combinedError, openSearch, openSettings, websiteUrl],
+    [refreshStatus, openSearch, openSettings, websiteUrl],
   );
 
   const sourceName = source?.manifest.info.name;
@@ -298,8 +300,9 @@ function RealSourceHomeScreen() {
     categoryTabs.map((tab) => tab.id),
     selectedIndex,
   );
-  const { spacerHeight, renderOverlay } = usePinnedTabs(
+  const { onScroll: handlePinnedScroll, spacer, renderTabs } = usePinnedTabs(
     categoryTabs.length > 1,
+    { onScrollJS: handleScroll },
   );
 
   if (!source) {
@@ -371,12 +374,12 @@ function RealSourceHomeScreen() {
         automaticallyAdjustsScrollIndicatorInsets
         showsVerticalScrollIndicator={false}
         refreshControl={refreshControl}
-        onScroll={handleScroll}
-        scrollEventThrottle={100}
+        onScroll={handlePinnedScroll}
+        scrollEventThrottle={16}
       >
         <IncognitoModeBanner />
         {alertBanner}
-        <View style={{ height: spacerHeight }} />
+        {spacer}
         <AnimatedPagerView
           ref={pagerRef}
           key={pagerKey}
@@ -416,15 +419,16 @@ function RealSourceHomeScreen() {
             </View>
           ))}
         </AnimatedPagerView>
+        {renderTabs(
+          <LibraryCategoryTabs
+            fullWidth
+            key={pagerKey}
+            tabs={categoryTabs}
+            progress={progress}
+            onPress={handleTabPress}
+          />,
+        )}
       </LiquidGlassScrollComponent>
-      {renderOverlay(
-        <LibraryCategoryTabs
-          key={pagerKey}
-          tabs={categoryTabs}
-          progress={progress}
-          onPress={handleTabPress}
-        />,
-      )}
     </View>
   );
 
