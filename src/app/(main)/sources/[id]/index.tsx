@@ -14,10 +14,12 @@ import {
   type ReactNode,
 } from "react";
 import * as Haptics from "expo-haptics";
+import * as WebBrowser from "expo-web-browser";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
 import {
   ActivityIndicator,
+  Platform,
   RefreshControl,
   StyleSheet,
   View,
@@ -256,7 +258,10 @@ function RealSourceHomeScreen() {
 
   const sourceName = source?.manifest.info.name;
   const screenOptions = useMemo(
-    () => ({ title: sourceName, headerRight }),
+    () => ({
+      title: sourceName,
+      headerRight: Platform.OS === "ios" ? undefined : headerRight,
+    }),
     [sourceName, headerRight],
   );
 
@@ -437,6 +442,38 @@ function RealSourceHomeScreen() {
     <SourceCoverHeadersProvider source={source}>
       <>
         <Stack.Screen options={screenOptions} />
+        {Platform.OS === "ios" ? (
+          <Stack.Toolbar placement="right">
+            {refreshStatus.visible ? (
+              <Stack.Toolbar.View>
+                <MangaRefreshStatus status={refreshStatus} />
+              </Stack.Toolbar.View>
+            ) : null}
+            <Stack.Toolbar.Button
+              icon="magnifyingglass"
+              accessibilityLabel={t("search")}
+              tintColor={colors.label}
+              onPress={openSearch}
+            />
+            <Stack.Toolbar.Menu
+              icon="ellipsis"
+              accessibilityLabel={t("source_settings_title")}
+              tintColor={colors.label}
+            >
+              <Stack.Toolbar.MenuAction icon="gearshape" onPress={openSettings}>
+                {t("source_settings_title")}
+              </Stack.Toolbar.MenuAction>
+              {websiteUrl ? (
+                <Stack.Toolbar.MenuAction
+                  icon="safari"
+                  onPress={() => void WebBrowser.openBrowserAsync(websiteUrl)}
+                >
+                  {t("source_website")}
+                </Stack.Toolbar.MenuAction>
+              ) : null}
+            </Stack.Toolbar.Menu>
+          </Stack.Toolbar>
+        ) : null}
         <ScreenContent
           padded={false}
           centerContent={showBlockingError}

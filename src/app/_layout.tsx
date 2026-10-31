@@ -7,7 +7,7 @@ import {
 } from "expo-router";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { AppState, View } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -19,6 +19,7 @@ import { AidokuWasmHost } from "@/components/sources/aidoku-wasm-host";
 import { AppearanceProvider } from "@/context/appearance-context";
 import { SourcesProvider } from "@/context/sources-context";
 import { ThemePreferenceProvider } from "@/context/theme-preference-context";
+import { duoScreenLayout } from "@/hooks/use-duo-layout";
 import { useExpoRouterTheme } from "@/hooks/use-navigation-theme";
 import { useThemeColor } from "@/hooks/use-theme";
 import {
@@ -95,6 +96,14 @@ function useRestoreSourceStack() {
     }
   }, [pathname, router]);
 }
+
+// (main) and manga host their own nested stacks that apply the Duo rail padding.
+const rootScreenLayout: ComponentProps<typeof Stack>["screenLayout"] = (
+  props,
+) =>
+  props.route.name === "[...unmatched]"
+    ? duoScreenLayout(props)
+    : props.children;
 
 function RootLayoutContent() {
   const backgroundColor = useThemeColor("systemBackground");
@@ -200,7 +209,7 @@ function RootLayoutContent() {
     <ThemeProvider value={navigationTheme}>
       <AidokuWasmHost />
       {showWelcome && <WelcomeScreen onComplete={handleWelcomeComplete} />}
-      <Stack screenOptions={rootStackOptions}>
+      <Stack screenOptions={rootStackOptions} screenLayout={rootScreenLayout}>
         <Stack.Screen name="(main)" />
         <Stack.Screen name="manga" />
         <Stack.Screen

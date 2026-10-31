@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from "react-native";
 
+import { uniqueByKey } from "@/utils/unique-entries";
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import { VirtualMangaGrid } from "@/components/manga/virtual-manga-grid";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MangaGridSkeleton } from "@/components/ui/skeleton";
@@ -50,7 +51,9 @@ export function SourceListingPanel({
         const result = await runner.getMangaList(listing, nextPage);
         lastAddedRef.current = result.entries.length > 0;
         setEntries((current) =>
-          append ? [...current, ...result.entries] : result.entries,
+          append
+            ? [...current, ...uniqueByKey(result.entries, current)]
+            : uniqueByKey(result.entries),
         );
         setHasNextPage(result.hasNextPage);
         setPage(nextPage);

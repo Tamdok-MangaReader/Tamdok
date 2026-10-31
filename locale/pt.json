@@ -653,5 +653,8 @@
   "source_blocked_hint": "O site bloqueou a solicitação (HTTP 403). Tente desativar a VPN ou abra as configurações da fonte e conclua a verificação do Cloudflare.",
   "source_requires_newer_app": "Esta fonte requer o Tamdok {version} ou mais recente (você tem {current}). Atualize o app para instalá-la.",
   "source_requires_older_app": "Esta fonte só funciona até o Tamdok {version} (você tem {current}).",
-  "source_requires_app_short": "Requer app {version}+"
+  "source_requires_app_short": "Requer app {version}+",
+  "source_token_title": "Access token",
+  "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
+  "source_token_saved": "Token saved. The source will use your account."
 }

@@ -1,6 +1,8 @@
 import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { uniqueByKey } from "@/utils/unique-entries";
+import { useAdaptiveColumns, useWindowDimensions } from "@/hooks/use-duo-layout";
 import {
   MangaGridCell,
   type MangaGridItem,
@@ -84,7 +86,7 @@ export function VirtualMangaGrid({
   pageId,
   onHeight,
   sourceId,
-  columns = 3,
+  columns: baseColumns = 3,
   showBookmark = true,
   showRating = false,
   isRatingCompact = true,
@@ -95,6 +97,7 @@ export function VirtualMangaGrid({
   footer,
 }: VirtualMangaGridProps) {
   const { width } = useWindowDimensions();
+  const columns = useAdaptiveColumns(baseColumns);
   const itemWidth = useMemo(
     () =>
       Math.floor(
@@ -119,7 +122,7 @@ export function VirtualMangaGrid({
   const hasLongPress = !!onLongPressManga;
 
   const rows = useMemo(() => {
-    const list = entries as MangaGridItem[];
+    const list = uniqueByKey(entries as MangaGridItem[]);
     const result: GridRow[] = [];
     for (let i = 0; i < list.length; i += columns) {
       const items = list.slice(i, i + columns);

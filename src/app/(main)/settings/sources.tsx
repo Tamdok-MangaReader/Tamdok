@@ -512,7 +512,7 @@ export default function SettingsSourcesScreen() {
   const refreshControl = (
     <RefreshControl
       refreshing={isCheckingUpdates}
-      onRefresh={refreshInBackground}
+      onRefresh={() => void refreshInBackground({ bustIcons: true })}
       tintColor={colors.secondaryLabel}
     />
   );
@@ -829,7 +829,7 @@ export default function SettingsSourcesScreen() {
             <SectionLabel
               trailing={
                 <Pressable
-                  onPress={() => void refreshInBackground()}
+                  onPress={() => void refreshInBackground({ bustIcons: true })}
                   hitSlop={8}
                   accessibilityRole="button"
                   accessibilityLabel={t("settings_sources_refresh_registries")}
@@ -872,6 +872,7 @@ export default function SettingsSourcesScreen() {
                         iconSource={resolveRegistryIconSource(
                           registry.url,
                           registryCatalogs[registry.url],
+                          registry.iconVersion,
                         )}
                         showChevron={false}
                         imageTransition={0}

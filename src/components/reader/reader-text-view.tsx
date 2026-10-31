@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { FlatList, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
 
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import { useReader } from '@/components/reader/reader-context';
 import { ThemedText } from '@/components/ui/themed-text';
 

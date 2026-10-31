@@ -12,9 +12,9 @@ import {
   Modal,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
+  useWindowDimensions,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,

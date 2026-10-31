@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Modal } from "@/hooks/use-duo-layout";
 import { Card } from '@/components/ui/card';
 import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { ThemedText } from '@/components/ui/themed-text';

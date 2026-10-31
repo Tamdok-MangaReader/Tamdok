@@ -11,6 +11,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
+import { MangaDetailToolbar } from "@/components/manga/manga-detail-toolbar";
 import { useTheme } from "@/hooks/use-theme";
 import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Share,
   StyleSheet,
   View,
@@ -800,8 +802,8 @@ export default function MangaDetailScreen() {
     () => ({
       title: chapterSelectMode ? t("manga_select_chapters") : manga.title,
       headerBackVisible: false as const,
-      headerLeft,
-      headerRight,
+      headerLeft: Platform.OS === "ios" ? undefined : headerLeft,
+      headerRight: Platform.OS === "ios" ? undefined : headerRight,
     }),
     [chapterSelectMode, headerLeft, headerRight, manga.title],
   );
@@ -810,7 +812,7 @@ export default function MangaDetailScreen() {
     () => ({
       title: manga.title,
       headerBackVisible: false as const,
-      headerLeft,
+      headerLeft: Platform.OS === "ios" ? undefined : headerLeft,
     }),
     [manga.title, headerLeft],
   );
@@ -868,6 +870,30 @@ export default function MangaDetailScreen() {
     return (
       <SourceCoverHeadersProvider source={source}>
         <Stack.Screen options={errorOnlyOptions} />
+      {Platform.OS === "ios" ? (
+        <MangaDetailToolbar
+          leftOnly
+          chapterSelectMode={chapterSelectMode}
+          hasDownloads={hasDownloads}
+          canShare={Boolean(mangaPageUrl)}
+          canDownload={inLibrary}
+          onBack={() => router.back()}
+          onCancelSelect={() => handlersRef.current.onCancelSelect()}
+          onApplySelect={() => handlersRef.current.onApplySelect()}
+          onShare={() => handlersRef.current.onShare()}
+          onSelectChapters={() => handlersRef.current.onSelectChapters()}
+          onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
+          onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
+          onMarkSelectedRead={() => handlersRef.current.onMarkSelectedRead()}
+          onMarkSelectedUnread={() => handlersRef.current.onMarkSelectedUnread()}
+          onSelectAll={() => handlersRef.current.onSelectAll()}
+          onDeselectAll={() => handlersRef.current.onDeselectAll()}
+          onRefresh={() => handlersRef.current.onRefresh()}
+          onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
+          onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
+        />
+      ) : null}
         <ScreenContent centerContent>
           <ErrorState message={combinedError!} onRetry={refresh} />
         </ScreenContent>
@@ -879,6 +905,30 @@ export default function MangaDetailScreen() {
     return (
       <SourceCoverHeadersProvider source={source}>
         <Stack.Screen options={errorOnlyOptions} />
+      {Platform.OS === "ios" ? (
+        <MangaDetailToolbar
+          leftOnly
+          chapterSelectMode={chapterSelectMode}
+          hasDownloads={hasDownloads}
+          canShare={Boolean(mangaPageUrl)}
+          canDownload={inLibrary}
+          onBack={() => router.back()}
+          onCancelSelect={() => handlersRef.current.onCancelSelect()}
+          onApplySelect={() => handlersRef.current.onApplySelect()}
+          onShare={() => handlersRef.current.onShare()}
+          onSelectChapters={() => handlersRef.current.onSelectChapters()}
+          onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
+          onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
+          onMarkSelectedRead={() => handlersRef.current.onMarkSelectedRead()}
+          onMarkSelectedUnread={() => handlersRef.current.onMarkSelectedUnread()}
+          onSelectAll={() => handlersRef.current.onSelectAll()}
+          onDeselectAll={() => handlersRef.current.onDeselectAll()}
+          onRefresh={() => handlersRef.current.onRefresh()}
+          onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
+          onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
+        />
+      ) : null}
         <ScreenContent>
           <MangaDetailSkeleton />
         </ScreenContent>
@@ -889,6 +939,29 @@ export default function MangaDetailScreen() {
   return (
     <SourceCoverHeadersProvider source={source}>
       <Stack.Screen options={screenOptions} />
+      {Platform.OS === "ios" ? (
+        <MangaDetailToolbar
+          chapterSelectMode={chapterSelectMode}
+          hasDownloads={hasDownloads}
+          canShare={Boolean(mangaPageUrl)}
+          canDownload={inLibrary}
+          onBack={() => router.back()}
+          onCancelSelect={() => handlersRef.current.onCancelSelect()}
+          onApplySelect={() => handlersRef.current.onApplySelect()}
+          onShare={() => handlersRef.current.onShare()}
+          onSelectChapters={() => handlersRef.current.onSelectChapters()}
+          onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
+          onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
+          onMarkSelectedRead={() => handlersRef.current.onMarkSelectedRead()}
+          onMarkSelectedUnread={() => handlersRef.current.onMarkSelectedUnread()}
+          onSelectAll={() => handlersRef.current.onSelectAll()}
+          onDeselectAll={() => handlersRef.current.onDeselectAll()}
+          onRefresh={() => handlersRef.current.onRefresh()}
+          onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
+          onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
+        />
+      ) : null}
 
       <MangaDetailView
         manga={manga}

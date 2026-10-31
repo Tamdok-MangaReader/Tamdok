@@ -1,12 +1,12 @@
+import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -122,6 +122,9 @@ export function InstalledSourceSettings({
   const [isSavingCookies, setIsSavingCookies] = useState(false);
   const [isWebViewLoading, setIsWebViewLoading] = useState(false);
   const [loginMode, setLoginMode] = useState<"login" | "cloudflare">("login");
+  const [loginCapture, setLoginCapture] = useState<{ key: string; setting: string } | null>(null);
+  const webViewRef = useRef<WebView>(null);
+  const captureResolve = useRef<((value: string | null) => void) | null>(null);
   const [busyAction, setBusyAction] = useState<"reset" | "cache" | null>(null);
   const [networkTick, setNetworkTick] = useState(0);
 
@@ -217,7 +220,11 @@ export function InstalledSourceSettings({
     );
   };
 
-  const openLogin = (url: string) => {
+  const openLogin = (
+    url: string,
+    capture?: { key: string; setting: string },
+  ) => {
+    setLoginCapture(capture ?? null);
     setLoginMode("login");
     setIsWebViewLoading(true);
     setLoginUrl(url);
@@ -334,6 +341,47 @@ export function InstalledSourceSettings({
     }
   };
 
+  // Reads one localStorage key of the page currently shown in the WebView (the answer comes back via onMessage).
+  const readLocalStorage = (key: string) =>
+    new Promise<string | null>((resolve) => {
+      captureResolve.current = resolve;
+      setTimeout(() => {
+        captureResolve.current?.(null);
+        captureResolve.current = null;
+      }, 3000);
+      const quoted = JSON.stringify(key);
+      webViewRef.current?.injectJavaScript(
+        `(function(){var v=null;try{v=window.localStorage.getItem(${quoted})}catch(e){}` +
+          `window.ReactNativeWebView.postMessage(JSON.stringify({tamdokLocalStorage:${quoted},value:v}));})();true;`,
+      );
+    });
+
+  const saveLocalStorageToken = async (
+    capture: { key: string; setting: string },
+  ) => {
+    if (!source || isSavingCookies) return;
+    setIsSavingCookies(true);
+    try {
+      const value = (await readLocalStorage(capture.key))?.trim();
+      if (!value) {
+        Alert.alert(t("source_token_title"), t("source_token_not_found"));
+        return;
+      }
+      await setSourceSettingValue(source.id, capture.setting, value);
+      await refreshFields();
+      Alert.alert(t("source_token_title"), t("source_token_saved"), [
+        { text: "OK", onPress: closeLogin },
+      ]);
+    } catch {
+      Alert.alert(
+        t("source_cookies_save_error_title"),
+        t("source_cookies_save_error_message"),
+      );
+    } finally {
+      setIsSavingCookies(false);
+    }
+  };
+
   const closeLogin = () => {
     setLoginUrl(null);
     setIsWebViewLoading(false);
@@ -444,7 +492,7 @@ export function InstalledSourceSettings({
                               backgroundColor: colors.quaternaryFill,
                             },
                           ]}
-                          onPress={() => openLogin(field.url)}
+                          onPress={() => openLogin(field.url, field.captureLocalStorage)}
                           accessibilityRole="button"
                         >
                           <ThemedText variant="body" style={styles.rowLabel}>
@@ -880,7 +928,9 @@ export function InstalledSourceSettings({
             onAction={() =>
               void (loginMode === "cloudflare"
                 ? saveClearance(loginUrl || "")
-                : saveCookies(loginUrl || ""))
+                : loginCapture
+                  ? saveLocalStorageToken(loginCapture)
+                  : saveCookies(loginUrl || ""))
             }
           />
 
@@ -892,6 +942,18 @@ export function InstalledSourceSettings({
 
           {loginUrl !== null ? (
             <WebView
+              ref={webViewRef}
+              onMessage={(event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  if (data && typeof data.tamdokLocalStorage === "string") {
+                    captureResolve.current?.(data.value ?? null);
+                    captureResolve.current = null;
+                  }
+                } catch {
+                  // Not our message.
+                }
+              }}
               source={{
                 uri: loginUrl,
                 // Looks like a visitor arriving from a search result.

@@ -1,5 +1,6 @@
+import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useReader } from '@/components/reader/reader-context';

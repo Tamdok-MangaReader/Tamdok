@@ -16,8 +16,10 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { useSharedValue } from "react-native-reanimated";
@@ -417,6 +419,24 @@ export default function LibraryScreen() {
     },
   });
 
+  // Folding/unfolding the iPhone Duo resizes the pager mid-gesture and can leave the category thumb
+  // between tabs. Once the layout settles, snap pager and progress back to the selected page.
+  const { width: pagerWindowWidth } = useWindowDimensions();
+  const selectedPageIndexRef = useRef(selectedPageIndex);
+  selectedPageIndexRef.current = selectedPageIndex;
+  const lastWindowWidthRef = useRef(pagerWindowWidth);
+  useEffect(() => {
+    if (lastWindowWidthRef.current === pagerWindowWidth) return;
+    lastWindowWidthRef.current = pagerWindowWidth;
+    const timers = [50, 250, 600].map((delay) =>
+      setTimeout(() => {
+        pagerRef.current?.setPageWithoutAnimation(selectedPageIndexRef.current);
+        progress.value = selectedPageIndexRef.current;
+      }, delay),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [pagerWindowWidth, progress]);
+
   const handleTabPress = useCallback(
     (index: number) => {
       if (Math.abs(index - selectedPageIndex) > 1) {
@@ -433,6 +453,8 @@ export default function LibraryScreen() {
       const category = categories[index];
       if (!category) return;
 
+      // A settled page always means an integer progress; resets a thumb left mid-way by an interrupted scroll.
+      progress.value = index;
       selectedCategoryIdRef.current = category.id;
       setSelectedCategoryId(category.id);
 
@@ -537,22 +559,34 @@ export default function LibraryScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerRight: () =>
-            isRefreshingAny ? (
-              <View style={styles.headerSpinner}>
-                <ActivityIndicator color={colors.label} />
-              </View>
-            ) : (
-              <HeaderIconButton
-                icon="refresh-outline"
-                accessibilityLabel={t("library_refresh_all")}
-                onPress={handleRefresh}
-              />
-            ),
-        }}
-      />
+      {Platform.OS === "ios" ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="arrow.clockwise"
+            accessibilityLabel={t("library_refresh_all")}
+            disabled={isRefreshingAny}
+            tintColor={colors.label}
+            onPress={handleRefresh}
+          />
+        </Stack.Toolbar>
+      ) : (
+        <Stack.Screen
+          options={{
+            headerRight: () =>
+              isRefreshingAny ? (
+                <View style={styles.headerSpinner}>
+                  <ActivityIndicator color={colors.label} />
+                </View>
+              ) : (
+                <HeaderIconButton
+                  icon="refresh-outline"
+                  accessibilityLabel={t("library_refresh_all")}
+                  onPress={handleRefresh}
+                />
+              ),
+          }}
+        />
+      )}
 
       <Stack.Title large>{t("library")}</Stack.Title>
 

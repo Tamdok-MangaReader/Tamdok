@@ -1,5 +1,6 @@
-import { Dimensions, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { useFeaturedCardWidth, useGridItemWidth } from "@/hooks/use-duo-layout";
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -10,11 +11,6 @@ const GRID_ITEMS = 6;
 
 function coverHeight(width: number): number {
   return Math.round(width * 1.45);
-}
-
-function gridItemWidth(): number {
-  const width = Dimensions.get('window').width;
-  return Math.floor((width - Spacing.lg * 2 - Spacing.sm * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
 }
 
 function PlaceholderBlock({ width, height, radius }: { width: number | string; height: number; radius: number }) {
@@ -49,7 +45,7 @@ function CoverColumn({ width }: { width: number }) {
 
 function FeaturedRow() {
   const { radius } = useTheme();
-  const cardWidth = Dimensions.get('window').width - Spacing.lg * 2;
+  const cardWidth = useFeaturedCardWidth(Spacing.lg);
   const coverWidth = Math.round(cardWidth * 0.38);
   return (
     <View style={styles.section}>
@@ -86,7 +82,7 @@ function ScrollerRow() {
 }
 
 function GridRow() {
-  const itemWidth = gridItemWidth();
+  const itemWidth = useGridItemWidth(GRID_COLUMNS, Spacing.sm, Spacing.lg);
   return (
     <View style={styles.section}>
       <View style={styles.header}>

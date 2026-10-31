@@ -653,5 +653,8 @@
   "source_blocked_hint": "Situs memblokir permintaan (HTTP 403). Coba matikan VPN, atau buka pengaturan sumber dan selesaikan pemeriksaan Cloudflare.",
   "source_requires_newer_app": "Sumber ini memerlukan Tamdok {version} atau lebih baru (Anda memakai {current}). Perbarui aplikasi untuk memasangnya.",
   "source_requires_older_app": "Sumber ini hanya berfungsi hingga Tamdok {version} (Anda memakai {current}).",
-  "source_requires_app_short": "Perlu aplikasi {version}+"
+  "source_requires_app_short": "Perlu aplikasi {version}+",
+  "source_token_title": "Access token",
+  "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
+  "source_token_saved": "Token saved. The source will use your account."
 }

@@ -2,7 +2,6 @@ import { memo, useCallback, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from "react-native";
@@ -18,6 +17,7 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";

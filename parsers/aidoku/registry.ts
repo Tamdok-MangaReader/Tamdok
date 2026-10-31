@@ -5,8 +5,15 @@ export const AIDOKU_COMMUNITY_REGISTRY =
 
 export async function fetchSourceRegistry(
   url: string,
+  fresh = false,
 ): Promise<SourceRegistry> {
-  const response = await fetch(url);
+  // A forced refresh must bypass the HTTP cache (GitHub Pages sends max-age=600), otherwise the
+  // registry name, icon and entries stay the same until the cached copy expires.
+  const response = fresh
+    ? await fetch(`${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`, {
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      })
+    : await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to load registry: ${response.status}`);
   }

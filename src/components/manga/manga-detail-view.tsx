@@ -5,6 +5,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { useIsOpenDuo } from "@/hooks/use-duo-layout";
 import {
   NativeContextMenu,
   type NativeContextMenuItem,
@@ -578,28 +579,8 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
 
   const showCounts = inLibrary && (unreadCount > 0 || downloadedCount > 0);
 
-  return (
-    <View style={styles.header}>
-      {showBigMangaCover && coverSource ? (
-        <MangaBackground source={coverSource} />
-      ) : null}
-      {inlineError ? (
-        <SourceHomeAlertBanner
-          message={inlineError}
-          onDismiss={onDismissInlineError}
-        />
-      ) : retrying ? (
-        <SourceHomeAlertBanner message={t("source_connection_retrying")} loading />
-      ) : null}
-      <IncognitoModeBanner />
-
-      <CoverPreview
-        visible={coverPreviewOpen}
-        source={coverSource}
-        onClose={closeCoverPreview}
-      />
-
-      <View style={styles.hero}>
+  const heroNode = (
+    <View style={styles.hero}>
         <Pressable
           onLongPress={handleCoverLongPress}
           onPressIn={handleCoverPressIn}
@@ -681,7 +662,10 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           </GlassSurface>
         )}
       </View>
+  );
 
+  const descNode = (
+    <>
       {descriptionText ? (
         <DescriptionBlock text={descriptionText} altTitles={altTitles} />
       ) : null}
@@ -689,6 +673,57 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       {tags.length > 0 ? (
         <TagsBlock tags={tags} contentRating={manga.contentRating} />
       ) : null}
+    </>
+  );
+  const [headerWidth, setHeaderWidth] = useState(0);
+  const windowOpen = useIsOpenDuo();
+  const isOpenDuo =
+    Platform.OS === "ios" && (headerWidth > 0 ? headerWidth >= OPEN_HEADER_MIN_WIDTH : windowOpen);
+
+  return (
+    <View
+      style={styles.header}
+      onLayout={(event) => setHeaderWidth(Math.round(event.nativeEvent.layout.width))}
+    >
+      {showBigMangaCover && coverSource ? (
+        <MangaBackground source={coverSource} />
+      ) : null}
+      {inlineError ? (
+        <SourceHomeAlertBanner
+          message={inlineError}
+          onDismiss={onDismissInlineError}
+        />
+      ) : retrying ? (
+        <SourceHomeAlertBanner message={t("source_connection_retrying")} loading />
+      ) : null}
+      <IncognitoModeBanner />
+
+      <CoverPreview
+        visible={coverPreviewOpen}
+        source={coverSource}
+        onClose={closeCoverPreview}
+      />
+
+      {isOpenDuo ? (
+        <View style={styles.openTop}>
+          <View style={styles.openMeta}>{heroNode}</View>
+          {showBigMangaCover ? (
+            <GlassSurface
+              glassStyle="regular"
+              style={[styles.openDescription, { padding: Spacing.sm }]}
+            >
+              {descNode}
+            </GlassSurface>
+          ) : (
+            <View style={styles.openDescription}>{descNode}</View>
+          )}
+        </View>
+      ) : (
+        <>
+          {heroNode}
+          {descNode}
+        </>
+      )}
 
       {!chapterSelectMode && !isLoading && chaptersCount > 0 ? (
         <Pressable onPress={onContinueReading} style={libraryPressableStyle}>
@@ -1124,6 +1159,11 @@ type ChapterRowProps = {
 // pushes the date off screen when a title is long.
 let cachedChapterRowWidth = 0;
 
+// Fixed width of the cover + meta block on the unfolded Duo; the description sits to its right.
+const OPEN_META_WIDTH = 460;
+// A header at least this wide (inside the screen padding) is the unfolded Duo; measured via layout so the arrangement flips in the same frame as the resize.
+const OPEN_HEADER_MIN_WIDTH = 468;
+
 const ChapterRow = memo(function ChapterRow({
   chapter,
   index,
@@ -1504,6 +1544,20 @@ const styles = StyleSheet.create({
   },
   sourceNameBold: {
     fontWeight: "700",
+  },
+  openTop: {
+    flexDirection: "row",
+    gap: Spacing.xl,
+    alignItems: "flex-start",
+  },
+  openMeta: {
+    width: OPEN_META_WIDTH,
+    flexShrink: 0,
+  },
+  openDescription: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.xl,
   },
   hero: {
     flexDirection: "row",

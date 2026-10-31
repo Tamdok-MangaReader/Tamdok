@@ -12,13 +12,13 @@ import {
   FlatList,
   Platform,
   StyleSheet,
-  useWindowDimensions,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import { ReaderChapterBoundary } from "@/components/reader/reader-chapter-boundary";
 import {
   ReaderQuickActions,

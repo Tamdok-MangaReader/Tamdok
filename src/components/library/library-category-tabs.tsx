@@ -4,7 +4,6 @@ import {
   AppState,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from "react-native";
@@ -21,6 +20,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { GlassView } from "expo-glass-effect";
 
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";

@@ -653,5 +653,8 @@
   "source_blocked_hint": "サイトがリクエストをブロックしました (HTTP 403)。VPN をオフにするか、ソース設定を開いて Cloudflare の確認を完了してください。",
   "source_requires_newer_app": "このソースには Tamdok {version} 以降が必要です（現在 {current}）。アプリを更新してからインストールしてください。",
   "source_requires_older_app": "このソースは Tamdok {version} までのバージョンでのみ動作します（現在 {current}）。",
-  "source_requires_app_short": "アプリ {version}+ が必要"
+  "source_requires_app_short": "アプリ {version}+ が必要",
+  "source_token_title": "Access token",
+  "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
+  "source_token_saved": "Token saved. The source will use your account."
 }

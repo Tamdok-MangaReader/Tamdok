@@ -3,8 +3,8 @@ import {
   Modal,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { GlassSurface } from "@/components/ui/glass-surface";

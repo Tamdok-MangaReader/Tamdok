@@ -3,12 +3,12 @@ import { useCallback, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import { READER_GLASS_TINT } from "@/utils/reader-glass";
 import { useReader } from "@/components/reader/reader-context";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";

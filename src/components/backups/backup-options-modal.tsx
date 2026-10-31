@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   View,
 } from "react-native";
 
+import { Modal } from "@/hooks/use-duo-layout";
 import { Card, CardSeparator } from "@/components/ui/card";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { SectionLabel } from "@/components/ui/section-label";

@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { SwipeableRow, SwipeableRowsProvider, type SwipeAction } from '@/components/sources/swipeable-row';
 import { Card, CardSeparator } from '@/components/ui/card';
+import { LiftedActionMenu, type LiftedMenuItem } from '@/components/ui/lifted-action-menu';
 import { ListRow } from '@/components/ui/list-row';
 import { ScreenContent } from '@/components/ui/screen-content';
 import { SectionLabel } from '@/components/ui/section-label';
@@ -101,7 +102,10 @@ function DownloadMangaGroupRow({
   const { colors, radius } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
   const coverHeadersReady = useSourceCoverHeadersReady();
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
+  // Like the history cards: collapsed by default, the card toggles its chapter list.
+  const [open, setOpen] = useState(false);
   const [totalChapters, setTotalChapters] = useState<number | null>(
     () => peekMangaDetailCache(group.sourceId, group.mangaKey)?.manga.chapters?.length ?? null,
   );
@@ -146,10 +150,47 @@ function DownloadMangaGroupRow({
     },
   });
 
+  const menuItems: LiftedMenuItem[] = [
+    {
+      key: 'manga',
+      label: t('history_menu_open_manga'),
+      sfSymbol: 'book',
+      fallback: 'book-outline',
+      onPress: () => onOpenManga(group),
+    },
+    ...(source
+      ? [
+          {
+            key: 'source',
+            label: t('history_menu_open_source'),
+            sfSymbol: 'globe',
+            fallback: 'globe-outline' as const,
+            onPress: () => router.navigate(`/sources/${encodeURIComponent(sourceRouteId(source))}`),
+          },
+        ]
+      : []),
+    {
+      key: 'delete',
+      label: t('downloads_delete_manga'),
+      sfSymbol: 'trash',
+      fallback: 'trash-outline',
+      destructive: true,
+      onPress: deleteMangaAction.onPress,
+    },
+  ];
+
   return (
     <View style={[styles.mangaGroup, { backgroundColor: colors.secondarySystemBackground, borderRadius: radius.md }]}>
       <SwipeableRow rowId={`${group.key}:manga`} actions={[deleteMangaAction]} fullSwipeActionKey='delete'>
-        <Pressable style={styles.mangaRow} onPress={() => onOpenManga(group)}>
+        <LiftedActionMenu
+          items={menuItems}
+          renderContent={(onLongPress) => (
+            <View style={{ backgroundColor: colors.secondarySystemBackground, borderRadius: radius.md }}>
+        <Pressable
+          style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]}
+          onPress={() => setOpen((value) => !value)}
+          onLongPress={onLongPress}
+          delayLongPress={340}>
           <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
             {group.cover && coverHeadersReady ? (
               <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling />
@@ -177,11 +218,14 @@ function DownloadMangaGroupRow({
               </ThemedText>
             </View>
           </View>
-          <Ionicons name='chevron-forward' size={16} color={colors.tertiaryLabel} />
+          <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.tertiaryLabel} />
         </Pressable>
+            </View>
+          )}
+        />
       </SwipeableRow>
 
-      {group.chapters.length > 0 ? (
+      {open && group.chapters.length > 0 ? (
         <View style={[styles.chapterList, { borderTopColor: colors.separator }]}>
           {visibleChapters.map((chapter) => (
             <SwipeableRow
@@ -233,6 +277,7 @@ function DownloadMangaGroupRow({
 }
 
 export default function DownloadsSettingsScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const { installed } = useSources();
   const refreshTick = useMangaDataRefresh();
@@ -329,13 +374,26 @@ export default function DownloadsSettingsScreen() {
       <Stack.Screen
         options={{
           title: t('downloads_settings_title'),
-          headerRight: () => (
-            <ThemedText variant='body' color='label' onPress={() => void processQueue()} style={{ paddingHorizontal: 8 }}>
-              {t('downloads_process_queue')}
-            </ThemedText>
-          ),
+          headerRight:
+            Platform.OS === 'ios'
+              ? undefined
+              : () => (
+                  <ThemedText variant='body' color='label' onPress={() => void processQueue()} style={{ paddingHorizontal: 8 }}>
+                    {t('downloads_process_queue')}
+                  </ThemedText>
+                ),
         }}
       />
+      {Platform.OS === 'ios' ? (
+        <Stack.Toolbar placement='right'>
+          <Stack.Toolbar.Button
+            icon='play.circle'
+            accessibilityLabel={t('downloads_process_queue')}
+            tintColor={colors.label}
+            onPress={() => void processQueue()}
+          />
+        </Stack.Toolbar>
+      ) : null}
       <SwipeableRowsProvider>
         <ScreenContent>
           <SectionLabel isFirst>{t('downloads_preferences_section')}</SectionLabel>

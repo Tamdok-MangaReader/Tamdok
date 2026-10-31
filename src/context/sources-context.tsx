@@ -87,7 +87,7 @@ type SourcesContextValue = {
   isCatalogLoading: boolean;
   isCheckingUpdates: boolean;
   refresh: () => Promise<void>;
-  refreshInBackground: () => Promise<void>;
+  refreshInBackground: (options?: { bustIcons?: boolean }) => Promise<void>;
   installPackage: (data: Uint8Array, filename: string) => Promise<void>;
   installRegistryEntry: (
     registryUrl: string,
@@ -310,6 +310,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       nsfw: boolean,
       notify: boolean,
       force = false,
+      bustIcons = false,
     ) => {
       if (urls.length === 0) {
         setRegistryCatalogs({});
@@ -322,8 +323,15 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       try {
         const catalogs = await loadCatalogs(urls, force);
         setRegistryCatalogs(catalogs);
-        const syncedRegistries = syncRegistriesWithCatalogs(urls, catalogs);
+        let syncedRegistries = syncRegistriesWithCatalogs(urls, catalogs);
+        if (bustIcons) {
+          const stamp = Date.now();
+          syncedRegistries = syncedRegistries.map((item) =>
+            catalogs[item.url] ? { ...item, iconVersion: stamp } : item,
+          );
+        }
         if (
+          bustIcons ||
           syncedRegistries.some(
             (item, index) => item.name !== urls[index]?.name,
           )
@@ -369,7 +377,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
     void hydrateCatalogs(urls, sources, nsfw, true, true);
   }, [hydrateCatalogs, setInstalled, setSourceLayout]);
 
-  const refreshInBackground = useCallback(async () => {
+  const refreshInBackground = useCallback(async (options?: { bustIcons?: boolean }) => {
     if (backgroundCheckInFlight.current) return;
     backgroundCheckInFlight.current = true;
     setIsCheckingUpdates(true);
@@ -383,7 +391,7 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       setInstalled(sources);
       setSourceLayout(layout);
       setRegistries(urls);
-      await hydrateCatalogs(urls, sources, nsfw, true, true);
+      await hydrateCatalogs(urls, sources, nsfw, true, true, options?.bustIcons === true);
     } finally {
       setIsCheckingUpdates(false);
       backgroundCheckInFlight.current = false;

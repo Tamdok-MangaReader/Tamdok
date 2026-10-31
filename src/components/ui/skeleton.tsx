@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { StyleSheet, useWindowDimensions, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { useAdaptiveColumns, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -34,8 +35,9 @@ export function SkeletonBlock({ style }: { style?: StyleProp<ViewStyle> }) {
   );
 }
 
-export function MangaGridSkeleton({ columns = 3, rows = 4 }: { columns?: number; rows?: number }) {
+export function MangaGridSkeleton({ columns: baseColumns = 3, rows = 4 }: { columns?: number; rows?: number }) {
   const { width: windowWidth } = useWindowDimensions();
+  const columns = useAdaptiveColumns(baseColumns);
   const { radius } = useTheme();
   const gap = Spacing.md;
   const itemWidth = Math.floor((windowWidth - Spacing.lg * 2 - gap * (columns - 1)) / columns);

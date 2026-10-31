@@ -832,6 +832,7 @@ const HistoryGroupRow = memo(function HistoryGroupRow({
 });
 
 export default function HistoryScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const { installed } = useSources();
   const refreshTick = useMangaDataRefresh();
@@ -1091,7 +1092,9 @@ export default function HistoryScreen() {
   );
 
   const screenOptions = useMemo(
-    () => ({ headerRight: renderHeaderRight }),
+    () => ({
+      headerRight: Platform.OS === "ios" ? undefined : renderHeaderRight,
+    }),
     [renderHeaderRight],
   );
 
@@ -1133,10 +1136,68 @@ export default function HistoryScreen() {
     [renderItem],
   );
 
+  // iOS: native toolbar items are moved into the Duo's vertical rail; custom headerRight views are not.
+  const clearHandlers = {
+    today: () =>
+      confirmClear(
+        t("history_clear_today"),
+        t("history_clear_today_confirm"),
+        startOfLocalDay(),
+      ),
+    week: () =>
+      confirmClear(
+        t("history_clear_week"),
+        t("history_clear_week_confirm"),
+        startOfLocalDay(6),
+      ),
+    all: () =>
+      confirmClear(
+        t("history_clear_all"),
+        t("history_clear_all_confirm"),
+        0,
+      ),
+  };
+  const headerNodes = (
+    <>
+      <Stack.Screen options={screenOptions} />
+      {Platform.OS === "ios" && hasEntries ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Menu
+            icon="ellipsis"
+            accessibilityLabel={t("history_menu")}
+            tintColor={colors.label}
+          >
+            <Stack.Toolbar.MenuAction
+              icon="calendar"
+              destructive
+              onPress={clearHandlers.today}
+            >
+              {t("history_clear_today")}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon="calendar.badge.clock"
+              destructive
+              onPress={clearHandlers.week}
+            >
+              {t("history_clear_week")}
+            </Stack.Toolbar.MenuAction>
+            <Stack.Toolbar.MenuAction
+              icon="trash"
+              destructive
+              onPress={clearHandlers.all}
+            >
+              {t("history_clear_all")}
+            </Stack.Toolbar.MenuAction>
+          </Stack.Toolbar.Menu>
+        </Stack.Toolbar>
+      ) : null}
+    </>
+  );
+
   if (!loaded) {
     return (
       <>
-        <Stack.Screen options={screenOptions} />
+        {headerNodes}
         <Stack.Title large>{t("history")}</Stack.Title>
         <ScreenContent padded={false} scrollEnabled={false}>
           <HistorySkeleton />
@@ -1215,7 +1276,7 @@ export default function HistoryScreen() {
     if (mainRows.length === 0) {
       return (
         <>
-          <Stack.Screen options={screenOptions} />
+          {headerNodes}
           <Stack.Title large>{t("history")}</Stack.Title>
           {renderPage(mainRows, "main", false)}
         </>
@@ -1223,7 +1284,7 @@ export default function HistoryScreen() {
     }
     return (
       <>
-        <Stack.Screen options={screenOptions} />
+        {headerNodes}
         <Stack.Title large>{t("history")}</Stack.Title>
         <SwipeableRowsProvider>
           {renderPage(mainRows, "main", false)}
@@ -1234,7 +1295,7 @@ export default function HistoryScreen() {
 
   return (
     <>
-      <Stack.Screen options={screenOptions} />
+      {headerNodes}
       <Stack.Title large>{t("history")}</Stack.Title>
       <View style={styles.root}>
         <LiquidGlassScrollComponent

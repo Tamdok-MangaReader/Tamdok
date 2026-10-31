@@ -47,7 +47,14 @@ export type SourceSettingField =
       value: string[];
       placeholder?: string;
     }
-  | { type: "login"; id: string; title: string; url: string };
+  | {
+      type: "login";
+      id: string;
+      title: string;
+      url: string;
+      /** After sign-in, copy this localStorage key of the site into a text setting. */
+      captureLocalStorage?: { key: string; setting: string };
+    };
 
 type SettingDefinition =
   | TamdokSettingFieldDefinition
@@ -67,7 +74,14 @@ type SettingDefinition =
       placeholder?: string;
       default?: string[];
     }
-  | { type: "login"; id: string; title: string; url: string };
+  | {
+      type: "login";
+      id: string;
+      title: string;
+      url: string;
+      /** After sign-in, copy this localStorage key of the site into a text setting. */
+      captureLocalStorage?: { key: string; setting: string };
+    };
 
 function settingsStorageKey(sourceId: string): string {
   return `source_settings:${sourceId}`;
@@ -500,6 +514,7 @@ function mapDefinition(
         id: definition.id,
         title: definition.title,
         url: definition.url,
+        captureLocalStorage: definition.captureLocalStorage,
       },
     ];
   }

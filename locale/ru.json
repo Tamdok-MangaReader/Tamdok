@@ -653,5 +653,8 @@
   "source_blocked_hint": "Сайт заблокировал запрос (HTTP 403). Попробуйте отключить VPN или откройте настройки источника и пройдите проверку Cloudflare.",
   "source_requires_newer_app": "Для этого источника нужна версия Tamdok {version} или новее (у вас {current}). Обновите приложение, чтобы установить его.",
   "source_requires_older_app": "Этот источник работает только до версии Tamdok {version} (у вас {current}).",
-  "source_requires_app_short": "Нужно приложение {version}+"
+  "source_requires_app_short": "Нужно приложение {version}+",
+  "source_token_title": "Токен доступа",
+  "source_token_not_found": "Токен не найден. Сначала войдите в аккаунт на сайте, затем нажмите «Сохранить».",
+  "source_token_saved": "Токен сохранён. Источник будет использовать ваш аккаунт."
 }

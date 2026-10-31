@@ -3,12 +3,13 @@ import {
   FlatList,
   Platform,
   StyleSheet,
-  useWindowDimensions,
   View,
   type RefreshControlProps,
   type ScrollViewProps,
 } from "react-native";
 
+import { uniqueByKey } from "@/utils/unique-entries";
+import { useAdaptiveColumns, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { MangaActionsMenu } from "@/components/manga/manga-actions-menu";
 import { MangaCover } from "@/components/manga/manga-cover";
 import {
@@ -160,7 +161,7 @@ const renderScrollComponent = (props: ScrollViewProps) => (
 export function MangaGrid({
   entries,
   sourceId,
-  columns = 3,
+  columns: baseColumns = 3,
   showBookmark = true,
   showRating = false,
   isRatingCompact = true,
@@ -178,6 +179,7 @@ export function MangaGrid({
   listRef,
 }: MangaGridProps) {
   const { width } = useWindowDimensions();
+  const columns = useAdaptiveColumns(baseColumns);
   const itemWidth = useMemo(
     () =>
       Math.floor(
@@ -186,6 +188,10 @@ export function MangaGrid({
     [width, columns],
   );
   const { getMeta } = useLibraryLookup();
+  const uniqueEntries = useMemo(
+    () => uniqueByKey(entries as MangaGridItem[]),
+    [entries],
+  );
 
   const pressRef = useRef(onPressManga);
   const longPressRef = useRef(onLongPressManga);
@@ -241,7 +247,7 @@ export function MangaGrid({
       ref={listRef}
       key={`manga-grid-${columns}`}
       style={styles.root}
-      data={entries as MangaGridItem[]}
+      data={uniqueEntries}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       numColumns={columns}

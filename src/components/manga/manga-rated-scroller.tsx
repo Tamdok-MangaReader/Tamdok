@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import { useScrollerCoverWidth, useRailBleed } from "@/hooks/use-duo-layout";
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { StarRating } from "@/components/manga/star-rating";
 import { useCoverDisplay } from "@/hooks/use-cover-display";
@@ -26,10 +27,12 @@ export function MangaRatedScroller({
   entries,
   sourceId,
   listing,
-  coverWidth = 180,
+  coverWidth: baseCoverWidth = 180,
   onPressManga,
   onPressSeeAll,
 }: MangaRatedScrollerProps) {
+  const bleed = useRailBleed();
+  const coverWidth = useScrollerCoverWidth(baseCoverWidth);
   const { showRating } = useCoverDisplay();
   if (entries.length === 0) return null;
 
@@ -59,7 +62,11 @@ export function MangaRatedScroller({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scroller}
+        style={bleed.scrollStyle}
+        contentContainerStyle={[
+          styles.scroller,
+          { paddingLeft: Spacing.lg + bleed.leftPad, paddingRight: Spacing.lg + bleed.rightPad },
+        ]}
       >
         {entries.map((entry) => {
           const rating = showRating

@@ -395,18 +395,31 @@ export default function LibrarySettingsScreen() {
       <Stack.Screen
         options={{
           title: t("library_settings_title"),
-          headerRight: () => (
-            <ThemedText
-              variant="body"
-              color="label"
-              onPress={addCategory}
-              style={{ paddingHorizontal: 8 }}
-            >
-              {t("add")}
-            </ThemedText>
-          ),
+          headerRight:
+            Platform.OS === "ios"
+              ? undefined
+              : () => (
+                  <ThemedText
+                    variant="body"
+                    color="label"
+                    onPress={addCategory}
+                    style={{ paddingHorizontal: 8 }}
+                  >
+                    {t("add")}
+                  </ThemedText>
+                ),
         }}
       />
+      {Platform.OS === "ios" ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="plus"
+            accessibilityLabel={t("add")}
+            tintColor={colors.label}
+            onPress={addCategory}
+          />
+        </Stack.Toolbar>
+      ) : null}
       <ScreenContent>
         <Card>
           <SwitchRow

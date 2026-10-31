@@ -17,6 +17,7 @@ import {
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -815,7 +816,7 @@ export default function SourcesScreen() {
             headerTransparent: false,
             headerStyle: { backgroundColor: colors.groupedBackground },
             headerShadowVisible: true,
-            headerRight: renderDoneButton,
+            headerRight: Platform.OS === "ios" ? undefined : renderDoneButton,
           }
         : {
             headerTransparent: true,
@@ -835,6 +836,16 @@ export default function SourcesScreen() {
   return (
     <>
       <Stack.Screen options={screenOptions} />
+      {Platform.OS === "ios" && isReorderMode ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="checkmark"
+            accessibilityLabel={t("done")}
+            tintColor={colors.label}
+            onPress={exitReorderMode}
+          />
+        </Stack.Toolbar>
+      ) : null}
       <Stack.Title large={!isReorderMode}>
         {isReorderMode ? t("sources_reorder") : t("sources")}
       </Stack.Title>

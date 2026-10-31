@@ -1,3 +1,4 @@
+import { useWindowDimensions } from "@/hooks/use-duo-layout";
 import {
   getReaderMaxHeightRatio,
   getReaderMinAspect,
@@ -12,7 +13,6 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
 } from "react-native";

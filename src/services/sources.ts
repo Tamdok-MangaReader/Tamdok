@@ -40,6 +40,8 @@ export type SourceRegistryList = {
   id: string;
   url: string;
   name?: string;
+  /** Bumped by a manual refresh so the app re-downloads the (cached by URL) registry icon. */
+  iconVersion?: number;
 };
 
 export type SourceLayout = {
@@ -603,7 +605,7 @@ export async function loadRegistryFromUrl(
     }
   }
 
-  const fetched = await fetchSourceRegistry(url);
+  const fetched = await fetchSourceRegistry(url, force);
   await cacheRegistry(url, fetched);
   const registry = normalizeRegistryContentRatings(url, fetched);
   registryMemoryCache.set(url, { registry, fetchedAt: Date.now() });

@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
+import { useScrollerCoverWidth, useRailBleed } from "@/hooks/use-duo-layout";
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
@@ -29,10 +30,12 @@ export function MangaScroller({
   entries,
   sourceId,
   listing,
-  coverWidth = 180,
+  coverWidth: baseCoverWidth = 180,
   onPressManga,
   onPressSeeAll,
 }: MangaScrollerProps) {
+  const bleed = useRailBleed();
+  const coverWidth = useScrollerCoverWidth(baseCoverWidth);
   const { showRating } = useCoverDisplay();
   if (entries.length === 0) return null;
 
@@ -62,7 +65,11 @@ export function MangaScroller({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scroller}
+        style={bleed.scrollStyle}
+        contentContainerStyle={[
+          styles.scroller,
+          { paddingLeft: Spacing.lg + bleed.leftPad, paddingRight: Spacing.lg + bleed.rightPad },
+        ]}
       >
         {entries.map((entry) => {
           const chapterLabel = homeChapterLabel(entry.manga, entry.chapter);

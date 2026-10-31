@@ -6,8 +6,8 @@ import {
   Pressable,
   StatusBar,
   StyleSheet,
-  useWindowDimensions,
   View,
+  useWindowDimensions,
 } from "react-native";
 import Animated, { FadeIn, ZoomIn } from "react-native-reanimated";
 

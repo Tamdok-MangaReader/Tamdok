@@ -7,8 +7,8 @@ import {
   NativeSyntheticEvent,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

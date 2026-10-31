@@ -34,6 +34,7 @@ import { ReaderPagedView } from "@/components/reader/reader-paged-view";
 import { ReaderSettingsSheet } from "@/components/reader/reader-settings-sheet";
 import { ReaderTextView } from "@/components/reader/reader-text-view";
 import { ReaderToolbar } from "@/components/reader/reader-toolbar";
+import { ReadingColumn } from "@/hooks/use-duo-layout";
 import { ReaderWebtoonView } from "@/components/reader/reader-webtoon-view";
 import { ReaderModeHint } from "@/components/reader/reader-mode-hint";
 import { useReaderChapterWindow } from "@/hooks/use-reader-chapter-window";
@@ -1196,13 +1197,15 @@ export function ReaderView({
             setPageRef={setPageRef}
           />
         ) : stripEnabled ? (
-          <ReaderWebtoonView
-            key={chapter.key}
-            currentPage={currentPage}
-            onLocationChange={handleLocationChange}
-            onInteraction={handleSwipeInteraction}
-            setPageRef={setPageRef}
-          />
+          <ReadingColumn>
+            <ReaderWebtoonView
+              key={chapter.key}
+              currentPage={currentPage}
+              onLocationChange={handleLocationChange}
+              onInteraction={handleSwipeInteraction}
+              setPageRef={setPageRef}
+            />
+          </ReadingColumn>
         ) : (
           <ReaderPagedView
             key={chapter.key}

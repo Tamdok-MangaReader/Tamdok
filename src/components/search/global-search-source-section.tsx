@@ -3,12 +3,12 @@ import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
+import { useAdaptiveColumns, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -45,14 +45,15 @@ type GlobalSearchSourceSectionProps = {
 export function GlobalSearchSourceSection({
   group,
   resetKey,
-  columns = 3,
+  columns: baseColumns = 3,
   onPressSource,
   onPressManga,
   onRetry,
 }: GlobalSearchSourceSectionProps) {
   const { colors, radius } = useTheme();
   const [expanded, setExpanded] = useState(false);
-  const width = Dimensions.get("window").width;
+  const { width } = useWindowDimensions();
+  const columns = useAdaptiveColumns(baseColumns);
   const itemWidth = Math.floor(
     (width -
       Spacing.lg * 2 -

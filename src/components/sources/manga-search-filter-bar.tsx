@@ -1,3 +1,4 @@
+import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -12,7 +13,6 @@ import {
   useState,
 } from "react";
 import {
-  Modal,
   Platform,
   Pressable,
   ScrollView,

@@ -1,9 +1,9 @@
+import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,

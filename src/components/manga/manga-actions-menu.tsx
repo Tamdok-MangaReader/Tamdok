@@ -16,9 +16,9 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  useWindowDimensions,
   View,
   type LayoutChangeEvent,
+  useWindowDimensions,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,

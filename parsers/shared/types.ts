@@ -245,7 +245,14 @@ export type TamdokSettingFieldDefinition =
       secure?: boolean;
     }
   | { type: "link"; id: string; title: string; url: string }
-  | { type: "login"; id: string; title: string; url: string };
+  | {
+      type: "login";
+      id: string;
+      title: string;
+      url: string;
+      /** After sign-in, copy this localStorage key of the site into a text setting. */
+      captureLocalStorage?: { key: string; setting: string };
+    };
 
 // What a Tamdok source's index.js must export. Every function is optional; the runtime only
 // advertises capabilities that the module actually implements.

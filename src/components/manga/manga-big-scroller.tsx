@@ -1,7 +1,6 @@
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -10,6 +9,7 @@ import {
   View,
 } from "react-native";
 
+import { useFeaturedCardWidth, useRailBleed } from "@/hooks/use-duo-layout";
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { StarRating } from "@/components/manga/star-rating";
 import { useCoverDisplay } from "@/hooks/use-cover-display";
@@ -44,8 +44,9 @@ export function MangaBigScroller({
 }: MangaBigScrollerProps) {
   const { colors, radius } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
+  const bleed = useRailBleed();
   const [page, setPage] = useState(0);
-  const cardWidth = Dimensions.get("window").width - Spacing.lg * 2;
+  const cardWidth = useFeaturedCardWidth(Spacing.lg);
   const cardStep = cardWidth + Spacing.sm;
   const scrollInterval =
     autoScrollInterval ??
@@ -102,7 +103,11 @@ export function MangaBigScroller({
         snapToInterval={cardStep}
         snapToAlignment="start"
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scroller}
+        style={bleed.scrollStyle}
+        contentContainerStyle={[
+          styles.scroller,
+          { paddingLeft: Spacing.lg + bleed.leftPad, paddingRight: Spacing.lg + bleed.rightPad },
+        ]}
         onMomentumScrollEnd={onScrollEnd}
       >
         {entries.map((manga) => (

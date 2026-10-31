@@ -11,6 +11,7 @@ export type RegistryListItem = {
   id: string;
   url: string;
   name?: string;
+  iconVersion?: number;
 };
 
 const AIDOKU_REGISTRY_ICON =
@@ -35,9 +36,14 @@ export function resolveRegistryDisplayName(
 export function resolveRegistryIconSource(
   registryUrl: string,
   catalog?: Pick<SourceRegistry, "iconURL"> | null,
+  iconVersion?: number,
 ): ImageSourcePropType | undefined {
   if (catalog?.iconURL) {
-    return { uri: resolveRegistryAssetUrl(registryUrl, catalog.iconURL) };
+    const uri = resolveRegistryAssetUrl(registryUrl, catalog.iconURL);
+    // The image cache is keyed by URL, so a changed icon at the same URL needs a new key.
+    return {
+      uri: iconVersion ? `${uri}${uri.includes("?") ? "&" : "?"}v=${iconVersion}` : uri,
+    };
   }
   if (registryUrlsMatch(registryUrl, AIDOKU_COMMUNITY_REGISTRY)) {
     return AIDOKU_REGISTRY_ICON;

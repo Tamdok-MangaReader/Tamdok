@@ -1,3 +1,4 @@
+import { uniqueByKey } from "@/utils/unique-entries";
 import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -82,9 +83,8 @@ export default function SourceListingScreen() {
         const result = await runner.getMangaList(listing, nextPage);
         if (requestId !== requestIdRef.current) return;
         setEntries((current) => {
-          if (!append) return result.entries;
-          const seen = new Set(current.map((manga) => manga.key));
-          const fresh = result.entries.filter((manga) => !seen.has(manga.key));
+          if (!append) return uniqueByKey(result.entries);
+          const fresh = uniqueByKey(result.entries, current);
           return fresh.length > 0 ? [...current, ...fresh] : current;
         });
         hasNextRef.current = result.hasNextPage;

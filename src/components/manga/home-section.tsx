@@ -1,5 +1,6 @@
-import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { useGridItemWidth } from "@/hooks/use-duo-layout";
 import { MangaBigScroller } from '@/components/manga/manga-big-scroller';
 import { HomeFiltersSection } from '@/components/manga/home-filters-section';
 import { HomeLinksSection } from '@/components/manga/home-links-section';
@@ -21,11 +22,6 @@ type HomeSectionProps = {
 
 const GRID_COLUMNS = 3;
 
-function gridItemWidth(): number {
-  const width = Dimensions.get('window').width;
-  return Math.floor((width - Spacing.lg * 2 - Spacing.sm * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
-}
-
 function scrollerEntries(component: HomeComponent): HomeScrollerEntry[] {
   if (component.scrollerEntries?.length) {
     return component.scrollerEntries;
@@ -42,6 +38,7 @@ function hasRatedScrollerEntries(entries: HomeScrollerEntry[]): boolean {
 }
 
 export function HomeSection({ component, sourceId, onPressManga, onPressListing, onApplyHomeFilters }: HomeSectionProps) {
+  const itemWidth = useGridItemWidth(GRID_COLUMNS, Spacing.sm, Spacing.lg);
   if (component.kind === 'filters') {
     return (
       <HomeFiltersSection
@@ -108,7 +105,7 @@ export function HomeSection({ component, sourceId, onPressManga, onPressListing,
   }
 
   if (component.kind === 'mangaChapterList') {
-    const itemWidth = gridItemWidth();
+    
     const rows = component.chapterEntries ?? [];
 
     return (
@@ -143,7 +140,7 @@ export function HomeSection({ component, sourceId, onPressManga, onPressListing,
   }
 
   if (component.kind === 'mangaGrid') {
-    const itemWidth = gridItemWidth();
+    
 
     return (
       <View style={styles.block}>

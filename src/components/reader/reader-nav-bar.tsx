@@ -13,17 +13,18 @@ import {
   menuIndicator,
   menuStyle,
 } from "@expo/ui/swift-ui/modifiers";
+import { Stack } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useIsOpenDuo, useSystemRail, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { READER_GLASS_TINT } from "@/utils/reader-glass";
 import { useReader } from "@/components/reader/reader-context";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
@@ -98,6 +99,7 @@ function TitlePill({
 
 export function ReaderNavBar({ visible }: ReaderNavBarProps) {
   const insets = useSafeAreaInsets();
+  const rail = useSystemRail();
   const { width: windowWidth } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { chrome, actions, foregroundColor, chapter, chapters, manga, sourceId } =
@@ -138,34 +140,157 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
 
   const closeFallbackMenu = useCallback(() => setMenuAnchor(null), []);
 
-  if (!visible) return null;
+  const inRail = rail.left > 0 || rail.right > 0;
+  const openDuo = useIsOpenDuo();
+  // On the Duo the system only moves *native* header items into the rail / top bar, so the
+  // back and more buttons become a transparent native header there. Regular iPhones keep the custom bar.
+  const nativeHeader = Platform.OS === "ios" && (inRail || openDuo);
+
+  if (!visible) {
+    return nativeHeader ? <Stack.Screen options={{ headerShown: false }} /> : null;
+  }
 
   const scanlators = chapter.scanlators?.length
     ? chapter.scanlators.join(", ")
     : "";
   const titleMaxWidth =
-    windowWidth - Spacing.sm * 2 - BUTTON_SIZE * 2 - SIDE_GAP * 2 - 8;
+    windowWidth -
+    rail.left -
+    rail.right -
+    Spacing.sm * 2 -
+    (inRail ? 0 : BUTTON_SIZE * 2 + SIDE_GAP * 2) -
+    8;
   const titleText = chrome.chapterTitle || chrome.mangaTitle;
   const isIOS = Platform.OS === "ios";
 
-  return (
-    <Animated.View
-      entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(180)}
-      style={[styles.root, { paddingTop: Math.max(insets.top, Spacing.sm) }]}
-      pointerEvents="box-none"
-    >
-      <View style={styles.row} pointerEvents="box-none">
+  const backNode = (
+    <GlassIconButton
+      icon="chevron-back"
+      onPress={actions.closeReader}
+      iconColor={foregroundColor}
+      glassStyle="clear"
+      tintColor={READER_GLASS_TINT}
+      size={BUTTON_SIZE}
+      iconSize={ICON_SIZE}
+      accessibilityLabel={t("reader_back")}
+    />
+  );
+  const dotsNode = (
+    <>
+    {isIOS ? (
+      <Host
+        matchContents
+        seedColor={colors.tint}
+        colorScheme={"dark"}
+        style={styles.dotsHost}
+      >
+        <Menu
+          label={
+            <RNHostView matchContents>
+              <GlassIconButton
+                icon="ellipsis-horizontal"
+                onPress={() => {}}
+                iconColor={foregroundColor}
+                glassStyle="clear"
+                tintColor={READER_GLASS_TINT}
+                size={BUTTON_SIZE}
+                iconSize={ICON_SIZE}
+                accessibilityLabel={t("reader_more")}
+              />
+            </RNHostView>
+          }
+          modifiers={[
+            menuStyle("button"),
+            buttonStyle("plain"),
+            menuIndicator("hidden"),
+          ]}
+        >
+          <Button
+            label={t("reader_share")}
+            systemImage="square.and.arrow.up"
+            onPress={actions.shareManga}
+          />
+          <Button
+            label={t("reader_open_web_view")}
+            systemImage="safari"
+            onPress={actions.openChapterUrl}
+          />
+        </Menu>
+      </Host>
+    ) : (
+      <View ref={menuButtonRef} collapsable={false}>
         <GlassIconButton
-          icon="chevron-back"
-          onPress={actions.closeReader}
+          icon="ellipsis-horizontal"
+          onPress={openFallbackMenu}
           iconColor={foregroundColor}
           glassStyle="clear"
           tintColor={READER_GLASS_TINT}
           size={BUTTON_SIZE}
           iconSize={ICON_SIZE}
-          accessibilityLabel={t("reader_back")}
+          accessibilityLabel={t("reader_more")}
         />
+      </View>
+    )}
+    </>
+  );
+
+  return (
+    <Animated.View
+      entering={FadeIn.duration(180)}
+      exiting={FadeOut.duration(180)}
+      style={[
+        styles.root,
+        {
+          paddingTop: Math.max(insets.top, Spacing.sm),
+          paddingLeft: Spacing.sm + rail.left,
+          paddingRight: Spacing.sm + rail.right,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
+      {nativeHeader ? (
+        <>
+          <Stack.Screen
+            options={{
+              headerShown: true,
+              headerTransparent: true,
+              headerBackVisible: false,
+              headerShadowVisible: false,
+              title: "",
+            }}
+          />
+          <Stack.Toolbar placement="left">
+            <Stack.Toolbar.Button
+              icon="chevron.left"
+              accessibilityLabel={t("reader_back")}
+              tintColor={foregroundColor}
+              onPress={actions.closeReader}
+            />
+          </Stack.Toolbar>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Menu
+              icon="ellipsis"
+              accessibilityLabel={t("reader_more")}
+              tintColor={foregroundColor}
+            >
+              <Stack.Toolbar.MenuAction
+                icon="square.and.arrow.up"
+                onPress={actions.shareManga}
+              >
+                {t("reader_share")}
+              </Stack.Toolbar.MenuAction>
+              <Stack.Toolbar.MenuAction
+                icon="safari"
+                onPress={actions.openChapterUrl}
+              >
+                {t("reader_open_web_view")}
+              </Stack.Toolbar.MenuAction>
+            </Stack.Toolbar.Menu>
+          </Stack.Toolbar>
+        </>
+      ) : null}
+      <View style={styles.row} pointerEvents="box-none">
+        {nativeHeader ? null : backNode}
         <View style={styles.center} pointerEvents="box-none">
           {isIOS ? (
             <Host
@@ -239,60 +364,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
             </Pressable>
           )}
         </View>
-        {isIOS ? (
-          <Host
-            matchContents
-            seedColor={colors.tint}
-            colorScheme={"dark"}
-            style={styles.dotsHost}
-          >
-            <Menu
-              label={
-                <RNHostView matchContents>
-                  <GlassIconButton
-                    icon="ellipsis-horizontal"
-                    onPress={() => {}}
-                    iconColor={foregroundColor}
-                    glassStyle="clear"
-                    tintColor={READER_GLASS_TINT}
-                    size={BUTTON_SIZE}
-                    iconSize={ICON_SIZE}
-                    accessibilityLabel={t("reader_more")}
-                  />
-                </RNHostView>
-              }
-              modifiers={[
-                menuStyle("button"),
-                buttonStyle("plain"),
-                menuIndicator("hidden"),
-              ]}
-            >
-              <Button
-                label={t("reader_share")}
-                systemImage="square.and.arrow.up"
-                onPress={actions.shareManga}
-              />
-              <Button
-                label={t("reader_open_web_view")}
-                systemImage="safari"
-                onPress={actions.openChapterUrl}
-              />
-            </Menu>
-          </Host>
-        ) : (
-          <View ref={menuButtonRef} collapsable={false}>
-            <GlassIconButton
-              icon="ellipsis-horizontal"
-              onPress={openFallbackMenu}
-              iconColor={foregroundColor}
-              glassStyle="clear"
-              tintColor={READER_GLASS_TINT}
-              size={BUTTON_SIZE}
-              iconSize={ICON_SIZE}
-              accessibilityLabel={t("reader_more")}
-            />
-          </View>
-        )}
+        {nativeHeader ? null : dotsNode}
       </View>
       <InlineActionMenu
         visible={menuAnchor !== null}
@@ -327,6 +399,11 @@ const styles = StyleSheet.create({
     top: 0,
     paddingHorizontal: Spacing.sm,
     paddingBottom: Spacing.md,
+  },
+  railColumn: {
+    position: "absolute",
+    alignItems: "center",
+    gap: Spacing.sm,
   },
   row: {
     flexDirection: "row",

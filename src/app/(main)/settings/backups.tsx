@@ -245,7 +245,7 @@ export default function BackupsSettingsScreen() {
         />
         <Stack.Toolbar.Menu
           icon="ellipsis"
-          title={t("backups_settings_title")}
+          accessibilityLabel={t("backups_settings_title")}
           disabled={busy}
           tintColor={colors.label}
         >
