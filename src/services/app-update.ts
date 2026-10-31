@@ -53,10 +53,52 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export async function fetchLatestRelease(): Promise<AppRelease> {
-  const response = await fetch(RELEASES_URL, {
-    headers: { Accept: "application/vnd.github+json" },
+const REPO_URL = "https://github.com/Tamdok-MangaReader/Tamdok";
+
+/**
+ * Fallback without the REST API (unauthenticated API calls are rate limited to 60/hour per IP,
+ * which answers 403). The /releases/latest page redirects to the tag page, and the
+ * expanded_assets fragment lists the attached files.
+ */
+async function fetchLatestReleaseFromWeb(): Promise<AppRelease> {
+  const latest = await fetch(`${REPO_URL}/releases/latest`, {
+    headers: { Accept: "text/html" },
   });
+  const tag = decodeURIComponent(latest.url.split("/releases/tag/")[1] ?? "").split(/[?#]/)[0];
+  if (!tag) throw new Error(`GitHub ${latest.status}`);
+  const assetsResponse = await fetch(
+    `${REPO_URL}/releases/expanded_assets/${encodeURIComponent(tag)}`,
+    { headers: { Accept: "text/html" } },
+  );
+  const html = assetsResponse.ok ? await assetsResponse.text() : "";
+  const hrefs = [...html.matchAll(/href="([^"]+\.apk)"/gi)].map((m) => m[1]);
+  const href = hrefs.find((h) => /universal|android/i.test(h)) ?? hrefs[0];
+  return {
+    version: tag,
+    name: tag,
+    notes: "",
+    pageUrl: `${REPO_URL}/releases/tag/${encodeURIComponent(tag)}`,
+    apkUrl: href ? new URL(href, "https://github.com").toString() : null,
+    apkSize: null,
+  };
+}
+
+export async function fetchLatestRelease(): Promise<AppRelease> {
+  let response: Response | null = null;
+  try {
+    response = await fetch(RELEASES_URL, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "Tamdok-Android",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+  } catch {
+    // Network error: try the web fallback below.
+  }
+  if (!response || response.status === 403 || response.status === 429) {
+    return fetchLatestReleaseFromWeb();
+  }
   if (!response.ok) throw new Error(`GitHub ${response.status}`);
   const release = (await response.json()) as GithubRelease;
   const apks = release.assets.filter((asset) =>

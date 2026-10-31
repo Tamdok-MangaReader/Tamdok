@@ -5,7 +5,7 @@
 <h1 align="center">Tamdok</h1>
 
 <p align="center">
-  <strong>An iOS manga reader built around JavaScript sources.</strong><br>
+  <strong>An iOS/Android manga reader built around JavaScript sources.</strong><br>
   Inspired by <a href="https://github.com/Aidoku/Aidoku">Aidoku</a> — with a different goal.
 </p>
 

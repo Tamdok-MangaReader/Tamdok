@@ -83,7 +83,8 @@
           "android": {
             "compileSdkVersion": 37,
             "targetSdkVersion": 36,
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "enableMinifyInReleaseBuilds": false
           }
         }
       ],
@@ -226,7 +227,8 @@
       "./plugins/with-dev-launcher-strip-script-fix.js",
       "./plugins/with-android-gradle-compat.js",
       "./plugins/with-android-orientation.js",
-      "./plugins/with-android-release-signing.js"
+      "./plugins/with-android-release-signing.js",
+      "./plugins/with-android-release-build-fixes.js"
     ],
     "experiments": {
       "typedRoutes": true,

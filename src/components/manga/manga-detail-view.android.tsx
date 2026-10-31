@@ -175,9 +175,12 @@ const ChapterDownloadIndicator = memo(function ChapterDownloadIndicator({
 const DescriptionBlock = memo(function DescriptionBlock({
   text,
   altTitles,
+  compact = false,
 }: {
   text: string;
   altTitles: string[];
+  /** Tablet split layout: fixed 3-line preview without expanding. */
+  compact?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const toggle = useCallback(() => setExpanded((v) => !v), []);
@@ -185,7 +188,7 @@ const DescriptionBlock = memo(function DescriptionBlock({
     () => (altTitles.length > 0 ? `${text}\n\n${altTitles.join(", ")}` : text),
     [text, altTitles],
   );
-  const canExpand = text.length > 180;
+  const canExpand = !compact && text.length > 180;
 
   return (
     <View style={styles.block}>
@@ -196,7 +199,7 @@ const DescriptionBlock = memo(function DescriptionBlock({
         variant="body"
         color="secondaryLabel"
         style={styles.description}
-        numberOfLines={expanded ? undefined : DESCRIPTION_PREVIEW_LINES}
+        numberOfLines={compact ? 3 : expanded ? undefined : DESCRIPTION_PREVIEW_LINES}
       >
         {fullText}
       </ThemedText>
@@ -672,7 +675,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   const descNode = (
     <>
       {descriptionText ? (
-        <DescriptionBlock text={descriptionText} altTitles={altTitles} />
+        <DescriptionBlock text={descriptionText} altTitles={altTitles} compact={part === "info"} />
       ) : null}
 
       {tags.length > 0 ? (

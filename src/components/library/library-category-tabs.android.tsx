@@ -22,6 +22,9 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
+// Track background: neutral gray at ~55% opacity.
+const TRACK_BG = "#7878808C";
+
 export type LibraryCategoryTab = {
   id: string;
   label: string;
@@ -248,7 +251,7 @@ export const LibraryCategoryTabs = memo(function LibraryCategoryTabs({
     >
         <View
           pointerEvents="none"
-          style={[styles.trackGlass, { backgroundColor: colors.secondaryFill }]}
+          style={[styles.trackGlass, { backgroundColor: TRACK_BG }]}
         />
       <Animated.ScrollView
         ref={scrollRef}

@@ -474,7 +474,6 @@ export function ReaderPagedView({
                 backgroundColor={backgroundColor}
                 mode={pageMode}
                 onSingleTap={handleInnerTap}
-                onLongPress={openQuickActions}
                 onDictionaryLookup={handleDictionaryLookup}
                 reloadKeys={reloadKeys}
               />
