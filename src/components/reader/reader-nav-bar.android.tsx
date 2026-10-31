@@ -80,7 +80,12 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<InlineActionMenuAnchor | null>(
     null,
   );
-  const menuButtonRef = useRef<View>(null);
+  // The project's react-native typings do not expose measureInWindow on View refs.
+  const menuButtonRef = useRef<{
+    measureInWindow: (
+      cb: (x: number, y: number, width: number, height: number) => void,
+    ) => void;
+  }>(null);
 
   const openFallbackMenu = useCallback(() => {
     menuButtonRef.current?.measureInWindow((x, y, width, height) => {
@@ -130,7 +135,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
               />
             </Pressable>
         </View>
-          <View ref={menuButtonRef} collapsable={false}>
+          <View ref={menuButtonRef as never} collapsable={false}>
             <GlassIconButton
               icon="ellipsis-horizontal"
               onPress={openFallbackMenu}

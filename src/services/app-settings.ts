@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { getValue, setValue, storageKeys } from "@/constants/storage";
 import { notifyAppSettingsChanged } from "@/utils/app-settings-events";
 
@@ -182,14 +183,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     showCategoryCountBadges: true,
     showEmptyCategoryCountBadges: false,
     hideEmptyCategories: true,
-    showLibraryRefreshStatus: false,
+    showLibraryRefreshStatus: Platform.OS === "android",
     showLibraryRefreshLiveActivity: true,
     updateOnWifiOnly: false,
     gridSize: "medium",
     sortMode: "unread",
   },
   mangaScreen: {
-    showBigMangaCover: true,
+    showBigMangaCover: Platform.OS !== "android",
     showChapterNumber: true,
   },
   coverDisplay: {

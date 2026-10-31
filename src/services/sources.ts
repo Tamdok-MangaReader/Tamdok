@@ -3,6 +3,7 @@ import type {
   RegistryEntry,
   SourceRegistry,
 } from "@/parsers/shared/types";
+import { Platform } from "react-native";
 import { checkSourceCompatibility } from "@/utils/app-version";
 import {
   cacheRegistry,
@@ -343,8 +344,16 @@ export async function setShowNsfwSources(value: boolean): Promise<void> {
   await setValue(storageKeys.SHOW_NSFW_SOURCES, value);
 }
 
+const ANDROID_EXTRA_REGISTRY_URLS = [
+  "https://tamdok-mangareader.github.io/sources-community/index.min.json",
+];
+
 function getDefaultRegistryUrls(): SourceRegistryList[] {
-  return [createRegistryListItem(DEFAULT_REGISTRY_URL)];
+  const urls =
+    Platform.OS === "android"
+      ? [DEFAULT_REGISTRY_URL, ...ANDROID_EXTRA_REGISTRY_URLS]
+      : [DEFAULT_REGISTRY_URL];
+  return urls.map(createRegistryListItem);
 }
 
 export async function getRegistryUrls(): Promise<SourceRegistryList[]> {

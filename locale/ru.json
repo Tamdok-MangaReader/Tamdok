@@ -656,5 +656,14 @@
   "source_requires_app_short": "Нужно приложение {version}+",
   "source_token_title": "Токен доступа",
   "source_token_not_found": "Токен не найден. Сначала войдите в аккаунт на сайте, затем нажмите «Сохранить».",
-  "source_token_saved": "Токен сохранён. Источник будет использовать ваш аккаунт."
+  "source_token_saved": "Токен сохранён. Источник будет использовать ваш аккаунт.",
+  "update_check": "Проверить обновления",
+  "update_checking": "Проверка…",
+  "update_up_to_date": "Установлена последняя версия",
+  "update_available": "Доступно обновление {version}",
+  "update_downloading": "Загрузка обновления",
+  "update_failed": "Не удалось обновить",
+  "update_install": "Скачать и установить",
+  "update_release_page": "Что нового",
+  "section_app_update": "Обновление приложения"
 }

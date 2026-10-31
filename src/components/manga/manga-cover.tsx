@@ -46,10 +46,10 @@ const BADGE_REFERENCE_WIDTH = 112;
 const LONG_PRESS_DELAY = 340;
 
 const STATUS_META = {
-  ongoing: { bg: "rgba(150,150,150,0.9)", icon: "play.fill", whiteIcon: true },
-  completed: { bg: "rgba(1,200,100,0.9)", icon: "checkmark", whiteIcon: false },
-  hiatus: { bg: "rgba(230,210,30,0.9)", icon: "pause.fill", whiteIcon: false },
-  other: { bg: "rgba(255,40,20,0.9)", icon: "xmark", whiteIcon: false },
+  ongoing: { bg: "rgba(150,150,150,0.9)", icon: "play.fill", fallback: "play", whiteIcon: true },
+  completed: { bg: "rgba(1,200,100,0.9)", icon: "checkmark", fallback: "checkmark", whiteIcon: false },
+  hiatus: { bg: "rgba(230,210,30,0.9)", icon: "pause.fill", fallback: "pause", whiteIcon: false },
+  other: { bg: "rgba(255,40,20,0.9)", icon: "xmark", fallback: "close", whiteIcon: false },
 } as const;
 
 function getStatusMeta(status: string) {
@@ -60,8 +60,11 @@ function getStatusMeta(status: string) {
       return STATUS_META.completed;
     case "hiatus":
       return STATUS_META.hiatus;
-    default:
+    case "cancelled":
       return STATUS_META.other;
+    default:
+      // "unknown"/missing status (common for Aidoku list results) must not look cancelled.
+      return null;
   }
 }
 
@@ -320,7 +323,7 @@ export const MangaCover = memo(function MangaCover({
             name={statusMeta.icon}
             size={11}
             color={statusMeta.whiteIcon ? colors.white : colors.black}
-            fallback="bookmark"
+            fallback={statusMeta.fallback}
           />
         </View>
       ) : null}

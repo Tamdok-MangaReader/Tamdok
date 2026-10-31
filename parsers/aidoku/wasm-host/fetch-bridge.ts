@@ -189,7 +189,14 @@ function isHttpOrigin(): boolean {
 function sendWithSyncXhr(request: FetchBridgeRequest): FetchBridgeResponse {
   const xhr = new XMLHttpRequest();
   xhr.open(request.method, request.url, false);
-  xhr.timeout = request.timeoutMs ?? 60_000;
+  // Browsers throw InvalidAccessError when a timeout is set on a synchronous XHR made from a window
+  // (Chromium/Android WebView); it is only allowed inside a worker. Without a timeout the request just
+  // uses the WebView's own network timeout.
+  try {
+    xhr.timeout = request.timeoutMs ?? 60_000;
+  } catch {
+    // not supported for synchronous requests in this context
+  }
   Object.entries(request.headers).forEach(([key, value]) => {
     xhr.setRequestHeader(key, value);
   });

@@ -4789,7 +4789,10 @@ var AidokuWasmHostBundle = (() => {
   function sendWithSyncXhr(request) {
     const xhr = new XMLHttpRequest();
     xhr.open(request.method, request.url, false);
-    xhr.timeout = request.timeoutMs ?? 6e4;
+    try {
+      xhr.timeout = request.timeoutMs ?? 6e4;
+    } catch {
+    }
     Object.entries(request.headers).forEach(([key2, value]) => {
       xhr.setRequestHeader(key2, value);
     });
@@ -4818,6 +4821,8 @@ var AidokuWasmHostBundle = (() => {
     send(request) {
       return this.sendAll([{ ...request, id: request.id ?? `fetch-${++this.counter}` }])[0];
     }
+    // Several requests can be started together and then awaited one by one, so they run concurrently
+    // instead of strictly one after another (used by sources that fetch many pages in a row).
     sendAll(requests) {
       if (requests.length === 0) return [];
       if (requests.length === 1) {
@@ -4851,6 +4856,7 @@ var AidokuWasmHostBundle = (() => {
       }
       return sendWithSyncXhr(request);
     }
+    // Starts every request first (posting all messages), then waits for each flag in order.
     sendAllWithAtomics(requests) {
       const jobs = requests.map((request) => {
         const sab = new SharedArrayBuffer(4);
@@ -4894,6 +4900,7 @@ var AidokuWasmHostBundle = (() => {
       }
       return responses;
     }
+    // Called by the host when React Native replies. Returns true if the message belonged to a pending request.
     handleParentMessage(message) {
       if (message.type === "fetch-response") {
         const pending = this.pending.get(String(message.id));
@@ -5016,6 +5023,7 @@ var AidokuWasmHostBundle = (() => {
       __publicField(this, "partialMangaResults", []);
       this.fetchBridge = fetchBridge;
     }
+    // Captures output from the module's print/log imports; capped so a chatty source cannot grow memory.
     writeStdout(text) {
       this.stdout += text;
       if (this.stdout.length > 16384) {
@@ -5054,6 +5062,8 @@ var AidokuWasmHostBundle = (() => {
       const bytes = this.readBytes(ptr, len);
       return new TextDecoder().decode(bytes);
     }
+    // Aidoku buffers start with an 8-byte header whose first i32 is the total length (header included),
+    // so the payload starts 8 bytes in.
     readItemBytes(ptr) {
       const len = this.readI32(ptr);
       return this.readBytes(ptr + 8, len - 8);
@@ -5069,6 +5079,8 @@ var AidokuWasmHostBundle = (() => {
       });
     }
     /** Read Aidoku FFI result blob from linear memory (see decodeResult in runner.ts). */
+    // Result blobs have an optional extended header when len == -1 (error string): the real length is
+    // stored 8 bytes in and the payload starts 12 bytes in.
     readResultBytes(ptr) {
       const len = this.readI32(ptr);
       if (len === -1) {
@@ -5077,6 +5089,7 @@ var AidokuWasmHostBundle = (() => {
       }
       return this.readBytes(ptr + 8, len - 8);
     }
+    // `memory.buffer` is replaced when WASM memory grows, so a fresh DataView is created on each access.
     memoryView() {
       if (!this.memory) {
         throw new Error("WASM memory not initialized");
@@ -6901,11 +6914,13 @@ var AidokuWasmHostBundle = (() => {
           env.writeStdout("error: failed to read string for printing.\n");
         }
       },
+      // Busy-waits: WASM imports are synchronous and there is no way to yield to the event loop here.
       sleep: (seconds) => {
         const start = Date.now();
         while (Date.now() - start < seconds * 1e3) {
         }
       },
+      // See partial-results.ts: lets a source stream intermediate home/search results.
       send_partial_result: (ptr) => {
         try {
           const bytes = env.readResultBytes(ptr);
@@ -17853,6 +17868,7 @@ var AidokuWasmHostBundle = (() => {
         if (item?.kind === "htmlNodeList") return item.value.length;
         return -1 /* InvalidDescriptor */;
       },
+      // Supports the `abs:` prefix (see dom.attr). On a list, returns the first element that has the attribute.
       attr: (rid, keyPtr, keyLen) => {
         try {
           const key2 = env.readString(keyPtr, keyLen);
@@ -17889,6 +17905,8 @@ var AidokuWasmHostBundle = (() => {
         return -1 /* InvalidDescriptor */;
       },
       remove: () => -1 /* InvalidDescriptor */,
+      // CSS selector query. On a document an empty result is a valid (empty) list; on an element or list,
+      // no match is reported as NoResult. Selector syntax errors surface as InvalidQuery.
       select: (rid, queryPtr, queryLen) => {
         try {
           const selector = env.readString(queryPtr, queryLen);
@@ -17938,6 +17956,7 @@ var AidokuWasmHostBundle = (() => {
           return -4 /* InvalidQuery */;
         }
       },
+      // Text of an element is trimmed here; lists join their elements' text with spaces.
       text: (rid) => {
         const item = env.store.getMut(rid);
         if (item?.kind === "htmlElement") {
@@ -18062,6 +18081,9 @@ var AidokuWasmHostBundle = (() => {
       },
       send: (rid) => commonSend(env, rid),
       // Batch path used by sources that fire many parallel requests at once.
+      // Batch path: the module passes an array of Rids in its memory. Each slot is overwritten with
+      // that request's result code, so the module can see which individual requests failed.
+      // Valid requests are sent together through the fetch bridge (concurrently if supported).
       send_all: (ridPtr, len) => {
         try {
           const rids = env.readValues(ridPtr, len);
@@ -18182,6 +18204,7 @@ var AidokuWasmHostBundle = (() => {
           return -11 /* FailedMemoryWrite */;
         }
       },
+      // Image responses are not decoded by the host; sources that need this get NotAnImage.
       get_image: (_rid) => -12 /* NotAnImage */,
       get_status_code: (rid) => {
         const request = getRequest(env, rid);
@@ -18216,6 +18239,7 @@ var AidokuWasmHostBundle = (() => {
           return -2 /* InvalidString */;
         }
       },
+      // Rate limiting is handled by the app's shared fetch layer (shared/net-policy.ts), not per request.
       set_rate_limit: (_permits, _period, _unit) => {
       }
     };
@@ -18260,6 +18284,7 @@ var AidokuWasmHostBundle = (() => {
   // parsers/aidoku/wasm-host/imports/std.ts
   function createStdImports(env) {
     return {
+      // `print`/`abort` feed the per-env stdout buffer, which is only used for diagnostics.
       print: (ptr, len) => {
         try {
           const text = env.readString(ptr, len);
@@ -18272,9 +18297,12 @@ var AidokuWasmHostBundle = (() => {
       abort: () => {
         env.writeStdout("error: abort called.\n");
       },
+      // Sources call destroy when they are done with a handle; this frees the host-side object.
       destroy: (rid) => {
         env.store.remove(rid);
       },
+      // Two-step read protocol: the module asks for a buffer's length, allocates memory for it
+      // and then calls read_buffer to copy the bytes into its own linear memory.
       buffer_len: (rid) => {
         const data = asEncoded(env.store.get(rid));
         if (!data) return -1 /* InvalidDescriptor */;
@@ -18293,6 +18321,9 @@ var AidokuWasmHostBundle = (() => {
       },
       current_date: () => Date.now() / 1e3,
       utc_offset: () => (/* @__PURE__ */ new Date()).getTimezoneOffset() * 60,
+      // Aidoku date formats use Swift/ICU patterns (yyyy-MM-dd HH:mm). They are translated to a
+      // strftime-like pattern (swiftDateFormatToChrono) and parsed by a small hand-written parser.
+      // Only numeric fields are supported (no month names). The locale argument is ignored.
       parse_date: (datePtr, dateLen, formatPtr, formatLen, _localePtr, _localeLen, timezonePtr, timezoneLen) => {
         try {
           const dateStr = env.readString(datePtr, dateLen);
@@ -18824,6 +18855,7 @@ var AidokuWasmHostBundle = (() => {
           entries: value.value.entries.map(fromPostcardManga),
           autoScrollInterval: value.value.auto_scroll_interval ?? DEFAULT_BIG_SCROLLER_INTERVAL
         };
+      // ImageScroller is shown with the regular scroller UI.
       case "ImageScroller": {
         const scrollerEntries = value.value.links.map(fromPostcardLink).filter((entry) => entry != null);
         return {
@@ -19046,6 +19078,7 @@ var AidokuWasmHostBundle = (() => {
       handleParentMessage(message) {
         fetchBridge.handleParentMessage(message);
       },
+      // Processes an `invoke` message from React Native and always answers with `result` or `error`.
       async handleInvokeMessage(message) {
         const wasm = wasmCache.get(message.sourceId);
         if (!wasm) {

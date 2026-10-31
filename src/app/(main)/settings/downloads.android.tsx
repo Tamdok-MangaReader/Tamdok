@@ -1,0 +1,518 @@
+// Android copy of the downloads screen: Material icon button in the header instead of a text link.
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { Stack, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Platform, Pressable, StyleSheet, Switch, View } from 'react-native';
+
+import { SwipeableRow, SwipeableRowsProvider, type SwipeAction } from '@/components/sources/swipeable-row';
+import { Card, CardSeparator } from '@/components/ui/card';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { LiftedActionMenu, type LiftedMenuItem } from '@/components/ui/lifted-action-menu';
+import { ListRow } from '@/components/ui/list-row';
+import { ScreenContent } from '@/components/ui/screen-content';
+import { SectionLabel } from '@/components/ui/section-label';
+import { ThemedText } from '@/components/ui/themed-text';
+import { Spacing } from '@/constants/theme';
+import { t } from '@/constants/locales';
+import { SourceCoverHeadersProvider, useSourceCoverHeaders, useSourceCoverHeadersReady } from '@/context/source-cover-context';
+import { useSources } from '@/context/sources-context';
+import { useMangaDataRefresh } from '@/hooks/use-manga-data';
+import { useTheme } from '@/hooks/use-theme';
+import { getAppSettings, updateAppSettings } from '@/services/app-settings';
+import { clearFailedDownloads, getDownloads, removeChapterDownload, removeMangaDownloads, type DownloadEntry } from '@/services/downloads';
+import { processQueuedDownloads } from '@/services/download-processor';
+import { getLibraryEntries } from '@/services/library';
+import { peekMangaDetailCache, readMangaDetailCache } from '@/services/manga-detail-cache';
+import { findInstalledSource, sourceRouteId } from '@/services/sources';
+import { chaptersOldestFirst, formatEntryChapterLabel, formatStoredChapterLabel, looksLikeOpaqueChapterId } from '@/utils/chapter-label';
+import { coverImageSource } from '@/utils/cover-image-source';
+import { IMAGE_CACHE_POLICY } from '@/utils/image-memory';
+import { mangaHref } from '@/utils/manga-route';
+
+type DownloadMangaGroup = {
+  key: string;
+  sourceId: string;
+  mangaKey: string;
+  mangaTitle: string;
+  cover?: string;
+  chapters: DownloadEntry[];
+};
+
+const VISIBLE_CHAPTER_LIMIT = 3;
+
+function parseChapterSortNumber(entry: DownloadEntry, cachedNumber?: number): number {
+  if (cachedNumber != null && Number.isFinite(cachedNumber)) return cachedNumber;
+  const text = formatStoredChapterLabel(entry.chapterTitle, entry.chapterKey);
+  if (!text || looksLikeOpaqueChapterId(text)) return Number.NEGATIVE_INFINITY;
+  const named = text.match(/(?:ch(?:apter)?|гл(?:ава)?)\.?\s*(\d+(?:[.,]\d+)?)/i);
+  const picked = named?.[1] ?? text.match(/(\d+(?:[.,]\d+)?)\s*$/)?.[1] ?? text.match(/(\d+(?:[.,]\d+)?)/)?.[1];
+  if (!picked) return Number.NEGATIVE_INFINITY;
+  const value = Number.parseFloat(picked.replace(',', '.'));
+  return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+}
+
+function sortDownloadsByChapterNumber(chapters: DownloadEntry[], sourceId: string, mangaKey: string): DownloadEntry[] {
+  const cached = peekMangaDetailCache(sourceId, mangaKey)?.manga.chapters ?? [];
+  const numbers = new Map(cached.map((chapter) => [chapter.key, chapter.chapterNumber]));
+  return [...chapters].sort((a, b) => {
+    const aNumber = parseChapterSortNumber(a, numbers.get(a.chapterKey));
+    const bNumber = parseChapterSortNumber(b, numbers.get(b.chapterKey));
+    if (aNumber !== bNumber) return bNumber - aNumber;
+    return (b.chapterTitle ?? b.chapterKey).localeCompare(a.chapterTitle ?? a.chapterKey, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  });
+}
+
+function formatDownloadChapterLabel(entry: DownloadEntry): string {
+  const chapters = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.chapters;
+  const chapter = chapters?.find((item) => item.key === entry.chapterKey);
+  const ordinal = chapter && chapters?.length ? chaptersOldestFirst(chapters).findIndex((item) => item.key === entry.chapterKey) + 1 : undefined;
+  return formatEntryChapterLabel(chapter, entry.chapterTitle, entry.chapterKey, ordinal || undefined);
+}
+
+function formatStatus(entry: DownloadEntry): string {
+  if (entry.status === 'completed') return t('downloads_status_completed');
+  if (entry.status === 'failed') return t('downloads_status_failed');
+  if (entry.status === 'downloading') return t('downloads_status_downloading');
+  return t('downloads_status_pending');
+}
+
+function statusIcon(status: DownloadEntry['status']): keyof typeof Ionicons.glyphMap {
+  if (status === 'completed') return 'checkmark-circle';
+  if (status === 'failed') return 'alert-circle';
+  if (status === 'downloading') return 'arrow-down-circle-outline';
+  return 'time-outline';
+}
+
+function sourceKindLabel(kind: string): string {
+  return kind.toUpperCase();
+}
+
+function DownloadMangaGroupRow({
+  group,
+  onOpenManga,
+  onChanged,
+}: {
+  group: DownloadMangaGroup;
+  onOpenManga: (group: DownloadMangaGroup) => void;
+  onChanged: () => void;
+}) {
+  const { installed } = useSources();
+  const { colors, radius } = useTheme();
+  const coverHeaders = useSourceCoverHeaders();
+  const coverHeadersReady = useSourceCoverHeadersReady();
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  // Like the history cards: collapsed by default, the card toggles its chapter list.
+  const [open, setOpen] = useState(false);
+  const [totalChapters, setTotalChapters] = useState<number | null>(
+    () => peekMangaDetailCache(group.sourceId, group.mangaKey)?.manga.chapters?.length ?? null,
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void readMangaDetailCache(group.sourceId, group.mangaKey)
+      .then((cached) => {
+        const count = cached?.manga.chapters?.length;
+        if (!cancelled && count) setTotalChapters(count);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [group.sourceId, group.mangaKey]);
+  const completedCount = group.chapters.filter((chapter) => chapter.status === 'completed').length;
+  const totalCount = Math.max(totalChapters ?? 0, group.chapters.length);
+  const source = findInstalledSource(installed, group.sourceId);
+  const sourceLabel = source ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}` : group.sourceId;
+  const hiddenCount = Math.max(0, group.chapters.length - VISIBLE_CHAPTER_LIMIT);
+  const visibleChapters = expanded || hiddenCount === 0 ? group.chapters : group.chapters.slice(0, VISIBLE_CHAPTER_LIMIT);
+
+  const deleteMangaAction: SwipeAction = {
+    key: 'delete',
+    label: t('downloads_delete_manga'),
+    icon: 'trash-outline',
+    sfSymbol: 'trash',
+    color: colors.destructive,
+    onPress: () => {
+      void removeMangaDownloads(group.sourceId, group.mangaKey).then(onChanged);
+    },
+  };
+
+  const deleteChapterAction = (entry: DownloadEntry): SwipeAction => ({
+    key: 'delete',
+    label: t('downloads_delete_chapter'),
+    icon: 'trash-outline',
+    sfSymbol: 'trash',
+    color: colors.destructive,
+    onPress: () => {
+      void removeChapterDownload(entry.sourceId, entry.mangaKey, entry.chapterKey).then(onChanged);
+    },
+  });
+
+  const menuItems: LiftedMenuItem[] = [
+    {
+      key: 'manga',
+      label: t('history_menu_open_manga'),
+      sfSymbol: 'book',
+      fallback: 'book-outline',
+      onPress: () => onOpenManga(group),
+    },
+    ...(source
+      ? [
+          {
+            key: 'source',
+            label: t('history_menu_open_source'),
+            sfSymbol: 'globe',
+            fallback: 'globe-outline' as const,
+            onPress: () => router.navigate(`/sources/${encodeURIComponent(sourceRouteId(source))}`),
+          },
+        ]
+      : []),
+    {
+      key: 'delete',
+      label: t('downloads_delete_manga'),
+      sfSymbol: 'trash',
+      fallback: 'trash-outline',
+      destructive: true,
+      onPress: deleteMangaAction.onPress,
+    },
+  ];
+
+  return (
+    <View style={[styles.mangaGroup, { backgroundColor: colors.secondarySystemBackground, borderRadius: radius.md }]}>
+      <SwipeableRow rowId={`${group.key}:manga`} actions={[deleteMangaAction]} fullSwipeActionKey='delete'>
+        <LiftedActionMenu
+          items={menuItems}
+          renderContent={(onLongPress) => (
+            <View style={{ backgroundColor: colors.secondarySystemBackground, borderRadius: radius.md }}>
+        <Pressable
+          style={({ pressed }) => [styles.mangaRow, pressed && { opacity: 0.72 }]}
+          onPress={() => setOpen((value) => !value)}
+          onLongPress={onLongPress}
+          delayLongPress={340}>
+          <View style={[styles.cover, { borderRadius: radius.sm, backgroundColor: colors.secondaryFill }]}>
+            {group.cover && coverHeadersReady ? (
+              <Image source={coverImageSource(group.cover, coverHeaders)} style={StyleSheet.absoluteFill} contentFit='cover' cachePolicy={IMAGE_CACHE_POLICY} allowDownscaling />
+            ) : (
+              <ThemedText variant='title3' color='tertiaryLabel'>
+                {group.mangaTitle.slice(0, 1)}
+              </ThemedText>
+            )}
+          </View>
+          <View style={styles.mangaMeta}>
+            <ThemedText variant='headline' numberOfLines={2}>
+              {group.mangaTitle}
+            </ThemedText>
+            <View style={styles.metaLine}>
+              <View style={[styles.sourceChip, { backgroundColor: colors.tertiaryFill }]}>
+                <ThemedText variant='caption1' color='secondaryLabel' numberOfLines={1}>
+                  {sourceLabel}
+                </ThemedText>
+              </View>
+            </View>
+            <View style={styles.metaLine}>
+              <Ionicons name='download-outline' size={13} color={colors.tertiaryLabel} />
+              <ThemedText variant='caption1' color='tertiaryLabel'>
+                {t('downloads_chapter_progress', { done: String(completedCount), total: String(totalCount) })}
+              </ThemedText>
+            </View>
+          </View>
+          <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.tertiaryLabel} />
+        </Pressable>
+            </View>
+          )}
+        />
+      </SwipeableRow>
+
+      {open && group.chapters.length > 0 ? (
+        <View style={[styles.chapterList, { borderTopColor: colors.separator }]}>
+          {visibleChapters.map((chapter) => (
+            <SwipeableRow
+              key={`${chapter.chapterKey}:${chapter.dateAdded}`}
+              rowId={`${group.key}:${chapter.chapterKey}`}
+              actions={[deleteChapterAction(chapter)]}
+              fullSwipeActionKey='delete'>
+              <View style={styles.chapterRow}>
+                <Ionicons
+                  name={statusIcon(chapter.status)}
+                  size={15}
+                  color={chapter.status === 'failed' ? colors.destructive : chapter.status === 'completed' ? colors.tint : colors.tertiaryLabel}
+                />
+                <ThemedText variant='subheadline' numberOfLines={2} style={styles.chapterTitle}>
+                  {formatDownloadChapterLabel(chapter)}
+                </ThemedText>
+                <View style={[styles.statusChip, { backgroundColor: colors.tertiaryFill }]}>
+                  <ThemedText variant='caption2' color={chapter.status === 'failed' ? 'destructive' : 'secondaryLabel'}>
+                    {chapter.status === 'downloading' && chapter.progress > 0
+                      ? `${formatStatus(chapter)} ${Math.round(chapter.progress * 100)}%`
+                      : formatStatus(chapter)}
+                  </ThemedText>
+                </View>
+              </View>
+            </SwipeableRow>
+          ))}
+
+          {hiddenCount > 0 && !expanded ? (
+            <Pressable style={styles.showMoreButton} onPress={() => setExpanded(true)} accessibilityRole='button'>
+              <ThemedText variant='subheadline' color='tint'>
+                {t('history_show_more', { count: String(hiddenCount) })}
+              </ThemedText>
+              <Ionicons name='chevron-down' size={14} color={colors.tint} />
+            </Pressable>
+          ) : null}
+
+          {hiddenCount > 0 && expanded ? (
+            <Pressable style={styles.showMoreButton} onPress={() => setExpanded(false)} accessibilityRole='button'>
+              <ThemedText variant='subheadline' color='tint'>
+                {t('manga_show_less')}
+              </ThemedText>
+              <Ionicons name='chevron-up' size={14} color={colors.tint} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export default function DownloadsSettingsScreen() {
+  const { colors } = useTheme();
+  const router = useRouter();
+  const { installed } = useSources();
+  const refreshTick = useMangaDataRefresh();
+  const [entries, setEntries] = useState<DownloadEntry[]>([]);
+  const [covers, setCovers] = useState<Record<string, string>>({});
+  const [downloadOnlyOnWifi, setDownloadOnlyOnWifi] = useState(false);
+  const [deleteAfterReading, setDeleteAfterReading] = useState(false);
+
+  const load = useCallback(async () => {
+    const [downloads, settings, libraryEntries] = await Promise.all([getDownloads(), getAppSettings(), getLibraryEntries()]);
+    const nextCovers: Record<string, string> = {};
+    for (const entry of libraryEntries) {
+      if (entry.cover) nextCovers[`${entry.sourceId}:${entry.mangaKey}`] = entry.cover;
+    }
+    for (const entry of downloads) {
+      const key = `${entry.sourceId}:${entry.mangaKey}`;
+      if (nextCovers[key]) continue;
+      const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga.cover;
+      if (cached) nextCovers[key] = cached;
+    }
+    setEntries(downloads);
+    setCovers(nextCovers);
+    setDownloadOnlyOnWifi(settings.downloads.downloadOnlyOnWifi);
+    setDeleteAfterReading(settings.downloads.deleteAfterReading);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load, refreshTick]);
+
+  const processQueue = useCallback(async () => {
+    void processQueuedDownloads(installed).then(load);
+  }, [installed, load]);
+
+  useEffect(() => {
+    void processQueue();
+  }, []);
+
+  const groups = useMemo<DownloadMangaGroup[]>(() => {
+    const byManga = new Map<string, DownloadEntry[]>();
+    for (const entry of entries) {
+      const key = `${entry.sourceId}:${entry.mangaKey}`;
+      const bucket = byManga.get(key) ?? [];
+      bucket.push(entry);
+      byManga.set(key, bucket);
+    }
+
+    return [...byManga.entries()]
+      .map(([key, chapters]) => {
+        const first = chapters[0]!;
+        return {
+          key,
+          sourceId: first.sourceId,
+          mangaKey: first.mangaKey,
+          mangaTitle: first.mangaTitle,
+          cover: covers[key],
+          chapters: sortDownloadsByChapterNumber(chapters, first.sourceId, first.mangaKey),
+        };
+      })
+      .sort((a, b) => {
+        const aLatest = Math.max(...a.chapters.map((chapter) => chapter.dateAdded));
+        const bLatest = Math.max(...b.chapters.map((chapter) => chapter.dateAdded));
+        return bLatest - aLatest;
+      });
+  }, [covers, entries]);
+
+  const openManga = (group: DownloadMangaGroup) => {
+    const source = findInstalledSource(installed, group.sourceId);
+    if (!source) return;
+    router.navigate(
+      mangaHref(sourceRouteId(source), {
+        key: group.mangaKey,
+        title: group.mangaTitle,
+        cover: group.cover,
+      }),
+    );
+  };
+
+  const clearFailed = () => {
+    Alert.alert(t('downloads_clear_failed'), undefined, [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('downloads_clear_failed'),
+        style: 'destructive',
+        onPress: () => {
+          void clearFailedDownloads().then(load);
+        },
+      },
+    ]);
+  };
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: t('downloads_settings_title'),
+          headerRight: () => (
+            <HeaderIconButton
+              icon='play-circle-outline'
+              accessibilityLabel={t('downloads_process_queue')}
+              onPress={() => void processQueue()}
+            />
+          ),
+        }}
+      />
+      <SwipeableRowsProvider>
+        <ScreenContent>
+          <SectionLabel isFirst>{t('downloads_preferences_section')}</SectionLabel>
+          <Card>
+            <View style={styles.switchRow}>
+              <ThemedText variant='body' style={{ flex: 1 }}>
+                {t('downloads_wifi_only')}
+              </ThemedText>
+              <Switch
+                value={downloadOnlyOnWifi}
+                onValueChange={(value) => {
+                  setDownloadOnlyOnWifi(value);
+                  void updateAppSettings({ downloads: { downloadOnlyOnWifi: value, deleteAfterReading } });
+                }}
+              />
+            </View>
+            <CardSeparator />
+            <View style={styles.switchRow}>
+              <ThemedText variant='body' style={{ flex: 1 }}>
+                {t('downloads_delete_after_reading')}
+              </ThemedText>
+              <Switch
+                value={deleteAfterReading}
+                onValueChange={(value) => {
+                  setDeleteAfterReading(value);
+                  void updateAppSettings({ downloads: { downloadOnlyOnWifi, deleteAfterReading: value } });
+                }}
+              />
+            </View>
+          </Card>
+
+          <SectionLabel>{t('downloads_queue')}</SectionLabel>
+          {groups.length === 0 ? (
+            <ThemedText variant='body' color='secondaryLabel' style={{ textAlign: 'center', paddingHorizontal: Spacing.lg }}>
+              {t('downloads_empty')}
+            </ThemedText>
+          ) : (
+            <View style={styles.queue}>
+              {groups.map((group) => (
+                <SourceCoverHeadersProvider key={group.key} source={findInstalledSource(installed, group.sourceId)}>
+                  <DownloadMangaGroupRow group={group} onOpenManga={openManga} onChanged={load} />
+                </SourceCoverHeadersProvider>
+              ))}
+            </View>
+          )}
+
+          <SectionLabel>{t('downloads_actions')}</SectionLabel>
+          <Card>
+            <ListRow label={t('downloads_process_queue')} onPress={() => void processQueue()} isFirst />
+            <CardSeparator />
+            <ListRow label={t('downloads_clear_failed')} onPress={clearFailed} isLast />
+          </Card>
+        </ScreenContent>
+      </SwipeableRowsProvider>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  queue: {
+    gap: Spacing.md,
+  },
+  mangaGroup: {
+    overflow: 'hidden',
+  },
+  mangaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+  },
+  cover: {
+    width: 56,
+    height: 80,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mangaMeta: {
+    flex: 1,
+    gap: 4,
+  },
+  metaLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sourceChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    maxWidth: '100%',
+  },
+  chapterList: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.xs,
+  },
+  chapterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.sm,
+  },
+  chapterTitle: {
+    flex: 1,
+  },
+  statusChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  showMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+});

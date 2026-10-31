@@ -67,6 +67,6 @@ export function NativeContextMenu({ children, items }: NativeContextMenuProps) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingVertical: 12, paddingBottom: 24 },
+  sheet: { paddingVertical: 12, paddingBottom: 24 },
   row: { flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 24, paddingVertical: 16 },
 });

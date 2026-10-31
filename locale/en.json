@@ -656,5 +656,14 @@
   "source_requires_app_short": "Needs app {version}+",
   "source_token_title": "Access token",
   "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
-  "source_token_saved": "Token saved. The source will use your account."
+  "source_token_saved": "Token saved. The source will use your account.",
+  "update_check": "Check for updates",
+  "update_checking": "Checking…",
+  "update_up_to_date": "You have the latest version",
+  "update_available": "Update {version} available",
+  "update_downloading": "Downloading update",
+  "update_failed": "Update failed",
+  "update_install": "Download & install",
+  "update_release_page": "What's new",
+  "section_app_update": "App update"
 }

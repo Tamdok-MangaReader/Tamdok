@@ -1,0 +1,286 @@
+// Android copy: no app icon section (alternate icons are iOS only).
+import { Stack } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Platform, StyleSheet, View, Switch } from 'react-native';
+import SegmentedControl from '@react-native-segmented-control/segmented-control';
+
+import { InlinePillGrid } from '@/components/library/inline-pill-grid';
+import { AccentColorPicker } from '@/components/settings/accent-color-picker';
+import { AppIconPicker } from '@/components/settings/app-icon-picker';
+import { Card, CardSeparator } from '@/components/ui/card';
+import { ScreenContent } from '@/components/ui/screen-content';
+import { SectionLabel } from '@/components/ui/section-label';
+import { ThemedText } from '@/components/ui/themed-text';
+import { Spacing } from '@/constants/theme';
+import { t } from '@/constants/locales';
+import type { AccentColorId } from '@/constants/accent-colors';
+import type { AppIconId } from '@/constants/app-icons';
+import { useAppearance } from '@/context/appearance-context';
+import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
+import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
+import { notifyMangaDataChanged } from '@/utils/manga-events';
+
+const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
+const GRID_SIZES: LibraryDisplaySettings['gridSize'][] = ['small', 'medium', 'large', 'extraLarge'];
+
+export default function AppearanceScreen() {
+  const { themeMode, setThemeMode, resolvedColorScheme } = useThemePreference();
+  const { accentColorId, appIconId, setAccentColorId, setAppIconId, appIconSupported } = useAppearance();
+  const isDark = resolvedColorScheme === 'dark';
+  const selectedIndex = THEME_MODES.indexOf(themeMode);
+  const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
+  const [showBigMangaCover, setShowBigMangaCover] = useState(true);
+  const [showChapterNumber, setShowChapterNumber] = useState(true);
+  const [showStatusBadge, setShowStatusBadge] = useState(true);
+  const [showRating, setShowRating] = useState(true);
+  const [tabBadges, setTabBadges] = useState<TabBadgeSettings>({
+    sourceUpdates: true,
+    libraryUnread: true,
+    libraryUnreadUpdatableOnly: true,
+  });
+
+  const load = useCallback(async () => {
+    const settings = await getAppSettings();
+    setGridSize(settings.libraryDisplay.gridSize);
+    setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
+    setShowChapterNumber(settings.mangaScreen.showChapterNumber);
+    setShowStatusBadge(settings.coverDisplay.showStatusBadge);
+    setShowRating(settings.coverDisplay.showRating);
+    setTabBadges(settings.tabBadges);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const gridOptions = GRID_SIZES.map((size) => ({
+    id: size,
+    label: t(`library_grid_size_${size}`),
+  }));
+
+  const updateMangaScreenSettings = (next: Partial<MangaScreenSettings>) => {
+    void getAppSettings().then((settings) =>
+      updateAppSettings({
+        mangaScreen: { ...settings.mangaScreen, ...next },
+      }),
+    );
+  };
+
+  const updateCoverDisplaySettings = (next: Partial<CoverDisplaySettings>) => {
+    void getAppSettings().then((settings) =>
+      updateAppSettings({
+        coverDisplay: { ...settings.coverDisplay, ...next },
+      }),
+    );
+  };
+
+  const updateTabBadges = (next: Partial<TabBadgeSettings>) => {
+    setTabBadges((previous) => ({ ...previous, ...next }));
+    void updateAppSettings({ tabBadges: next });
+  };
+
+  const handleAppIconSelect = (id: AppIconId) => {
+    if (Platform.OS !== 'ios') {
+      Alert.alert(t('app_icon_ios_only_title'), t('app_icon_ios_only_desc'));
+      return;
+    }
+    if (!appIconSupported) {
+      Alert.alert(t('app_icon_unavailable_title'), t('app_icon_unavailable_desc'));
+      return;
+    }
+    void setAppIconId(id);
+  };
+
+  function SwitchRow({
+    label,
+    hint,
+    value,
+    onChange,
+    isFirst,
+    isLast,
+    disabled,
+  }: {
+    label: string;
+    hint?: string;
+    value: boolean;
+    onChange: (value: boolean) => void;
+    isFirst?: boolean;
+    isLast?: boolean;
+    disabled?: boolean;
+  }) {
+    return (
+      <View
+        style={[
+          styles.switchRow,
+          isFirst && { paddingTop: Spacing.lg },
+          isLast && { paddingBottom: Spacing.lg },
+          disabled && { opacity: 0.4 },
+        ]}>
+        <View style={styles.switchText}>
+          <ThemedText variant='body'>{label}</ThemedText>
+          {hint ? (
+            <ThemedText variant='footnote' color='secondaryLabel'>
+              {hint}
+            </ThemedText>
+          ) : null}
+        </View>
+        <Switch value={value} onValueChange={onChange} disabled={disabled} />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Title>{t('section_appearance')}</Stack.Title>
+      <ScreenContent>
+        <SectionLabel>{t('theme')}</SectionLabel>
+        <Card style={styles.card}>
+          <SegmentedControl
+            values={[t('theme_system'), t('theme_light'), t('theme_dark')]}
+            appearance={isDark ? 'dark' : 'light'}
+            selectedIndex={selectedIndex}
+            style={styles.segmented}
+            onChange={(event) => {
+              const index = event.nativeEvent.selectedSegmentIndex;
+              void setThemeMode(THEME_MODES[index] ?? 'system');
+            }}
+          />
+          <ThemedText variant='footnote' color='secondaryLabel'>
+            {t(`theme_${themeMode}_hint`)}
+          </ThemedText>
+        </Card>
+
+        <SectionLabel>{t('appearance_accent_section')}</SectionLabel>
+        <Card style={styles.card}>
+          <AccentColorPicker
+            selectedId={accentColorId}
+            onSelect={(id: AccentColorId) => {
+              void setAccentColorId(id);
+            }}
+          />
+          <ThemedText variant='footnote' color='secondaryLabel'>
+            {t('appearance_accent_hint')}
+          </ThemedText>
+        </Card>
+
+        <SectionLabel>{t('appearance_tab_badges_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('appearance_badge_sources')}
+            hint={t('appearance_badge_sources_hint')}
+            value={tabBadges.sourceUpdates}
+            onChange={(value) => updateTabBadges({ sourceUpdates: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_badge_library')}
+            hint={t('appearance_badge_library_hint')}
+            value={tabBadges.libraryUnread}
+            onChange={(value) => updateTabBadges({ libraryUnread: value })}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_badge_library_updatable')}
+            hint={t('appearance_badge_library_updatable_hint')}
+            value={tabBadges.libraryUnreadUpdatableOnly}
+            onChange={(value) => updateTabBadges({ libraryUnreadUpdatableOnly: value })}
+            disabled={!tabBadges.libraryUnread}
+            isLast
+          />
+        </Card>
+
+        <SectionLabel>{t('library_display_section')}</SectionLabel>
+        <Card style={styles.card}>
+          <InlinePillGrid
+            options={gridOptions}
+            selectedId={gridSize}
+            preserveOrder
+            onSelect={(size) => {
+              const next = size as LibraryDisplaySettings['gridSize'];
+              setGridSize(next);
+              void getAppSettings().then((settings) =>
+                updateAppSettings({
+                  libraryDisplay: { ...settings.libraryDisplay, gridSize: next },
+                }).then(() => notifyMangaDataChanged()),
+              );
+            }}
+          />
+          <ThemedText variant='footnote' color='secondaryLabel'>
+            {t('library_grid_size_hint')}
+          </ThemedText>
+        </Card>
+
+        <SectionLabel>{t('appearance_covers_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('appearance_show_status')}
+            hint={t('appearance_show_status_hint')}
+            value={showStatusBadge}
+            onChange={(value) => {
+              setShowStatusBadge(value);
+              updateCoverDisplaySettings({ showStatusBadge: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_show_rating')}
+            hint={t('appearance_show_rating_hint')}
+            value={showRating}
+            onChange={(value) => {
+              setShowRating(value);
+              updateCoverDisplaySettings({ showRating: value });
+            }}
+            isLast
+          />
+        </Card>
+
+        <SectionLabel>{t('library_manga_screen_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('show_big_manga_cover')}
+            value={showBigMangaCover}
+            onChange={(value) => {
+              setShowBigMangaCover(value);
+              updateMangaScreenSettings({ showBigMangaCover: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('show_chapter_number')}
+            value={showChapterNumber}
+            onChange={(value) => {
+              setShowChapterNumber(value);
+              updateMangaScreenSettings({ showChapterNumber: value });
+            }}
+            isLast
+          />
+        </Card>
+      </ScreenContent>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  segmented: {
+    height: 36,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  switchText: {
+    flex: 1,
+    gap: 2,
+  },
+});

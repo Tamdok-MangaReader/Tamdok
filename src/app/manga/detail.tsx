@@ -245,7 +245,7 @@ export default function MangaDetailScreen() {
   const [selectedChapterKeys, setSelectedChapterKeys] = useState<Set<string>>(
     () => new Set(),
   );
-  const [showBigMangaCover, setShowBigMangaCover] = useState(true);
+  const [showBigMangaCover, setShowBigMangaCover] = useState(Platform.OS !== "android");
   const [showChapterNumber, setShowChapterNumber] = useState(true);
 
   const bulkBusyRef = useRef(false);

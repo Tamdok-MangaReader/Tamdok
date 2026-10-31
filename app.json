@@ -81,7 +81,7 @@
             "deploymentTarget": "26.0"
           },
           "android": {
-            "compileSdkVersion": 36,
+            "compileSdkVersion": 37,
             "targetSdkVersion": 36,
             "minSdkVersion": 26
           }
@@ -132,54 +132,100 @@
         [
           {
             "name": "TamdokRed",
-            "ios": "./assets/app-icons/red/preview.png"
+            "ios": "./assets/app-icons/red/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/red/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokOrange",
-            "ios": "./assets/app-icons/orange/preview.png"
+            "ios": "./assets/app-icons/orange/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/orange/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokYellow",
-            "ios": "./assets/app-icons/yellow/preview.png"
+            "ios": "./assets/app-icons/yellow/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/yellow/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokLime",
-            "ios": "./assets/app-icons/lime/preview.png"
+            "ios": "./assets/app-icons/lime/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/lime/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokGreen",
-            "ios": "./assets/app-icons/green/preview.png"
+            "ios": "./assets/app-icons/green/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/green/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokTeal",
-            "ios": "./assets/app-icons/teal/preview.png"
+            "ios": "./assets/app-icons/teal/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/teal/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokBlue",
-            "ios": "./assets/app-icons/blue/preview.png"
+            "ios": "./assets/app-icons/blue/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/blue/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokIndigo",
-            "ios": "./assets/app-icons/indigo/preview.png"
+            "ios": "./assets/app-icons/indigo/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/indigo/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokPurple",
-            "ios": "./assets/app-icons/purple/preview.png"
+            "ios": "./assets/app-icons/purple/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/purple/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokCoral",
-            "ios": "./assets/app-icons/coral/preview.png"
+            "ios": "./assets/app-icons/coral/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/coral/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           },
           {
             "name": "TamdokBrown",
-            "ios": "./assets/app-icons/brown/preview.png"
+            "ios": "./assets/app-icons/brown/preview.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/brown/preview.png",
+              "backgroundColor": "#F2F2F7"
+            }
           }
         ]
       ],
       "./plugins/with-library-refresh-live-activity.js",
       "./plugins/with-device-friendly-entitlements.js",
       "./plugins/with-status-bar-appearance.js",
-      "./plugins/with-dev-launcher-strip-script-fix.js"
+      "./plugins/with-dev-launcher-strip-script-fix.js",
+      "./plugins/with-android-gradle-compat.js",
+      "./plugins/with-android-orientation.js"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -220,7 +266,8 @@
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
