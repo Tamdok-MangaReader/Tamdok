@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "Tamdok",
+  "CFBundleName": "Tamdok",
+  "NSUserNotificationsUsageDescription": "Tamdokは新しい章の通知のためにローカルのリマインダーを設定します。",
+  "NSContactsUsageDescription": "TamdokはマンガのページでLive Textを使用します。一部の画像には、iOSが認識できる連絡先情報が含まれていることがあります。",
+  "NSLocalNetworkUsageDescription": "Tamdokは開発中、ローカルネットワーク上の開発サーバーに接続します。"
+}

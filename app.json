@@ -30,12 +30,18 @@
             "LSItemContentTypes": ["public.json", "public.plain-text"]
           }
         ],
-        "CFBundleLocalizations": ["en", "ru"]
+        "CFBundleLocalizations": ["en", "ru", "es", "pt", "fr", "de", "id", "ja"]
       }
     },
     "locales": {
       "en": "./locale/ios/en.json",
-      "ru": "./locale/ios/ru.json"
+      "ru": "./locale/ios/ru.json",
+      "es": "./locale/ios/es.json",
+      "pt": "./locale/ios/pt.json",
+      "fr": "./locale/ios/fr.json",
+      "de": "./locale/ios/de.json",
+      "id": "./locale/ios/id.json",
+      "ja": "./locale/ios/ja.json"
     },
     "plugins": [
       "expo-router",
@@ -71,7 +77,7 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["en", "ru"]
+            "ios": ["en", "ru", "es", "pt", "fr", "de", "id", "ja"]
           }
         }
       ],

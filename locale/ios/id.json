@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "Tamdok",
+  "CFBundleName": "Tamdok",
+  "NSUserNotificationsUsageDescription": "Tamdok menjadwalkan pengingat lokal untuk notifikasi chapter baru.",
+  "NSContactsUsageDescription": "Tamdok memakai Live Text pada halaman manga. Beberapa gambar mungkin berisi informasi kontak yang dapat dikenali iOS.",
+  "NSLocalNetworkUsageDescription": "Tamdok terhubung ke server pengembangan di jaringan lokal Anda selama pengembangan."
+}

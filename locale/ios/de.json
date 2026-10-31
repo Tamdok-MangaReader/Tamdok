@@ -1,0 +1,7 @@
+{
+  "CFBundleDisplayName": "Tamdok",
+  "CFBundleName": "Tamdok",
+  "NSUserNotificationsUsageDescription": "Tamdok plant lokale Erinnerungen für Mitteilungen zu neuen Kapiteln.",
+  "NSContactsUsageDescription": "Tamdok verwendet Live Text auf Manga-Seiten. Manche Bilder können Kontaktinformationen enthalten, die iOS erkennen kann.",
+  "NSLocalNetworkUsageDescription": "Tamdok verbindet sich während der Entwicklung mit dem Entwicklungsserver in deinem lokalen Netzwerk."
+}

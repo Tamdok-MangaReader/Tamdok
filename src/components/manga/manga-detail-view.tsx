@@ -372,6 +372,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         name={inLibrary ? "bookmark" : "bookmark-outline"}
         size={18}
         color={inLibrary ? colors.tint : colors.onTint}
+        style={styles.libraryIconLeading}
       />
       <ThemedText
         variant="body"
@@ -379,7 +380,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.7}
-        style={{ flexShrink: 1, textAlign: "center" }}
+        style={styles.libraryButtonText}
       >
         {inLibrary ? t("manga_in_library") : t("manga_add_to_library")}
       </ThemedText>
@@ -388,6 +389,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
           size={14}
           color={inLibrary ? colors.tint : colors.onTint}
+          style={styles.libraryIconTrailing}
         />
       ) : null}
     </>
@@ -1599,6 +1601,19 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
+  },
+  libraryButtonText: {
+    flexShrink: 1,
+    textAlign: "center",
+    paddingHorizontal: 26,
+  },
+  libraryIconLeading: {
+    position: "absolute",
+    left: Spacing.md,
+  },
+  libraryIconTrailing: {
+    position: "absolute",
+    right: Spacing.md,
   },
   safariButton: {
     width: 32,
