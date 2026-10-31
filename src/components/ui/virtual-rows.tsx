@@ -10,6 +10,9 @@ import {
   type VirtualViewProps,
 } from "@/rn-private/components/virtualview/VirtualView";
 
+// Rows are wrapped in React Native's private VirtualView so that rows far outside the viewport are
+// unmounted natively but keep their height (a placeholder). One VirtualView component is created per
+// rounded height and cached here, because the factory bakes the placeholder height into the component.
 const hiddenViews = new Map<number, ComponentType<VirtualViewProps>>();
 
 function hiddenViewFor(height: number): ComponentType<VirtualViewProps> {
@@ -22,6 +25,8 @@ function hiddenViewFor(height: number): ComponentType<VirtualViewProps> {
   return view;
 }
 
+// `height` is only an estimate used while a row is not rendered: it should be close to the real height,
+// otherwise the scroll bar jumps when rows are mounted and measured.
 export const VirtualRow = memo(function VirtualRow({
   height,
   children,
@@ -44,6 +49,8 @@ type VirtualRowsProps<T> = {
   footer?: ReactNode;
 };
 
+// Renders a plain (non-scrolling) list of virtualised rows inside a parent ScrollView. The container's
+// measured height is reported through `onHeight`, which lets pagers (see usePagerHeights) size their pages.
 export function VirtualRows<T>({
   rows,
   rowHeight,

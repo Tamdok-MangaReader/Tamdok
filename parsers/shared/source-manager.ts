@@ -8,6 +8,7 @@ import { parseTamdokPackage } from '../tamdok/package';
 import { parseAidokuFiltersJson } from './filters';
 import type { FilterDefinition, InstalledSource, RegistryEntry, SourceKind, SourceManifest } from './types';
 
+// Installed sources live under documentDirectory/sources/<kind>-<id>/ where kind is `aidoku` or `tamdok`.
 const SOURCES_DIR = `${FileSystem.documentDirectory}sources/`;
 const REGISTRY_CACHE_DIR = `${FileSystem.documentDirectory}registry-cache/`;
 
@@ -29,8 +30,10 @@ export async function ensureSourcesDirectory(): Promise<void> {
   }
 }
 
+// Installs are staged in a `<dir>.installing` folder and swapped in at the end (see installAtomically).
 const INSTALLING_SUFFIX = '.installing';
 
+// Reads one installed source from disk. The folder name prefix decides the runtime kind.
 async function readInstalledEntry(entry: string): Promise<InstalledSource | null> {
   const installPath = joinInstallPath(SOURCES_DIR, entry);
   const manifestPath = joinInstallPath(installPath, 'source.json');
@@ -54,6 +57,7 @@ async function readInstalledEntry(entry: string): Promise<InstalledSource | null
   };
 }
 
+// Lists installed sources and cleans up leftover `.installing` folders from interrupted installs.
 export async function listInstalledSources(): Promise<InstalledSource[]> {
   await ensureSourcesDirectory();
   const entries = await FileSystem.readDirectoryAsync(SOURCES_DIR);
@@ -88,6 +92,8 @@ function trimTrailingSlash(path: string): string {
   return path.endsWith('/') ? path.slice(0, -1) : path;
 }
 
+// Atomic install: write everything into a staging folder, then replace the old install with a move.
+// If writing fails the previous version stays untouched.
 async function installAtomically(dir: string, write: (stagingDir: string) => Promise<void>): Promise<void> {
   const target = trimTrailingSlash(dir);
   const staging = `${target}${INSTALLING_SUFFIX}`;
@@ -104,6 +110,7 @@ async function installAtomically(dir: string, write: (stagingDir: string) => Pro
   invalidateInstalledCaches(dir);
 }
 
+// In-memory caches for files that are read on every call into a source; cleared on install/uninstall.
 const scriptCache = new Map<string, string>();
 const filtersCache = new Map<string, FilterDefinition[] | null>();
 
@@ -118,6 +125,7 @@ export function invalidateInstalledCaches(installPath?: string): void {
   filtersCache.delete(key);
 }
 
+// Aidoku packages contain source.json, main.wasm and optional filters/settings/icon.
 export async function installAidokuPackage(data: Uint8Array): Promise<InstalledSource> {
   // Wipe old install dir so stale wasm/filters never linger after an update.
   await ensureSourcesDirectory();
@@ -146,6 +154,7 @@ export async function installAidokuPackage(data: Uint8Array): Promise<InstalledS
   };
 }
 
+// Tamdok packages contain source.json and a single JavaScript file (index.js) plus optional extras.
 export async function installTamdokPackage(data: Uint8Array): Promise<InstalledSource> {
   await ensureSourcesDirectory();
   const pkg = parseTamdokPackage(data);
@@ -179,6 +188,7 @@ export async function uninstallSource(source: InstalledSource): Promise<void> {
   invalidateInstalledCaches(source.installPath);
 }
 
+// Registry entries use a path relative to the registry URL, so resolve it against the registry's folder.
 export async function downloadRegistryEntry(
   registryUrl: string,
   entry: RegistryEntry,
@@ -192,6 +202,7 @@ export async function downloadRegistryEntry(
   return new Uint8Array(await response.arrayBuffer());
 }
 
+// Registries are cached on disk so the Sources screen works offline and loads instantly.
 export async function cacheRegistry(url: string, data: unknown): Promise<void> {
   await ensureRegistryCacheDirectory();
   const cachePath = registryCachePath(url);
@@ -225,6 +236,7 @@ function registryCachePath(url: string): string {
   return `${REGISTRY_CACHE_DIR}${slug}.json`;
 }
 
+// Packs a .tamdok archive (a zip with a Payload/ folder, same layout as Aidoku's .aix).
 export function buildTamdokPackage(manifest: SourceManifest, script: string, icon?: Uint8Array): Uint8Array {
   const files: Record<string, Uint8Array> = {
     'Payload/source.json': new TextEncoder().encode(JSON.stringify(manifest)),

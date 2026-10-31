@@ -3,6 +3,7 @@ import { deserialize, serialize } from '@variegated-coffee/serde-postcard-ts';
 import type { FFIResult, Rid, WasmEnv } from '../env';
 import { asEncoded } from '../env';
 
+// Status codes of the Aidoku `std` import namespace. Negative values are errors.
 enum StdResult {
   Success = 0,
   InvalidDescriptor = -1,
@@ -14,6 +15,7 @@ enum StdResult {
 // Postcard encode/decode and stdout hooks shared by every Aidoku WASM module.
 export function createStdImports(env: WasmEnv) {
   return {
+    // `print`/`abort` feed the per-env stdout buffer, which is only used for diagnostics.
     print: (ptr: number, len: number) => {
       try {
         const text = env.readString(ptr, len);
@@ -25,9 +27,12 @@ export function createStdImports(env: WasmEnv) {
     abort: () => {
       env.writeStdout('error: abort called.\n');
     },
+    // Sources call destroy when they are done with a handle; this frees the host-side object.
     destroy: (rid: Rid) => {
       env.store.remove(rid);
     },
+    // Two-step read protocol: the module asks for a buffer's length, allocates memory for it
+    // and then calls read_buffer to copy the bytes into its own linear memory.
     buffer_len: (rid: Rid): FFIResult => {
       const data = asEncoded(env.store.get(rid));
       if (!data) return StdResult.InvalidDescriptor;
@@ -46,6 +51,9 @@ export function createStdImports(env: WasmEnv) {
     },
     current_date: (): number => Date.now() / 1000,
     utc_offset: (): number => new Date().getTimezoneOffset() * 60,
+    // Aidoku date formats use Swift/ICU patterns (yyyy-MM-dd HH:mm). They are translated to a
+    // strftime-like pattern (swiftDateFormatToChrono) and parsed by a small hand-written parser.
+    // Only numeric fields are supported (no month names). The locale argument is ignored.
     parse_date: (
       datePtr: number,
       dateLen: number,
@@ -71,6 +79,8 @@ export function createStdImports(env: WasmEnv) {
   };
 }
 
+// Translates a Swift DateFormatter pattern into strftime-style tokens, e.g. yyyy-MM-dd -> %Y-%m-%d.
+// Repeated letters are collapsed; unknown characters are copied literally.
 function swiftDateFormatToChrono(format: string): string {
   let result = '';
   let i = 0;
@@ -148,6 +158,8 @@ function swiftDateFormatToChrono(format: string): string {
   return result;
 }
 
+// Builds a UTC timestamp (seconds) from the parsed fields. Missing fields default to the current year,
+// January 1st and midnight. With timezone `current` the device's UTC offset is applied.
 function parseWithFormat(dateStr: string, format: string, timezone: string): number | null {
   const parts = tokenize(dateStr, format);
   if (!parts) return null;
@@ -164,6 +176,8 @@ function parseWithFormat(dateStr: string, format: string, timezone: string): num
   return Math.floor(date.getTime() / 1000);
 }
 
+// Walks the format and the input in lock-step; literal characters must match exactly, `%x` tokens
+// consume a fixed number of digits. Returns null on any mismatch.
 function tokenize(dateStr: string, format: string): Record<string, number> | null {
   const values: Record<string, number> = {};
   let i = 0;
@@ -208,6 +222,7 @@ function readChunk(input: string, start: number, token: string): { raw: string; 
   return null;
 }
 
+// Serialises a value with postcard and stores it behind a new Rid (used to hand values to WASM).
 export function storeEncodedValue(env: WasmEnv, schema: Parameters<typeof serialize>[0], value: unknown): Rid {
   const bytes = serialize(schema, value);
   return env.store.storeEncoded(bytes);

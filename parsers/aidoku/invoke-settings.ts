@@ -4,6 +4,7 @@ import { joinInstallPath } from '../shared/source-manager';
 import { getSourceSettings } from '@/services/source-settings';
 import type { InstalledSource } from '../shared/types';
 
+// One entry of an Aidoku package's settings.json. `group`/`page` entries nest other entries in `items`.
 type AidokuSettingsEntry = {
   type?: string;
   key?: string;
@@ -12,6 +13,7 @@ type AidokuSettingsEntry = {
   items?: AidokuSettingsEntry[];
 };
 
+// Default values from settings.json, cached per install path and source version.
 const defaultsCache = new Map<string, Record<string, unknown>>();
 
 export function clearAidokuSettingsDefaultsCache(): void {
@@ -44,6 +46,7 @@ async function loadRawAidokuSettingsDefaults(source: InstalledSource): Promise<R
   }
 }
 
+// Flattens nested settings groups into a key -> default value map.
 function collectAidokuDefaults(entries: AidokuSettingsEntry[], defaults: Record<string, unknown>) {
   for (const entry of entries) {
     if (!entry || typeof entry !== 'object') continue;
@@ -59,6 +62,8 @@ function collectAidokuDefaults(entries: AidokuSettingsEntry[], defaults: Record<
   }
 }
 
+// Many sources fail if no language preference is set. Prefer English/Russian when the source offers
+// them, otherwise fall back to the source's own first languages.
 function defaultLanguagesForSource(source: InstalledSource): string[] {
   const manifest = source.manifest.info.languages ?? [];
   const preferred = ['en', 'ru'].filter((code) => manifest.includes(code));
@@ -71,6 +76,9 @@ function isMangadexSource(source: InstalledSource): boolean {
   return source.id.toLowerCase().includes('mangadex');
 }
 
+// Settings precedence: package defaults < values stored by the user. A few source-specific
+// safety defaults are filled in last, only when the user has not chosen anything (for example
+// MangaDex requires a content rating list).
 export async function getAidokuInvokeSettings(source: InstalledSource): Promise<Record<string, unknown>> {
   const [stored, fromSettingsJson] = await Promise.all([
     getSourceSettings(source.id),
@@ -95,6 +103,7 @@ export async function getAidokuInvokeSettings(source: InstalledSource): Promise<
   return merged;
 }
 
+// Matches both a missing export and an export that exists but reports itself as unimplemented.
 export function isMissingWasmExportError(error: unknown, exportName: string): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (

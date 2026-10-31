@@ -2,6 +2,7 @@ import { unzipSync } from "fflate";
 
 import type { SourceManifest } from "../shared/types";
 
+// Contents of a .tamdok file: a zip with source.json, index.js and optional filters.json/icon.png.
 export type TamdokPackage = {
   manifest: SourceManifest;
   script: string;
@@ -46,6 +47,7 @@ function readPayloadFile(
   return file;
 }
 
+// Files normally live under Payload/ (the same layout Aidoku uses); a flat zip is accepted too.
 function tryPayloadFile(
   files: Record<string, Uint8Array>,
   name: string,

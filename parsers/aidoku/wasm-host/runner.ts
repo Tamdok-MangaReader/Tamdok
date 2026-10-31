@@ -1,3 +1,13 @@
+// Runs inside the hidden WebView (not in the React Native JS context).
+//
+// How an Aidoku call works:
+//  1. Arguments (manga, chapter, filters, ...) are serialised with postcard and stored in the
+//     host's GlobalStore. The WASM module only receives small integer handles ("RIDs") to them.
+//  2. The exported function (get_search_manga_list, get_manga_update, ...) is called with those RIDs.
+//  3. It returns a pointer to a length-prefixed result buffer in WASM memory, or a negative errno.
+//  4. The buffer is copied out, freed with free_result, decoded from postcard and converted to
+//     the app's types (shared/types.ts).
+// While the module runs, it calls back into imports (see ./imports) for HTTP, HTML parsing, settings, ...
 import { deserialize } from '@variegated-coffee/serde-postcard-ts';
 
 import type {
@@ -35,8 +45,11 @@ import {
 import { storeEncodedValue } from './imports/std';
 import { resetPartialResults, resolveHomeLayout } from './partial-results';
 
+// Seconds, used when the source does not specify auto_scroll_interval.
 const DEFAULT_BIG_SCROLLER_INTERVAL = 5;
 
+// The exports every Aidoku source module provides. `get_manga_list`, `get_home` and
+// `get_listings` are optional features; the required ones are search, update and page list.
 type WasmInstance = WebAssembly.Instance & {
   exports: WebAssembly.Exports & {
     memory: WebAssembly.Memory;
@@ -51,6 +64,8 @@ type WasmInstance = WebAssembly.Instance & {
   };
 };
 
+// Instantiated modules are cached per source: instantiation is expensive and sources keep
+// internal state in WASM memory across calls.
 const instanceCache = new Map<string, WasmInstance>();
 
 /** Drop cached module when source settings change or user leaves the source. */
@@ -64,6 +79,8 @@ export type InvokeContext = {
   postToParent?: (message: Record<string, unknown>) => void;
 };
 
+// Instantiates the module once per source. `env.memory` is re-pointed on every call because
+// the import functions read and write through the env, which is recreated per invocation.
 export async function loadWasmInstance(sourceId: string, wasm: Uint8Array, env: WasmEnv): Promise<WasmInstance> {
   const cached = instanceCache.get(sourceId);
   if (cached) {
@@ -71,6 +88,7 @@ export async function loadWasmInstance(sourceId: string, wasm: Uint8Array, env: 
     return cached;
   }
 
+  // `start` (if exported) runs the module's initialisation exactly once, after instantiation.
   const imports = createWasmImports(env);
   const instantiated = await WebAssembly.instantiate(wasm, imports);
   const wasmInstance = ('instance' in instantiated ? instantiated.instance : instantiated) as WasmInstance;
@@ -87,6 +105,7 @@ export async function invokeExport(
   args: unknown,
   providedEnv?: WasmEnv,
 ): Promise<unknown> {
+  // Without a fetch bridge (for example in tests) any network import fails loudly.
   const env =
     providedEnv ??
     new WasmEnv(
@@ -104,8 +123,11 @@ export async function invokeExport(
   const instance = await loadWasmInstance(ctx.sourceId, ctx.wasm, env);
   env.sourceId = ctx.sourceId;
   env.store = new GlobalStore();
+  // A fresh GlobalStore per call: handles (RIDs) are only valid for the duration of one invocation.
+  // Home-page partial results from a previous call are cleared too.
   resetPartialResults(env);
   const descriptors = encodeArgs(method, args, env);
+  // Everything the source needs (network, parsing) happens synchronously inside this call, via imports.
   const ptr = callExport(instance, method, descriptors);
   env.memory = instance.exports.memory;
   const decoded = decodeResult(env, instance, method, ptr);
@@ -119,6 +141,8 @@ export async function invokeExport(
   return normalizeResult(method, decoded);
 }
 
+// Converts the app's arguments into postcard-encoded values stored in the GlobalStore and returns
+// the positional arguments (RIDs or plain numbers) of the matching WASM export.
 function encodeArgs(method: string, args: unknown, env: WasmEnv): number[] {
   switch (method) {
     case 'get_search_manga_list': {
@@ -157,6 +181,7 @@ function encodeArgs(method: string, args: unknown, env: WasmEnv): number[] {
   }
 }
 
+// Looks up the WASM export by name and calls it with the prepared arguments.
 function callExport(instance: WasmInstance, method: string, args: number[]): number {
   const fn = instance.exports[method as keyof WasmInstance['exports']];
   if (typeof fn !== 'function') {
@@ -166,6 +191,8 @@ function callExport(instance: WasmInstance, method: string, args: number[]): num
 }
 
 // WASM uses negative ptr for errno-style errors; positive ptr is a length-prefixed buffer.
+// Result protocol: a negative value is an errno-style error; otherwise `ptr` points to a buffer
+// whose first i32 is its length, where -1 means the payload is a UTF-8 error message instead of postcard data.
 function decodeResult(env: WasmEnv, instance: WasmInstance, method: string, ptr: number): unknown {
   if (ptr < 0) {
     throw new Error(mapErrorCode(ptr));
@@ -212,6 +239,7 @@ function decodePostcard<T>(schema: Parameters<typeof deserialize>[0], bytes: Uin
   }
 }
 
+// Error codes defined by Aidoku's ABI.
 function mapErrorCode(code: number): string {
   switch (code) {
     case -1:
@@ -225,6 +253,9 @@ function mapErrorCode(code: number): string {
   }
 }
 
+// The toPostcard* / fromPostcard* pairs convert between the app's types and the postcard schema
+// in ./schemas. Enum values are tagged objects ({ type: 'Ongoing' }) because that is how the
+// postcard deserializer represents Rust enums.
 function toPostcardListing(listing: Listing) {
   return {
     id: listing.id,
@@ -252,6 +283,7 @@ function toPostcardManga(manga: Manga): PostcardManga {
   };
 }
 
+// Dates cross the boundary as BigInt because the Rust side uses i64.
 function toPostcardChapter(chapter: Chapter): PostcardChapter {
   return {
     key: chapter.key,
@@ -390,6 +422,8 @@ function normalizeResult(method: string, value: unknown): unknown {
   return value;
 }
 
+// Rust tuple variants (Url(String, Context)) decode either as arrays or as objects with numeric keys,
+// depending on the deserializer path; this reads both shapes.
 function postcardTupleItem(value: unknown, index: number): unknown {
   if (Array.isArray(value)) return value[index];
   if (value && typeof value === 'object') {
@@ -411,6 +445,7 @@ function fromPostcardListing(listing: PostcardListing): Listing {
   };
 }
 
+// A "link" is Aidoku's generic home-page entry: it can point at a manga, a listing or a plain URL.
 type PostcardLink = {
   title: string;
   subtitle?: string | null;
@@ -424,11 +459,14 @@ type PostcardLink = {
 
 type PostcardHomeComponent = PostcardHomeLayout['components'][number];
 
+// Prefer the subtitle given by the source; otherwise reuse the rating line embedded in the description.
 function resolveLinkSubtitle(link: PostcardLink, manga: Manga): string | undefined {
   if (link.subtitle?.trim()) return link.subtitle.trim();
   return parseMangaDescription(manga.description).ratingLine;
 }
 
+// Home scroller entry. A link to a manga keeps its cover separately (`homeCover`) so later enrichment
+// cannot replace banner artwork with the poster. Links to URLs become pseudo-manga keyed by the URL.
 function fromPostcardLink(link: PostcardLink): HomeScrollerEntry | null {
   const value = link.value;
 
@@ -460,6 +498,7 @@ function fromPostcardLink(link: PostcardLink): HomeScrollerEntry | null {
   return null;
 }
 
+// Maps one Aidoku home component (Scroller, BigScroller, MangaList, ...) to the app's HomeComponent.
 function fromPostcardHomeComponent(component: PostcardHomeComponent): HomeComponent | null {
   const title = component.title ?? undefined;
   const subtitle = component.subtitle ?? undefined;
@@ -487,6 +526,7 @@ function fromPostcardHomeComponent(component: PostcardHomeComponent): HomeCompon
         entries: value.value.entries.map(fromPostcardManga),
         autoScrollInterval: value.value.auto_scroll_interval ?? DEFAULT_BIG_SCROLLER_INTERVAL,
       };
+    // ImageScroller is shown with the regular scroller UI.
     case 'ImageScroller': {
       const scrollerEntries = value.value.links
         .map(fromPostcardLink)
@@ -603,6 +643,7 @@ function fromPostcardFilterValue(filter: PostcardFilterValue): FilterValue | nul
   }
 }
 
+// Link rows can open a manga, a listing or an external URL.
 function fromPostcardNavigationLink(link: PostcardLink): HomeNavigationLink | null {
   const value = link.value;
   const base: HomeNavigationLink = {
@@ -711,6 +752,7 @@ function fromViewer(viewer: PostcardManga['viewer']): Manga['viewer'] {
   }
 }
 
+// Decodes the base64 string the app uses to ship the WASM binary into the WebView.
 export function base64ToUint8(base64: string): Uint8Array {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);

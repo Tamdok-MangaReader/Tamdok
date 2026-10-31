@@ -21,11 +21,14 @@ export function parseMangaDescription(
   let altTitles: string[] | undefined;
 
   for (const block of blocks) {
+    // LibGroup-style descriptions embed the rating as a line of star glyphs plus a number.
     if (/[★✮☆]/.test(block) && /\d[\d.]*/.test(block)) {
       ratingLine = block.replace(/\s*\(голосов:.*\)$/i, "").trim();
       continue;
     }
 
+    // Alternative titles come in a block starting with a localized label; the label differs per
+    // source language, so both the English and the Russian form are handled.
     if (block.startsWith("Alt titles:")) {
       const names = block
         .replace(/^Альтернативные названия:<br\/?>/i, "")
@@ -56,6 +59,7 @@ export function parseMangaDescription(
   return { summary, altTitle, altTitles, ratingLine };
 }
 
+// Rating information extracted from the star glyphs (or a numeric score) of a description.
 export type ParsedRating = {
   filled: number;
   half: boolean;
@@ -63,6 +67,8 @@ export type ParsedRating = {
   score?: string;
 };
 
+// ★ = full star, ✮ = half star, ☆ = empty star. If there are no glyphs, a numeric score is used:
+// values above 5 are assumed to be on a 10-point scale and halved.
 export function parseRatingText(text?: string): ParsedRating | null {
   if (!text) return null;
 
@@ -94,6 +100,7 @@ export function parseRatingText(text?: string): ParsedRating | null {
     filled = Math.floor(boundedScore);
     const remainder = boundedScore - filled;
 
+    // Round the fractional part to the nearest half star.
     if (remainder >= 0.25 && remainder < 0.75) {
       half = true;
     } else if (remainder >= 0.75) {

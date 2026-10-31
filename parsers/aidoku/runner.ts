@@ -17,6 +17,8 @@ export {
   retainAidokuSourceRequests,
 } from './wasm-bridge';
 
+// Optional WASM exports (get_home, get_listings) that a source does not provide. Remembered for the
+// session so the app falls back immediately instead of paying for a failing call every time.
 const missingWasmExports = new Map<string, Set<string>>();
 
 export function clearAidokuWasmExportCache(sourceId?: string): void {
@@ -41,6 +43,8 @@ function isExportAvailable(sourceId: string, exportName: string): boolean {
   return !missingWasmExports.get(sourceId)?.has(exportName);
 }
 
+// Adapts an installed Aidoku source to the common SourceRunner interface. Each method becomes one
+// WASM export call routed through the WebView host (see wasm-bridge.ts).
 export async function createAidokuSourceRunner(source: InstalledSource): Promise<SourceRunner> {
   const wasm = await readInstalledWasm(source);
   if (!wasm) {
@@ -54,6 +58,8 @@ export async function createAidokuSourceRunner(source: InstalledSource): Promise
   return {
     kind: 'aidoku',
     sourceId: source.id,
+    // Search prepares its filters first: if the caller passed none, the source's default filter values
+    // are used; then open-ended ranges and empty text filters are dropped (sanitizeFilterValuesForInvoke).
     getSearchMangaList: async (params) => {
       const definitions = (await readInstalledFilters(source)) ?? [];
       let filters = params.filters;
@@ -120,6 +126,8 @@ export async function createAidokuSourceRunner(source: InstalledSource): Promise
   };
 }
 
+// The WASM host takes the source's current settings with EVERY call: users can change settings
+// (API domain, languages, cookies) at any time and the module reads them through the defaults import.
 async function invokeAidoku<T>(
   wasm: Uint8Array,
   source: InstalledSource,
@@ -140,6 +148,8 @@ async function invokeAidoku<T>(
   return result as T;
 }
 
+// Sources that talk to an API on a different domain than their website expose it as a setting
+// (`apiUrl` or `baseUrl`). That domain, not the manifest URL, is used for the Referer/Origin headers.
 function resolveInvokeBaseUrl(settings: Record<string, unknown>, fallback?: string): string | undefined {
   const apiUrl = typeof settings.apiUrl === 'string' ? settings.apiUrl.trim() : '';
   if (apiUrl) return apiUrl;
@@ -148,6 +158,7 @@ function resolveInvokeBaseUrl(settings: Record<string, unknown>, fallback?: stri
   return fallback;
 }
 
+// Special case: nhentai returns nothing for an empty browse query, so a harmless default is supplied.
 function resolveSearchQuery(sourceId: string, query: string | undefined, filters: FilterValue[]): string {
   const trimmed = query?.trim() ?? '';
   if (trimmed) return trimmed;
@@ -171,6 +182,8 @@ function nhentaiGalleryUrl(key: string): string | undefined {
   return `https://nhentai.net/g/${id}/`;
 }
 
+// nhentai's WASM source only knows numeric gallery ids; the app builds the public URL so "open in
+// browser" and sharing work.
 function enrichAidokuManga(sourceId: string, manga: Manga): Manga {
   // nhentai WASM only stores numeric gallery ids; build shareable URLs for the UI.
   if (!isNhentaiSource(sourceId) || manga.url) return manga;

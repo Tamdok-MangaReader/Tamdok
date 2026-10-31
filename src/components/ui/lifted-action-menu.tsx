@@ -30,8 +30,17 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
+// Lightweight replacement for a native per-item context menu.
+//
+// A native ContextMenu host per cover was too heavy for big grids. This component renders ONE
+// ordinary view per item and only creates the overlay after a long press:
+//  1. long press -> measure the item in window coordinates (the "anchor");
+//  2. a transparent Modal (inside a FullWindowOverlay so it covers the native tab bar) shows a dim
+//     backdrop, a scaled-up clone of the item at the same position, and a glass card with the actions;
+//  3. the clone is rendered by calling `renderContent` again with a no-op long-press handler.
 type Anchor = { x: number; y: number; width: number; height: number };
 
+// The react-native typings of this project do not expose measureInWindow on View refs, hence this minimal type.
 type MeasurableView = {
   measureInWindow: (
     callback: (x: number, y: number, width: number, height: number) => void,
@@ -54,6 +63,7 @@ type LiftedActionMenuProps = {
   renderContent: (onLongPress: () => void) => ReactElement;
 };
 
+// Layout constants: card width, minimum distance to the screen edges, and gap between item and card.
 const MENU_WIDTH = 260;
 const EDGE = 12;
 const GAP = 10;
@@ -67,6 +77,7 @@ export const LiftedActionMenu = memo(function LiftedActionMenu({
   const ref = useRef<MeasurableView>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
 
+  // iOS only (the lifted menu relies on iOS overlay behaviour and haptics).
   const handleLongPress = useCallback(() => {
     if (Platform.OS !== "ios") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -79,6 +90,7 @@ export const LiftedActionMenu = memo(function LiftedActionMenu({
 
   return (
     <>
+      // `collapsable={false}` keeps the wrapper in the native tree on Android so measureInWindow works.
       <View ref={ref as never} collapsable={false}>
         {renderContent(handleLongPress)}
       </View>
@@ -121,10 +133,13 @@ function LiftedOverlay({
     transform: [{ scale: scale.value }],
   }));
 
+  // Horizontal: centre the card on the item, clamped to the screen.
   const menuLeft = Math.min(
     Math.max(anchor.x + anchor.width / 2 - MENU_WIDTH / 2, EDGE),
     windowWidth - EDGE - MENU_WIDTH,
   );
+  // Vertical: show the card below the item if it fits, otherwise above. The first render has height 0,
+  // so the card stays invisible (opacity 0) until onLayout reports its real height.
   const spaceBelow = windowHeight - (anchor.y + anchor.height) - GAP - EDGE;
   const placeBelow = menuHeight === 0 || menuHeight <= spaceBelow;
   const menuTop = placeBelow
@@ -140,6 +155,7 @@ function LiftedOverlay({
     <View style={StyleSheet.absoluteFill}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <Animated.View
+        // The clone is purely visual; touches go to the backdrop.
         pointerEvents="none"
         style={[
           styles.lifted,
@@ -185,6 +201,7 @@ function LiftedOverlay({
                   pressed && { backgroundColor: colors.quaternaryFill },
                 ]}
                 onPress={() => {
+                  // Close first, then run the action, so actions that navigate or open sheets are not blocked by the Modal.
                   void Haptics.selectionAsync();
                   onClose();
                   item.onPress();

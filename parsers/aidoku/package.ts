@@ -2,6 +2,8 @@ import { unzipSync } from 'fflate';
 
 import type { SourceManifest } from '../shared/types';
 
+// Contents of an .aix file: a zip with source.json and main.wasm, plus optional
+// filters.json, settings.json and icon.png. Entries live under `Payload/`.
 export type AidokuPackage = {
   manifest: SourceManifest;
   wasm: Uint8Array;

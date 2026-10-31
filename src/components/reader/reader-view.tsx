@@ -585,6 +585,11 @@ export function ReaderView({
     [manga.cover, manga.key, manga.title, sourceId],
   );
 
+  // Saves reading progress when the user moves between pages.
+  // - Last page reached -> the chapter is marked read (and, with the "mark duplicates" setting, its duplicates too);
+  //   the next unread chapter is then recorded as started so it shows up in history.
+  // - Chapters that are already read are left untouched, so re-opening an old chapter does not move it
+  //   to the top of the history or change the "continue reading" position.
   const persistProgress = useCallback(
     async (
       targetChapter: Chapter,
@@ -598,6 +603,7 @@ export function ReaderView({
         cover: manga.cover,
         notify,
       };
+      // Treat reaching the final page as finishing the chapter.
       const isLastPage = pageCount > 0 && pageIndex >= pageCount - 1;
       const existing = await getChapterProgress(
         sourceId,
@@ -605,6 +611,7 @@ export function ReaderView({
         targetChapter.key,
       );
       const alreadyRead = existing?.page === -1;
+      // Already read: nothing to record (see the note above).
       if (alreadyRead) return;
       if (isLastPage) {
         if (settings?.markDuplicateChapters) {

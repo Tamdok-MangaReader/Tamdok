@@ -13,6 +13,7 @@ export async function fetchSourceRegistry(
   return (await response.json()) as SourceRegistry;
 }
 
+// Registry entries may use absolute URLs or paths relative to the registry file.
 export function resolveRegistryAssetUrl(
   registryUrl: string,
   assetPath: string,
@@ -30,6 +31,8 @@ export function resolveRegistryIconUrl(
   return resolveRegistryAssetUrl(registryUrl, entry.iconURL);
 }
 
+// The package extension decides the runtime: .aix = Aidoku (WASM), .tamdok = Tamdok (JS).
+// For ambiguous entries the registry URL is used as a hint.
 export function registryEntryKind(
   registryUrl: string,
   entry: RegistryEntry,
@@ -40,6 +43,8 @@ export function registryEntryKind(
   return "tamdok";
 }
 
+// Aidoku numbers content ratings from 0 (safe); the app's scale starts at 1, so values are shifted
+// by one and clamped to 1..3.
 export function shiftAidokuContentRating(value?: number): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   return Math.min(3, Math.max(1, Math.round(value) + 1));

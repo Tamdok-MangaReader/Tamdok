@@ -1,3 +1,15 @@
+// The core problem solved here: WASM imports are SYNCHRONOUS. When a source calls the host's
+// `net` import it expects the HTTP response to be available when the call returns. JavaScript
+// networking, however, is asynchronous and lives in the React Native side. The bridge therefore
+// blocks the thread that runs WASM until the response arrives. There are three strategies:
+//  1. Atomics.wait on a SharedArrayBuffer flag (needs SharedArrayBuffer, i.e. cross-origin isolation
+//     or a Worker). The reply wakes the flag.
+//  2. A pool of response SharedArrayBuffers shared with a Worker (createWorkerParentFetchBridge):
+//     the body is written into the buffer, so large responses never go through postMessage.
+//  3. Synchronous XMLHttpRequest as the universal fallback. Inside the React Native WebView
+//     COOP/COEP headers are normally missing, so this is what actually runs there.
+// Note that sync XHR is performed by the WebView itself and therefore bypasses the app's shared
+// fetch layer; the SharedArrayBuffer paths route through the app (throttling, retries, clearance).
 import type { FetchBridge, FetchBridgeRequest, FetchBridgeResponse } from './env';
 
 type PendingFetch = {
@@ -8,16 +20,22 @@ type PendingFetch = {
 export type ParentPoster = (message: Record<string, unknown>) => void;
 
 /** Max fetch body size transferred through SharedArrayBuffer (8 MiB). */
+// Size of each pooled response buffer (see the overview at the top of this file).
 export const FETCH_RESPONSE_SAB_SIZE = 8 * 1024 * 1024;
 // Header: [state, status, urlLen, bodyLen] as i32 slots, then url+body bytes follow.
+// Layout of a response buffer: a 32-byte Int32 header followed by the url bytes and the body bytes.
+// header[0] is a state flag used with Atomics (Pending -> Success | Error).
 const FETCH_HEADER_SIZE = 32;
 
+// State machine of a response buffer; the waiting thread sleeps while the state is Pending.
 export enum FetchSabState {
   Pending = 0,
   Success = 1,
   Error = 2,
 }
 
+// Written by the producer (main thread). The state flag is stored LAST with Atomics.store so the
+// waiting thread never observes a half-written payload.
 export function writeFetchSuccessSab(
   sab: SharedArrayBuffer,
   status: number,
@@ -44,6 +62,7 @@ export function writeFetchSuccessSab(
   Atomics.store(view, 0, FetchSabState.Success);
 }
 
+// Errors are reported as a UTF-8 message (truncated to 512 bytes) in the same buffer.
 export function writeFetchErrorSab(sab: SharedArrayBuffer, message: string): void {
   const view = new Int32Array(sab, 0, FETCH_HEADER_SIZE / 4);
   const bytes = new Uint8Array(sab);
@@ -79,6 +98,7 @@ export function readFetchSabResponse(id: string, responseSab: SharedArrayBuffer)
   return { id, status, url, body, headers: {} };
 }
 
+// Blocks (in <=1s slices) until the producer changes the state or the deadline passes.
 export function waitForFetchSab(responseSab: SharedArrayBuffer, timeoutMs: number): FetchSabState {
   const header = new Int32Array(responseSab, 0, FETCH_HEADER_SIZE / 4);
   const deadline = Date.now() + timeoutMs;
@@ -101,6 +121,8 @@ export function tryCreateSharedArrayBuffer(byteLength = 4): SharedArrayBuffer | 
 }
 
 // Pool size matches max concurrent WASM fetches; try smaller buffers if 8 MiB SAB fails.
+// Allocates the buffers. If a large SharedArrayBuffer cannot be allocated (low memory), smaller
+// sizes are tried so the pool still has the requested number of slots where possible.
 export function createFetchSabPool(count = 8, byteLength = FETCH_RESPONSE_SAB_SIZE): SharedArrayBuffer[] {
   const pool: SharedArrayBuffer[] = [];
   const sizes = [byteLength, 4 * 1024 * 1024, 2 * 1024 * 1024, 1024 * 1024];
@@ -117,6 +139,7 @@ export function createFetchSabPool(count = 8, byteLength = FETCH_RESPONSE_SAB_SI
   return pool;
 }
 
+// Buffers available inside the worker. A job takes one from the pool and returns it when done.
 const workerFetchSabPool: SharedArrayBuffer[] = [];
 
 export function initWorkerFetchSabPool(sabs: SharedArrayBuffer[]): void {
@@ -146,6 +169,7 @@ function releaseWorkerFetchSab(sab: SharedArrayBuffer): void {
   workerFetchSabPool.push(sab);
 }
 
+// True inside a React Native WebView.
 function isRnWebView(): boolean {
   return (
     typeof window !== 'undefined' &&
@@ -161,6 +185,7 @@ function isHttpOrigin(): boolean {
   }
 }
 
+// Synchronous XHR (deprecated on the main thread, but allowed in WebViews and Workers).
 function sendWithSyncXhr(request: FetchBridgeRequest): FetchBridgeResponse {
   const xhr = new XMLHttpRequest();
   xhr.open(request.method, request.url, false);
@@ -188,6 +213,8 @@ function sendWithSyncXhr(request: FetchBridgeRequest): FetchBridgeResponse {
 }
 
 // Blocks the WASM thread until RN returns fetch data (SAB Atomics or sync XHR fallback).
+// Used when WASM runs on the WebView's main thread: sends `fetch` messages to React Native and
+// blocks until the matching `fetch-response`/`fetch-error` message resolves the pending entry.
 export class SyncFetchBridge implements FetchBridge {
   private pending = new Map<string, PendingFetch>();
   private counter = 0;
@@ -198,6 +225,8 @@ export class SyncFetchBridge implements FetchBridge {
     return this.sendAll([{ ...request, id: request.id ?? `fetch-${++this.counter}` }])[0]!;
   }
 
+  // Several requests can be started together and then awaited one by one, so they run concurrently
+  // instead of strictly one after another (used by sources that fetch many pages in a row).
   sendAll(requests: Array<Omit<FetchBridgeRequest, 'id'> & { id?: string }>): FetchBridgeResponse[] {
     if (requests.length === 0) return [];
     if (requests.length === 1) {
@@ -242,6 +271,7 @@ export class SyncFetchBridge implements FetchBridge {
     return sendWithSyncXhr(request);
   }
 
+  // Starts every request first (posting all messages), then waits for each flag in order.
   private sendAllWithAtomics(requests: FetchBridgeRequest[]): FetchBridgeResponse[] {
     type PendingJob = {
       request: FetchBridgeRequest;
@@ -298,6 +328,7 @@ export class SyncFetchBridge implements FetchBridge {
     return responses;
   }
 
+  // Called by the host when React Native replies. Returns true if the message belonged to a pending request.
   handleParentMessage(message: Record<string, unknown>): boolean {
     if (message.type === 'fetch-response') {
       const pending = this.pending.get(String(message.id));
@@ -393,6 +424,8 @@ function waitForFetchMessage(id: string, timeoutMs: number, responseSab: SharedA
 }
 
 // Worker posts fetch jobs to the main thread and blocks on a pooled response SAB.
+// Worker variant: asks the main thread to perform the request and write the answer into a pooled
+// SharedArrayBuffer. Buffers are always returned to the pool, even when a wait throws.
 export function createWorkerParentFetchBridge(): FetchBridge {
   let counter = 0;
 
@@ -434,6 +467,7 @@ export function createWorkerParentFetchBridge(): FetchBridge {
   return bridge;
 }
 
+// Picks the best strategy for the current environment (see the overview at the top of this file).
 export function createWorkerFetchBridge(): FetchBridge {
   if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
     return createWorkerParentFetchBridge();

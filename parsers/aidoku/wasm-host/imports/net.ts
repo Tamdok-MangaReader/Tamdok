@@ -3,6 +3,7 @@ import { asRequest } from '../env';
 import { buildFetchHeaders } from '../../../shared/fetch-headers';
 import { createDocument } from '../html-dom';
 
+// Status codes of the Aidoku `net` import namespace.
 enum NetResult {
   Success = 0,
   InvalidDescriptor = -1,
@@ -18,6 +19,9 @@ enum NetResult {
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'PATCH', 'OPTIONS', 'CONNECT', 'TRACE'];
 
+// Implements Aidoku's `net` imports. A request is built step by step (init, set_url, set_header,
+// set_body), executed with `send` (or `send_all` for batches) and then read back through
+// status/header/data getters. Request and response live in the handle table under one Rid.
 export function createNetImports(env: WasmEnv) {
   return {
     init: (method: number): FFIResult => {
@@ -31,6 +35,9 @@ export function createNetImports(env: WasmEnv) {
     },
     send: (rid: number): FFIResult => commonSend(env, rid),
     // Batch path used by sources that fire many parallel requests at once.
+    // Batch path: the module passes an array of Rids in its memory. Each slot is overwritten with
+    // that request's result code, so the module can see which individual requests failed.
+    // Valid requests are sent together through the fetch bridge (concurrently if supported).
     send_all: (ridPtr: number, len: number): FFIResult => {
       try {
         const rids = env.readValues(ridPtr, len);
@@ -163,6 +170,7 @@ export function createNetImports(env: WasmEnv) {
         return NetResult.FailedMemoryWrite;
       }
     },
+    // Image responses are not decoded by the host; sources that need this get NotAnImage.
     get_image: (_rid: number): FFIResult => NetResult.NotAnImage,
     get_status_code: (rid: number): FFIResult => {
       const request = getRequest(env, rid);
@@ -197,6 +205,7 @@ export function createNetImports(env: WasmEnv) {
         return NetResult.InvalidString;
       }
     },
+    // Rate limiting is handled by the app's shared fetch layer (shared/net-policy.ts), not per request.
     set_rate_limit: (_permits: number, _period: number, _unit: number) => {
       // no-op
     },
@@ -207,6 +216,8 @@ function getRequest(env: WasmEnv, rid: number): NetRequestState | undefined {
   return asRequest(env.store.getMut(rid));
 }
 
+// Merges the app's default browser-like headers (UA, Referer, Origin) with the ones the source set,
+// and converts the body to a string for the message-based fetch bridge.
 function toFetchBridgeRequest(env: WasmEnv, rid: number, request: NetRequestState) {
   // Merge source defaults (referer, UA) before the request hits RN sync fetch.
   const headers = buildFetchHeaders(request.url!, request.headers, env.sourceBaseUrl);
@@ -250,6 +261,7 @@ function commonSend(env: WasmEnv, rid: number): FFIResult {
   }
 }
 
+// Unused placeholders kept so the import tables line up with the ABI.
 export function encodeDefaultValue(_kind: number, _bytes: Uint8Array): DefaultValue | null {
   return null;
 }

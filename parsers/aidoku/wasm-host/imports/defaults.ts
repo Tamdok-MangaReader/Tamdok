@@ -3,6 +3,7 @@ import { bool, deserialize, f32, i32, serialize, string } from '@variegated-coff
 import type { DefaultValue, FFIResult, WasmEnv } from '../env';
 import { asEncoded } from '../env';
 
+// Status codes of the Aidoku `defaults` import namespace (key/value settings storage).
 enum DefaultsResult {
   Success = 0,
   InvalidKey = -1,
@@ -11,6 +12,8 @@ enum DefaultsResult {
   FailedDecoding = -4,
 }
 
+// Copies the user's saved source settings into the env before each invoke, so a source reading
+// `defaults.get` sees the values chosen in the app's source settings screen.
 export function hydrateWasmDefaults(env: WasmEnv, settings: Record<string, unknown>): void {
   for (const [key, raw] of Object.entries(settings)) {
     const value = toDefaultValue(raw);
@@ -20,6 +23,8 @@ export function hydrateWasmDefaults(env: WasmEnv, settings: Record<string, unkno
   }
 }
 
+// Maps plain JS values to the typed DefaultValue union (integers vs floats are distinguished
+// because the ABI encodes them differently). Unsupported shapes are skipped.
 function toDefaultValue(raw: unknown): DefaultValue | null {
   if (raw == null) return { kind: 'null' };
   if (typeof raw === 'boolean') return { kind: 'bool', value: raw };
@@ -35,6 +40,8 @@ function toDefaultValue(raw: unknown): DefaultValue | null {
   return null;
 }
 
+// `get` stores the value postcard-encoded behind a Rid; `set` decodes what the module wrote.
+// Changes only live in memory for the current session; they are not persisted by the host.
 export function createDefaultsImports(env: WasmEnv) {
   return {
     get: (keyPtr: number, len: number): FFIResult => {
@@ -82,6 +89,7 @@ function storeDefault(env: WasmEnv, value: DefaultValue): FFIResult {
   }
 }
 
+// `kind` is the ABI's DefaultValue discriminant: 0 data, 1 bool, 2 int, 3 float, 4 string, 5 string[], 6 null.
 function decodeDefault(kind: number, bytes: Uint8Array): DefaultValue | null {
   try {
     switch (kind) {

@@ -1,5 +1,7 @@
 import type { FilterDefinition, FilterValue } from './types';
 
+// Shape of one entry in an Aidoku package's filters.json. Field usage depends on `type`
+// (sort, select, multi-select, text, check, range); unknown types are ignored.
 type AidokuFilterJson = {
   type: string;
   id?: string;
@@ -16,6 +18,8 @@ type AidokuFilterJson = {
   default?: string | number | boolean | { index?: number; ascending?: boolean; from?: number; to?: number };
 };
 
+// Aidoku filters are identified by name. The WASM source looks values up by this id,
+// so it must match what the source expects: explicit `id` first, then the per-type conventions.
 function aidokuFilterId(filter: AidokuFilterJson, type: string, index: number): string {
   if (filter.id) return filter.id;
   switch (type) {
@@ -31,6 +35,8 @@ function aidokuFilterId(filter: AidokuFilterJson, type: string, index: number): 
   }
 }
 
+// Converts Aidoku's filters.json into the app's FilterDefinition model.
+// Aidoku's `select` stores labels (`options`) and values (`ids`) in two parallel arrays.
 export function parseAidokuFiltersJson(raw: unknown): FilterDefinition[] {
   if (!Array.isArray(raw)) return [];
 
@@ -121,6 +127,7 @@ export function parseAidokuFiltersJson(raw: unknown): FilterDefinition[] {
   });
 }
 
+// Pairs labels with ids by index. Without ids the label doubles as the id.
 function zipAidokuOptions(labels: string[], ids: string[]): { id: string; label: string }[] {
   if (ids.length > 0) {
     return labels.map((label, index) => ({
@@ -132,6 +139,7 @@ function zipAidokuOptions(labels: string[], ids: string[]): { id: string; label:
 }
 
 /** Drop open-ended range bounds and empty text filters before WASM invoke. */
+// Last-minute cleanup of filter values before they are serialised for the WASM source.
 export function sanitizeFilterValuesForInvoke(
   values: FilterValue[],
   definitions: FilterDefinition[] = [],
@@ -139,6 +147,8 @@ export function sanitizeFilterValuesForInvoke(
 ): FilterValue[] {
   const defById = new Map(definitions.map((definition) => [definition.id, definition]));
   const trimmedQuery = options?.query?.trim() ?? '';
+  // MangaDex returns relevance ordering only for a specific sort; when the user typed a query
+  // we force sort option #1 descending so results stay relevance-ordered.
   const isMangadex = options?.sourceId?.toLowerCase().includes('mangadex') ?? false;
 
   return values
@@ -172,6 +182,7 @@ export function sanitizeFilterValuesForInvoke(
     });
 }
 
+// Builds the initial FilterValue for every definition.
 export function defaultFilterValues(definitions: FilterDefinition[]): FilterValue[] {
   return definitions.map((definition) => {
     switch (definition.type) {
@@ -209,6 +220,8 @@ export function defaultFilterValues(definitions: FilterDefinition[]): FilterValu
   });
 }
 
+// Re-applies the user's current values on top of (possibly changed) definitions:
+// values whose id or type no longer matches fall back to the defaults.
 export function mergeFilterValues(current: FilterValue[], definitions: FilterDefinition[]): FilterValue[] {
   const defaults = defaultFilterValues(definitions);
   const byId = new Map(current.map((value) => [value.id, value]));
@@ -255,6 +268,7 @@ export function filterLabel(definition: FilterDefinition, values: FilterValue[])
   }
 }
 
+// Inline filters are shown as chips in the header; other kinds (text, range, check) live in the filter sheet.
 export function isInlineFilter(definition: FilterDefinition): boolean {
   if ('hideFromHeader' in definition && definition.hideFromHeader) return false;
   return definition.type === 'sort' || definition.type === 'select' || definition.type === 'multiSelect';

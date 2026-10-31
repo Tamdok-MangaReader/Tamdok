@@ -1,3 +1,4 @@
+// Convert in chunks: String.fromCharCode.apply with a huge array overflows the call stack.
 const CHUNK = 0x8000;
 
 export function bytesToBase64(bytes: Uint8Array): string {

@@ -12,13 +12,18 @@ import {
   writeResponseCache,
 } from './net-policy';
 
+// Shared HTTP layer used by every source runtime (Aidoku WASM and Tamdok packages).
+// It adds per-host throttling, retries, Cloudflare clearance cookies, a short-lived
+// response cache and de-duplication of identical in-flight GET requests.
 export type SharedFetchInit = {
   url: string;
   method?: string;
   headers?: Record<string, string>;
   body?: RequestInit['body'];
+  // Base URL of the source; used to derive Referer/Origin style headers.
   sourceBaseUrl?: string;
   signal?: AbortSignal | null;
+  // Total attempts including the first one. Defaults to 3 for GET and 1 for other methods.
   maxAttempts?: number;
   passthrough?: Omit<RequestInit, 'method' | 'headers' | 'body' | 'signal'>;
   onLog?: (level: 'debug' | 'warn', message: string) => void;
@@ -31,8 +36,11 @@ export type SharedFetchResult = {
   headers: Record<string, string>;
 };
 
+// Hard per-attempt timeout; the attempt is aborted and treated as a network error.
 const REQUEST_TIMEOUT_MS = 45_000;
 
+// An in-flight GET request that several callers may be waiting on.
+// `waiters` is reference-counted so the real request is only aborted once every caller gave up.
 type SharedEntry = {
   promise: Promise<SharedFetchResult>;
   waiters: number;
@@ -47,6 +55,8 @@ function abortError(): Error {
   return error;
 }
 
+// Only rate limiting (429) is retried for every method. Gateway errors are retried
+// for GET only, because repeating a POST could duplicate a side effect.
 function isRetryableStatus(status: number, method: string): boolean {
   if (status === 429) return true;
   return method === 'GET' && (status === 502 || status === 503 || status === 504);
@@ -60,6 +70,8 @@ function collectHeaders(response: Response): Record<string, string> {
   return headers;
 }
 
+// The cache key includes the (sorted) request headers because cookies and tokens
+// can change the response body for the same URL.
 function cacheKeyFor(url: string, headers: Record<string, string>): string {
   const sorted = Object.keys(headers)
     .sort()
@@ -68,6 +80,8 @@ function cacheKeyFor(url: string, headers: Record<string, string>): string {
   return `${url}\n${sorted}`;
 }
 
+// Callers can bypass the cache and request de-duplication by sending
+// Cache-Control/Pragma: no-cache, no-store or max-age=0.
 function wantsFresh(headers: Record<string, string>): boolean {
   for (const [key, value] of Object.entries(headers)) {
     const name = key.toLowerCase();
@@ -78,6 +92,9 @@ function wantsFresh(headers: Record<string, string>): boolean {
   return false;
 }
 
+// Performs the actual request: waits for a host slot, then loops over attempts.
+// Each attempt has its own AbortController so the timeout and the caller's signal
+// both cancel only that attempt.
 async function executeFetch(
   init: SharedFetchInit,
   method: string,
@@ -87,6 +104,7 @@ async function executeFetch(
   const maxAttempts = Math.max(1, init.maxAttempts ?? (method === 'GET' ? 3 : 1));
   await acquireHostSlot(init.url, signal);
 
+  // Delay to apply before the next attempt (backoff or Retry-After).
   let pendingDelay = 0;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (signal?.aborted) throw abortError();
@@ -111,6 +129,7 @@ async function executeFetch(
       });
       const body = await response.text();
       const responseHeaders = collectHeaders(response);
+      // Feed the status back into the per-host throttle so 429/503 slow down later requests.
       reportHostResponse(init.url, response.status, responseHeaders['retry-after']);
 
       if (isRetryableStatus(response.status, method) && attempt < maxAttempts - 1) {
@@ -119,6 +138,7 @@ async function executeFetch(
         continue;
       }
 
+      // Remember that this host is behind a Cloudflare challenge so the UI can offer to solve it.
       if (looksLikeCloudflareChallenge(response.status, responseHeaders, body)) {
         markHostChallenged(hostFromUrl(init.url));
       }
@@ -136,6 +156,8 @@ async function executeFetch(
   throw new Error('Fetch failed');
 }
 
+// Attaches one caller to a shared in-flight request. When the last waiter aborts,
+// the underlying request is cancelled and removed from the in-flight map.
 function awaitShared(entry: SharedEntry, key: string, signal?: AbortSignal | null): Promise<SharedFetchResult> {
   if (signal?.aborted) return Promise.reject(abortError());
   entry.waiters += 1;
@@ -169,6 +191,8 @@ function awaitShared(entry: SharedEntry, key: string, signal?: AbortSignal | nul
   });
 }
 
+// Entry point. Non-GET requests are never cached or shared and invalidate the host cache.
+// GET requests go through: cache lookup -> join in-flight request -> new request.
 export async function sharedFetch(init: SharedFetchInit): Promise<SharedFetchResult> {
   await ensureClearanceLoaded();
   const method = (init.method ?? 'GET').toUpperCase();
@@ -183,6 +207,7 @@ export async function sharedFetch(init: SharedFetchInit): Promise<SharedFetchRes
     return result;
   }
 
+  // `fresh` requests skip both reading and writing the cache and are never shared.
   const fresh = wantsFresh(headers);
   const key = cacheKeyFor(init.url, headers);
 

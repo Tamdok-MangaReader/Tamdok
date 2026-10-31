@@ -8,12 +8,17 @@ import {
 } from "@/services/downloads";
 import { subscribeMangaData } from "@/utils/manga-events";
 
+// Progress is aggregated per manga, keyed by `<sourceId without runtime prefix>:<mangaKey>`, because the same
+// source can be referenced both as `aidoku:x` and `x` depending on where the id came from.
 const SOURCE_PREFIX = /^(aidoku|tamdok):/;
 
+// Module-level external store (read by useSyncExternalStore). Listeners are registered per manga id so a
+// progress tick re-renders only the covers of the affected manga, not the whole grid.
 let progressById = new Map<string, number>();
 let failedById = new Map<string, number>();
 const listenersById = new Map<string, Set<() => void>>();
 let unsubscribe: (() => void) | null = null;
+// `recomputing`/`dirty` coalesce overlapping recompute requests into at most one extra run.
 let recomputing = false;
 let dirty = false;
 
@@ -21,8 +26,13 @@ function idOf(sourceId: string, mangaKey: string): string {
   return `${sourceId.replace(SOURCE_PREFIX, "")}:${mangaKey}`;
 }
 
+// A "batch" is everything queued for one manga since its queue was last empty.
+// `total` grows when more chapters are queued, `active` is how many are still pending/downloading.
+// Keeping the total is what makes the ring fill: finished chapters leave the queue, so
+// progress = (total - active + progress of running chapters) / total.
 type BatchState = { total: number; active: number };
 
+// Batches are persisted so the ring does not restart from zero after the app is relaunched mid-download.
 const BATCHES_KEY = "download_batches_v1";
 const batches = new Map<string, BatchState>();
 let batchesLoaded = false;
@@ -53,6 +63,8 @@ function persistBatches(): void {
   void setValue(BATCHES_KEY, record);
 }
 
+// Derives progress (0..1) for every manga with unfinished chapters and updates the batch bookkeeping.
+// A manga with no unfinished chapters drops out, which also deletes its batch (the next download starts fresh).
 function compute(entries: DownloadEntry[]): Map<string, number> {
   const groups = new Map<string, { count: number; sum: number }>();
   for (const entry of entries) {
@@ -71,6 +83,7 @@ function compute(entries: DownloadEntry[]): Map<string, number> {
   const result = new Map<string, number>();
   for (const [id, group] of groups) {
     const previous = batches.get(id);
+    // Chapters queued after the batch started are added to its total, so progress never jumps backwards.
     const total = previous
       ? previous.total + Math.max(0, group.count - previous.active)
       : group.count;
@@ -81,6 +94,7 @@ function compute(entries: DownloadEntry[]): Map<string, number> {
   return result;
 }
 
+// Reloads the queue, recomputes progress and failures, and notifies only the ids whose values changed.
 async function recompute(): Promise<void> {
   if (recomputing) {
     dirty = true;
@@ -133,6 +147,8 @@ function ensureSubscribed(): void {
   void recompute();
 }
 
+// Subscribes to one manga id. The global manga-data subscription is created for the first listener
+// and removed again when the last one unsubscribes.
 function subscribeTo(id: string, listener: () => void): () => void {
   ensureSubscribed();
   let set = listenersById.get(id);

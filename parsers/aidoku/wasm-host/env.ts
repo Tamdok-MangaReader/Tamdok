@@ -1,9 +1,14 @@
 import type { PostcardHomeLayout } from './schemas';
 
+// Aidoku's host ABI never passes complex objects into WASM. Instead the host keeps objects in a
+// handle table and gives the module small integers: a `Rid` (resource id). Raw pointers into the
+// module's own linear memory are `Ptr`s; `FFIResult` is the integer status/length a host import returns.
 export type Rid = number;
 export type Ptr = number;
 export type FFIResult = number;
 
+// Everything that can live behind a Rid: strings, postcard-encoded values, in-progress HTTP
+// requests, parsed HTML documents/elements/nodes (and lists of them) and decoded image data.
 export type StoreItem =
   | { kind: 'string'; value: string }
   | { kind: 'encoded'; value: Uint8Array }
@@ -15,6 +20,7 @@ export type StoreItem =
   | { kind: 'htmlElementList'; value: HtmlElementState[] }
   | { kind: 'imageData'; value: ImageDataState };
 
+// Mutable state of a request while the source configures it; `response` is filled after `send`.
 export type NetRequestState = {
   method: HttpMethod;
   url?: string;
@@ -61,6 +67,8 @@ export type DefaultValue =
   | { kind: 'stringArray'; value: string[] }
   | { kind: 'null' };
 
+// In-memory implementation of Aidoku's `defaults` import (per-source settings storage).
+// Values are hydrated from the app's saved settings before each invoke (see imports/defaults.ts).
 export class UserDefaults {
   private values = new Map<string, DefaultValue>();
 
@@ -74,6 +82,8 @@ export class UserDefaults {
 }
 
 // Simple 1-based handle table shared by all WASM host imports for one invoke.
+// Handle table shared by all host imports during one invocation. Rids start at 1 (0 means "none"
+// in the ABI) and the counter resets once the table is empty.
 export class GlobalStore {
   private pointer: Rid = 1;
   private storage = new Map<Rid, StoreItem>();
@@ -105,6 +115,8 @@ export class GlobalStore {
   }
 }
 
+// How the host performs HTTP. Implemented in fetch-bridge.ts. Both methods are SYNCHRONOUS
+// because WASM imports cannot await.
 export type FetchBridgeRequest = {
   id: string;
   method: HttpMethod;
@@ -130,6 +142,9 @@ export type FetchBridge = {
   sendAll: (requests: FetchBridgeRequest[]) => FetchBridgeResponse[];
 };
 
+// Everything the host imports need for one source: the module's memory, the handle table,
+// settings, the fetch bridge and scratch state for partial results. The `read*`/`write*` helpers
+// are thin little-endian accessors over WASM linear memory.
 export class WasmEnv {
   memory: WebAssembly.Memory | null = null;
   store = new GlobalStore();
@@ -145,6 +160,7 @@ export class WasmEnv {
     this.fetchBridge = fetchBridge;
   }
 
+  // Captures output from the module's print/log imports; capped so a chatty source cannot grow memory.
   writeStdout(text: string): void {
     this.stdout += text;
     if (this.stdout.length > 16_384) {
@@ -190,6 +206,8 @@ export class WasmEnv {
     return new TextDecoder().decode(bytes);
   }
 
+  // Aidoku buffers start with an 8-byte header whose first i32 is the total length (header included),
+// so the payload starts 8 bytes in.
   readItemBytes(ptr: Ptr): Uint8Array {
     const len = this.readI32(ptr);
     return this.readBytes(ptr + 8, len - 8);
@@ -208,6 +226,8 @@ export class WasmEnv {
   }
 
   /** Read Aidoku FFI result blob from linear memory (see decodeResult in runner.ts). */
+  // Result blobs have an optional extended header when len == -1 (error string): the real length is
+  // stored 8 bytes in and the payload starts 12 bytes in.
   readResultBytes(ptr: Ptr): Uint8Array {
     const len = this.readI32(ptr);
     if (len === -1) {
@@ -217,6 +237,7 @@ export class WasmEnv {
     return this.readBytes(ptr + 8, len - 8);
   }
 
+  // `memory.buffer` is replaced when WASM memory grows, so a fresh DataView is created on each access.
   private memoryView(): DataView {
     if (!this.memory) {
       throw new Error('WASM memory not initialized');

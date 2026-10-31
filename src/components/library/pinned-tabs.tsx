@@ -16,8 +16,12 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { Spacing } from "@/constants/theme";
 
+// Gap between the tab bar and the content below it.
 const TABS_CONTENT_GAP = Spacing.md;
+// Height of the navigation bar once its large title has collapsed. The tabs stop at
+// safe-area top + this value, so they sit just below the (blurred) header.
 const COLLAPSED_BAR_HEIGHT = 58;
+// Sentinel for "no scroll event yet": far enough negative that the sticky position is never driven by it.
 const NOT_SCROLLED = -100000;
 const JS_SCROLL_INTERVAL_MS = 100;
 
@@ -25,6 +29,15 @@ type ScrollJsHandler = (
   event: NativeSyntheticEvent<NativeScrollEvent>,
 ) => void;
 
+// Keeps a tab bar pinned below the navigation bar while a list scrolls underneath, entirely on the UI thread.
+//
+// Why not stickyHeaderIndices? The native sticky header scrolls away under a transparent/large-title
+// header. Instead the layout is:
+//  - an in-flow `spacer` that reserves the tab bar's space at its natural position in the list,
+//  - the tab bar itself (renderTabs), absolutely positioned, translated by
+//    max(naturalTop, scrollY + collapsedTop) so it follows the content until it reaches the header and then stays.
+// The tab bar must be the LAST child of the scroll root's container so it is painted above the list rows.
+// Optionally `onScrollJS` receives throttled scroll events on the JS thread (for logic that needs them).
 export function usePinnedTabs(
   visible: boolean,
   options?: { gap?: number; onScrollJS?: ScrollJsHandler },
@@ -38,6 +51,7 @@ export function usePinnedTabs(
   const onScrollJS = options?.onScrollJS;
   const collapsedTop = insets.top + COLLAPSED_BAR_HEIGHT;
 
+  // Re-creates a scroll event on the JS thread from the plain numbers sent by the worklet.
   const callJs = useCallback(
     (payload: {
       contentOffset: { x: number; y: number };
@@ -49,6 +63,7 @@ export function usePinnedTabs(
     [onScrollJS],
   );
 
+  // Worklet: runs on the UI thread for every scroll frame. The JS callback is throttled to avoid flooding the bridge.
   const onScroll = useAnimatedScrollHandler(
     (event) => {
       scrollY.value = event.contentOffset.y;
@@ -85,6 +100,7 @@ export function usePinnedTabs(
     [stickyStyle],
   );
 
+  // The spacer's y is the tab bar's natural (unscrolled) position.
   const onSpacerLayout = useCallback(
     (event: LayoutChangeEvent) => {
       tabsTop.value = event.nativeEvent.layout.y;

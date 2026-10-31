@@ -6,6 +6,7 @@ export const DEFAULT_FETCH_USER_AGENT =
 export const NHENTAI_FETCH_USER_AGENT =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604';
 
+// nhentai is the one site that needs special-cased headers (see buildFetchHeaders).
 function isNhentaiUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname.toLowerCase();
@@ -15,6 +16,9 @@ function isNhentaiUrl(url: string): boolean {
   }
 }
 
+// Builds browser-like default headers. Precedence (lowest to highest):
+// built-in defaults -> headers supplied by the source -> automatic Referer/Origin.
+// Referer/Origin are only derived when the source did not set them itself.
 export function buildFetchHeaders(
   url: string,
   sourceHeaders: Record<string, string> = {},
@@ -49,6 +53,7 @@ export function resolveSourceBaseUrl(manifest: { info: { url?: string; urls?: st
   return manifest.info.url ?? manifest.info.urls?.[0];
 }
 
+// Prefers the source's own base URL, falling back to the origin of the requested URL.
 function resolveReferer(url: string, sourceBaseUrl?: string): string | undefined {
   if (sourceBaseUrl) {
     try {

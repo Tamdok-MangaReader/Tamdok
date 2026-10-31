@@ -3,6 +3,7 @@ import { WasmEnv } from './env';
 import { hydrateWasmDefaults } from './imports/defaults';
 import { base64ToUint8, invokeExport, resetWasmSourceRuntime } from './runner';
 
+// Messages the host receives from React Native (mirror of HostOutboundMessage in wasm-bridge.ts).
 export type HostMessage =
   | {
       type: 'invoke';
@@ -37,6 +38,9 @@ export type AidokuHost = {
   handleInvokeMessage: (message: Extract<HostMessage, { type: 'invoke' }>) => Promise<void>;
 };
 
+// Creates the host that runs in the WebView's main thread. One WasmEnv per source is kept
+// so settings and `sourceBaseUrl` persist between calls, while per-call state (handle table)
+// is reset by the runner.
 export function createHost(options: HostOptions): AidokuHost {
   const fetchBridge = new SyncFetchBridge(options.postToParent);
   const wasmCache = new Map<string, Uint8Array>();
@@ -60,6 +64,7 @@ export function createHost(options: HostOptions): AidokuHost {
       fetchBridge.handleParentMessage(message);
     },
 
+    // Processes an `invoke` message from React Native and always answers with `result` or `error`.
     async handleInvokeMessage(message) {
       const wasm = wasmCache.get(message.sourceId);
       if (!wasm) {

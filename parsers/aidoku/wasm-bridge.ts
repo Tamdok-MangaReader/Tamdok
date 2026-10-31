@@ -1,3 +1,13 @@
+// React Native side of the Aidoku WASM host.
+//
+// Aidoku sources are WebAssembly modules. They run inside a hidden WebView (see wasm-host/) because
+// React Native's JS engine cannot instantiate them. This file is the message bridge between the
+// app and that WebView:
+//   app --invoke--> WebView --(WASM calls)--> source code
+//   WebView --fetch request--> app (network goes through sharedFetch) --fetch response--> WebView
+// Network requests made by WASM are either forwarded to the app (performFetch below, which goes
+// through sharedFetch: throttling, retries, Cloudflare clearance) or performed by the WebView itself
+// with synchronous XHR; see wasm-host/fetch-bridge.ts for when each path is used.
 import type { AidokuInvokeArgs } from './runner';
 import { buildFetchHeaders } from '../shared/fetch-headers';
 import { bytesToBase64 as uint8ToBase64 } from '../shared/base64';
@@ -6,6 +16,7 @@ import { pause } from '../shared/net-policy';
 import { sanitizeAidokuInvokeError } from './errors';
 import { logAidokuWasm } from './wasm-log';
 
+// Messages sent app -> WebView.
 export type HostOutboundMessage =
   | {
       type: 'invoke';
@@ -20,6 +31,7 @@ export type HostOutboundMessage =
   | { type: 'fetch-error'; id: string; message: string }
   | { type: 'reset-source'; sourceId: string };
 
+// Messages sent WebView -> app.
 export type HostInboundMessage =
   | { type: 'ready' }
   | { type: 'host-ready' }
@@ -38,17 +50,21 @@ export type HostInboundMessage =
   | { type: 'error'; id: string; message: string };
 
 /** Stable message so UI can tell user-initiated cancel apart from real errors. */
+// The host can be restarted while calls are pending; those calls are retried (see callAidokuWasm).
 export const AIDOKU_REQUEST_CANCELLED = 'Source request cancelled';
 const AIDOKU_HOST_RESTARTED = 'Aidoku WASM host restarted';
 const HOST_RESTART_MIN_INTERVAL_MS = 2000;
 const MAX_HOST_RESTART_RETRIES = 2;
 
+// An invoke waiting for its `result`/`error` message, keyed by call id.
 type PendingCall = {
   sourceId: string;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 };
 
+// A network request started on behalf of the WebView.
+// `generation` is compared with the source's current generation to detect cancellation.
 type InflightFetch = {
   sourceId?: string;
   generation: number;
@@ -56,22 +72,33 @@ type InflightFetch = {
   settled: boolean;
 };
 
+// Transport hooks, installed by the component that owns the WebView:
+// - postToHost: WebView.postMessage (reliable, but slower for small messages)
+// - injectToHost: injectJavaScript (fast for small payloads, has size limits)
 let postToHost: ((message: HostOutboundMessage) => void) | null = null;
 let injectToHost: ((script: string) => void) | null = null;
+// Both flags must be true before calls are sent: `bridgeReady` = WebView page loaded,
+// `hostReady` = the WASM host bundle finished initialising.
 let bridgeReady = false;
 let hostReady = false;
 let callCounter = 0;
 const pendingCalls = new Map<string, PendingCall>();
+// Sources whose .wasm has already been handed to the WebView, and registrations in progress
+// (so concurrent callers share one upload).
 const registeredWasmSources = new Set<string>();
 const wasmRegistrationTasks = new Map<string, Promise<void>>();
 
 const readyWaiters = new Set<{ resolve: () => void; reject: (error: Error) => void }>();
 
+// Per-call timeouts. get_home builds many requests at once, so it gets longer.
 const INVOKE_TIMEOUT_MS = 60_000;
 const INVOKE_HOME_TIMEOUT_MS = 90_000;
+// Size of one base64 chunk injected into the WebView (injected scripts have a size limit).
 const WASM_CHUNK_SIZE = 280_000;
 
 const sourceWatchers = new Map<string, number>();
+// Cancellation without tracking every request: cancelling a source bumps its generation,
+// and any in-flight fetch that started under an older generation counts as cancelled.
 const sourceRequestGeneration = new Map<string, number>();
 const inflightFetches = new Map<string, InflightFetch>();
 
@@ -79,6 +106,7 @@ function canTalkToHost(): boolean {
   return injectToHost != null || postToHost != null;
 }
 
+// Wakes everyone waiting for the host once it is fully ready.
 function resolveReadyWaiters(): void {
   if (!bridgeReady || !hostReady || !canTalkToHost()) return;
   flushPendingSourceResets();
@@ -96,6 +124,9 @@ function injectScript(script: string): void {
 }
 
 // RN WebView injectScript is faster for small payloads; huge fetch bodies go through postMessage.
+// Small messages are injected as a script (lower latency). Other messages are injected AND posted,
+// so whichever channel the host listens on receives them. Very large fetch responses skip injection
+// and use postMessage only.
 function deliverToHost(message: HostOutboundMessage): void {
   if (message.type === 'fetch-response' || message.type === 'fetch-error') {
     const payload = JSON.stringify(message);
@@ -132,6 +163,8 @@ export function setAidokuHostRestarter(restarter: (() => void) | null): void {
   hostRestarter = restarter;
 }
 
+// Called when the WebView is torn down or restarted: every pending call is rejected with
+// AIDOKU_HOST_RESTARTED (callAidokuWasm retries those) and in-flight fetches are aborted.
 export function resetAidokuHostState(): void {
   hostReady = false;
   bridgeReady = false;
@@ -150,6 +183,7 @@ export function resetAidokuHostState(): void {
   }
 }
 
+// Restarts the WebView host, rate limited so a failing host cannot cause a restart loop.
 export function requestAidokuHostRestart(reason: string): void {
   const now = Date.now();
   if (!hostRestarter || now - lastHostRestartAt < HOST_RESTART_MIN_INTERVAL_MS) return;
@@ -165,6 +199,7 @@ export function markAidokuBridgeReady(): void {
   resolveReadyWaiters();
 }
 
+// Source resets requested while the host was unavailable are queued and flushed once it is ready.
 const pendingSourceResets = new Set<string>();
 
 function flushSourceReset(sourceId: string): void {
@@ -184,6 +219,7 @@ function flushPendingSourceResets(): void {
   }
 }
 
+// Tells the WebView to drop the instantiated WASM for a source (after an update or uninstall).
 export function resetAidokuSourceRuntime(sourceId: string): void {
   flushSourceReset(sourceId);
 }
@@ -280,6 +316,7 @@ export async function waitForAidokuBridgeReady(timeoutMs = 20000): Promise<void>
   }
 }
 
+// Uploads a source's .wasm to the WebView once. Concurrent callers await the same upload.
 async function ensureWasmRegistered(sourceId: string, wasm: Uint8Array): Promise<void> {
   if (registeredWasmSources.has(sourceId)) return;
 
@@ -322,6 +359,7 @@ async function registerWasmInHost(sourceId: string, wasm: Uint8Array): Promise<v
   await pause(32);
 }
 
+// Public entry point. Retries when the host restarted mid-call (at most MAX_HOST_RESTART_RETRIES times).
 export async function callAidokuWasm(args: AidokuInvokeArgs): Promise<unknown> {
   for (let attempt = 0; ; attempt += 1) {
     try {
@@ -333,6 +371,8 @@ export async function callAidokuWasm(args: AidokuInvokeArgs): Promise<unknown> {
   }
 }
 
+// One round trip: wait for the host, make sure the WASM is registered, send `invoke` and wait for
+// the matching `result` or `error` message identified by `call-<n>`.
 async function invokeAidokuWasmOnce(args: AidokuInvokeArgs): Promise<unknown> {
   await waitForAidokuBridgeReady();
   if (pendingSourceResets.has(args.sourceId)) {
@@ -371,6 +411,7 @@ async function invokeAidokuWasmOnce(args: AidokuInvokeArgs): Promise<unknown> {
   });
 }
 
+// Dispatcher for everything the WebView posts back.
 export function handleHostMessage(message: HostInboundMessage): void {
   switch (message.type) {
     case 'ready':
@@ -407,6 +448,8 @@ export function handleHostMessage(message: HostInboundMessage): void {
   }
 }
 
+// Executes a network request that WASM code asked for. The settle* helpers guarantee exactly one
+// reply per request, even if cancellation and completion race.
 async function performFetch(message: Extract<HostInboundMessage, { type: 'fetch' }>): Promise<void> {
   const inflight: InflightFetch = {
     sourceId: message.sourceId,
@@ -468,6 +511,7 @@ async function performFetch(message: Extract<HostInboundMessage, { type: 'fetch'
       body: message.body,
       sourceBaseUrl: message.sourceBaseUrl,
       signal: inflight.abort.signal,
+      // WASM sources have no retry logic of their own, so the host layer retries more aggressively.
       maxAttempts: 6,
       onLog: (level, text) => logAidokuWasm(level, text),
     });
@@ -478,6 +522,7 @@ async function performFetch(message: Extract<HostInboundMessage, { type: 'fetch'
     }
 
     if (result.status >= 400) {
+      // MangaDex answers 400 for batches containing unknown ids; that is expected and not worth a warning.
       const isMangadexBatch =
         result.status === 400 && message.url.includes('api.mangadex.org') && message.url.includes('ids[]=');
       logAidokuWasm(

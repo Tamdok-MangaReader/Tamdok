@@ -8,6 +8,8 @@ enum HtmlResult {
   NoResult = -5,
 }
 
+// Node kinds reported by `kind()`. The numbers are part of the Aidoku ABI (they mirror the
+// variants of the Rust-side enum) and must not be renumbered.
 enum Kind {
   Unknown = 0,
   Node = 1,
@@ -19,6 +21,11 @@ enum Kind {
 }
 
 // DOM helpers for Aidoku sources that scrape HTML in WASM.
+// Implements Aidoku's `html` imports (a SwiftSoup/jsoup-like API) on top of linkedom.
+// The handle table can hold documents, elements, generic nodes and lists of elements/nodes, and
+// most functions behave differently depending on which of these the Rid points to.
+// Mutation functions (set_attr, append, remove, ...) are deliberately unsupported and return an error.
+// A return value of NoResult means "not found" (the Rust side maps it to None).
 export function createHtmlImports(env: WasmEnv) {
   return {
     parse: (htmlPtr: number, htmlLen: number, baseUrlPtr: number, baseUrlLen: number): FFIResult => {
@@ -227,6 +234,7 @@ export function createHtmlImports(env: WasmEnv) {
       if (item?.kind === 'htmlNodeList') return item.value.length;
       return HtmlResult.InvalidDescriptor;
     },
+    // Supports the `abs:` prefix (see dom.attr). On a list, returns the first element that has the attribute.
     attr: (rid: number, keyPtr: number, keyLen: number): FFIResult => {
       try {
         const key = env.readString(keyPtr, keyLen);
@@ -263,6 +271,8 @@ export function createHtmlImports(env: WasmEnv) {
       return HtmlResult.InvalidDescriptor;
     },
     remove: () => HtmlResult.InvalidDescriptor,
+    // CSS selector query. On a document an empty result is a valid (empty) list; on an element or list,
+    // no match is reported as NoResult. Selector syntax errors surface as InvalidQuery.
     select: (rid: number, queryPtr: number, queryLen: number): FFIResult => {
       try {
         const selector = env.readString(queryPtr, queryLen);
@@ -312,6 +322,7 @@ export function createHtmlImports(env: WasmEnv) {
         return HtmlResult.InvalidQuery;
       }
     },
+    // Text of an element is trimmed here; lists join their elements' text with spaces.
     text: (rid: number): FFIResult => {
       const item = env.store.getMut(rid);
       if (item?.kind === 'htmlElement') {

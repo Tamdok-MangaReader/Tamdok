@@ -7,8 +7,10 @@ export function isNhentaiHost(url: string): boolean {
   }
 }
 
+// Never wait longer than this, even if the server asks for more.
 const MAX_RETRY_AFTER_MS = 20_000;
 
+// Parses a Retry-After header, which is either a number of seconds or an HTTP date.
 export function parseRetryAfterMs(header?: string | null): number | undefined {
   if (!header) return undefined;
   const trimmed = header.trim();
@@ -25,10 +27,13 @@ export function parseRetryAfterMs(header?: string | null): number | undefined {
   return undefined;
 }
 
+// +/-15% random spread so parallel requests do not all retry at the same instant.
 function withJitter(ms: number): number {
   return Math.round(ms * (0.85 + Math.random() * 0.3));
 }
 
+// Backoff for retry `attempt` (1-based). Rate-limit statuses honour Retry-After or
+// back off by 2s per attempt (capped at 12s); other failures back off by 1s per attempt.
 export function retryDelayMs(status: number, attempt: number, retryAfterHeader?: string): number {
   if (status === 429 || status === 503) {
     const fromHeader = parseRetryAfterMs(retryAfterHeader);

@@ -28,10 +28,14 @@ export type QueueDownloadInput = Pick<
   "sourceId" | "mangaKey" | "chapterKey" | "mangaTitle" | "chapterTitle"
 >;
 
+// Pages of one chapter are downloaded in parallel with this many workers.
 const PAGE_CONCURRENCY = 4;
+// Per-page progress updates are batched: listeners are notified at most this often.
 const PROGRESS_NOTIFY_MS = 500;
 const SOURCE_PREFIX = /^(aidoku|tamdok):/;
 
+// The download list is persisted as one JSON document and mirrored in memory. All writes go through
+// mutateStore, which serialises them (mutationTail) so concurrent updates never overwrite each other.
 let cache: DownloadStore | null = null;
 let cacheLoad: Promise<DownloadStore> | null = null;
 let mutationTail: Promise<void> = Promise.resolve();
@@ -58,6 +62,8 @@ export function invalidateDownloadsCache(): void {
   cache = null;
 }
 
+// `apply` mutates the in-memory store and returns whether anything changed; only then it is
+// persisted and listeners are notified.
 function mutateStore(
   apply: (store: DownloadStore) => boolean,
   persist = true,
@@ -107,6 +113,7 @@ function matchesDownload(
   );
 }
 
+// Older data may have been stored with or without the `aidoku:`/`tamdok:` prefix, so lookups try both.
 function sourceIdCandidates(sourceId: string): string[] {
   const stripped = sourceId.replace(SOURCE_PREFIX, "");
   return stripped === sourceId ? [sourceId] : [sourceId, stripped];
@@ -239,6 +246,8 @@ export async function updateDownloadStatus(
 
 let progressTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Hot path (called after every page): only updates memory and schedules a throttled notification,
+// without writing to storage.
 function reportProgress(
   sourceId: string,
   mangaKey: string,
@@ -322,6 +331,9 @@ export async function clearFailedDownloads(): Promise<void> {
   });
 }
 
+// Downloads all pages with a small worker pool. The first failure stops the other workers (`failed`)
+// and rejects, which marks the chapter as failed. Files are stored as page_0000.jpg, ... plus a
+// manifest.json listing them in reading order; the entry is marked completed only after the manifest is written.
 export async function saveDownloadedPages(
   sourceId: string,
   mangaKey: string,
@@ -385,6 +397,8 @@ export async function saveDownloadedPages(
   await updateDownloadStatus(sourceId, mangaKey, chapterKey, "completed", 1);
 }
 
+// Returns file:// URLs for an offline chapter, or null if it is not (fully) available. At least one
+// file must really exist, which protects against the OS purging files while the entry says completed.
 export async function getDownloadedPageUrls(
   sourceId: string,
   mangaKey: string,
@@ -441,6 +455,8 @@ export type DownloadPageList = {
   pageHeaders?: (Record<string, string> | undefined)[];
 };
 
+// The queue is processed by a single chain of promises (queueTail) so two runs never overlap.
+// `queueGeneration` lets a reset invalidate a run that is already in progress.
 let queueTail: Promise<void> = Promise.resolve();
 let queueGeneration = 0;
 
@@ -463,6 +479,8 @@ export async function hasUnfinishedDownloads(): Promise<boolean> {
   );
 }
 
+// After the app was killed or suspended, entries can be stuck in `downloading` with nothing running.
+// Bumping the generation stops any old run; stuck entries go back to `pending` so they restart.
 export async function resetStuckDownloadQueue(): Promise<void> {
   queueGeneration += 1;
   queueTail = Promise.resolve();
@@ -479,6 +497,9 @@ export async function resetStuckDownloadQueue(): Promise<void> {
   });
 }
 
+// Takes pending entries oldest-first, a few at a time, and keeps looping until none are left.
+// `fetchPages` is injected so this module does not depend on source runtimes. Failures are recorded
+// per chapter and do not stop the rest of the queue. Wi-Fi-only mode stops the run when not on Wi-Fi.
 export async function processDownloadQueue(
   fetchPages: (
     sourceId: string,

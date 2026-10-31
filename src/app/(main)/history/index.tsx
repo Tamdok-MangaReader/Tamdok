@@ -93,6 +93,7 @@ type MangaHistoryGroup = {
   timeRange: string;
 };
 
+// Flat row model for the virtualised list: a day header followed by one row per manga read that day.
 type HistoryRow =
   | {
       kind: "header";
@@ -237,6 +238,7 @@ function buildRows(
   let isFirst = true;
 
   for (const [title, dateEntries] of byDate) {
+    // Header rows keep a reference to their groups so the whole day can be deleted from its long-press menu.
     const headerRow: Extract<HistoryRow, { kind: "header" }> = {
       kind: "header",
       id: `header:${title}`,
@@ -264,6 +266,8 @@ function buildRows(
       const from = formatHistoryTime(oldest.dateRead);
       const to = formatHistoryTime(newest.dateRead);
 
+      // Entries are grouped per manga per day. Reusing the previous group object when nothing changed keeps
+      // memoised rows from re-rendering on every reload.
       const candidate: MangaHistoryGroup = {
         key,
         sourceId: newest.sourceId,
@@ -308,6 +312,7 @@ const renderScrollComponent = (props: ScrollViewProps) => (
 
 const LIST_HEADER = <IncognitoModeBanner />;
 
+// Every deletion from history asks for confirmation first.
 function confirmDelete(message: string, onConfirm: () => void) {
   Alert.alert(t("history_delete_confirm_title"), message, [
     { text: t("cancel"), style: "cancel" },

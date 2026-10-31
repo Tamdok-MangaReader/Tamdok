@@ -1,7 +1,11 @@
+// Turns raw errors coming out of WASM sources into messages a user can act on.
+// Sources report failures as low-level strings (for example a JSON parse error caused by an
+// HTTP 403 page), so common patterns are recognised and replaced with guidance.
 export function sanitizeAidokuInvokeError(message: string): string {
   if (message.includes('Error 403') || /\b403\b/.test(message)) {
     return 'Access denied (HTTP 403). Try another API domain in source settings, or log in if the source requires an account.';
   }
+  // A JSON parse failure on the first byte almost always means the server returned an HTML/blocked page.
   if (message.startsWith('JSON error') || message.includes('expected value at line 1')) {
     if (message.includes('612 bytes') || message.includes('612bytes')) {
       return 'API blocked (HTTP 403). Open source settings and pick a backup API domain (e.g. api.cdnlibs.org for MangaLib).';

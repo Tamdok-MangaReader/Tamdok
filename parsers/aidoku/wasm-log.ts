@@ -8,6 +8,7 @@ const LEVEL_RANK: Record<WasmLogLevel, number> = {
 };
 
 /** Only warn/error are printed; debug/info are dropped silently. */
+// Raise or lower this while debugging a source; debug logs are very chatty (every fetch is logged).
 const MIN_VISIBLE_LEVEL: WasmLogLevel = 'warn';
 
 export function logAidokuWasm(level: WasmLogLevel, message: string): void {

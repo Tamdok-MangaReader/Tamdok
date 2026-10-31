@@ -12,6 +12,7 @@ function decodePostcard<T>(schema: Parameters<typeof deserialize>[0], bytes: Uin
 }
 
 // Aidoku can stream home layout pieces before the final postcard arrives.
+// Home components are identified by their title: a later piece replaces an earlier one with the same title.
 function mergeHomeComponent(layout: PostcardHomeLayout, component: PostcardHomeLayout['components'][number]): void {
   const title = component.title ?? null;
   const index = layout.components.findIndex((entry) => (entry.title ?? null) === title);
@@ -22,11 +23,15 @@ function mergeHomeComponent(layout: PostcardHomeLayout, component: PostcardHomeL
   layout.components.push(component);
 }
 
+// Cleared at the start of every invocation.
 export function resetPartialResults(env: WasmEnv): void {
   env.homePartialLayout = null;
   env.partialMangaResults = [];
 }
 
+// Called when the module streams an intermediate result through `send_partial_result`, so slow
+// sources can show content before they finish. The payload type is not tagged, so the bytes are
+// tried against each known schema in turn: tagged home piece, full home layout, then a manga.
 export function handlePartialResultBytes(env: WasmEnv, bytes: Uint8Array): void {
   const homePartial = decodePostcard<{ type: string; value: unknown }>(HomePartialResultSchema, bytes);
   if (homePartial) {

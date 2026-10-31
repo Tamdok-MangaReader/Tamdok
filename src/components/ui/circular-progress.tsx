@@ -8,6 +8,11 @@ type CircularProgressProps = {
   trackColor: string;
 };
 
+// Ring progress indicator built from plain Views (no SVG dependency).
+//
+// Technique: two half-circle clipping containers (left and right) each hold a full ring whose border colour
+// is visible only on two adjacent sides; rotating that ring reveals an arc. The right half fills from 0 to 50%,
+// then the left half fills from 50% to 100%. The -135deg offset aligns the start of the arc with 12 o'clock.
 export function CircularProgress({
   size,
   thickness,

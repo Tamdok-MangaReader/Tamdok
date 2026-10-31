@@ -7,6 +7,8 @@ import {
 import { getAppSettings } from "@/services/app-settings";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
 
+// Reading progress of one chapter. `page` is the last page index reached; the special value -1 means the
+// chapter is completely read.
 export type ChapterProgress = {
   sourceId: string;
   mangaKey: string;
@@ -15,6 +17,8 @@ export type ChapterProgress = {
   dateRead: number;
 };
 
+// One line of the reading history (the History tab). Titles and the cover are copied here so history can be
+// shown without loading the manga again.
 export type HistoryEntry = {
   sourceId: string;
   mangaKey: string;
@@ -26,6 +30,8 @@ export type HistoryEntry = {
   page?: number;
 };
 
+// Everything is stored in a single document: `chapters` (progress, keyed by source:manga:chapter)
+// and `history` (newest first).
 type TrackingStore = {
   chapters: Record<string, ChapterProgress>;
   history: HistoryEntry[];
@@ -38,6 +44,7 @@ type HistoryMeta = Pick<
   notify?: boolean;
 };
 
+// Change notifications are debounced so rapid progress writes while reading do not rerender every screen.
 const NOTIFY_DELAY_MS = 80;
 const LIBRARY_SYNC_DELAY_MS = 150;
 
@@ -81,11 +88,14 @@ function removeChapterHistory(
   );
 }
 
+// A chapter appears only once in the history: re-reading removes the old entry and puts a fresh one on top.
 function upsertChapterHistory(store: TrackingStore, entry: HistoryEntry): void {
   removeChapterHistory(store, entry.sourceId, entry.mangaKey, entry.chapterKey);
   store.history.unshift(entry);
 }
 
+// Cache of the parsed store, valid while the serialized value in storage is unchanged. Another writer
+// (for example a backup restore) invalidates it automatically because the raw string differs.
 let trackingCache: { raw: string | undefined; store: TrackingStore } | null =
   null;
 
@@ -104,6 +114,8 @@ async function readStore(): Promise<TrackingStore> {
   return store;
 }
 
+// All writes are serialised through mutationTail (read-modify-write must not interleave).
+// `apply` returns false when nothing changed, which skips the write and the notification.
 function mutateStore(
   apply: (store: TrackingStore) => boolean,
   notify = true,
@@ -123,11 +135,14 @@ function mutateStore(
   return run;
 }
 
+// Incognito mode: progress and history are not recorded.
 async function trackingWritesDisabled(): Promise<boolean> {
   const settings = await getAppSettings();
   return settings.incognitoMode;
 }
 
+// After read marks change, the library's unread badge for that manga is refreshed (debounced per manga).
+// The library module is imported lazily to avoid a circular import.
 function scheduleLibraryUnreadSync(sourceId: string, mangaKey: string) {
   const key = mangaHistoryKey(sourceId, mangaKey);
   const existing = syncTimers.get(key);
@@ -195,6 +210,7 @@ export async function getReadChapterKeysByManga(): Promise<
   return map;
 }
 
+// Marks a chapter fully read (page = -1) and moves it to the top of the history.
 export async function markChapterRead(
   sourceId: string,
   mangaKey: string,
@@ -343,6 +359,8 @@ export async function markAllChaptersUnread(
   if (changed) scheduleLibraryUnreadSync(sourceId, mangaKey);
 }
 
+// Stores the last page reached. Page -1 is the "fully read" marker, so this is also how the reader
+// re-affirms read chapters.
 export async function recordChapterProgress(
   sourceId: string,
   mangaKey: string,
@@ -387,6 +405,8 @@ export async function getMangaHistoryForEntry(
   );
 }
 
+// History is the union of explicit history entries and chapters that only have progress (for example
+// imported from a backup), newest first. Covers are filled in from any entry of the same manga.
 export async function getHistoryEntries(
   limit?: number,
 ): Promise<HistoryEntry[]> {
@@ -504,6 +524,7 @@ export type MangaReadingResume = {
   page: number;
 };
 
+// "Continue reading": the chapter with the most recent activity. A fully read chapter resumes at page 0.
 export async function getMangaReadingResume(
   sourceId: string,
   mangaKey: string,

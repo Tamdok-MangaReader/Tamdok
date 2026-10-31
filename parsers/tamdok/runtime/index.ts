@@ -12,10 +12,16 @@ import {
   reportSourceTrouble,
 } from "@/utils/source-connection-status";
 
+// Request cancellation bookkeeping, keyed by source id.
+// - sourceControllers: AbortControllers of requests currently in flight.
+// - sourceWatchers: how many screens currently care about the source's requests (ref count).
+// - sourceBlockedUntil: after a cancel, new requests are rejected for a short window so a
+//   screen that was just left cannot immediately start fresh work for the source.
 const sourceControllers = new Map<string, Set<AbortController>>();
 const sourceWatchers = new Map<string, number>();
 const sourceBlockedUntil = new Map<string, number>();
 const controllerCreatedAt = new WeakMap<AbortController, number>();
+// How long requests stay blocked after cancelTamdokSourceRequests.
 const CANCEL_BLOCK_MS = 4000;
 
 function cancelledError(): Error {
@@ -24,6 +30,8 @@ function cancelledError(): Error {
   return error;
 }
 
+// A screen calls retain when it starts using a source and release when it leaves.
+// When the last watcher releases, every in-flight request of that source is aborted.
 export function retainTamdokSourceRequests(sourceId: string): void {
   sourceBlockedUntil.delete(sourceId);
   sourceWatchers.set(sourceId, (sourceWatchers.get(sourceId) ?? 0) + 1);
@@ -47,6 +55,8 @@ export function cancelTamdokSourceRequests(sourceId: string): void {
   for (const controller of controllers) controller.abort();
 }
 
+// Aborts only requests started at or before `cutoff` (used to drop stale requests on refresh
+// while keeping the newer ones alive).
 export function cancelTamdokSourceRequestsBefore(
   sourceId: string,
   cutoff: number,
@@ -61,6 +71,8 @@ export function cancelTamdokSourceRequestsBefore(
   }
 }
 
+// Wraps a request with source-level cancellation: the request gets its own controller,
+// registered under the source id, and is also linked to the caller's own AbortSignal.
 async function performRequest(
   url: string,
   init: RequestInit | undefined,
@@ -105,6 +117,8 @@ async function performRequest(
   }
 }
 
+// Translates a fetch-style call into sharedFetch and feeds the outcome into the
+// connection-status indicator (retries, 429 and 5xx count as trouble; < 400 as healthy).
 async function performRequestInner(
   url: string,
   init: RequestInit | undefined,
@@ -114,6 +128,7 @@ async function performRequestInner(
 ): Promise<TamdokResponse> {
   const initHeaders = headersFromInit(init?.headers);
   const method = init?.method ?? "GET";
+  // Everything in RequestInit that sharedFetch does not handle itself is passed through unchanged.
   const passthrough: Record<string, unknown> = { ...init };
   delete passthrough.headers;
   delete passthrough.method;
@@ -149,6 +164,8 @@ async function performRequestInner(
   return createResponse(result);
 }
 
+// The `request` helper handed to sources. Sources get a tiny fetch-like API,
+// never the raw global fetch.
 export function createRequest(
   sourceBaseUrl?: string,
   sourceId?: string,
@@ -177,6 +194,7 @@ function headersFromInit(headers?: HeadersInit): Record<string, string> {
   return headers;
 }
 
+// Response objects are fully buffered: `text()`, `json()` and `html()` can be called repeatedly.
 function createResponse(result: {
   status: number;
   url: string;
@@ -192,6 +210,8 @@ function createResponse(result: {
   };
 }
 
+// Source settings are mirrored in memory so `defaults.get` can stay synchronous inside sources.
+// Keys are namespaced as `<sourceId>:<key>`.
 const defaultsStore = new Map<string, unknown>();
 
 export function hydrateTamdokDefaults(
@@ -226,6 +246,7 @@ export function createDefaults(
   };
 }
 
+// Cookies captured by the in-app web login for this source (see the source's login setting).
 export async function getCookies(sourceId: string): Promise<JSON | null> {
   const stored = await SecureStore.getItemAsync(`source_cookies_${sourceId}`);
   if (!stored) return null;
@@ -236,6 +257,7 @@ export async function getCookies(sourceId: string): Promise<JSON | null> {
   }
 }
 
+// The context object passed to every source function.
 export function createSourceContext(
   sourceId: string,
   sourceBaseUrl?: string,

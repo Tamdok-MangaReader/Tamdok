@@ -2,6 +2,9 @@ import { parseHTML } from 'linkedom';
 
 import type { HtmlDocumentState, HtmlElementState, HtmlNodeState } from './env';
 
+// Thin helpers over linkedom (a lightweight DOM that works inside the WebView/worker).
+// Every wrapper carries the owning `document` and the `baseUri` so relative URLs can be
+// resolved later; nodeType numbers follow the DOM spec (1 element, 3 text, 8 comment, 9 document).
 let nodeCounter = 1;
 
 export function createDocument(html: string, baseUri?: string): HtmlDocumentState {
@@ -9,6 +12,7 @@ export function createDocument(html: string, baseUri?: string): HtmlDocumentStat
   return { document, baseUri };
 }
 
+// Fragments are wrapped in html/body so the parser keeps elements such as <tr> or <li> intact.
 export function createFragment(html: string, baseUri?: string): HtmlDocumentState {
   const { document } = parseHTML(`<html><body>${html}</body></html>`);
   return { document, baseUri };
@@ -83,6 +87,7 @@ export function previousNode(node: HtmlNodeState): HtmlNodeState | null {
   return { document: node.document, node: prev, baseUri: node.baseUri };
 }
 
+// `root` may be a whole document (which has no `node`) or an element wrapper.
 export function selectElements(root: HtmlDocumentState | HtmlElementState, selector: string): HtmlElementState[] {
   const scope = 'node' in root ? (root.node as Element) : root.document;
   const elements = scope.querySelectorAll(selector);
@@ -104,6 +109,7 @@ export function selectFirstElement(root: HtmlDocumentState | HtmlElementState, s
   };
 }
 
+// Mimics jsoup: `abs:href` returns the attribute resolved against the document's base URI.
 export function attr(element: HtmlElementState, name: string): string | null {
   const hasAbsPrefix = name.startsWith('abs:');
   const attrName = hasAbsPrefix ? name.slice(4) : name;
@@ -143,6 +149,7 @@ export function outerHtml(element: HtmlElementState): string {
   return (element.node as Element).outerHTML;
 }
 
+// Only the first child text node, not the text of descendants (jsoup `ownText` approximation).
 export function ownText(element: HtmlElementState): string | null {
   const first = element.node.childNodes[0];
   if (!first || first.nodeType !== 3) return null;
@@ -195,6 +202,7 @@ export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Only &amp;, &lt; and &gt; are decoded; other entities are passed through unchanged.
 export function unescapeHtml(text: string): string {
   let unescaped = '';
   let i = 0;

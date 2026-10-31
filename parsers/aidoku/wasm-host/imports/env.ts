@@ -15,12 +15,14 @@ export function createEnvImports(env: WasmEnv) {
         env.writeStdout('error: failed to read string for printing.\n');
       }
     },
+    // Busy-waits: WASM imports are synchronous and there is no way to yield to the event loop here.
     sleep: (seconds: number) => {
       const start = Date.now();
       while (Date.now() - start < seconds * 1000) {
         // busy wait
       }
     },
+    // See partial-results.ts: lets a source stream intermediate home/search results.
     send_partial_result: (ptr: number) => {
       try {
         const bytes = env.readResultBytes(ptr);

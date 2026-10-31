@@ -17,6 +17,9 @@ import {
   unitVariant,
 } from '@variegated-coffee/serde-postcard-ts';
 
+// Postcard schemas mirroring the Rust types of the Aidoku ABI (aidoku-rs). Field ORDER matters:
+// postcard is a compact positional format with no field names, so every struct and enum variant
+// must be declared in exactly the same order as on the Rust side.
 export const MangaStatusSchema = enumType('MangaStatus', {
   Unknown: unitVariant('Unknown'),
   Ongoing: unitVariant('Ongoing'),

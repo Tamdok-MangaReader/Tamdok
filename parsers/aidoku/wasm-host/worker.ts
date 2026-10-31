@@ -3,6 +3,9 @@ import { WasmEnv } from './env';
 import { hydrateWasmDefaults } from './imports/defaults';
 import { invokeExport, resetWasmSourceRuntime } from './runner';
 
+// Web Worker flavour of the host. Running WASM in a worker keeps the WebView UI thread free and
+// allows Atomics.wait (blocking is not allowed on the main thread). Network requests are
+// delegated to the main thread through the SharedArrayBuffer pool (see fetch-bridge.ts).
 declare const self: Worker;
 
 let fetchBridge: ReturnType<typeof createWorkerParentFetchBridge> | null = null;
@@ -30,6 +33,7 @@ function getEnv(sourceId: string): WasmEnv {
 // One invoke at a time per source; WASM module state is not re-entrant.
 const invokeQueues = new Map<string, Promise<unknown>>();
 
+// Serialises calls per source: chains each task after the previous one, ignoring earlier failures.
 function runQueued<T>(sourceId: string, task: () => Promise<T>): Promise<T> {
   const previous = invokeQueues.get(sourceId) ?? Promise.resolve();
   const current = previous.catch(() => undefined).then(task);

@@ -1,3 +1,5 @@
+// Core data model shared by every source runtime. Runtimes translate their own
+// formats into these types so the rest of the app is source-agnostic.
 export type MangaStatus =
   "unknown" | "ongoing" | "completed" | "hiatus" | "cancelled";
 
@@ -5,6 +7,9 @@ export type ContentRating = "safe" | "suggestive" | "nsfw";
 
 export type Viewer = "default" | "rtl" | "ltr" | "webtoon" | "vertical";
 
+// A title. `key` is the source-specific identifier (unique within one source).
+// Lists usually return a partial Manga (key, title, cover); details and chapters
+// are filled in later through getMangaUpdate.
 export type Manga = {
   key: string;
   title: string;
@@ -23,6 +28,8 @@ export type Manga = {
   sourceId?: string;
 };
 
+// A chapter. `key` is the source-specific id. Numbers and dates are optional because
+// many sources do not provide them. `dateUploaded` is the upload time as a Unix timestamp.
 export type Chapter = {
   key: string;
   title?: string;
@@ -36,6 +43,8 @@ export type Chapter = {
   locked?: boolean;
 };
 
+// One reader page. Usually `url` (an image), but a source may also return plain `text`
+// (text chapters) or a `zipUrl` that is expanded into several images (see zip-pages.ts).
 export type Page = {
   url?: string;
   text?: string;
@@ -56,6 +65,7 @@ export type MangaPageResult = {
   hasNextPage: boolean;
 };
 
+// The user's current value for a filter. The `type` matches the FilterDefinition with the same id.
 export type FilterValue =
   | { type: "sort"; id: string; index: number; ascending: boolean }
   | { type: "select"; id: string; value: string }
@@ -70,12 +80,14 @@ export type FilterValue =
   | { type: "check"; id: string; value: boolean }
   | { type: "range"; id: string; from?: number; to?: number };
 
+// A named, paginated list a source can serve (for example "Popular" or "Latest").
 export type Listing = {
   id: string;
   name?: string;
   kind?: "grid" | "list";
 };
 
+// Building blocks of a source's home page (modelled after Aidoku's home layout).
 export type HomeComponentKind =
   | "scroller"
   | "bigScroller"
@@ -137,6 +149,8 @@ export type HomeLayout = {
   components: HomeComponent[];
 };
 
+// Describes the filters a source supports so the UI can render them.
+// A source returns definitions; the app keeps the matching FilterValue list.
 export type FilterDefinition =
   | {
       type: "sort";
@@ -189,6 +203,7 @@ export type FilterDefinition =
       hideFromHeader?: boolean;
     };
 
+// Manifest of a Tamdok (JavaScript) source: static metadata plus declarative listings, filters and settings.
 export type TamdokSourceManifest = {
   info: SourceInfo;
   listings?: Listing[];
@@ -232,6 +247,8 @@ export type TamdokSettingFieldDefinition =
   | { type: "link"; id: string; title: string; url: string }
   | { type: "login"; id: string; title: string; url: string };
 
+// What a Tamdok source's index.js must export. Every function is optional; the runtime only
+// advertises capabilities that the module actually implements.
 export type TamdokSourceModule = {
   getSearchMangaList?: (
     params: SourceListParams,
@@ -258,6 +275,7 @@ export type TamdokSourceModule = {
   getFilters?: (ctx: TamdokSourceContext) => Promise<FilterDefinition[]>;
 };
 
+// Static information about a source. `minAppVersion`/`maxAppVersion` let a source declare compatibility.
 export type SourceInfo = {
   id: string;
   name: string;
@@ -276,6 +294,7 @@ export type SourceManifest = {
   config?: Record<string, unknown>;
 };
 
+// `aidoku` sources run as WASM modules, `tamdok` sources run as JavaScript.
 export type SourceKind = "aidoku" | "tamdok";
 
 export type InstalledSource = {
@@ -286,6 +305,7 @@ export type InstalledSource = {
   iconUri?: string;
 };
 
+// One source listed in a registry's index.min.json. `downloadURL` may be relative to the registry URL.
 export type RegistryEntry = {
   id: string;
   name: string;
@@ -311,6 +331,7 @@ export type SourceListParams = {
   filters?: FilterValue[];
 };
 
+// Object passed as the last argument to every Tamdok source function.
 export type TamdokSourceContext = {
   request: TamdokRequest;
   defaults: TamdokDefaults;
@@ -318,6 +339,8 @@ export type TamdokSourceContext = {
   sourceId: string;
 };
 
+// HTTP helpers for sources. All of them go through the shared fetch layer
+// (throttling, retries, Cloudflare clearance), so sources should not call fetch() directly.
 export type TamdokRequest = {
   get: (url: string, init?: RequestInit) => Promise<TamdokResponse>;
   post: (url: string, init?: RequestInit) => Promise<TamdokResponse>;
@@ -332,6 +355,7 @@ export type TamdokResponse = {
   html: () => import("node-html-parser").HTMLElement;
 };
 
+// Per-source persistent key/value storage (backs the source's settings).
 export type TamdokDefaults = {
   get: <T>(key: string, fallback?: T) => T | undefined;
   set: <T>(key: string, value: T) => Promise<void>;

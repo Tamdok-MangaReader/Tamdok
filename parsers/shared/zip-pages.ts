@@ -9,6 +9,7 @@ function isImagePath(path: string): boolean {
   return IMAGE_EXTENSIONS.test(path);
 }
 
+// Natural sort so 2.jpg comes before 10.jpg.
 function sortImagePaths(paths: string[]): string[] {
   return paths.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
 }
@@ -28,6 +29,8 @@ function bytesToDataUrl(path: string, bytes: Uint8Array): string {
   return `data:${mime};base64,${bytesToBase64(bytes)}`;
 }
 
+// Some sources return one "page" that is really a zip of images (zipUrl, optionally filtered by zipEntry).
+// This downloads and unpacks it into one data: URL per image. On any failure the original page is kept.
 async function expandZipPage(page: Page): Promise<Page[]> {
   if (!page.zipUrl) return [page];
 

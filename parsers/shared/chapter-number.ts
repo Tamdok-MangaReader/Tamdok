@@ -17,6 +17,7 @@ export function formatChapterNumberValue(value: number): string {
 }
 
 /** Source keys/IDs like 108483889558806971 are not chapter numbers. */
+// UUIDs and very long digit strings are internal IDs, never something to show as a title.
 export function looksLikeOpaqueChapterId(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) return true;

@@ -15,6 +15,8 @@ export function normalizeManga(manga: Manga): Manga {
   };
 }
 
+// Sources may return snake_case fields and noisy numbers (float artefacts, opaque IDs as titles).
+// This maps everything into the app's Chapter shape and cleans up the values.
 export function normalizeChapter(chapter: Chapter): Chapter {
   const raw = chapter as Chapter & {
     chapter_number?: number;

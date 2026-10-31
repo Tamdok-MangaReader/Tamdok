@@ -1,5 +1,7 @@
 import type { WasmEnv } from '../env';
 
+// The `canvas` namespace (image compositing, used by a few sources to descramble pages) is not
+// implemented. Stubs keep instantiation working; calls fail with -1.
 const STUB = -1;
 
 export function createCanvasImports(_env: WasmEnv) {

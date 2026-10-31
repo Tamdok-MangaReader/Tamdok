@@ -1,5 +1,7 @@
 import type { WasmEnv } from '../env';
 
+// The `js` namespace (JavaScript contexts and web views) is not supported. Every function returns -1
+// so sources that call it get a clean error instead of a missing-import instantiation failure.
 const STUB = -1;
 
 export function createJsImports(_env: WasmEnv) {
