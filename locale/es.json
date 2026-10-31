@@ -643,5 +643,15 @@
   "history_delete_day_confirm": "Se quitarán del historial los capítulos leídos de todos los títulos de \"{title}\".",
   "history_delete_manga_confirm": "Se quitarán del historial los capítulos leídos de este título.",
   "history_delete_chapter_confirm": "Este capítulo leído se quitará del historial.",
-  "history_delete_confirm_title": "¿Eliminar del historial?"
+  "history_delete_confirm_title": "¿Eliminar del historial?",
+  "reader_offline_chapter": "Sin conexión a internet y este capítulo no está descargado.",
+  "reader_load_timeout": "La fuente no respondió a tiempo. Comprueba tu conexión e inténtalo de nuevo.",
+  "reader_offline_title": "Sin conexión a internet",
+  "reader_offline_next_message": "El siguiente capítulo no está descargado. Conéctate a internet o descárgalo antes.",
+  "error_title_timeout": "La fuente tarda demasiado",
+  "error_title_generic": "Algo salió mal",
+  "source_blocked_hint": "El sitio bloqueó la solicitud (HTTP 403). Prueba a desactivar la VPN o abre los ajustes de la fuente y supera la verificación de Cloudflare.",
+  "source_requires_newer_app": "Esta fuente requiere Tamdok {version} o superior (tienes {current}). Actualiza la app para instalarla.",
+  "source_requires_older_app": "Esta fuente solo funciona hasta Tamdok {version} (tienes {current}).",
+  "source_requires_app_short": "Requiere app {version}+"
 }

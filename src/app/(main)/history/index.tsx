@@ -156,6 +156,21 @@ function sourceKindLabel(kind: string): string {
   return kind.toUpperCase();
 }
 
+// Shown when the source is not installed (or not loaded yet): "multi.mangaplus.tamdok" becomes
+// "Mangaplus · TAMDOK" instead of the raw id.
+function fallbackSourceLabel(sourceId: string): string {
+  const parts = sourceId
+    .replace(/^(aidoku|tamdok):/, "")
+    .replace(/@v\d+$/, "")
+    .split(".");
+  const last = parts[parts.length - 1]?.toLowerCase();
+  const kind = last === "tamdok" || last === "aidoku" ? last : null;
+  const nameParts = kind ? parts.slice(0, -1) : parts;
+  const name = nameParts[nameParts.length - 1] ?? sourceId;
+  const pretty = name.charAt(0).toUpperCase() + name.slice(1);
+  return kind ? `${pretty} · ${sourceKindLabel(kind)}` : pretty;
+}
+
 type ChapterLookup = Map<string, { chapter: Chapter; ordinal: number }>;
 const chapterLookupCache = new WeakMap<Chapter[], ChapterLookup>();
 
@@ -531,7 +546,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     ? "Komga"
     : source
       ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
-      : group.sourceId;
+      : fallbackSourceLabel(group.sourceId);
 
   const coverSource = useMemo(
     () =>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Platform, Pressable, StyleSheet, View } from "react-native";
-import { FullWindowOverlay } from "react-native-screens";
+import { FullWindowOverlay } from '@/components/ui/full-window-overlay';
 import { Ionicons } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ui/themed-text";

@@ -21,16 +21,31 @@
         "NSUserNotificationsUsageDescription": "Tamdok schedules local reminders for new chapters notification.",
         "NSContactsUsageDescription": "Tamdok uses Live Text on manga pages. Some images may contain contact information that iOS can recognize.",
         "NSLocalNetworkUsageDescription": "Tamdok connects to the development server on your local network during development.",
-        "NSBonjourServices": ["_expo._tcp", "_http._tcp"],
+        "NSBonjourServices": [
+          "_expo._tcp",
+          "_http._tcp"
+        ],
         "LSSupportsOpeningDocumentsInPlace": false,
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "Tamdok data",
             "LSHandlerRank": "Alternate",
-            "LSItemContentTypes": ["public.json", "public.plain-text"]
+            "LSItemContentTypes": [
+              "public.json",
+              "public.plain-text"
+            ]
           }
         ],
-        "CFBundleLocalizations": ["en", "ru", "es", "pt", "fr", "de", "id", "ja"]
+        "CFBundleLocalizations": [
+          "en",
+          "ru",
+          "es",
+          "pt",
+          "fr",
+          "de",
+          "id",
+          "ja"
+        ]
       }
     },
     "locales": {
@@ -64,6 +79,11 @@
         {
           "ios": {
             "deploymentTarget": "26.0"
+          },
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 26
           }
         }
       ],
@@ -77,7 +97,26 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["en", "ru", "es", "pt", "fr", "de", "id", "ja"]
+            "ios": [
+              "en",
+              "ru",
+              "es",
+              "pt",
+              "fr",
+              "de",
+              "id",
+              "ja"
+            ],
+            "android": [
+              "en",
+              "ru",
+              "es",
+              "pt",
+              "fr",
+              "de",
+              "id",
+              "ja"
+            ]
           }
         }
       ],
@@ -166,7 +205,58 @@
     },
     "owner": "solsticeleaf",
     "android": {
-      "package": "com.solsticeleaf.Tamdok"
+      "package": "com.solsticeleaf.Tamdok",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#F2F2F7"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "tamdok"
+            }
+          ]
+        },
+        {
+          "action": "VIEW",
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "content",
+              "mimeType": "application/json"
+            },
+            {
+              "scheme": "file",
+              "mimeType": "application/json"
+            }
+          ]
+        }
+      ]
     }
   }
 }

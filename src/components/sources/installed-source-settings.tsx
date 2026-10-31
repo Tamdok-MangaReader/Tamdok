@@ -46,7 +46,6 @@ import {
   sourceHosts,
 } from "@/services/source-maintenance";
 import { findInstalledSource } from "@/services/sources";
-import { DEFAULT_FETCH_USER_AGENT } from "@/parsers/shared/fetch-headers";
 import {
   findHostClearance,
   hostFromUrl,
@@ -233,7 +232,10 @@ export function InstalledSourceSettings({
     }
     setLoginMode("cloudflare");
     setIsWebViewLoading(true);
-    setLoginUrl(baseUrl);
+    // Challenge cookies left by earlier attempts (made with another user agent) are bound to that
+    // agent, so the check keeps failing against them. Drop them and start the check from scratch;
+    // other cookies of the site (a login, for example) are kept.
+    void clearChallengeCookies(baseUrl).finally(() => setLoginUrl(baseUrl));
   };
 
   const saveClearance = async (url: string) => {
@@ -263,7 +265,7 @@ export function InstalledSourceSettings({
       const host = hostFromUrl(url);
       await saveHostClearance(host, {
         cookies: picked,
-        userAgent: DEFAULT_FETCH_USER_AGENT,
+        userAgent: CHROME_IOS_USER_AGENT,
         savedAt: Date.now(),
       });
       clearHostChallenge(host);
@@ -405,8 +407,9 @@ export function InstalledSourceSettings({
             <ActivityIndicator />
           </View>
         ) : fields.length === 0 ? (
-          <View style={styles.centered}>
+          <View style={styles.emptyWrap}>
             <EmptyState
+              compact
               icon="options-outline"
               title={t("source_settings_empty_title")}
               description={t("source_settings_empty_desc")}
@@ -868,7 +871,7 @@ export function InstalledSourceSettings({
             { backgroundColor: colors.secondarySystemBackground },
           ]}
         >
-          <ModalHeader
+                    <ModalHeader
             title={loginHost(loginUrl)}
             closeLabel={t("source_web_close")}
             onClose={closeLogin}
@@ -889,16 +892,33 @@ export function InstalledSourceSettings({
 
           {loginUrl !== null ? (
             <WebView
-              source={{ uri: loginUrl }}
-              userAgent={loginMode === "cloudflare" ? DEFAULT_FETCH_USER_AGENT : undefined}
+              source={{
+                uri: loginUrl,
+                // Looks like a visitor arriving from a search result.
+                ...(loginMode === "cloudflare" ? { headers: { Referer: "https://www.google.com/" } } : null),
+              }}
+              // Chrome for iOS is itself a WKWebView, so a CriOS user agent matches this engine and Cloudflare does
+              // not compare it against Safari's version. Plain Safari-looking strings made the check loop forever.
+              userAgent={loginMode === "cloudflare" ? CHROME_IOS_USER_AGENT : undefined}
+              // The app-to-page bridge (window.ReactNativeWebView / window.webkit) is a tell for embedded browsers,
+              // and the Cloudflare check also runs inside sub-frames. In Cloudflare mode nothing needs the bridge
+              // (the user agent is the fixed string above), so it is removed from every frame before the page runs.
+              injectedJavaScriptBeforeContentLoaded={
+                loginMode === "cloudflare"
+                  ? "try{delete window.ReactNativeWebView}catch(e){};try{delete window.webkit}catch(e){};true;"
+                  : undefined
+              }
+              injectedJavaScriptBeforeContentLoadedForMainFrameOnly={loginMode !== "cloudflare"}
               style={styles.webView}
               javaScriptEnabled
               domStorageEnabled
               sharedCookiesEnabled
               thirdPartyCookiesEnabled
-              javaScriptCanOpenWindowsAutomatically
+              javaScriptCanOpenWindowsAutomatically={loginMode !== "cloudflare"}
               setSupportMultipleWindows={false}
-              startInLoadingState
+              startInLoadingState={loginMode !== "cloudflare"}
+              allowsInlineMediaPlayback
+              mediaPlaybackRequiresUserAction={false}
               onLoadStart={() => setIsWebViewLoading(true)}
               onLoadEnd={() => setIsWebViewLoading(false)}
               onOpenWindow={({ nativeEvent }) => {
@@ -922,6 +942,23 @@ export function InstalledSourceSettings({
   );
 }
 
+const IOS_MAJOR = parseInt(String(Platform.Version), 10) || 18;
+// Same OS token Safari reports (the minor part is frozen), Chrome for iOS product token.
+const CHROME_IOS_USER_AGENT = `Mozilla/5.0 (iPhone; CPU iPhone OS ${IOS_MAJOR}_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/141.0.7390.96 Mobile/15E148 Safari/604.1`;
+
+async function clearChallengeCookies(url: string): Promise<void> {
+  try {
+    const cookies = await CookieManager.get(url, Platform.OS === "ios");
+    await Promise.all(
+      Object.keys(cookies)
+        .filter((name) => /^(cf_clearance|__cf_bm|__cflb|_cfuvid|cf_chl.*)$/i.test(name))
+        .map((name) => CookieManager.clearByName(url, name, Platform.OS === "ios")),
+    );
+  } catch {
+    // Starting without clearing is still better than not opening the check at all.
+  }
+}
+
 function loginHost(url: string | null): string {
   if (!url) return "";
   try {
@@ -940,6 +977,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     paddingVertical: Spacing.xxxl,
+  },
+  emptyWrap: {
+    paddingVertical: Spacing.lg,
   },
   sectionCard: {
     paddingVertical: Spacing.xs,

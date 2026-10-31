@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { FullWindowOverlay } from 'react-native-screens';
+import { FullWindowOverlay } from '@/components/ui/full-window-overlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SFSymbolIcon } from '@/components/ui/sf-symbol-icon';

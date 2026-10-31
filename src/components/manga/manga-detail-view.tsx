@@ -5,7 +5,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { Button, ContextMenu, Host, RNHostView } from "@expo/ui/swift-ui";
+import {
+  NativeContextMenu,
+  type NativeContextMenuItem,
+} from "@/components/ui/native-context-menu";
 import { ChapterListSkeleton } from "@/components/ui/skeleton";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -26,6 +29,7 @@ import {
   RefreshControl,
   StyleSheet,
   View,
+  type LayoutChangeEvent,
   type ListRenderItem,
   type PressableStateCallbackType,
   type TextStyle,
@@ -1115,6 +1119,11 @@ type ChapterRowProps = {
   onRemoveDownload: (chapter: Chapter) => void;
 };
 
+// All chapter rows share one width. It is measured once on the plain RN card and handed to the
+// content hosted inside the native context menu, which otherwise sizes itself to the text and
+// pushes the date off screen when a title is long.
+let cachedChapterRowWidth = 0;
+
 const ChapterRow = memo(function ChapterRow({
   chapter,
   index,
@@ -1385,64 +1394,70 @@ const ChapterRow = memo(function ChapterRow({
     </Pressable>
   );
 
+  const [rowWidth, setRowWidth] = useState(cachedChapterRowWidth);
+  const handleCardLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    if (width > 0 && width !== cachedChapterRowWidth) {
+      cachedChapterRowWidth = width;
+      setRowWidth(width);
+    }
+  }, []);
+
   const canRemoveDownload = isDownloaded && !isDownloading;
   const canDownload = !isDownloaded && !isDownloading && !isLocked;
 
+  const menuItems: NativeContextMenuItem[] = [
+    {
+      key: "bookmark",
+      label: t(isBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add"),
+      systemImage: isBookmarked ? "bookmark.slash" : "bookmark",
+      icon: isBookmarked ? "bookmark" : "bookmark-outline",
+      onPress: () => onToggleBookmark(chapter),
+    },
+    {
+      key: "read",
+      label: t(isRead ? "manga_mark_unread" : "manga_mark_read"),
+      systemImage: isRead ? "eye.slash" : "checkmark.circle",
+      icon: isRead ? "eye-off-outline" : "checkmark-circle-outline",
+      onPress: () => (isRead ? onMarkUnread(chapter) : onMarkRead(chapter)),
+    },
+  ];
+  if (canDownload)
+    menuItems.push({
+      key: "download",
+      label: t("chapter_download"),
+      systemImage: "arrow.down.circle",
+      icon: "download-outline",
+      onPress: () => onDownload(chapter),
+    });
+  if (canRemoveDownload)
+    menuItems.push({
+      key: "remove",
+      label: t("chapter_remove_download"),
+      systemImage: "trash",
+      icon: "trash-outline",
+      destructive: true,
+      onPress: () => onRemoveDownload(chapter),
+    });
+
   const menuRow =
-    Platform.OS === "ios" && menuEnabled && !selectMode ? (
-      <Host
-        matchContents={{ vertical: true }}
-        colorScheme={isDark ? "dark" : "light"}
-      >
-        <ContextMenu>
-          <ContextMenu.Trigger>
-            <RNHostView matchContents={{ vertical: true }}>
-              <View
-                style={{ backgroundColor: colors.secondarySystemBackground }}
-              >
-                {row}
-              </View>
-            </RNHostView>
-          </ContextMenu.Trigger>
-          <ContextMenu.Items>
-            <Button
-              label={t(
-                isBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add",
-              )}
-              systemImage={isBookmarked ? "bookmark.slash" : "bookmark"}
-              onPress={() => onToggleBookmark(chapter)}
-            />
-            <Button
-              label={t(isRead ? "manga_mark_unread" : "manga_mark_read")}
-              systemImage={isRead ? "eye.slash" : "checkmark.circle"}
-              onPress={() =>
-                isRead ? onMarkUnread(chapter) : onMarkRead(chapter)
-              }
-            />
-            {canDownload ? (
-              <Button
-                label={t("chapter_download")}
-                systemImage="arrow.down.circle"
-                onPress={() => onDownload(chapter)}
-              />
-            ) : null}
-            {canRemoveDownload ? (
-              <Button
-                label={t("chapter_remove_download")}
-                systemImage="trash"
-                role="destructive"
-                onPress={() => onRemoveDownload(chapter)}
-              />
-            ) : null}
-          </ContextMenu.Items>
-        </ContextMenu>
-      </Host>
+    menuEnabled && !selectMode ? (
+      <NativeContextMenu items={menuItems}>
+        <View
+          style={{
+            backgroundColor: colors.secondarySystemBackground,
+            ...(rowWidth > 0 ? { width: rowWidth } : null),
+          }}
+        >
+          {row}
+        </View>
+      </NativeContextMenu>
     ) : (
       row
     );
 
   return (
-    <View style={cardStyle}>
+    <View style={cardStyle} onLayout={handleCardLayout}>
       <SwipeableRow
         rowId={chapter.key}
         enabled={!selectMode}
@@ -1557,6 +1572,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     alignItems: "flex-end",
     verticalAlign: "middle",
+    flexShrink: 0,
   },
   kindBadge: {
     paddingHorizontal: Spacing.sm,
@@ -1647,6 +1663,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     flex: 1,
+    minWidth: 0,
   },
   selectActions: {
     flexDirection: "row",
@@ -1687,6 +1704,8 @@ const styles = StyleSheet.create({
   },
   chapterMeta: {
     flex: 1,
+    // Lets long titles shrink and truncate instead of pushing the date off screen.
+    minWidth: 0,
     gap: 2,
   },
   dateRow: {
@@ -1701,6 +1720,7 @@ const styles = StyleSheet.create({
   },
   chapterTitle: {
     flex: 1,
+    minWidth: 0,
   },
   unreadChapter: {
     fontWeight: "600",

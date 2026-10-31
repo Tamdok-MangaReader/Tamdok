@@ -7,6 +7,7 @@ import type {
 import * as SecureStore from "expo-secure-store";
 import { sharedFetch } from "../../shared/http";
 import { parse } from "node-html-parser";
+import { saveSourceImage } from "./files";
 import {
   reportSourceHealthy,
   reportSourceTrouble,
@@ -78,6 +79,7 @@ async function performRequest(
   init: RequestInit | undefined,
   sourceBaseUrl?: string,
   sourceId?: string,
+  binary = false,
 ): Promise<TamdokResponse> {
   if (
     sourceId &&
@@ -110,6 +112,7 @@ async function performRequest(
       sourceBaseUrl,
       controller.signal,
       sourceId,
+      binary,
     );
   } finally {
     tracked?.delete(controller);
@@ -125,6 +128,7 @@ async function performRequestInner(
   sourceBaseUrl: string | undefined,
   signal: AbortSignal,
   sourceId?: string,
+  binary = false,
 ): Promise<TamdokResponse> {
   const initHeaders = headersFromInit(init?.headers);
   const method = init?.method ?? "GET";
@@ -144,6 +148,7 @@ async function performRequestInner(
       signal,
       sourceBaseUrl,
       passthrough: passthrough as RequestInit,
+      binary,
       onLog: (_level, message) => {
         if (sourceId && /retry/i.test(message)) reportSourceTrouble(sourceId);
       },
@@ -176,6 +181,14 @@ export function createRequest(
     post: (url, init) =>
       performRequest(url, { ...init, method: "POST" }, sourceBaseUrl, sourceId),
     fetch: (url, init) => performRequest(url, init, sourceBaseUrl, sourceId),
+    getBytes: (url, init) =>
+      performRequest(
+        url,
+        { ...init, method: "GET" },
+        sourceBaseUrl,
+        sourceId,
+        true,
+      ),
   };
 }
 
@@ -199,6 +212,7 @@ function createResponse(result: {
   status: number;
   url: string;
   body: string;
+  bytes?: Uint8Array;
 }): TamdokResponse {
   const textBody = result.body;
   return {
@@ -207,6 +221,12 @@ function createResponse(result: {
     text: async () => textBody,
     json: async <T>() => JSON.parse(textBody) as T,
     html: () => parse(textBody),
+    bytes: async () => {
+      if (!result.bytes) {
+        throw new Error("bytes() is only available on request.getBytes() responses");
+      }
+      return result.bytes;
+    },
   };
 }
 
@@ -267,6 +287,7 @@ export function createSourceContext(
     request: createRequest(sourceBaseUrl, sourceId),
     cookies: getCookies(sourceId),
     defaults: createDefaults(sourceId),
+    files: { saveImage: (bytes, extension) => saveSourceImage(sourceId, bytes, extension) },
   };
 }
 

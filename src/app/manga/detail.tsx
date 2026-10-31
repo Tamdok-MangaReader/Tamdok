@@ -1,4 +1,5 @@
 import { useSourceTrouble } from "@/utils/source-connection-status";
+import { ErrorState } from "@/components/ui/error-state";
 import {
   MangaRefreshStatus,
   useRefreshStatus,
@@ -28,7 +29,6 @@ import {
 } from "@/components/manga/manga-detail-header";
 import { MangaDetailView } from "@/components/manga/manga-detail-view";
 import { MangaDetailSkeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
@@ -869,11 +869,7 @@ export default function MangaDetailScreen() {
       <SourceCoverHeadersProvider source={source}>
         <Stack.Screen options={errorOnlyOptions} />
         <ScreenContent centerContent>
-          <EmptyState
-            icon="alert-circle-outline"
-            title={t("sources_load_error_title")}
-            description={combinedError!}
-          />
+          <ErrorState message={combinedError!} onRetry={refresh} />
         </ScreenContent>
       </SourceCoverHeadersProvider>
     );

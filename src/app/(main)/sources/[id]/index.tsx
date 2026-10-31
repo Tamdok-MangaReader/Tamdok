@@ -1,4 +1,5 @@
 import { SourceNotFound } from "@/components/sources/source-not-found";
+import { ErrorState } from "@/components/ui/error-state";
 import { MeasuredPage } from "@/components/ui/measured-page";
 import { VirtualRows } from "@/components/ui/virtual-rows";
 import { usePagerHeights } from "@/hooks/use-pager-heights";
@@ -200,7 +201,7 @@ function RealSourceHomeScreen() {
   const homeComponents = home?.components ?? EMPTY_COMPONENTS;
 
   const err = runnerError ?? homeLoadError;
-  const combinedError = err?.includes("HTTP 403") ? "Try to disable VPN" : err;
+  const combinedError = err?.includes("HTTP 403") ? t("source_blocked_hint") : err;
   const hasHomeContent = homeComponents.length > 0;
   const showBlockingError =
     Boolean(combinedError) &&
@@ -442,11 +443,7 @@ function RealSourceHomeScreen() {
           scrollable={false}
         >
           {showBlockingError ? (
-            <EmptyState
-              icon="alert-circle-outline"
-              title={t("sources_load_error_title")}
-              description={combinedError!}
-            />
+            <ErrorState message={combinedError!} onRetry={refresh} />
           ) : (
             body
           )}

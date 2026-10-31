@@ -643,5 +643,15 @@
   "history_delete_day_confirm": "Chapter terbaca dari semua judul untuk \"{title}\" akan dihapus dari riwayat.",
   "history_delete_manga_confirm": "Chapter terbaca dari judul ini akan dihapus dari riwayat.",
   "history_delete_chapter_confirm": "Chapter terbaca ini akan dihapus dari riwayat.",
-  "history_delete_confirm_title": "Hapus dari riwayat?"
+  "history_delete_confirm_title": "Hapus dari riwayat?",
+  "reader_offline_chapter": "Tidak ada koneksi internet dan chapter ini belum diunduh.",
+  "reader_load_timeout": "Sumber tidak merespons tepat waktu. Periksa koneksi Anda lalu coba lagi.",
+  "reader_offline_title": "Tidak ada koneksi internet",
+  "reader_offline_next_message": "Chapter berikutnya belum diunduh. Sambungkan ke internet atau unduh terlebih dahulu.",
+  "error_title_timeout": "Sumber terlalu lama merespons",
+  "error_title_generic": "Terjadi kesalahan",
+  "source_blocked_hint": "Situs memblokir permintaan (HTTP 403). Coba matikan VPN, atau buka pengaturan sumber dan selesaikan pemeriksaan Cloudflare.",
+  "source_requires_newer_app": "Sumber ini memerlukan Tamdok {version} atau lebih baru (Anda memakai {current}). Perbarui aplikasi untuk memasangnya.",
+  "source_requires_older_app": "Sumber ini hanya berfungsi hingga Tamdok {version} (Anda memakai {current}).",
+  "source_requires_app_short": "Perlu aplikasi {version}+"
 }

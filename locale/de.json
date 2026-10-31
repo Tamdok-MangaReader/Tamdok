@@ -643,5 +643,15 @@
   "history_delete_day_confirm": "Gelesene Kapitel aller Titel für „{title}“ werden aus dem Verlauf entfernt.",
   "history_delete_manga_confirm": "Gelesene Kapitel dieses Titels werden aus dem Verlauf entfernt.",
   "history_delete_chapter_confirm": "Dieses gelesene Kapitel wird aus dem Verlauf entfernt.",
-  "history_delete_confirm_title": "Aus dem Verlauf löschen?"
+  "history_delete_confirm_title": "Aus dem Verlauf löschen?",
+  "reader_offline_chapter": "Keine Internetverbindung, und dieses Kapitel ist nicht heruntergeladen.",
+  "reader_load_timeout": "Die Quelle hat nicht rechtzeitig geantwortet. Prüfe deine Verbindung und versuche es erneut.",
+  "reader_offline_title": "Keine Internetverbindung",
+  "reader_offline_next_message": "Das nächste Kapitel ist nicht heruntergeladen. Verbinde dich mit dem Internet oder lade es vorher herunter.",
+  "error_title_timeout": "Die Quelle braucht zu lange",
+  "error_title_generic": "Etwas ist schiefgelaufen",
+  "source_blocked_hint": "Die Website hat die Anfrage blockiert (HTTP 403). Schalte dein VPN aus oder öffne die Quelleneinstellungen und bestehe die Cloudflare-Prüfung.",
+  "source_requires_newer_app": "Diese Quelle benötigt Tamdok {version} oder neuer (du hast {current}). Aktualisiere die App, um sie zu installieren.",
+  "source_requires_older_app": "Diese Quelle funktioniert nur bis Tamdok {version} (du hast {current}).",
+  "source_requires_app_short": "Benötigt App {version}+"
 }

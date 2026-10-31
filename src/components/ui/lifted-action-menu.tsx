@@ -10,7 +10,6 @@ import {
 } from "react";
 import {
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -22,7 +21,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
-import { FullWindowOverlay } from "react-native-screens";
+import { FullWindowOverlay } from '@/components/ui/full-window-overlay';
 
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
@@ -77,9 +76,7 @@ export const LiftedActionMenu = memo(function LiftedActionMenu({
   const ref = useRef<MeasurableView>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
 
-  // iOS only (the lifted menu relies on iOS overlay behaviour and haptics).
   const handleLongPress = useCallback(() => {
-    if (Platform.OS !== "ios") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ref.current?.measureInWindow((x, y, width, height) => {
       setAnchor({ x, y, width, height });
@@ -90,7 +87,7 @@ export const LiftedActionMenu = memo(function LiftedActionMenu({
 
   return (
     <>
-      // `collapsable={false}` keeps the wrapper in the native tree on Android so measureInWindow works.
+      {/* `collapsable={false}` keeps the wrapper in the native tree on Android so measureInWindow works. */}
       <View ref={ref as never} collapsable={false}>
         {renderContent(handleLongPress)}
       </View>

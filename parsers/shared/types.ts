@@ -337,6 +337,14 @@ export type TamdokSourceContext = {
   defaults: TamdokDefaults;
   cookies: Promise<JSON | null>;
   sourceId: string;
+  // Local file helpers (see TamdokFiles).
+  files: TamdokFiles;
+};
+
+// File helpers for sources that must transform images before the reader can show them.
+export type TamdokFiles = {
+  // Stores image bytes in the app cache and returns a file:// URI usable as a Page url.
+  saveImage: (bytes: Uint8Array, extension?: string) => Promise<string>;
 };
 
 // HTTP helpers for sources. All of them go through the shared fetch layer
@@ -345,6 +353,8 @@ export type TamdokRequest = {
   get: (url: string, init?: RequestInit) => Promise<TamdokResponse>;
   post: (url: string, init?: RequestInit) => Promise<TamdokResponse>;
   fetch: (url: string, init?: RequestInit) => Promise<TamdokResponse>;
+  // GET that returns the raw body (binary formats, encrypted images). Read it with response.bytes().
+  getBytes: (url: string, init?: RequestInit) => Promise<TamdokResponse>;
 };
 
 export type TamdokResponse = {
@@ -353,6 +363,8 @@ export type TamdokResponse = {
   text: () => Promise<string>;
   json: <T>() => Promise<T>;
   html: () => import("node-html-parser").HTMLElement;
+  // Raw body. Only available on responses from request.getBytes(); throws otherwise.
+  bytes: () => Promise<Uint8Array>;
 };
 
 // Per-source persistent key/value storage (backs the source's settings).

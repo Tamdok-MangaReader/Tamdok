@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Button, ContextMenu, Host, RNHostView } from "@expo/ui/swift-ui";
+import { NativeContextMenu } from "@/components/ui/native-context-menu";
 import * as DocumentPicker from "expo-document-picker";
 import { Stack } from "expo-router";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
@@ -183,39 +183,36 @@ export default function BackupsSettingsScreen() {
   createRef.current = () => setOptionsMode("create");
   importRef.current = handleImport;
 
-  const renderBackupRow = (backup: BackupItem, row: ReactElement) =>
-    Platform.OS === "ios" ? (
-      <Host
-        matchContents={{ vertical: true }}
-        colorScheme={isDark ? "dark" : "light"}
-      >
-        <ContextMenu>
-          <ContextMenu.Trigger>
-            <RNHostView matchContents={{ vertical: true }}>{row}</RNHostView>
-          </ContextMenu.Trigger>
-          <ContextMenu.Items>
-            <Button
-              label={t("backups_share")}
-              systemImage="square.and.arrow.up"
-              onPress={() => void shareBackup(backup.uri)}
-            />
-            <Button
-              label={t("backups_restore_action")}
-              systemImage="arrow.clockwise"
-              onPress={() => confirmRestore(backup.uri)}
-            />
-            <Button
-              label={t("backups_delete_action")}
-              systemImage="trash"
-              role="destructive"
-              onPress={() => confirmDelete(backup.uri, backup.name)}
-            />
-          </ContextMenu.Items>
-        </ContextMenu>
-      </Host>
-    ) : (
-      row
-    );
+  const renderBackupRow = (backup: BackupItem, row: ReactElement) => (
+    <NativeContextMenu
+      items={[
+        {
+          key: "share",
+          label: t("backups_share"),
+          systemImage: "square.and.arrow.up",
+          icon: "share-outline",
+          onPress: () => void shareBackup(backup.uri),
+        },
+        {
+          key: "restore",
+          label: t("backups_restore_action"),
+          systemImage: "arrow.clockwise",
+          icon: "refresh-outline",
+          onPress: () => confirmRestore(backup.uri),
+        },
+        {
+          key: "delete",
+          label: t("backups_delete_action"),
+          systemImage: "trash",
+          icon: "trash-outline",
+          destructive: true,
+          onPress: () => confirmDelete(backup.uri, backup.name),
+        },
+      ]}
+    >
+      {row}
+    </NativeContextMenu>
+  );
 
   const restoreAction = (backup: BackupItem): SwipeAction => ({
     key: "restore",

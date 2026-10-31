@@ -273,21 +273,6 @@ export function SourcesProvider({ children }: { children: React.ReactNode }) {
       );
       setPendingUpdates(updates);
 
-      if (updates.length > 0) {
-        const before = await getSourceLayout();
-        const nextLayout = await pinSources(
-          updates.map((update) => update.source),
-        );
-        for (const update of updates) {
-          const key = getSourceLayoutKey(update.source);
-          if (!before.pinned.includes(key) && nextLayout.pinned.includes(key)) {
-            autoPinnedRef.current.add(update.source.id);
-          }
-        }
-        setSourceLayout(nextLayout);
-        setInstalled(sortInstalledSources(liveSources, nextLayout));
-      }
-
       if (notify) {
         await notifyNewSourceUpdates(updates);
       }

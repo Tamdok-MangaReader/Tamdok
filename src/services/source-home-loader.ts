@@ -43,7 +43,7 @@ export type SourceHomeLoadResult = {
  */
 export async function loadSourceHomeData(
   runner: SourceRunner,
-  source: { id?: string; manifest: { listings?: Listing[] } } | undefined,
+  source: { id?: string; manifest: { listings?: Listing[]; config?: Record<string, unknown> } } | undefined,
   manifestListings: Listing[],
   isCancelled: () => boolean = () => false,
   onPartial?: (home: HomeLayout, listings: Listing[]) => void,
@@ -67,7 +67,15 @@ export async function loadSourceHomeData(
     }
   }
   homeLayout =
-    (await enrichHomeLayout(runner, homeLayout, sourceListings, source?.id, previousDetails, isCancelled)) ?? {
+    (await enrichHomeLayout(
+      runner,
+      homeLayout,
+      sourceListings,
+      source?.id,
+      previousDetails,
+      isCancelled,
+      source?.manifest.config?.skipHomeEnrichment === true,
+    )) ?? {
       components: [],
     };
 
@@ -142,10 +150,13 @@ async function enrichHomeLayout(
   sourceId?: string,
   previousDetails?: Map<string, Manga>,
   isCancelled: () => boolean = () => false,
+  // A source can opt out with `"config": { "skipHomeEnrichment": true }` when one request per tile
+  // would hit rate limits (signed or protected APIs).
+  skipConfigured = false,
 ): Promise<HomeLayout> {
   const skipListingFallback = isNhentaiSource(sourceId);
   // Aidoku home already ships latest chapters; re-fetching every tile is slow and can 429.
-  const skipEntryEnrichment = runner.kind === 'aidoku' || isNhentaiSource(sourceId);
+  const skipEntryEnrichment = runner.kind === 'aidoku' || isNhentaiSource(sourceId) || skipConfigured;
 
   const results = await Promise.all(home.components.map(async (component): Promise<HomeComponent | null> => {
     if (isRemangaSource(sourceId) && component.kind === 'scroller' && component.entries.length > 0) {

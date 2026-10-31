@@ -26,6 +26,9 @@ export type SharedFetchInit = {
   // Total attempts including the first one. Defaults to 3 for GET and 1 for other methods.
   maxAttempts?: number;
   passthrough?: Omit<RequestInit, 'method' | 'headers' | 'body' | 'signal'>;
+  // Read the response as raw bytes (result.bytes) instead of text. Binary requests skip the
+  // response cache and request sharing, so they never affect text responses.
+  binary?: boolean;
   onLog?: (level: 'debug' | 'warn', message: string) => void;
 };
 
@@ -33,6 +36,8 @@ export type SharedFetchResult = {
   status: number;
   url: string;
   body: string;
+  // Only set for `binary` requests; `body` is then an empty string.
+  bytes?: Uint8Array;
   headers: Record<string, string>;
 };
 
@@ -127,7 +132,10 @@ async function executeFetch(
         body: init.body,
         signal: attemptController.signal,
       });
-      const body = await response.text();
+      let body = '';
+      let bytes: Uint8Array | undefined;
+      if (init.binary) bytes = new Uint8Array(await response.arrayBuffer());
+      else body = await response.text();
       const responseHeaders = collectHeaders(response);
       // Feed the status back into the per-host throttle so 429/503 slow down later requests.
       reportHostResponse(init.url, response.status, responseHeaders['retry-after']);
@@ -143,7 +151,7 @@ async function executeFetch(
         markHostChallenged(hostFromUrl(init.url));
       }
 
-      return { status: response.status, url: response.url, body, headers: responseHeaders };
+      return { status: response.status, url: response.url, body, ...(bytes ? { bytes } : {}), headers: responseHeaders };
     } catch (error) {
       if (signal?.aborted) throw abortError();
       if (attempt >= maxAttempts - 1) throw error;
@@ -208,7 +216,7 @@ export async function sharedFetch(init: SharedFetchInit): Promise<SharedFetchRes
   }
 
   // `fresh` requests skip both reading and writing the cache and are never shared.
-  const fresh = wantsFresh(headers);
+  const fresh = wantsFresh(headers) || init.binary === true;
   const key = cacheKeyFor(init.url, headers);
 
   if (!fresh) {

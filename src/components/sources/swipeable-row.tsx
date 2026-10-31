@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { SymbolView } from "expo-symbols";
+import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
 import {
   createContext,
   useCallback,
@@ -11,7 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Dimensions, Platform, StyleSheet, View } from "react-native";
+import { Dimensions, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Reanimated, {
   Extrapolation,
@@ -552,16 +552,14 @@ function SecondaryActionButton({
 function SwipeActionIcon({ action }: { action: SwipeAction }) {
   const { colors } = useTheme();
 
-  if (Platform.OS === "ios" && action.sfSymbol) {
+  if (action.sfSymbol) {
     return (
-      <SymbolView
-        name={action.sfSymbol as never}
+      <SFSymbolIcon
+        name={action.sfSymbol}
+        fallback={action.icon}
         size={22}
-        tintColor={colors.onTint}
         weight="semibold"
-        fallback={
-          <Ionicons name={action.icon} size={22} color={colors.onTint} />
-        }
+        color={colors.onTint}
       />
     );
   }

@@ -10,7 +10,7 @@ import {
 import { VirtualMangaGrid } from "@/components/manga/virtual-manga-grid";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MangaGridSkeleton } from "@/components/ui/skeleton";
-import { ThemedText } from "@/components/ui/themed-text";
+import { ErrorState } from "@/components/ui/error-state";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import type { Listing, Manga } from "@/parsers/shared/types";
@@ -135,9 +135,7 @@ export function SourceListingPanel({
   if (error && entries.length === 0) {
     return (
       <View collapsable={false} onLayout={handleLayout} style={styles.center}>
-        <ThemedText variant="body" color="destructive">
-          {error}
-        </ThemedText>
+        <ErrorState message={error} />
       </View>
     );
   }

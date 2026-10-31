@@ -1,4 +1,5 @@
 import type { InstalledSource, RegistryEntry, SourceRegistry } from '@/parsers/shared/types';
+import { checkSourceCompatibility } from "@/utils/app-version";
 import { filterByNsfw } from '@/services/sources';
 import type { SourceRegistryList } from '@/services/sources';
 
@@ -25,6 +26,8 @@ export function findSourceUpdates(
 
     const installedVersion = source.manifest.info.version;
     if (match.entry.version <= installedVersion) continue;
+    // An update the app is too old for would fail to install, so it is not offered.
+    if (!checkSourceCompatibility(match.entry, match.registryUrl).ok) continue;
 
     updates.push({
       sourceId: source.id,

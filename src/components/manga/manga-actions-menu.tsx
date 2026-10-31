@@ -12,7 +12,6 @@ import {
 import {
   Alert,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -26,7 +25,7 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
-import { FullWindowOverlay } from "react-native-screens";
+import { FullWindowOverlay } from '@/components/ui/full-window-overlay';
 
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
@@ -97,7 +96,7 @@ export const MangaActionsMenu = memo(function MangaActionsMenu({
   const effectiveSourceId = sourceId ?? manga.sourceId;
 
   const handleLongPress = useCallback(() => {
-    if (Platform.OS !== "ios" || !effectiveSourceId) return;
+    if (!effectiveSourceId) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ref.current?.measureInWindow((x, y, width, height) => {
       setAnchor({ x, y, width, height });

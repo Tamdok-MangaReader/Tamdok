@@ -27,10 +27,14 @@ import { useSources } from "@/context/sources-context";
 import { useSourceRunner } from "@/hooks/use-source-runner";
 import type { Chapter, Manga, Page } from "@/parsers/shared/types";
 import { getDownloadedPageUrls, getDownloads } from "@/services/downloads";
+import { isOffline } from "@/services/network";
 import { cancelAidokuSourceRequests } from "@/parsers/aidoku/wasm-bridge";
 import { cancelTamdokSourceRequests } from "@/parsers/tamdok/runtime";
 import { getChapterProgress } from "@/services/manga-tracking";
-import { peekMangaDetailCache } from "@/services/manga-detail-cache";
+import {
+  peekMangaDetailCache,
+  readMangaDetailCache,
+} from "@/services/manga-detail-cache";
 import {
   peekReaderPageCache,
   writeReaderPageCache,
@@ -46,8 +50,30 @@ import {
 import { setReaderSlowMode, waitForSlowTurn } from "@/utils/reader-slow-mode";
 import { getMangaSlowMode } from "@/services/reader-manga-settings";
 import { useTheme } from "@/hooks/use-theme";
+import { ErrorState } from "@/components/ui/error-state";
 
 const PRELOAD_DELAY_MS = 600;
+// A source request that has not answered in this long is treated as failed, so the reader
+// shows an error with a retry button instead of spinning forever.
+const PAGE_LIST_TIMEOUT_MS = 45_000;
+
+// Rejects if `promise` does not settle within `ms`. The underlying request keeps running; its
+// late result is simply ignored.
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 function decodeParam(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -121,9 +147,15 @@ async function loadPagesForChapter(
   if (cachedPages?.length) return cachedPages;
 
   if (!runner) return [];
+  // Not downloaded and no connection: fail at once instead of waiting for network retries.
+  if (await isOffline()) throw new Error(t("reader_offline_chapter"));
   await waitForSlowTurn();
   const nextPages = filterRenderablePages(
-    await runner.getPageList(manga, target),
+    await withTimeout(
+      runner.getPageList(manga, target),
+      PAGE_LIST_TIMEOUT_MS,
+      t("reader_load_timeout"),
+    ),
   );
   writeReaderPageCache(sourceId, manga.key, target.key, nextPages);
   return nextPages;
@@ -157,15 +189,15 @@ function ReaderMessage({
   onRefresh,
 }: {
   children: ReactNode;
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }) {
   const { colors, radius } = useTheme();
-  const handleBack = useCallback(() => router.back(), []);
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.messageContainer}>
       {children}
-      <View style={styles.buttons}>
+      {onRefresh ? (
         <Pressable
           style={({ pressed }) => [
             styles.refreshButton,
@@ -179,19 +211,20 @@ function ReaderMessage({
             {t("manga_refresh")}
           </ThemedText>
         </Pressable>
-        <Pressable
-          style={({ pressed }) => [
-            styles.backButton,
-            { backgroundColor: colors.destructive, borderRadius: radius.md },
-            pressed && styles.pressed,
-          ]}
-          onPress={handleBack}
-          accessibilityRole="button"
-        >
-          <ThemedText variant="headline" color="onTint">
-            {t("back")}
-          </ThemedText>
-        </Pressable>
+      ) : null}
+      <View
+        style={[
+          styles.loadingBack,
+          { top: insets.top + Spacing.sm, left: Spacing.lg },
+        ]}
+      >
+        <GlassIconButton
+          icon="chevron-back"
+          iconColor="#fff"
+          glassStyle="clear"
+          accessibilityLabel={t("back")}
+          onPress={() => router.back()}
+        />
       </View>
     </View>
   );
@@ -462,10 +495,20 @@ export default function MangaReaderScreen() {
       }
 
       try {
+        // The chapter is not stored on the device. Without a connection there is nothing to wait for.
+        if (!cachedPages?.length && (await isOffline())) {
+          throw new Error(t("reader_offline_chapter"));
+        }
         await slowModeReady;
         await waitForSlowTurn();
         const nextPages = filterRenderablePages(
-          await track(runner.getPageList(manga, chapter)),
+          await track(
+            withTimeout(
+              runner.getPageList(manga, chapter),
+              PAGE_LIST_TIMEOUT_MS,
+              t("reader_load_timeout"),
+            ),
+          ),
         );
         if (cancelled) return;
         applyPages(nextPages);
@@ -500,20 +543,37 @@ export default function MangaReaderScreen() {
   const pagesReady = pages.length > 0;
 
   useEffect(() => {
-    const cached =
-      peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters ?? [];
-    if (cached.length > 0) {
-      applyChapters(cached);
-      return;
-    }
-    if (!runner || (contentLoading && !pagesReady)) return;
-
     let cancelled = false;
-    track(runner.getMangaUpdate(manga, false, true))
-      .then((detail) => {
+
+    async function loadChapters() {
+      // Memory first, then the copy saved on disk (survives app restarts and works offline).
+      const memory =
+        peekMangaDetailCache(manifestSourceId, mangaKey)?.manga.chapters ?? [];
+      if (memory.length > 0) {
+        applyChapters(memory);
+        return;
+      }
+      const stored = await readMangaDetailCache(
+        manifestSourceId,
+        mangaKey,
+      ).catch(() => null);
+      if (cancelled) return;
+      const fromDisk = stored?.manga.chapters ?? [];
+      if (fromDisk.length > 0) {
+        applyChapters(fromDisk);
+        return;
+      }
+      if (!runner || (contentLoading && !pagesReady)) return;
+      if (await isOffline()) return;
+      try {
+        const detail = await track(runner.getMangaUpdate(manga, false, true));
         if (!cancelled) applyChapters(detail.chapters ?? []);
-      })
-      .catch(() => {});
+      } catch {
+        // The chapter list is optional for reading the current chapter.
+      }
+    }
+
+    void loadChapters();
     return () => {
       cancelled = true;
     };
@@ -571,10 +631,8 @@ export default function MangaReaderScreen() {
   let body: ReactNode;
   if (combinedError && pages.length === 0) {
     body = (
-      <ReaderMessage onRefresh={handleRefresh}>
-        <ThemedText variant="body" color="destructive">
-          {combinedError}
-        </ThemedText>
+      <ReaderMessage>
+        <ErrorState message={combinedError} onRetry={handleRefresh} onDark />
       </ReaderMessage>
     );
   } else if (isLoading) {
@@ -639,7 +697,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   refreshButton: {
-    padding: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xxl,
     alignItems: "center",
   },
   backButton: {

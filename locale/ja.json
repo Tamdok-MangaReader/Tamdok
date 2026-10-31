@@ -643,5 +643,15 @@
   "history_delete_day_confirm": "「{title}」にあるすべての作品の既読の章が履歴から削除されます。",
   "history_delete_manga_confirm": "この作品の既読の章が履歴から削除されます。",
   "history_delete_chapter_confirm": "この既読の章が履歴から削除されます。",
-  "history_delete_confirm_title": "履歴から削除しますか？"
+  "history_delete_confirm_title": "履歴から削除しますか？",
+  "reader_offline_chapter": "インターネットに接続されておらず、この章はダウンロードされていません。",
+  "reader_load_timeout": "ソースが時間内に応答しませんでした。接続を確認してもう一度お試しください。",
+  "reader_offline_title": "インターネットに接続されていません",
+  "reader_offline_next_message": "次の章はダウンロードされていません。インターネットに接続するか、先にダウンロードしてください。",
+  "error_title_timeout": "ソースの応答に時間がかかっています",
+  "error_title_generic": "問題が発生しました",
+  "source_blocked_hint": "サイトがリクエストをブロックしました (HTTP 403)。VPN をオフにするか、ソース設定を開いて Cloudflare の確認を完了してください。",
+  "source_requires_newer_app": "このソースには Tamdok {version} 以降が必要です（現在 {current}）。アプリを更新してからインストールしてください。",
+  "source_requires_older_app": "このソースは Tamdok {version} までのバージョンでのみ動作します（現在 {current}）。",
+  "source_requires_app_short": "アプリ {version}+ が必要"
 }

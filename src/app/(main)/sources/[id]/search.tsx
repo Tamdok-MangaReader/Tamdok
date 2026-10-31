@@ -23,6 +23,7 @@ import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { ThemedText } from "@/components/ui/themed-text";
+import { ErrorState } from "@/components/ui/error-state";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useSources } from "@/context/sources-context";
@@ -274,9 +275,7 @@ export default function SourceSearchScreen() {
       >
         {displayError ? (
           <View style={styles.errorWrap}>
-            <ThemedText variant="body" color="destructive">
-              {displayError}
-            </ThemedText>
+            <ErrorState message={displayError} />
           </View>
         ) : showInitialLoading ? (
           <View style={styles.loadingWrap}>

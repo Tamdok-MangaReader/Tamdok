@@ -362,6 +362,19 @@ export async function saveDownloadedPages(
           const merged = { ...headers, ...pageHeaders?.[index] };
           const options =
             Object.keys(merged).length > 0 ? { headers: merged } : undefined;
+          // Pages a source already wrote to local files (for example decrypted images) are copied.
+          if (url.startsWith("file:")) {
+            await FileSystem.copyAsync({ from: url, to: target });
+            files[index] = target;
+            finished += 1;
+            reportProgress(
+              sourceId,
+              mangaKey,
+              chapterKey,
+              finished / pageUrls.length,
+            );
+            continue;
+          }
           const result = await FileSystem.downloadAsync(url, target, options);
           if (result.status < 200 || result.status >= 300) {
             throw new Error(`HTTP ${result.status}`);
@@ -414,7 +427,11 @@ export async function getDownloadedPageUrls(
     if (!info.exists) continue;
     try {
       const raw = await FileSystem.readAsStringAsync(manifestPath);
-      const urls = (JSON.parse(raw) as string[]).map(toFileUri);
+      // The manifest stores absolute paths, but the app container path changes after a reinstall,
+      // an OS update or a dev rebuild. Only the file name is stable, so rebuild URIs from `dir`.
+      const urls = (JSON.parse(raw) as string[]).map((entry) =>
+        toFileUri(`${dir}${entry.slice(entry.lastIndexOf("/") + 1)}`),
+      );
       if (urls.length === 0) continue;
 
       let anyExists = false;

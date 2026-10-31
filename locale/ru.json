@@ -643,5 +643,15 @@
   "history_delete_day_confirm": "Прочитанные главы всех тайтлов за «{title}» будут удалены из истории.",
   "history_delete_manga_confirm": "Прочитанные главы этого тайтла будут удалены из истории.",
   "history_delete_chapter_confirm": "Эта прочитанная глава будет удалена из истории.",
-  "history_delete_confirm_title": "Удалить из истории?"
+  "history_delete_confirm_title": "Удалить из истории?",
+  "reader_offline_chapter": "Нет подключения к интернету, а эта глава не загружена.",
+  "reader_load_timeout": "Источник не ответил вовремя. Проверьте подключение и повторите.",
+  "reader_offline_title": "Нет подключения к интернету",
+  "reader_offline_next_message": "Следующая глава не загружена. Подключитесь к интернету или загрузите её заранее.",
+  "error_title_timeout": "Источник отвечает слишком долго",
+  "error_title_generic": "Что-то пошло не так",
+  "source_blocked_hint": "Сайт заблокировал запрос (HTTP 403). Попробуйте отключить VPN или откройте настройки источника и пройдите проверку Cloudflare.",
+  "source_requires_newer_app": "Для этого источника нужна версия Tamdok {version} или новее (у вас {current}). Обновите приложение, чтобы установить его.",
+  "source_requires_older_app": "Этот источник работает только до версии Tamdok {version} (у вас {current}).",
+  "source_requires_app_short": "Нужно приложение {version}+"
 }

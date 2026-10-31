@@ -1,4 +1,7 @@
-import { Button, ContextMenu, Host, RNHostView } from "@expo/ui/swift-ui";
+import {
+  NativeContextMenu,
+  type NativeContextMenuItem,
+} from "@/components/ui/native-context-menu";
 import { Ionicons } from "@expo/vector-icons";
 import { isIllustrationMode } from "@/services/illustration-mode";
 import { Stack } from "expo-router";
@@ -281,42 +284,33 @@ export default function LibrarySettingsScreen() {
   const renderCategoryMenu = (category: LibraryCategory, row: ReactElement) => {
     const isAll = isAllCategory(category.id);
     const isPrimary = category.id === defaultCategoryId;
-    return (
-      <Host
-        matchContents={{ vertical: true }}
-        colorScheme={isDark ? "dark" : "light"}
-      >
-        <ContextMenu>
-          <ContextMenu.Trigger>
-            <RNHostView matchContents={{ vertical: true }}>{row}</RNHostView>
-          </ContextMenu.Trigger>
-          <ContextMenu.Items>
-            {!isPrimary ? (
-              <Button
-                label={t("library_set_primary")}
-                systemImage="star.fill"
-                onPress={() => setPrimaryCategory(category)}
-              />
-            ) : null}
-            {!isAll ? (
-              <Button
-                label={t("library_rename_category")}
-                systemImage="pencil"
-                onPress={() => renameCategory(category)}
-              />
-            ) : null}
-            {!isAll ? (
-              <Button
-                label={t("library_delete_category_action")}
-                systemImage="trash"
-                role="destructive"
-                onPress={() => deleteCategory(category)}
-              />
-            ) : null}
-          </ContextMenu.Items>
-        </ContextMenu>
-      </Host>
-    );
+    const items: NativeContextMenuItem[] = [];
+    if (!isPrimary)
+      items.push({
+        key: "primary",
+        label: t("library_set_primary"),
+        systemImage: "star.fill",
+        icon: "star-outline",
+        onPress: () => setPrimaryCategory(category),
+      });
+    if (!isAll) {
+      items.push({
+        key: "rename",
+        label: t("library_rename_category"),
+        systemImage: "pencil",
+        icon: "pencil-outline",
+        onPress: () => renameCategory(category),
+      });
+      items.push({
+        key: "delete",
+        label: t("library_delete_category_action"),
+        systemImage: "trash",
+        icon: "trash-outline",
+        destructive: true,
+        onPress: () => deleteCategory(category),
+      });
+    }
+    return <NativeContextMenu items={items}>{row}</NativeContextMenu>;
   };
 
   const renderCategoryItem = ({

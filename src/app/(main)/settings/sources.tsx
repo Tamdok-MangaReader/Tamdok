@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import { checkSourceCompatibility } from "@/utils/app-version";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -437,6 +438,11 @@ export default function SettingsSourcesScreen() {
   const confirmInstallEntry = useCallback(
     (registryUrl: string, entry: RegistryEntry) => {
       if (installedIds.has(entry.id)) return;
+      const compatibility = checkSourceCompatibility(entry, registryUrl);
+      if (!compatibility.ok) {
+        Alert.alert(t("sources_install_failed"), compatibility.message);
+        return;
+      }
       Alert.alert(
         t("source_install_title"),
         t("source_install_confirm", { name: entry.name }),
@@ -953,6 +959,13 @@ export default function SettingsSourcesScreen() {
               <SourceListItem
                 title={entry.name}
                 subtitle={registryEntrySubtitle(entry)}
+                warning={
+                  checkSourceCompatibility(entry, registryUrl).ok
+                    ? undefined
+                    : t("source_requires_app_short", {
+                        version: entry.minAppVersion ?? "",
+                      })
+                }
                 iconUri={resolveRegistryIconUrl(registryUrl, entry)}
                 badge={kind}
                 rating={entry.contentRating}

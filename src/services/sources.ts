@@ -3,6 +3,7 @@ import type {
   RegistryEntry,
   SourceRegistry,
 } from "@/parsers/shared/types";
+import { checkSourceCompatibility } from "@/utils/app-version";
 import {
   cacheRegistry,
   downloadRegistryEntry,
@@ -624,6 +625,9 @@ export async function installFromRegistry(
   registryUrl: string,
   entry: RegistryEntry,
 ): Promise<InstalledSource> {
+  const compatibility = checkSourceCompatibility(entry, registryUrl);
+  if (!compatibility.ok) throw new Error(compatibility.message);
+
   let data: Uint8Array;
   try {
     data = await downloadRegistryEntry(registryUrl, entry);

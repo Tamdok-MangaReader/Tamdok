@@ -30,7 +30,7 @@ export function SourceHomeAlertBanner({
       ]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={colors.tint} style={styles.icon} />
+        <ActivityIndicator size="small" color="#FF9F0A" style={styles.icon} />
       ) : (
         <Ionicons
           name="alert-circle-outline"

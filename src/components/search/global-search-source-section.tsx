@@ -12,6 +12,7 @@ import {
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
+import { ErrorState } from "@/components/ui/error-state";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
@@ -160,9 +161,7 @@ export function GlobalSearchSourceSection({
               },
             ]}
           >
-            <ThemedText variant="footnote" color="destructive">
-              {group.error ?? t("search_source_failed_desc")}
-            </ThemedText>
+            <ErrorState compact message={group.error ?? t("search_source_failed_desc")} />
           </View>
         ) : (
           <>

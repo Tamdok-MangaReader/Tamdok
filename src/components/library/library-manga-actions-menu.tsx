@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
-import { FullWindowOverlay } from "react-native-screens";
+import { FullWindowOverlay } from '@/components/ui/full-window-overlay';
 
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";

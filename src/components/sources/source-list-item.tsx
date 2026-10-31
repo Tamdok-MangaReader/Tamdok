@@ -22,6 +22,8 @@ import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 type SourceListItemProps = {
   title: string;
   subtitle?: string;
+  // Shown in red next to the subtitle, for example an incompatibility note.
+  warning?: string;
   iconUri?: string;
   iconSource?: ImageSourcePropType;
   badge?: string;
@@ -38,6 +40,7 @@ type SourceListItemProps = {
 export const SourceListItem = memo(function SourceListItem({
   title,
   subtitle,
+  warning,
   iconUri,
   iconSource,
   badge,
@@ -103,9 +106,14 @@ export const SourceListItem = memo(function SourceListItem({
         <ThemedText variant="body" style={styles.title}>
           {title}
         </ThemedText>
-        {subtitle && (
+        {!!subtitle && (
           <ThemedText variant="caption1" color="secondaryLabel">
             {subtitle}
+          </ThemedText>
+        )}
+        {!!warning && (
+          <ThemedText variant="caption1" color="destructive">
+            {warning}
           </ThemedText>
         )}
       </View>
@@ -149,7 +157,7 @@ export const SourceListItem = memo(function SourceListItem({
           </View>
         )}
       </View>
-      {badge && (
+      {!!badge && (
         <View
           style={[
             styles.badge,

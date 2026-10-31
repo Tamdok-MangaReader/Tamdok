@@ -11,6 +11,7 @@ import {
   type ComponentProps,
 } from "react";
 import {
+  Alert,
   Platform,
   Share,
   StatusBar,
@@ -39,7 +40,12 @@ import { useReaderChapterWindow } from "@/hooks/use-reader-chapter-window";
 import type { Chapter, Manga, Page } from "@/parsers/shared/types";
 import { getAppSettings } from "@/services/app-settings";
 import { syncReadingLiveActivity } from "@/services/library-live-activity";
-import { removeChapterDownload } from "@/services/downloads";
+import {
+  getDownloadedPageUrls,
+  removeChapterDownload,
+} from "@/services/downloads";
+import { isOffline } from "@/services/network";
+import { t } from "@/constants/locales";
 import {
   lookupWord,
   pickWordNearTap,
@@ -829,19 +835,33 @@ export function ReaderView({
       if (settings?.markDuplicateChapters && extraToMark.length > 0) {
         void markChaptersInQueue(extraToMark);
       }
-      router.replace({
-        pathname: "/reader",
-        params: {
-          sourceId,
-          mangaKey: encodeURIComponent(manga.key),
-          chapterKey: encodeURIComponent(nextChapter.key),
-          chapterTitle: formatChapterLabel(nextChapter),
-          mangaTitle: manga.title,
-          ...(manga.cover ? { cover: manga.cover } : {}),
-          switched: "1",
-          ...(openAtEnd ? { page: "last" } : {}),
-        },
-      });
+      void (async () => {
+        // Offline and the target chapter is not stored on the device: stay on the current chapter
+        // and explain, instead of opening a reader that could only fail.
+        if (
+          (await isOffline()) &&
+          !(await getDownloadedPageUrls(sourceId, manga.key, nextChapter.key))
+        ) {
+          Alert.alert(
+            t("reader_offline_title"),
+            t("reader_offline_next_message"),
+          );
+          return;
+        }
+        router.replace({
+          pathname: "/reader",
+          params: {
+            sourceId,
+            mangaKey: encodeURIComponent(manga.key),
+            chapterKey: encodeURIComponent(nextChapter.key),
+            chapterTitle: formatChapterLabel(nextChapter),
+            mangaTitle: manga.title,
+            ...(manga.cover ? { cover: manga.cover } : {}),
+            switched: "1",
+            ...(openAtEnd ? { page: "last" } : {}),
+          },
+        });
+      })();
     },
     [
       markChaptersInQueue,

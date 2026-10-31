@@ -7,7 +7,7 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { MangaGrid } from "@/components/manga/manga-grid";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScreenContent } from "@/components/ui/screen-content";
-import { ThemedText } from "@/components/ui/themed-text";
+import { ErrorState } from "@/components/ui/error-state";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useSources } from "@/context/sources-context";
@@ -177,9 +177,7 @@ export default function SourceListingScreen() {
       >
         {displayError ? (
           <View style={styles.errorWrap}>
-            <ThemedText variant="body" color="destructive">
-              {displayError}
-            </ThemedText>
+            <ErrorState message={displayError} />
           </View>
         ) : !supportsListing ? (
           <EmptyState
