@@ -5,7 +5,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { useIsOpenDuo } from "@/hooks/use-duo-layout";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsOpenDuo, useSystemRail } from "@/hooks/use-duo-layout";
 import {
   NativeContextMenu,
   type NativeContextMenuItem,
@@ -28,7 +29,9 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
   type ListRenderItem,
@@ -81,9 +84,18 @@ const DESCRIPTION_PREVIEW_LINES = 4;
 const TAG_PREVIEW_COUNT = 6;
 const DOWNLOADED_COLOR = "#007AFF";
 const COVER_WIDTH = 160;
-const COVER_HEIGHT = Math.round(COVER_WIDTH * 1.45);
+const COVER_REFERENCE_WIDTH = 430;
+const COVER_MIN_WIDTH = 110;
+
+// Full size on Pro Max-class screens; narrower phones give the cover less room so the meta column stays readable.
+function coverWidthFor(screenWidth: number) {
+  const ratio = Math.min(1, screenWidth / COVER_REFERENCE_WIDTH);
+  return Math.max(COVER_MIN_WIDTH, Math.round(COVER_WIDTH * ratio * ratio));
+}
 
 const EMPTY_CHAPTERS: Chapter[] = [];
+// Header shows at most this many authors / artists.
+const MAX_CREDITS = 2;
 const EMPTY_TAGS: string[] = [];
 const PRESSED_72 = { opacity: 0.72 } as const;
 const PRESSED_85 = { opacity: 0.85 } as const;
@@ -293,7 +305,10 @@ type HeaderProps = {
   canOpenInBrowser: boolean;
   continueLabel: string;
   chapterSelectMode: boolean;
+  /** Unfolded Duo split: "info" = cover/description (left), "chapters" = continue button + chapter list header (right). */
+  part?: "all" | "info" | "chapters";
   showBigMangaCover?: boolean;
+  stretchCover?: boolean;
   inlineError?: string | null;
   retrying?: boolean;
   isLoading: boolean;
@@ -310,6 +325,22 @@ type HeaderProps = {
   onDeselectAllChapters?: () => void;
 };
 
+function MoreBadge({ count }: { count: number }) {
+  const { radius } = useTheme();
+  if (count <= 0) return null;
+  return (
+    <GlassSurface borderRadius={radius.pill}>
+      <ThemedText
+        variant="footnote"
+        color="secondaryLabel"
+        style={styles.moreBadgeText}
+      >
+        {`+${count}`}
+      </ThemedText>
+    </GlassSurface>
+  );
+}
+
 const MangaDetailHeader = memo(function MangaDetailHeader({
   manga,
   sourceName,
@@ -320,7 +351,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   canOpenInBrowser,
   continueLabel,
   chapterSelectMode,
+  part = "all",
   showBigMangaCover,
+  stretchCover = true,
   inlineError,
   retrying,
   isLoading,
@@ -338,6 +371,10 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
 }: HeaderProps) {
   const { colors, radius } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
+  const { width: windowWidth } = useWindowDimensions();
+  // Folded Duo: the system rail eats one side; this screen is not wrapped by DuoScreenLayout, so keep the hero clear of it here.
+  const rail = useSystemRail();
+  const coverWidth = coverWidthFor(windowWidth - rail.left - rail.right);
 
   const parsed = useMemo(
     () => parseMangaDescription(manga.description),
@@ -348,11 +385,19 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     [manga.rating, parsed],
   );
   const authors = useMemo(
-    () => manga.authors?.filter(Boolean).join(", "),
+    () => manga.authors?.filter(Boolean).slice(0, MAX_CREDITS).join(", "),
     [manga.authors],
   );
+  const moreAuthors = Math.max(
+    0,
+    (manga.authors?.filter(Boolean).length ?? 0) - MAX_CREDITS,
+  );
+  const moreArtists = Math.max(
+    0,
+    (manga.artists?.filter(Boolean).length ?? 0) - MAX_CREDITS,
+  );
   const artists = useMemo(
-    () => manga.artists?.filter(Boolean).join(", "),
+    () => manga.artists?.filter(Boolean).slice(0, MAX_CREDITS).join(", "),
     [manga.artists],
   );
   const altTitles = useMemo(
@@ -373,29 +418,32 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
 
   const libraryButtonContent = (
     <>
-      <Ionicons
-        name={inLibrary ? "bookmark" : "bookmark-outline"}
-        size={18}
-        color={inLibrary ? colors.tint : colors.onTint}
-        style={styles.libraryIconLeading}
-      />
+      <View style={styles.libraryIconLeading} pointerEvents="none">
+        <Ionicons
+          name={inLibrary ? "bookmark" : "bookmark-outline"}
+          size={18}
+          color={inLibrary ? colors.tint : colors.onTint}
+        />
+      </View>
       <ThemedText
         variant="body"
         color={inLibrary ? "tint" : "onTint"}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.7}
+        maxFontSizeMultiplier={1.3}
         style={styles.libraryButtonText}
       >
         {inLibrary ? t("manga_in_library") : t("manga_add_to_library")}
       </ThemedText>
       {hasCustomCategories ? (
-        <Ionicons
-          name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
-          size={14}
-          color={inLibrary ? colors.tint : colors.onTint}
-          style={styles.libraryIconTrailing}
-        />
+        <View style={styles.libraryIconTrailing} pointerEvents="none">
+          <Ionicons
+            name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
+            size={14}
+            color={inLibrary ? colors.tint : colors.onTint}
+          />
+        </View>
       ) : null}
     </>
   );
@@ -404,13 +452,15 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     () => [
       styles.cover,
       {
-        width: COVER_WIDTH,
-        height: COVER_HEIGHT,
+        width: coverWidth,
+        // At least the poster ratio; grows with the info block next to it (unless stretching is off).
+        ...(stretchCover ? { flex: 1 } : null),
+        minHeight: Math.round(coverWidth * 1.45),
         borderRadius: radius.md,
         backgroundColor: colors.secondaryFill,
       },
     ],
-    [radius.md, colors.secondaryFill],
+    [radius.md, colors.secondaryFill, coverWidth],
   );
 
   const coverScale = useSharedValue(1);
@@ -468,20 +518,28 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             variant="callout"
             color={showBigMangaCover ? "secondaryLabel" : "tertiaryLabel"}
             numberOfLines={1}
+            style={styles.creditText}
           >
             {altTitles[0]}
           </ThemedText>
+          <MoreBadge count={altTitles.length - 1} />
         </View>
       ) : null}
       {authors ? (
-        <ThemedText variant="subheadline" color="secondaryLabel">
-          {authors}
-        </ThemedText>
+        <View style={styles.creditRow}>
+          <ThemedText variant="subheadline" color="secondaryLabel" numberOfLines={2} style={styles.creditText}>
+            {authors}
+          </ThemedText>
+          <MoreBadge count={moreAuthors} />
+        </View>
       ) : null}
       {artists && artists !== authors ? (
-        <ThemedText variant="footnote" color="secondaryLabel">
-          {artists}
-        </ThemedText>
+        <View style={styles.creditRow}>
+          <ThemedText variant="footnote" color="secondaryLabel" numberOfLines={1} style={styles.creditText}>
+            {artists}
+          </ThemedText>
+          <MoreBadge count={moreArtists} />
+        </View>
       ) : null}
       {rating ? <StarRating rating={rating} bigger /> : null}
       <View style={styles.pills}>
@@ -553,6 +611,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             </Pressable>
             {canOpenInBrowser ? (
               <Pressable
+                style={styles.safariPressable}
                 onPress={onOpenInBrowser}
                 hitSlop={8}
                 accessibilityRole="button"
@@ -577,11 +636,60 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     </>
   );
 
+  const progressNode = !chapterSelectMode && chaptersCount > 0 ? (
+        <View style={styles.readingProgress}>
+          <View style={styles.readingProgressCard}>
+            <View style={styles.readingProgressHeader}>
+              <ThemedText
+                variant="caption1"
+                color="secondaryLabel"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                style={styles.readingProgressLabel}
+              >
+                {t("manga_reading_progress", {
+                  read: String(Math.max(0, chaptersCount - unreadCount)),
+                  total: String(chaptersCount),
+                })}
+              </ThemedText>
+              <ThemedText variant="caption1" color="tint" style={styles.readingProgressPercent}>
+                {Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100)}%
+              </ThemedText>
+            </View>
+            <View
+              style={[
+                styles.readingProgressTrack,
+                { backgroundColor: colors.secondaryFill },
+              ]}
+            >
+              <View
+                style={[
+                  styles.readingProgressFill,
+                  {
+                    backgroundColor: colors.tint,
+                    width: `${Math.max(2, Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100))}%`,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null;
+
   const showCounts = inLibrary && (unreadCount > 0 || downloadedCount > 0);
 
   const heroNode = (
-    <View style={styles.hero}>
+    <View
+      style={[
+        styles.hero,
+        rail.left > 0 || rail.right > 0
+          ? { paddingLeft: rail.left, paddingRight: rail.right }
+          : null,
+      ]}
+    >
         <Pressable
+          style={[styles.coverPressable, !stretchCover && styles.coverPressableFixed]}
           onLongPress={handleCoverLongPress}
           onPressIn={handleCoverPressIn}
           onPressOut={handleCoverPressOut}
@@ -678,14 +786,18 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   const [headerWidth, setHeaderWidth] = useState(0);
   const windowOpen = useIsOpenDuo();
   const isOpenDuo =
-    Platform.OS === "ios" && (headerWidth > 0 ? headerWidth >= OPEN_HEADER_MIN_WIDTH : windowOpen);
+    part === "all" &&
+    Platform.OS === "ios" &&
+    (headerWidth > 0 ? headerWidth >= OPEN_HEADER_MIN_WIDTH : windowOpen);
+  const showInfo = part !== "chapters";
+  const showChapters = part !== "info";
 
   return (
     <View
       style={styles.header}
       onLayout={(event) => setHeaderWidth(Math.round(event.nativeEvent.layout.width))}
     >
-      {showBigMangaCover && coverSource ? (
+      {showInfo && showBigMangaCover && coverSource ? (
         <MangaBackground source={coverSource} />
       ) : null}
       {inlineError ? (
@@ -704,7 +816,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         onClose={closeCoverPreview}
       />
 
-      {isOpenDuo ? (
+      {!showInfo ? null : isOpenDuo ? (
         <View style={styles.openTop}>
           <View style={styles.openMeta}>{heroNode}</View>
           {showBigMangaCover ? (
@@ -725,7 +837,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         </>
       )}
 
-      {!chapterSelectMode && !isLoading && chaptersCount > 0 ? (
+      {showChapters && !chapterSelectMode && !isLoading && chaptersCount > 0 ? (
         <Pressable onPress={onContinueReading} style={libraryPressableStyle}>
           <View
             style={[
@@ -746,6 +858,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         </Pressable>
       ) : null}
 
+      {showChapters ? (
       <View style={styles.chapterHeader}>
         <View style={styles.chapterTitleRow}>
           <ThemedText variant="headline" style={styles.blockTitle}>
@@ -757,6 +870,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             <ActivityIndicator size="small" color={colors.tint} />
           ) : null}
         </View>
+        {progressNode}
         {chapterSelectMode ? (
           <View style={styles.selectActions}>
             <Pressable onPress={onSelectAllChapters} hitSlop={8}>
@@ -772,6 +886,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           </View>
         ) : null}
       </View>
+      ) : null}
     </View>
   );
 });
@@ -795,6 +910,7 @@ type MangaDetailViewProps = {
   contentBottomInset?: number;
   selectedChapterKeys?: Set<string>;
   showBigMangaCover?: boolean;
+  stretchCover?: boolean;
   showChapterNumber?: boolean;
   inlineError?: string | null;
   retrying?: boolean;
@@ -836,6 +952,7 @@ export function MangaDetailView({
   contentBottomInset = 0,
   selectedChapterKeys,
   showBigMangaCover,
+  stretchCover = true,
   showChapterNumber,
   inlineError,
   retrying = false,
@@ -1032,8 +1149,17 @@ export function MangaDetailView({
     ],
   );
 
-  const listHeader = (
+  const duoRail = useSystemRail();
+  // The unfolded display reports no rail, but the system may still reserve controls on a side: honour the raw safe-area insets too.
+  const safeInsets = useSafeAreaInsets();
+  const sideLeft = Math.max(duoRail.left, safeInsets.left);
+  const sideRight = Math.max(duoRail.right, safeInsets.right);
+  // Unfolded Duo: info on the left, continue button + chapters on the right.
+  const split = useIsOpenDuo();
+
+  const renderHeader = (part: "all" | "info" | "chapters") => (
     <MangaDetailHeader
+      part={part}
       manga={manga}
       sourceName={sourceName}
       sourceKind={sourceKind}
@@ -1044,6 +1170,7 @@ export function MangaDetailView({
       continueLabel={continueLabel}
       chapterSelectMode={chapterSelectMode}
       showBigMangaCover={showBigMangaCover}
+      stretchCover={stretchCover}
       inlineError={inlineError}
       retrying={retrying}
       isLoading={isLoading}
@@ -1064,6 +1191,7 @@ export function MangaDetailView({
       }
     />
   );
+  const listHeader = renderHeader(split ? "chapters" : "all");
 
   const listEmpty = useMemo(
     () =>
@@ -1095,11 +1223,9 @@ export function MangaDetailView({
     [onRefresh, colors.tint],
   );
 
-  return (
-    <View style={styles.root}>
-      <SwipeableRowsProvider>
-        <FlatList
-          style={styles.root}
+  const chaptersList = (
+    <FlatList
+          style={split ? styles.splitFill : styles.root}
           data={isLoading ? EMPTY_CHAPTERS : chapters}
           keyExtractor={chapterKeyExtractor}
           renderItem={renderChapter}
@@ -1111,13 +1237,42 @@ export function MangaDetailView({
           scrollsToTop={false}
           showsVerticalScrollIndicator={false}
           refreshControl={refreshControl}
-          renderScrollComponent={renderScrollComponent}
+          renderScrollComponent={split ? undefined : renderScrollComponent}
           initialNumToRender={10}
           maxToRenderPerBatch={6}
           updateCellsBatchingPeriod={50}
           windowSize={5}
           removeClippedSubviews={Platform.OS === "android"}
         />
+  );
+
+  return (
+    <View style={styles.root}>
+      <SwipeableRowsProvider>
+        {split ? (
+          <View style={styles.splitRow}>
+            <ScrollView
+              style={[styles.splitLeft, { paddingLeft: sideLeft }]}
+              contentContainerStyle={contentContainerStyle}
+              contentInsetAdjustmentBehavior="automatic"
+              automaticallyAdjustsScrollIndicatorInsets
+              scrollsToTop={false}
+              showsVerticalScrollIndicator={false}
+            >
+              {renderHeader("info")}
+            </ScrollView>
+            <View
+              style={[
+                styles.splitRight,
+                { paddingRight: sideRight },
+              ]}
+            >
+              {chaptersList}
+            </View>
+          </View>
+        ) : (
+          chaptersList
+        )}
       </SwipeableRowsProvider>
       <LibraryCategoryDropdown
         visible={libraryPickerOpen}
@@ -1545,6 +1700,10 @@ const styles = StyleSheet.create({
   sourceNameBold: {
     fontWeight: "700",
   },
+  splitRow: { flex: 1, flexDirection: "row" },
+  splitLeft: { flex: 1 },
+  splitRight: { flex: 1 },
+  splitFill: { flex: 1 },
   openTop: {
     flexDirection: "row",
     gap: Spacing.xl,
@@ -1562,7 +1721,13 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: "row",
     gap: Spacing.lg,
-    alignItems: "flex-start",
+    alignItems: "stretch",
+  },
+  coverPressableFixed: {
+    alignSelf: "flex-start",
+  },
+  coverPressable: {
+    alignSelf: "stretch",
   },
   cover: {
     overflow: "hidden",
@@ -1635,14 +1800,14 @@ const styles = StyleSheet.create({
   statusPill: {
     paddingHorizontal: Spacing.sm,
     flexDirection: "row",
-    alignSelf: "flex-start",
+    alignSelf: "center",
     alignItems: "center",
     gap: 2,
   },
   typePill: {
     paddingHorizontal: Spacing.sm,
     flexDirection: "row",
-    alignSelf: "flex-start",
+    alignSelf: "center",
     alignItems: "center",
   },
   statusText: {
@@ -1651,13 +1816,41 @@ const styles = StyleSheet.create({
   typeText: {
     paddingVertical: 4,
   },
+  readingProgress: {
+    flex: 1,
+    minWidth: 120,
+  },
+  readingProgressCard: {
+    gap: 6,
+  },
+  readingProgressHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  readingProgressLabel: {
+    flexShrink: 1,
+  },
+  readingProgressPercent: {
+    fontWeight: "700",
+  },
+  readingProgressTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  readingProgressFill: {
+    height: 5,
+    borderRadius: 3,
+  },
   librarySection: {
     gap: Spacing.sm,
     alignSelf: "stretch",
   },
   libraryRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: Spacing.xs,
     alignSelf: "flex-start",
   },
@@ -1671,8 +1864,11 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
+    minHeight: 40,
   },
   libraryButtonText: {
+    // A fixed lineHeight stays put while adjustsFontSizeToFit shrinks the glyphs, pushing the text down.
+    lineHeight: undefined,
     flexShrink: 1,
     textAlign: "center",
     paddingHorizontal: 26,
@@ -1680,14 +1876,23 @@ const styles = StyleSheet.create({
   libraryIconLeading: {
     position: "absolute",
     left: Spacing.md,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
   },
   libraryIconTrailing: {
     position: "absolute",
     right: Spacing.md,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
+  safariPressable: {
+    // Square, as tall as the library button next to it.
+    aspectRatio: 1,
   },
   safariButton: {
-    width: 32,
-    height: 32,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1716,8 +1921,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    flex: 1,
-    minWidth: 0,
+    flexShrink: 1,
   },
   selectActions: {
     flexDirection: "row",
@@ -1803,6 +2007,7 @@ const styles = StyleSheet.create({
   pills: {
     display: "flex",
     flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.xs,
     gap: Spacing.xs,
     flex: 1,
@@ -1811,6 +2016,18 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "row",
     gap: Spacing.xs,
+  },
+  creditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  creditText: {
+    flexShrink: 1,
+  },
+  moreBadgeText: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 1,
   },
   caltTitleBadge: {
     minWidth: 20,

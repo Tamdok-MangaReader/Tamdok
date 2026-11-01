@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useEffect, useMemo } from "react";
 import { Dimensions, useWindowDimensions } from "react-native";
@@ -32,7 +32,7 @@ function PhoneTabs() {
       indicatorColor={`${tabTintColor}33`}
       labelStyle={{ default: { color: colors.secondaryLabel }, selected: { color: tabTintColor } }}
     >
-      <NativeTabs.Trigger name="index">
+      <NativeTabs.Trigger name="(library)">
         <NativeTabs.Trigger.Label>{t("library")}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon md="collections_bookmark" />
         <NativeTabs.Trigger.Badge hidden={badges.library <= 0}>

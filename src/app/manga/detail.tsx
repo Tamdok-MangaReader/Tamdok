@@ -35,6 +35,7 @@ import { ScreenContent } from "@/components/ui/screen-content";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
 import { useSources } from "@/context/sources-context";
+import { useMultipleSourceKinds } from "@/hooks/use-multiple-source-kinds";
 import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
 import { useMangaDetail } from "@/hooks/use-manga-detail";
@@ -162,21 +163,39 @@ function resolveReadingTarget(
 ): { chapter: Chapter; page: number; hasHistory: boolean } | null {
   if (chapters.length === 0) return null;
 
+  // The list is newest first, so the last element is the first chapter to read.
   const first = chapters[chapters.length - 1]!;
 
-  let resume: ChapterProgress | undefined;
+  let latest: ChapterProgress | undefined;
   for (const entry of Object.values(progressMap)) {
-    if (!resume || entry.dateRead > resume.dateRead) resume = entry;
+    if (!latest || entry.dateRead > latest.dateRead) latest = entry;
   }
 
-  if (!resume) {
+  if (!latest) {
     return { chapter: first, page: 0, hasHistory: false };
   }
 
-  const chapter =
-    chapters.find((item) => item.key === resume.chapterKey) ?? first;
-  const page = resume.page >= 0 ? resume.page : 0;
-  return { chapter, page, hasHistory: true };
+  // A chapter that was left half-read and touched last is resumed as is.
+  if (latest.page >= 0) {
+    const inProgress = chapters.find((item) => item.key === latest.chapterKey);
+    if (inProgress) return { chapter: inProgress, page: latest.page, hasHistory: true };
+  }
+
+  // Otherwise continue from the oldest unread chapter. This also covers chapters marked as read
+  // by hand, which have no meaningful "last read" order.
+  const finished = new Set<string>();
+  for (const entry of Object.values(progressMap)) {
+    if (entry.page === -1) finished.add(entry.chapterKey);
+  }
+  for (let index = chapters.length - 1; index >= 0; index--) {
+    const chapter = chapters[index]!;
+    if (finished.has(chapter.key)) continue;
+    const saved = progressMap[chapter.key];
+    return { chapter, page: saved && saved.page >= 0 ? saved.page : 0, hasHistory: true };
+  }
+
+  // Everything is read: offer the newest chapter.
+  return { chapter: chapters[0]!, page: 0, hasHistory: true };
 }
 
 export default function MangaDetailScreen() {
@@ -192,6 +211,7 @@ export default function MangaDetailScreen() {
   const mangaKey = decodeParam(params.mangaKey);
   const { colors } = useTheme();
   const { installed, isLoading: sourcesLoading } = useSources();
+  const showSourceKind = useMultipleSourceKinds();
   const installedReady = !sourcesLoading;
   const source = findInstalledSource(installed, sourceRoute);
   const manifestSourceId = source?.id ?? sourceRoute;
@@ -246,6 +266,7 @@ export default function MangaDetailScreen() {
     () => new Set(),
   );
   const [showBigMangaCover, setShowBigMangaCover] = useState(Platform.OS !== "android");
+  const [stretchMangaCover, setStretchMangaCover] = useState(true);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
 
   const bulkBusyRef = useRef(false);
@@ -263,6 +284,7 @@ export default function MangaDetailScreen() {
     onDeselectAll: () => {},
     onRefresh: () => {},
     onDownloadAll: () => {},
+    onDownloadUnread: () => {},
     onDownloadSelected: () => {},
     onRemoveDownloads: () => {},
   });
@@ -306,6 +328,7 @@ export default function MangaDetailScreen() {
   const loadSettings = useCallback(async () => {
     const settings = await getAppSettings();
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
+    setStretchMangaCover(settings.mangaScreen.stretchMangaCover);
     setShowChapterNumber(settings.mangaScreen.showChapterNumber);
   }, []);
 
@@ -640,6 +663,25 @@ export default function MangaDetailScreen() {
     Alert.alert(t("manga_download_all"), t("manga_download_all_queued"));
   }, [queueDownloads]);
 
+  const handleDownloadUnread = useCallback(async () => {
+    const s = live.current;
+    if (!s.inLibrary) {
+      Alert.alert(t("manga_download_requires_library"));
+      return;
+    }
+    const unread = new Set(
+      s.chapters
+        .filter((chapter) => !s.readChapterKeys.has(chapter.key))
+        .map((chapter) => chapter.key),
+    );
+    if (unread.size === 0) return;
+    await queueDownloads(unread);
+    Alert.alert(
+      t("manga_download_unread_chapters"),
+      t("manga_download_all_queued"),
+    );
+  }, [queueDownloads]);
+
   const handleRemoveDownloads = useCallback(async () => {
     await removeMangaDownloads(manifestSourceId, mangaKey);
     setChapterDownloads({});
@@ -742,6 +784,7 @@ export default function MangaDetailScreen() {
     onDeselectAll: deselectAllChapters,
     onRefresh: () => refresh(),
     onDownloadAll: () => void handleDownloadAll(),
+    onDownloadUnread: () => void handleDownloadUnread(),
     onDownloadSelected: () => void handleDownloadSelected(),
     onRemoveDownloads: () => void handleRemoveDownloads(),
   };
@@ -773,6 +816,7 @@ export default function MangaDetailScreen() {
         onDeselectAll={() => handlersRef.current.onDeselectAll()}
         onRefresh={() => handlersRef.current.onRefresh()}
         onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadUnread={() => handlersRef.current.onDownloadUnread()}
         onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
         onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
         />
@@ -890,6 +934,7 @@ export default function MangaDetailScreen() {
           onDeselectAll={() => handlersRef.current.onDeselectAll()}
           onRefresh={() => handlersRef.current.onRefresh()}
           onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadUnread={() => handlersRef.current.onDownloadUnread()}
           onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
           onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
         />
@@ -925,6 +970,7 @@ export default function MangaDetailScreen() {
           onDeselectAll={() => handlersRef.current.onDeselectAll()}
           onRefresh={() => handlersRef.current.onRefresh()}
           onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadUnread={() => handlersRef.current.onDownloadUnread()}
           onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
           onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
         />
@@ -958,6 +1004,7 @@ export default function MangaDetailScreen() {
           onDeselectAll={() => handlersRef.current.onDeselectAll()}
           onRefresh={() => handlersRef.current.onRefresh()}
           onDownloadAll={() => handlersRef.current.onDownloadAll()}
+          onDownloadUnread={() => handlersRef.current.onDownloadUnread()}
           onDownloadSelected={() => handlersRef.current.onDownloadSelected()}
           onRemoveDownloads={() => handlersRef.current.onRemoveDownloads()}
         />
@@ -966,7 +1013,7 @@ export default function MangaDetailScreen() {
       <MangaDetailView
         manga={manga}
         sourceName={source.manifest.info.name}
-        sourceKind={source.kind}
+        sourceKind={showSourceKind ? source.kind : undefined}
         chapters={chapters}
         readChapterKeys={readChapterKeys}
         bookmarkedChapterKeys={bookmarkedChapterKeys}
@@ -981,6 +1028,7 @@ export default function MangaDetailScreen() {
         chapterSelectMode={chapterSelectMode}
         selectedChapterKeys={selectedChapterKeys}
         showBigMangaCover={showBigMangaCover}
+        stretchCover={stretchMangaCover}
         showChapterNumber={showChapterNumber}
         inlineError={showInlineError ? combinedError : null}
         retrying={sourceTrouble && (isRefreshing || isLoading)}

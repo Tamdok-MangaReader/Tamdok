@@ -197,6 +197,7 @@ export default function LibraryScreen() {
   const [loaded, setLoaded] = useState(false);
   const [hideCategorizedNsfw, setHideCategorizedNsfw] = useState(false);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
+  const [showCoverTitles, setShowCoverTitles] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
   const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] =
     useState(false);
@@ -289,6 +290,7 @@ export default function LibraryScreen() {
     setHideCategorizedNsfw(settings.privacy.hideCategorizedNsfwInAll);
     setGridColumns(libraryGridColumns(settings.libraryDisplay.gridSize));
     setShowUnreadBadges(settings.libraryDisplay.showUnreadBadges);
+    setShowCoverTitles(settings.libraryDisplay.showCoverTitles ?? true);
     setShowDownloadedBadges(settings.libraryDisplay.showDownloadedBadges);
     setShowLibraryRefreshStatus(
       settings.libraryDisplay.showLibraryRefreshStatus ?? false,
@@ -393,6 +395,7 @@ export default function LibraryScreen() {
               ? (entry.downloadedCount ?? 0)
               : 0,
             updateFailed: Boolean(entry.updateFailed),
+            hideTitle: !showCoverTitles,
           }),
         ),
       );
@@ -408,6 +411,7 @@ export default function LibraryScreen() {
     lastReadAt,
     showUnreadBadges,
     showDownloadedBadges,
+    showCoverTitles,
   ]);
 
   const isEmpty = (pagesData.get(selectedCategoryId)?.length ?? 0) === 0;

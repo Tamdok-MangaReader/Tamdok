@@ -35,6 +35,8 @@ export type MangaGridItem = Manga & {
   unreadCount?: number;
   downloadedCount?: number;
   updateFailed?: boolean;
+  /** Hides the title drawn over the cover. */
+  hideTitle?: boolean;
 };
 
 type MangaGridProps = {
@@ -130,6 +132,7 @@ export const MangaGridCell = memo(function MangaGridCell({
       refreshing={refreshing}
       downloadProgress={downloadProgress}
       downloadFailed={downloadFailed}
+      showTitleOverlay={!(item as MangaGridItem).hideTitle}
       showBookmark={showBookmark}
       scaleBadges={scaleBadges}
       showStatus={!!item.status}

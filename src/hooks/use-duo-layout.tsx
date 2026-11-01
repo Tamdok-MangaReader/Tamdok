@@ -187,7 +187,11 @@ export function ReadingColumn({ children }: { children: ReactNode }) {
 
 /** Horizontal scroller cover width; smaller on the unfolded Duo where 180pt looks oversized. */
 export function useScrollerCoverWidth(base: number): number {
-  return useIsOpenDuo() ? Math.round(base * 0.88) : base;
+  const { width } = useWindowDimensions();
+  const open = useIsOpenDuo();
+  if (open) return Math.round(base * 0.88);
+  // Pro Max-class widths keep the base size; narrower phones scale down proportionally.
+  return Math.round(base * Math.min(1, width / 430));
 }
 
 /**

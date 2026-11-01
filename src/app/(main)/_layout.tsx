@@ -1,4 +1,4 @@
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import { useMemo } from "react";
 
 import { t } from "@/constants/locales";
@@ -20,7 +20,7 @@ export default function MainTabLayout() {
       iconColor={tabIconColors}
       minimizeBehavior="onScrollDown"
     >
-      <NativeTabs.Trigger name="index">
+      <NativeTabs.Trigger name="(library)">
         <NativeTabs.Trigger.Label>{t("library")}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="books.vertical.fill" />
         <NativeTabs.Trigger.Badge hidden={badges.library <= 0}>

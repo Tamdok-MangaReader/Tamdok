@@ -1,5 +1,10 @@
 import { StyleSheet, View } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import { useEffect } from "react";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { READER_GLASS_TINT } from "@/utils/reader-glass";
@@ -9,6 +14,7 @@ import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
+import { useSystemRail } from "@/hooks/use-duo-layout";
 import { useTheme } from "@/hooks/use-theme";
 
 type ReaderToolbarProps = {
@@ -17,23 +23,33 @@ type ReaderToolbarProps = {
 
 export function ReaderToolbar({ visible }: ReaderToolbarProps) {
   const insets = useSafeAreaInsets();
+  // Folded Duo: keep the controls out from under the system rail (it swallows touches there).
+  const rail = useSystemRail();
   const { colors } = useTheme();
   const { chrome, actions, foregroundColor, mode, bookmarked } = useReader();
 
-  if (!visible) return null;
+  // Stays mounted and only fades: mounting the glass controls on every tap made the menu appear late.
+  const opacity = useSharedValue(visible ? 1 : 0);
+  useEffect(() => {
+    opacity.value = withTiming(visible ? 1 : 0, { duration: 180 });
+  }, [opacity, visible]);
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   const totalPages = Math.max(1, chrome.totalPages);
   const inverted = mode === "rtl";
 
   return (
     <Animated.View
-      entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(180)}
       style={[
         styles.root,
-        { paddingBottom: Math.max(insets.bottom, Spacing.sm) },
+        {
+          paddingBottom: Math.max(insets.bottom, Spacing.sm),
+          paddingLeft: Spacing.lg + rail.left,
+          paddingRight: Spacing.lg + rail.right,
+        },
+        fadeStyle,
       ]}
-      pointerEvents="box-none"
+      pointerEvents={visible ? "box-none" : "none"}
     >
       <View style={styles.controls}>
         <GlassIconButton
@@ -49,6 +65,7 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
           )}
         />
         <ReaderPageSlider
+          key={inverted ? "rtl" : "ltr"}
           currentPage={chrome.currentPage}
           totalPages={totalPages}
           accentColor={colors.tint}

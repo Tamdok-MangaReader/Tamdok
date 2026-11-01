@@ -46,6 +46,7 @@ type MangaDetailHeaderRightProps = {
   onDeselectAll: () => void;
   onRefresh: () => void;
   onDownloadAll: () => void;
+  onDownloadUnread: () => void;
   onDownloadSelected: () => void;
   onRemoveDownloads: () => void;
 };
@@ -66,6 +67,7 @@ export const MangaDetailHeaderRight = memo(function MangaDetailHeaderRight({
   onDeselectAll,
   onRefresh,
   onDownloadAll,
+  onDownloadUnread,
   onDownloadSelected,
   onRemoveDownloads,
 }: MangaDetailHeaderRightProps) {
@@ -89,6 +91,7 @@ export const MangaDetailHeaderRight = memo(function MangaDetailHeaderRight({
         onDeselectAll={onDeselectAll}
         onRefresh={onRefresh}
         onDownloadAll={onDownloadAll}
+        onDownloadUnread={onDownloadUnread}
         onDownloadSelected={onDownloadSelected}
         onRemoveDownloads={onRemoveDownloads}
       />

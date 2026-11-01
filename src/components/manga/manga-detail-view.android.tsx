@@ -86,6 +86,8 @@ const COVER_WIDTH = 160;
 const COVER_HEIGHT = Math.round(COVER_WIDTH * 1.45);
 
 const EMPTY_CHAPTERS: Chapter[] = [];
+// Header shows at most this many authors / artists.
+const MAX_CREDITS = 2;
 const EMPTY_TAGS: string[] = [];
 const PRESSED_72 = { opacity: 0.72 } as const;
 const PRESSED_85 = { opacity: 0.85 } as const;
@@ -301,6 +303,7 @@ type HeaderProps = {
   continueLabel: string;
   chapterSelectMode: boolean;
   showBigMangaCover?: boolean;
+  stretchCover?: boolean;
   inlineError?: string | null;
   retrying?: boolean;
   isLoading: boolean;
@@ -317,6 +320,22 @@ type HeaderProps = {
   onDeselectAllChapters?: () => void;
 };
 
+function MoreBadge({ count }: { count: number }) {
+  const { radius } = useTheme();
+  if (count <= 0) return null;
+  return (
+    <GlassSurface borderRadius={radius.pill}>
+      <ThemedText
+        variant="footnote"
+        color="secondaryLabel"
+        style={styles.moreBadgeText}
+      >
+        {`+${count}`}
+      </ThemedText>
+    </GlassSurface>
+  );
+}
+
 const MangaDetailHeader = memo(function MangaDetailHeader({
   part = "all",
   manga,
@@ -329,6 +348,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   continueLabel,
   chapterSelectMode,
   showBigMangaCover,
+  stretchCover = true,
   inlineError,
   retrying,
   isLoading,
@@ -356,11 +376,19 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     [manga.rating, parsed],
   );
   const authors = useMemo(
-    () => manga.authors?.filter(Boolean).join(", "),
+    () => manga.authors?.filter(Boolean).slice(0, MAX_CREDITS).join(", "),
     [manga.authors],
   );
+  const moreAuthors = Math.max(
+    0,
+    (manga.authors?.filter(Boolean).length ?? 0) - MAX_CREDITS,
+  );
+  const moreArtists = Math.max(
+    0,
+    (manga.artists?.filter(Boolean).length ?? 0) - MAX_CREDITS,
+  );
   const artists = useMemo(
-    () => manga.artists?.filter(Boolean).join(", "),
+    () => manga.artists?.filter(Boolean).slice(0, MAX_CREDITS).join(", "),
     [manga.artists],
   );
   const altTitles = useMemo(
@@ -413,7 +441,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       styles.cover,
       {
         width: COVER_WIDTH,
-        height: COVER_HEIGHT,
+        // At least the poster ratio; grows with the info block next to it (unless stretching is off).
+        ...(stretchCover ? { flex: 1 } : null),
+        minHeight: COVER_HEIGHT,
         borderRadius: radius.md,
         backgroundColor: colors.secondaryFill,
       },
@@ -476,20 +506,28 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             variant="callout"
             color={showBigMangaCover ? "secondaryLabel" : "tertiaryLabel"}
             numberOfLines={1}
+            style={styles.creditText}
           >
             {altTitles[0]}
           </ThemedText>
+          <MoreBadge count={altTitles.length - 1} />
         </View>
       ) : null}
       {authors ? (
-        <ThemedText variant="subheadline" color="secondaryLabel">
-          {authors}
-        </ThemedText>
+        <View style={styles.creditRow}>
+          <ThemedText variant="subheadline" color="secondaryLabel" numberOfLines={2} style={styles.creditText}>
+            {authors}
+          </ThemedText>
+          <MoreBadge count={moreAuthors} />
+        </View>
       ) : null}
       {artists && artists !== authors ? (
-        <ThemedText variant="footnote" color="secondaryLabel">
-          {artists}
-        </ThemedText>
+        <View style={styles.creditRow}>
+          <ThemedText variant="footnote" color="secondaryLabel" numberOfLines={1} style={styles.creditText}>
+            {artists}
+          </ThemedText>
+          <MoreBadge count={moreArtists} />
+        </View>
       ) : null}
       {rating ? <StarRating rating={rating} bigger /> : null}
       <View style={styles.pills}>
@@ -561,6 +599,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             </Pressable>
             {canOpenInBrowser ? (
               <Pressable
+                style={styles.safariPressable}
                 onPress={onOpenInBrowser}
                 hitSlop={8}
                 accessibilityRole="button"
@@ -585,11 +624,53 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
     </>
   );
 
+  const progressNode = !chapterSelectMode && chaptersCount > 0 ? (
+        <View style={styles.readingProgress}>
+          <View style={styles.readingProgressCard}>
+            <View style={styles.readingProgressHeader}>
+              <ThemedText
+                variant="caption1"
+                color="secondaryLabel"
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                style={styles.readingProgressLabel}
+              >
+                {t("manga_reading_progress", {
+                  read: String(Math.max(0, chaptersCount - unreadCount)),
+                  total: String(chaptersCount),
+                })}
+              </ThemedText>
+              <ThemedText variant="caption1" color="tint" style={styles.readingProgressPercent}>
+                {Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100)}%
+              </ThemedText>
+            </View>
+            <View
+              style={[
+                styles.readingProgressTrack,
+                { backgroundColor: colors.secondaryFill },
+              ]}
+            >
+              <View
+                style={[
+                  styles.readingProgressFill,
+                  {
+                    backgroundColor: colors.tint,
+                    width: `${Math.max(2, Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100))}%`,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+      ) : null;
+
   const showCounts = inLibrary && (unreadCount > 0 || downloadedCount > 0);
 
   const heroNode = (
     <View style={styles.hero}>
         <Pressable
+          style={[styles.coverPressable, !stretchCover && styles.coverPressableFixed]}
           onLongPress={handleCoverLongPress}
           onPressIn={handleCoverPressIn}
           onPressOut={handleCoverPressOut}
@@ -768,6 +849,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             <ActivityIndicator size="small" color={colors.tint} />
           ) : null}
         </View>
+        {progressNode}
         {chapterSelectMode ? (
           <View style={styles.selectActions}>
             <Pressable onPress={onSelectAllChapters} hitSlop={8}>
@@ -807,6 +889,7 @@ type MangaDetailViewProps = {
   contentBottomInset?: number;
   selectedChapterKeys?: Set<string>;
   showBigMangaCover?: boolean;
+  stretchCover?: boolean;
   showChapterNumber?: boolean;
   inlineError?: string | null;
   retrying?: boolean;
@@ -848,6 +931,7 @@ export function MangaDetailView({
   contentBottomInset = 0,
   selectedChapterKeys,
   showBigMangaCover,
+  stretchCover = true,
   showChapterNumber,
   inlineError,
   retrying = false,
@@ -1062,6 +1146,7 @@ export function MangaDetailView({
       continueLabel={continueLabel}
       chapterSelectMode={chapterSelectMode}
       showBigMangaCover={showBigMangaCover}
+      stretchCover={stretchCover}
       inlineError={inlineError}
       retrying={retrying}
       isLoading={isLoading}
@@ -1601,7 +1686,13 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: "row",
     gap: Spacing.lg,
-    alignItems: "flex-start",
+    alignItems: "stretch",
+  },
+  coverPressableFixed: {
+    alignSelf: "flex-start",
+  },
+  coverPressable: {
+    alignSelf: "stretch",
   },
   cover: {
     overflow: "hidden",
@@ -1674,14 +1765,14 @@ const styles = StyleSheet.create({
   statusPill: {
     paddingHorizontal: Spacing.sm,
     flexDirection: "row",
-    alignSelf: "flex-start",
+    alignSelf: "center",
     alignItems: "center",
     gap: 2,
   },
   typePill: {
     paddingHorizontal: Spacing.sm,
     flexDirection: "row",
-    alignSelf: "flex-start",
+    alignSelf: "center",
     alignItems: "center",
   },
   statusText: {
@@ -1690,13 +1781,41 @@ const styles = StyleSheet.create({
   typeText: {
     paddingVertical: 4,
   },
+  readingProgress: {
+    flex: 1,
+    minWidth: 120,
+  },
+  readingProgressCard: {
+    gap: 6,
+  },
+  readingProgressHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
+  },
+  readingProgressLabel: {
+    flexShrink: 1,
+  },
+  readingProgressPercent: {
+    fontWeight: "700",
+  },
+  readingProgressTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  readingProgressFill: {
+    height: 5,
+    borderRadius: 3,
+  },
   librarySection: {
     gap: Spacing.sm,
     alignSelf: "stretch",
   },
   libraryRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: Spacing.xs,
     alignSelf: "flex-start",
   },
@@ -1724,9 +1843,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: Spacing.md,
   },
+  safariPressable: {
+    // Square, as tall as the library button next to it.
+    aspectRatio: 1,
+  },
   safariButton: {
-    width: 32,
-    height: 32,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1755,8 +1877,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
-    flex: 1,
-    minWidth: 0,
+    flexShrink: 1,
   },
   selectActions: {
     flexDirection: "row",
@@ -1842,6 +1963,7 @@ const styles = StyleSheet.create({
   pills: {
     display: "flex",
     flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.xs,
     gap: Spacing.xs,
     flex: 1,
@@ -1850,6 +1972,18 @@ const styles = StyleSheet.create({
     display: "flex",
     flexDirection: "row",
     gap: Spacing.xs,
+  },
+  creditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  creditText: {
+    flexShrink: 1,
+  },
+  moreBadgeText: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 1,
   },
   caltTitleBadge: {
     minWidth: 20,

@@ -48,6 +48,8 @@ export type ReaderSettings = {
   tapZones: TapZones;
   invertTapZones: boolean;
   animatePageTransitions: boolean;
+  /** iOS: use the regular pager instead of the native page-curl pager. */
+  legacyPagedReader: boolean;
   pagesToPreload: number;
   pagedPageLayout: PagedPageLayout;
   pagedPageOffset: boolean;
@@ -72,6 +74,8 @@ export type DownloadSettings = {
 export type LibrarySortMode = "unread" | "title" | "recent" | "lastRead";
 
 export type LibraryDisplaySettings = {
+  /** Title text drawn over each cover in the library grid. */
+  showCoverTitles: boolean;
   showUnreadBadges: boolean;
   showDownloadedBadges: boolean;
   showCategoryCountBadges: boolean;
@@ -98,6 +102,7 @@ export type DebugSettings = {
 
 export type MangaScreenSettings = {
   showBigMangaCover: boolean;
+  stretchMangaCover: boolean;
   showChapterNumber: boolean;
 };
 
@@ -146,6 +151,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     tapZones: "left-right",
     invertTapZones: false,
     animatePageTransitions: true,
+    legacyPagedReader: false,
     pagesToPreload: 4,
     pagedPageLayout: "auto",
     pagedPageOffset: false,
@@ -178,6 +184,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     deleteAfterReading: false,
   },
   libraryDisplay: {
+    showCoverTitles: true,
     showUnreadBadges: true,
     showDownloadedBadges: true,
     showCategoryCountBadges: true,
@@ -191,6 +198,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   mangaScreen: {
     showBigMangaCover: Platform.OS !== "android",
+    stretchMangaCover: true,
     showChapterNumber: true,
   },
   coverDisplay: {
@@ -269,6 +277,9 @@ async function readSettings(): Promise<AppSettings> {
       showBigMangaCover:
         stored.mangaScreen?.showBigMangaCover ??
         DEFAULT_SETTINGS.mangaScreen.showBigMangaCover,
+      stretchMangaCover:
+        stored.mangaScreen?.stretchMangaCover ??
+        DEFAULT_SETTINGS.mangaScreen.stretchMangaCover,
       showChapterNumber:
         stored.mangaScreen?.showChapterNumber ??
         DEFAULT_SETTINGS.mangaScreen.showChapterNumber,

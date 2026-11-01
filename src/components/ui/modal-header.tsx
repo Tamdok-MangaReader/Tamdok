@@ -1,8 +1,11 @@
 import { BlurView } from "expo-blur";
+import { useContext } from "react";
+import { GestureDetector } from "react-native-gesture-handler";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { GlassSurface } from "@/components/ui/glass-surface";
+import { SwipeDismissContext } from "@/components/ui/swipe-dismiss-sheet";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -29,8 +32,9 @@ export function ModalHeader({
   actionDisabled = false,
 }: ModalHeaderProps) {
   const { colors, radius, isDark } = useTheme();
+  const swipeGesture = useContext(SwipeDismissContext);
 
-  return (
+  const content = (
     <View style={styles.root} pointerEvents="box-none">
       <BlurView
         style={StyleSheet.absoluteFill}
@@ -81,6 +85,8 @@ export function ModalHeader({
       </View>
     </View>
   );
+
+  return swipeGesture ? <GestureDetector gesture={swipeGesture as never}>{content}</GestureDetector> : content;
 }
 
 const styles = StyleSheet.create({

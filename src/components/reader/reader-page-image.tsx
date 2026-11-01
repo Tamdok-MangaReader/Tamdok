@@ -6,7 +6,7 @@ import {
 } from "@/utils/reader-debug";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image as RNImage,
@@ -19,6 +19,7 @@ import {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -26,6 +27,8 @@ import Animated, {
 
 import { ReaderDictionaryOverlay } from "@/components/reader/reader-dictionary-overlay";
 import { useReader } from "@/components/reader/reader-context";
+import { WebtoonScrollContext } from "@/components/reader/reader-webtoon-scroll-context";
+import { WebtoonZoomContext } from "@/components/reader/reader-webtoon-zoom";
 import { describeImageLoadError } from "@/utils/reader-image-error";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
@@ -55,11 +58,41 @@ type ReaderPageImageProps = {
   onMeasuredAspectRatio?: (ratio: number) => void;
   onSingleTap?: (x: number, y: number) => void;
   onLongPress?: (x: number, y: number) => void;
+  /** Fires when the page enters or leaves the zoomed state (used to pause page turning). */
+  onZoomChange?: (zoomed: boolean) => void;
   onDictionaryLookup?: (x: number, y: number) => void;
   layout?: "fill" | "intrinsic";
   contentFit?: "contain" | "cover" | "fill";
   containerWidth?: number;
+  /** Top of this page in list content coordinates; enables the sticky loading/error indicator. */
+  stickyTop?: number;
 };
+
+const STICKY_PAD = 32;
+
+function StickyStatus({
+  stickyTop,
+  frameHeight,
+  contentHeight,
+  children,
+}: {
+  stickyTop: number;
+  frameHeight: number;
+  contentHeight: number;
+  children: React.ReactNode;
+}) {
+  const scroll = useContext(WebtoonScrollContext);
+  const style = useAnimatedStyle(() => {
+    if (!scroll) return { transform: [{ translateY: STICKY_PAD }] };
+    const center = scroll.scrollY.value + scroll.viewportHeight.value / 2;
+    const wanted = center - stickyTop - contentHeight / 2;
+    const max = Math.max(STICKY_PAD, frameHeight - STICKY_PAD - contentHeight);
+    return {
+      transform: [{ translateY: Math.min(max, Math.max(STICKY_PAD, wanted)) }],
+    };
+  });
+  return <Animated.View style={[styles.stickyStatus, style]}>{children}</Animated.View>;
+}
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
@@ -101,10 +134,12 @@ export function ReaderPageImage({
   onMeasuredAspectRatio,
   onSingleTap,
   onLongPress,
+  onZoomChange,
   onDictionaryLookup,
   layout = "fill",
   contentFit,
   containerWidth,
+  stickyTop,
 }: ReaderPageImageProps) {
   const { debugShowPageNumbers } = useReader();
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -140,29 +175,56 @@ export function ReaderPageImage({
   const pinchFocalX = useSharedValue(0);
   const pinchFocalY = useSharedValue(0);
 
+  // Callbacks are read through refs so the gesture object keeps its identity when the parent
+  // re-renders with new inline closures (rebuilding it mid-pinch makes the zoom jump).
+  const onSingleTapRef = useRef(onSingleTap);
+  onSingleTapRef.current = onSingleTap;
+  const onLongPressRef = useRef(onLongPress);
+  onLongPressRef.current = onLongPress;
+  const onDictionaryLookupRef = useRef(onDictionaryLookup);
+  onDictionaryLookupRef.current = onDictionaryLookup;
+
   const handleSingleTapJS = useCallback(
     (x: number, y: number) => {
       if (dictionarySingleTap) {
-        onDictionaryLookup?.(x, y);
+        onDictionaryLookupRef.current?.(x, y);
         return;
       }
-      onSingleTap?.(x, y);
+      onSingleTapRef.current?.(x, y);
     },
-    [dictionarySingleTap, onDictionaryLookup, onSingleTap],
+    [dictionarySingleTap],
   );
 
   const handleLongPressJS = useCallback(
     (x: number, y: number) => {
       if (dictionaryLongPress) {
-        onDictionaryLookup?.(x, y);
+        onDictionaryLookupRef.current?.(x, y);
         return;
       }
-      onLongPress?.(x, y);
+      onLongPressRef.current?.(x, y);
     },
-    [dictionaryLongPress, onDictionaryLookup, onLongPress],
+    [dictionaryLongPress],
   );
 
   const liveText = Platform.OS === "ios" && settings.liveText;
+
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
+  const notifyZoom = useCallback((zoomed: boolean) => {
+    onZoomChangeRef.current?.(zoomed);
+  }, []);
+  useAnimatedReaction(
+    () => scale.value > ZOOM_EPSILON,
+    (zoomed, previous) => {
+      if (zoomed !== previous) runOnJS(notifyZoom)(zoomed);
+    },
+  );
+  useEffect(() => () => onZoomChangeRef.current?.(false), []);
+
+  // In the webtoon strip the whole reader zooms (see WebtoonZoom); this page then only reports double taps.
+  const webtoonZoom = useContext(WebtoonZoomContext);
+  const hasExternalZoom = layout === "intrinsic" && webtoonZoom != null;
+  const toggleExternalZoom = webtoonZoom?.toggleZoomAt;
 
   const composed = useMemo(() => {
     // Pinch zoom only; pan activates once zoomed so taps still reach the reader chrome.
@@ -272,6 +334,13 @@ export function ReaderPageImage({
       .enabled(!disableDoubleTap)
       .onEnd((event, success) => {
         if (!success) return;
+        if (hasExternalZoom) {
+          toggleExternalZoom?.(
+            event.absoluteX ?? event.x,
+            event.absoluteY ?? event.y,
+          );
+          return;
+        }
         if (scale.value > ZOOM_EPSILON) {
           scale.value = withTiming(MIN_SCALE);
           savedScale.value = MIN_SCALE;
@@ -326,17 +395,27 @@ export function ReaderPageImage({
     const needsSingleTap = Boolean(onSingleTap) || dictionarySingleTap;
     const taps =
       !disableDoubleTap && needsSingleTap
-        ? Gesture.Exclusive(doubleTap, singleTap)
+        ? hasExternalZoom
+          // Webtoon: react to the first tap at once instead of waiting out the double-tap window.
+          ? Gesture.Simultaneous(doubleTap, singleTap)
+          : Gesture.Exclusive(doubleTap, singleTap)
         : !disableDoubleTap
           ? doubleTap
           : needsSingleTap
             ? singleTap
             : null;
 
+    if (hasExternalZoom) {
+      return taps
+        ? Gesture.Simultaneous(taps, longPress)
+        : Gesture.Simultaneous(longPress);
+    }
     return taps
       ? Gesture.Simultaneous(taps, pinch, pan, longPress)
       : Gesture.Simultaneous(pinch, pan, longPress);
   }, [
+    hasExternalZoom,
+    toggleExternalZoom,
     dictionaryLongPress,
     dictionarySingleTap,
     disableDoubleTap,
@@ -477,7 +556,7 @@ export function ReaderPageImage({
   const resolvedFit =
     contentFit ??
     (layout === "intrinsic"
-      ? "contain"
+      ? "fill"
       : settings.cropBorders
         ? "cover"
         : "contain");
@@ -520,38 +599,91 @@ export function ReaderPageImage({
     layout === "intrinsic"
       ? [
           styles.intrinsicImage,
+          // Whole-point height matching the list cell (see readerPageFrameHeight); a fractional
+          // aspectRatio height left a sub-point gap of background between pages.
           splitStyle ?? {
             width: intrinsicWidth,
-            aspectRatio: displayAspectRatio,
+            height: frameHeight,
           },
         ]
       : [styles.image, splitStyle ?? styles.imageFull];
   const missingPage = !page.url && !page.text;
+  const sticky = layout === "intrinsic" && stickyTop != null;
+  const retryButton = (
+    <View style={styles.errorCard}>
+      <View style={styles.errorIconCircle}>
+        <Ionicons name="image-outline" size={26} color="#FFFFFF" />
+      </View>
+      <ThemedText variant="headline" style={styles.errorTitle}>
+        {t("reader_image_failed")}
+      </ThemedText>
+      {loadError ? (
+        <ThemedText
+          variant="footnote"
+          style={styles.errorDetail}
+          numberOfLines={3}
+        >
+          {loadError}
+        </ThemedText>
+      ) : null}
+      <Pressable
+        style={({ pressed }) => [
+          styles.retryPill,
+          pressed ? styles.retryPillPressed : null,
+        ]}
+        onPress={() => {
+          setLoadError(null);
+          setLoadState("loading");
+          setRetryTick((value) => value + 1);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={t("reader_image_retry")}
+      >
+        <Ionicons name="refresh" size={18} color="#000000" />
+        <ThemedText variant="subheadline" style={styles.retryPillLabel}>
+          {t("reader_image_retry")}
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+
   const statusOverlay =
     loadState === "loading" ? (
-      <View style={styles.statusOverlay} pointerEvents="none">
-        <ActivityIndicator color="#FFFFFF" />
+      <View
+        style={[styles.statusOverlay, sticky ? styles.statusOverlaySticky : null]}
+        pointerEvents="none"
+      >
+        {sticky ? (
+          <StickyStatus
+            stickyTop={stickyTop}
+            frameHeight={frameHeight}
+            contentHeight={36}
+          >
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          </StickyStatus>
+        ) : (
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        )}
       </View>
     ) : loadState === "error" ? (
-      <View style={styles.statusOverlayPassive} pointerEvents="box-none">
-        <Pressable
-          style={styles.retryButton}
-          onPress={() => {
-            setLoadError(null);
-            setLoadState("loading");
-            setRetryTick((value) => value + 1);
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={t("reader_image_retry")}
-        >
-          <Ionicons name="alert-circle-outline" size={28} color="#FFFFFF" />
-          <ThemedText variant="subheadline" style={styles.retryLabel}>
-            {loadError ?? t("reader_image_failed")}
-          </ThemedText>
-          <ThemedText variant="footnote" style={styles.retryHint}>
-            {t("reader_image_retry")}
-          </ThemedText>
-        </Pressable>
+      <View
+        style={[
+          styles.statusOverlayPassive,
+          sticky ? styles.statusOverlaySticky : null,
+        ]}
+        pointerEvents="box-none"
+      >
+        {sticky ? (
+          <StickyStatus
+            stickyTop={stickyTop}
+            frameHeight={frameHeight}
+            contentHeight={210}
+          >
+            {retryButton}
+          </StickyStatus>
+        ) : (
+          retryButton
+        )}
       </View>
     ) : null;
 
@@ -610,7 +742,7 @@ export function ReaderPageImage({
                       styles.intrinsicFrame,
                       {
                         width: intrinsicWidth,
-                        aspectRatio: displayAspectRatio,
+                        height: frameHeight,
                       },
                     ]
                   : styles.imageFrame,
@@ -765,6 +897,57 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
+  },
+  stickyStatus: {
+    alignItems: "center",
+    alignSelf: "stretch",
+  },
+  statusOverlaySticky: {
+    justifyContent: "flex-start",
+  },
+  errorCard: {
+    alignItems: "center",
+    gap: 8,
+    maxWidth: 300,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderRadius: 24,
+    backgroundColor: "rgba(20,20,22,0.82)",
+  },
+  errorIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    marginBottom: 2,
+  },
+  errorTitle: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  errorDetail: {
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center",
+  },
+  retryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+  },
+  retryPillPressed: {
+    opacity: 0.7,
+  },
+  retryPillLabel: {
+    color: "#000000",
+    fontWeight: "700",
   },
   retryButton: {
     alignItems: "center",

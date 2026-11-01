@@ -16,6 +16,7 @@ type ReaderSpreadPageProps = {
   mode: "rtl" | "ltr" | "vertical";
   onSingleTap: (x: number, y: number) => void;
   onLongPress?: (page: ReaderPage, x: number, y: number) => void;
+  onZoomChange?: (pageId: string, zoomed: boolean) => void;
   onDictionaryLookup?: (page: ReaderPage, x: number, y: number) => void;
   reloadKeys?: Record<string, number>;
 };
@@ -46,6 +47,7 @@ export function ReaderSpreadPage({
   mode,
   onSingleTap,
   onLongPress,
+  onZoomChange,
   onDictionaryLookup,
   reloadKeys,
 }: ReaderSpreadPageProps) {
@@ -77,6 +79,9 @@ export function ReaderSpreadPage({
               pillarbox={false}
               contentFit={settings.cropBorders ? "cover" : "contain"}
               onSingleTap={onSingleTap}
+              onZoomChange={
+                onZoomChange ? (zoomed) => onZoomChange(page.id, zoomed) : undefined
+              }
               onLongPress={
                 onLongPress ? (x, y) => onLongPress(page, x, y) : undefined
               }

@@ -5,7 +5,7 @@ import {
   menuStyle,
 } from "@expo/ui/swift-ui/modifiers";
 import * as Haptics from "expo-haptics";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { FullWindowOverlay } from "react-native-screens";
 
@@ -52,6 +52,7 @@ type MangaOverflowMenuProps = {
   onDeselectAll: () => void;
   onRefresh: () => void;
   onDownloadAll: () => void;
+  onDownloadUnread: () => void;
   onDownloadSelected: () => void;
   onRemoveDownloads: () => void;
 };
@@ -122,18 +123,21 @@ function MangaOverflowMenuFallback({
   onDeselectAll,
   onRefresh,
   onDownloadAll,
+  onDownloadUnread,
   onDownloadSelected,
   onRemoveDownloads,
 }: MangaOverflowMenuProps) {
   const { radius } = useTheme();
   const [open, setOpen] = useState(false);
   const [markAllExpanded, setMarkAllExpanded] = useState(false);
+  const [downloadExpanded, setDownloadExpanded] = useState(false);
   const [markSelectedExpanded, setMarkSelectedExpanded] = useState(false);
   const [selectExpanded, setSelectExpanded] = useState(false);
 
   const close = () => {
     setOpen(false);
     setMarkAllExpanded(false);
+    setDownloadExpanded(false);
     setMarkSelectedExpanded(false);
     setSelectExpanded(false);
   };
@@ -144,29 +148,23 @@ function MangaOverflowMenuFallback({
     action();
   };
 
+  const refreshItem: MenuItem = {
+    key: "refresh",
+    label: t("manga_refresh"),
+    sfSymbol: "arrow.clockwise",
+    fallbackIcon: "refresh-outline",
+    onPress: onRefresh,
+  };
+
   const normalModeItems: MenuItem[] = [
-    {
-      key: "select",
-      label: t("manga_select_chapters"),
-      sfSymbol: "checklist",
-      fallbackIcon: "list-outline",
-      onPress: onSelectChapters,
-    },
-    {
-      key: "refresh",
-      label: t("manga_refresh"),
-      sfSymbol: "arrow.clockwise",
-      fallbackIcon: "refresh-outline",
-      onPress: onRefresh,
-    },
     ...(canDownload
       ? [
           {
             key: "download",
-            label: t("manga_download_all"),
+            label: t("manga_download_chapters"),
             sfSymbol: "arrow.down.circle",
             fallbackIcon: "download-outline" as const,
-            onPress: onDownloadAll,
+            onPress: () => setDownloadExpanded((value) => !value),
           },
         ]
       : []),
@@ -182,6 +180,13 @@ function MangaOverflowMenuFallback({
           },
         ]
       : []),
+    {
+      key: "select",
+      label: t("manga_select_chapters"),
+      sfSymbol: "checklist",
+      fallbackIcon: "list-outline",
+      onPress: onSelectChapters,
+    },
   ];
 
   const shareItem: MenuItem | null = canShare
@@ -205,10 +210,15 @@ function MangaOverflowMenuFallback({
           >
             {!chapterSelectMode ? (
               <>
+                <MenuRow
+                  item={refreshItem}
+                  showDivider={false}
+                  onPress={() => run(refreshItem.onPress)}
+                />
                 {shareItem ? (
                   <MenuRow
                     item={shareItem}
-                    showDivider={false}
+                    showDivider
                     onPress={() => run(shareItem.onPress)}
                   />
                 ) : null}
@@ -220,7 +230,7 @@ function MangaOverflowMenuFallback({
                     fallbackIcon: "checkmark-done-outline",
                     onPress: () => setMarkAllExpanded((value) => !value),
                   }}
-                  showDivider={Boolean(shareItem)}
+                  showDivider
                   trailingSymbol={
                     markAllExpanded ? "chevron.up" : "chevron.down"
                   }
@@ -252,14 +262,53 @@ function MangaOverflowMenuFallback({
                     />
                   </>
                 ) : null}
-                {normalModeItems.map((item) => (
-                  <MenuRow
-                    key={item.key}
-                    item={item}
-                    showDivider
-                    onPress={() => run(item.onPress)}
-                  />
-                ))}
+                {normalModeItems.map((item) =>
+                  item.key === "download" ? (
+                    <Fragment key={item.key}>
+                      <MenuRow
+                        item={item}
+                        showDivider
+                        trailingSymbol={
+                          downloadExpanded ? "chevron.up" : "chevron.down"
+                        }
+                        onPress={item.onPress}
+                      />
+                      {downloadExpanded ? (
+                        <>
+                          <MenuRow
+                            item={{
+                              key: "download-all-chapters",
+                              label: t("manga_download_all_chapters"),
+                              sfSymbol: "square.stack",
+                              fallbackIcon: "download-outline",
+                              onPress: onDownloadAll,
+                            }}
+                            showDivider
+                            onPress={() => run(onDownloadAll)}
+                          />
+                          <MenuRow
+                            item={{
+                              key: "download-unread-chapters",
+                              label: t("manga_download_unread_chapters"),
+                              sfSymbol: "circle",
+                              fallbackIcon: "ellipse-outline",
+                              onPress: onDownloadUnread,
+                            }}
+                            showDivider
+                            onPress={() => run(onDownloadUnread)}
+                          />
+                        </>
+                      ) : null}
+                    </Fragment>
+                  ) : (
+                    <MenuRow
+                      key={item.key}
+                      item={item}
+                      showDivider
+                      onPress={() => run(item.onPress)}
+                    />
+                  ),
+                )}
               </>
             ) : (
               <>
@@ -450,6 +499,7 @@ function MangaOverflowMenuNative(props: MangaOverflowMenuProps) {
     onDeselectAll,
     onRefresh,
     onDownloadAll,
+    onDownloadUnread,
     onDownloadSelected,
     onRemoveDownloads,
   } = props;
@@ -478,6 +528,11 @@ function MangaOverflowMenuNative(props: MangaOverflowMenuProps) {
       >
         {!chapterSelectMode ? (
           <>
+            <Button
+              label={t("manga_refresh")}
+              systemImage="arrow.clockwise"
+              onPress={onRefresh}
+            />
             {canShare ? (
               <Button
                 label={t("manga_share")}
@@ -500,22 +555,22 @@ function MangaOverflowMenuNative(props: MangaOverflowMenuProps) {
                 onPress={onMarkAllUnread}
               />
             </Menu>
-            <Button
-              label={t("manga_select_chapters")}
-              systemImage="checklist"
-              onPress={onSelectChapters}
-            />
-            <Button
-              label={t("manga_refresh")}
-              systemImage="arrow.clockwise"
-              onPress={onRefresh}
-            />
             {canDownload ? (
-              <Button
-                label={t("manga_download_all")}
+              <Menu
+                label={t("manga_download_chapters")}
                 systemImage="arrow.down.circle"
-                onPress={onDownloadAll}
-              />
+              >
+                <Button
+                  label={t("manga_download_all_chapters")}
+                  systemImage="square.stack"
+                  onPress={onDownloadAll}
+                />
+                <Button
+                  label={t("manga_download_unread_chapters")}
+                  systemImage="circle"
+                  onPress={onDownloadUnread}
+                />
+              </Menu>
             ) : null}
             {hasDownloads ? (
               <Button
@@ -525,6 +580,11 @@ function MangaOverflowMenuNative(props: MangaOverflowMenuProps) {
                 onPress={onRemoveDownloads}
               />
             ) : null}
+            <Button
+              label={t("manga_select_chapters")}
+              systemImage="checklist"
+              onPress={onSelectChapters}
+            />
           </>
         ) : (
           <>

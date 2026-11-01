@@ -8,10 +8,11 @@ import {
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { AppState, View } from "react-native";
+import { AppState } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { AppSplash } from "@/components/ui/app-splash";
 import { AppLockGate } from "@/components/privacy/app-lock-gate";
 import { LibraryRefreshIsland } from "@/components/library/library-refresh-island";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
@@ -21,7 +22,6 @@ import { SourcesProvider } from "@/context/sources-context";
 import { ThemePreferenceProvider } from "@/context/theme-preference-context";
 import { duoScreenLayout } from "@/hooks/use-duo-layout";
 import { useExpoRouterTheme } from "@/hooks/use-navigation-theme";
-import { useThemeColor } from "@/hooks/use-theme";
 import {
   buildRegistrySettingsHref,
   parseRegistryDeepLink,
@@ -41,7 +41,7 @@ import { parseNewChapterResponse } from "@/services/notifications";
 import { mangaHref } from "@/utils/manga-route";
 
 export const unstable_settings = {
-  initialRouteName: "(main)",
+  anchor: "(main)",
 };
 
 export default function RootLayout() {
@@ -106,7 +106,6 @@ const rootScreenLayout: ComponentProps<typeof Stack>["screenLayout"] = (
     : props.children;
 
 function RootLayoutContent() {
-  const backgroundColor = useThemeColor("systemBackground");
   const navigationTheme = useExpoRouterTheme();
   const [showWelcome, setShowWelcome] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -202,7 +201,7 @@ function RootLayoutContent() {
   };
 
   if (isLoading) {
-    return <View style={{ flex: 1, backgroundColor }} />;
+    return <AppSplash />;
   }
 
   return (

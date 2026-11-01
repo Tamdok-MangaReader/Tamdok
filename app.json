@@ -44,7 +44,8 @@
           "fr",
           "de",
           "id",
-          "ja"
+          "ja",
+          "ko"
         ]
       }
     },
@@ -56,7 +57,8 @@
       "fr": "./locale/ios/fr.json",
       "de": "./locale/ios/de.json",
       "id": "./locale/ios/id.json",
-      "ja": "./locale/ios/ja.json"
+      "ja": "./locale/ios/ja.json",
+      "ko": "./locale/ios/ko.json"
     },
     "plugins": [
       "expo-router",
@@ -65,12 +67,12 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#F2F2F7",
-          "image": "./assets/images/icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/splash-blank.png",
+          "imageWidth": 1,
           "resizeMode": "contain",
           "dark": {
             "backgroundColor": "#000000",
-            "image": "./assets/images/icon.png"
+            "image": "./assets/images/splash-blank.png"
           }
         }
       ],
@@ -106,7 +108,8 @@
               "fr",
               "de",
               "id",
-              "ja"
+              "ja",
+              "ko"
             ],
             "android": [
               "en",
@@ -116,7 +119,8 @@
               "fr",
               "de",
               "id",
-              "ja"
+              "ja",
+              "ko"
             ]
           }
         }

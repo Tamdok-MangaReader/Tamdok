@@ -30,6 +30,7 @@ export default function AppearanceScreen() {
   const selectedIndex = THEME_MODES.indexOf(themeMode);
   const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
   const [showBigMangaCover, setShowBigMangaCover] = useState(true);
+  const [stretchMangaCover, setStretchMangaCover] = useState(true);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
   const [showStatusBadge, setShowStatusBadge] = useState(true);
   const [showRating, setShowRating] = useState(true);
@@ -43,6 +44,7 @@ export default function AppearanceScreen() {
     const settings = await getAppSettings();
     setGridSize(settings.libraryDisplay.gridSize);
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
+    setStretchMangaCover(settings.mangaScreen.stretchMangaCover);
     setShowChapterNumber(settings.mangaScreen.showChapterNumber);
     setShowStatusBadge(settings.coverDisplay.showStatusBadge);
     setShowRating(settings.coverDisplay.showRating);
@@ -246,6 +248,15 @@ export default function AppearanceScreen() {
               updateMangaScreenSettings({ showBigMangaCover: value });
             }}
             isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('stretch_manga_cover')}
+            value={stretchMangaCover}
+            onChange={(value) => {
+              setStretchMangaCover(value);
+              updateMangaScreenSettings({ stretchMangaCover: value });
+            }}
           />
           <CardSeparator />
           <SwitchRow

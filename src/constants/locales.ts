@@ -7,10 +7,11 @@ import fr from '../../locale/fr.json';
 import de from '../../locale/de.json';
 import id from '../../locale/id.json';
 import ja from '../../locale/ja.json';
+import ko from '../../locale/ko.json';
 
-export type SupportedLanguage = 'en' | 'ru' | 'es' | 'pt' | 'fr' | 'de' | 'id' | 'ja';
+export type SupportedLanguage = 'en' | 'ru' | 'es' | 'pt' | 'fr' | 'de' | 'id' | 'ja' | 'ko';
 
-const supportedLocales: SupportedLanguage[] = ['en', 'ru', 'es', 'pt', 'fr', 'de', 'id', 'ja'];
+const supportedLocales: SupportedLanguage[] = ['en', 'ru', 'es', 'pt', 'fr', 'de', 'id', 'ja', 'ko'];
 
 export const getLocale = (): SupportedLanguage => {
   const locale = getLocales()[0].languageCode?.toLowerCase() || 'en';
@@ -35,6 +36,7 @@ const texts: Record<SupportedLanguage, Record<string, string>> = {
   de,
   id,
   ja,
+  ko,
 };
 
 export function t(key: string, params?: Record<string, string>): string {

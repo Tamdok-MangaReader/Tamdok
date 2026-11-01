@@ -121,6 +121,7 @@ export default function LibrarySettingsScreen() {
   const [refreshMetadata, setRefreshMetadataState] = useState(true);
   const [backgroundRefresh, setBackgroundRefreshState] = useState(false);
   const [showUnreadBadges, setShowUnreadBadges] = useState(true);
+  const [showCoverTitles, setShowCoverTitles] = useState(true);
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
   const [showCategoryCountBadges, setShowCategoryCountBadges] = useState(true);
   const [hideEmptyCategories, setHideEmptyCategories] = useState(true);
@@ -165,6 +166,7 @@ export default function LibrarySettingsScreen() {
     setRefreshMetadataState(updateSettings.refreshMetadata);
     setBackgroundRefreshState(updateSettings.backgroundRefresh);
     setShowUnreadBadges(appSettings.libraryDisplay.showUnreadBadges);
+    setShowCoverTitles(appSettings.libraryDisplay.showCoverTitles ?? true);
     setShowDownloadedBadges(appSettings.libraryDisplay.showDownloadedBadges);
     setShowCategoryCountBadges(
       appSettings.libraryDisplay.showCategoryCountBadges ?? true,
@@ -517,13 +519,23 @@ export default function LibrarySettingsScreen() {
         </Card>
         <Card>
           <SwitchRow
+            label={t("library_show_cover_titles")}
+            value={showCoverTitles}
+            onChange={(value) => {
+              setShowCoverTitles(value);
+              patchLibraryDisplay({ showCoverTitles: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
             label={t("library_show_unread_badges")}
             value={showUnreadBadges}
             onChange={(value) => {
               setShowUnreadBadges(value);
               patchLibraryDisplay({ showUnreadBadges: value });
             }}
-            isFirst
+
           />
           <CardSeparator />
           <SwitchRow

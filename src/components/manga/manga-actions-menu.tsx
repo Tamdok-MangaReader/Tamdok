@@ -57,6 +57,7 @@ import {
   writeMangaDetailCache,
 } from "@/services/manga-detail-cache";
 import {
+  getMangaChapterProgress,
   markAllChaptersRead,
   markAllChaptersUnread,
 } from "@/services/manga-tracking";
@@ -209,6 +210,7 @@ function MangaMenuOverlay({
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [menuHeight, setMenuHeight] = useState(0);
   const [markOpen, setMarkOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const scale = useSharedValue(1);
 
@@ -288,11 +290,16 @@ function MangaMenuOverlay({
     }
   };
 
-  const downloadAll = async () => {
-    const chapters = await loadChapters();
-    if (!chapters) {
+  const downloadChapters = async (unreadOnly: boolean) => {
+    const loaded = await loadChapters();
+    if (!loaded) {
       Alert.alert(t("manga_menu_chapters_failed"));
       return;
+    }
+    let chapters = loaded;
+    if (unreadOnly) {
+      const progress = await getMangaChapterProgress(sourceId, manga.key);
+      chapters = loaded.filter((chapter) => progress[chapter.key]?.page !== -1);
     }
     await queueChapterDownloads(
       chaptersOldestFirst(chapters).map((chapter) => ({
@@ -507,12 +514,33 @@ function MangaMenuOverlay({
             ) : null}
             {entry ? (
               <MenuRow
-                label={t("manga_download_all")}
+                label={t("manga_download_chapters")}
                 sfSymbol="arrow.down.circle"
                 fallback="download-outline"
                 showDivider
-                onPress={() => run(() => void downloadAll())}
+                trailing={downloadOpen ? "up" : "down"}
+                onPress={() => setDownloadOpen((value) => !value)}
               />
+            ) : null}
+            {entry && downloadOpen ? (
+              <>
+                <MenuRow
+                  label={t("manga_download_all_chapters")}
+                  sfSymbol="square.stack"
+                  fallback="download-outline"
+                  showDivider
+                  inset
+                  onPress={() => run(() => void downloadChapters(false))}
+                />
+                <MenuRow
+                  label={t("manga_download_unread_chapters")}
+                  sfSymbol="circle"
+                  fallback="ellipse-outline"
+                  showDivider
+                  inset
+                  onPress={() => run(() => void downloadChapters(true))}
+                />
+              </>
             ) : null}
             {entry && (entry.downloadedCount ?? 0) > 0 ? (
               <MenuRow

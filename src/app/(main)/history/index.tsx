@@ -54,6 +54,7 @@ import {
   useSourceCoverHeadersReady,
 } from "@/context/source-cover-context";
 import { useSources } from "@/context/sources-context";
+import { useMultipleSourceKinds } from "@/hooks/use-multiple-source-kinds";
 import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
 import { useTheme } from "@/hooks/use-theme";
@@ -158,7 +159,7 @@ function sourceKindLabel(kind: string): string {
 
 // Shown when the source is not installed (or not loaded yet): "multi.mangaplus.tamdok" becomes
 // "Mangaplus · TAMDOK" instead of the raw id.
-function fallbackSourceLabel(sourceId: string): string {
+function fallbackSourceLabel(sourceId: string, showKind: boolean): string {
   const parts = sourceId
     .replace(/^(aidoku|tamdok):/, "")
     .replace(/@v\d+$/, "")
@@ -168,7 +169,7 @@ function fallbackSourceLabel(sourceId: string): string {
   const nameParts = kind ? parts.slice(0, -1) : parts;
   const name = nameParts[nameParts.length - 1] ?? sourceId;
   const pretty = name.charAt(0).toUpperCase() + name.slice(1);
-  return kind ? `${pretty} · ${sourceKindLabel(kind)}` : pretty;
+  return kind && showKind ? `${pretty} · ${sourceKindLabel(kind)}` : pretty;
 }
 
 type ChapterLookup = Map<string, { chapter: Chapter; ordinal: number }>;
@@ -542,11 +543,14 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     [expanded, hiddenCount, group.chapters],
   );
 
+  const showSourceKind = useMultipleSourceKinds();
   const sourceLabel = illustration
     ? "Komga"
     : source
-      ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
-      : fallbackSourceLabel(group.sourceId);
+      ? showSourceKind
+        ? `${source.manifest.info.name} · ${sourceKindLabel(source.kind)}`
+        : source.manifest.info.name
+      : fallbackSourceLabel(group.sourceId, showSourceKind);
 
   const coverSource = useMemo(
     () =>

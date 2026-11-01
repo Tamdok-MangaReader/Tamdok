@@ -1,5 +1,6 @@
 import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
+import { SwipeDismissSheet } from "@/components/ui/swipe-dismiss-sheet";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
@@ -132,7 +133,8 @@ export function ReaderSettingsSheet({
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View
+      <SwipeDismissSheet
+        onClose={onClose}
         style={[styles.sheet, { backgroundColor: colors.groupedBackground }]}
       >
         <ModalHeader
@@ -253,7 +255,7 @@ export function ReaderSettingsSheet({
             </Card>
           </Pressable>
         </ScrollView>
-      </View>
+      </SwipeDismissSheet>
     </Modal>
   );
 }

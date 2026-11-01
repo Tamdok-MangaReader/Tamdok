@@ -23,6 +23,7 @@ type MangaDetailToolbarProps = {
   onDeselectAll: () => void;
   onRefresh: () => void;
   onDownloadAll: () => void;
+  onDownloadUnread: () => void;
   onDownloadSelected: () => void;
   onRemoveDownloads: () => void;
 };
@@ -66,6 +67,14 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
             accessibilityLabel={t("manga")}
             tintColor={colors.label}
           >
+            {!chapterSelectMode ? (
+              <Stack.Toolbar.MenuAction
+                icon="arrow.clockwise"
+                onPress={props.onRefresh}
+              >
+                {t("manga_refresh")}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
             {!chapterSelectMode && canShare ? (
               <Stack.Toolbar.MenuAction
                 icon="square.and.arrow.up"
@@ -93,29 +102,24 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
                 </Stack.Toolbar.MenuAction>
               </Stack.Toolbar.Menu>
             ) : null}
-            {!chapterSelectMode ? (
-              <Stack.Toolbar.MenuAction
-                icon="checklist"
-                onPress={props.onSelectChapters}
-              >
-                {t("manga_select_chapters")}
-              </Stack.Toolbar.MenuAction>
-            ) : null}
-            {!chapterSelectMode ? (
-              <Stack.Toolbar.MenuAction
-                icon="arrow.clockwise"
-                onPress={props.onRefresh}
-              >
-                {t("manga_refresh")}
-              </Stack.Toolbar.MenuAction>
-            ) : null}
             {!chapterSelectMode && canDownload ? (
-              <Stack.Toolbar.MenuAction
+              <Stack.Toolbar.Menu
                 icon="arrow.down.circle"
-                onPress={props.onDownloadAll}
+                title={t("manga_download_chapters")}
               >
-                {t("manga_download_all")}
-              </Stack.Toolbar.MenuAction>
+                <Stack.Toolbar.MenuAction
+                  icon="square.stack"
+                  onPress={props.onDownloadAll}
+                >
+                  {t("manga_download_all_chapters")}
+                </Stack.Toolbar.MenuAction>
+                <Stack.Toolbar.MenuAction
+                  icon="circle"
+                  onPress={props.onDownloadUnread}
+                >
+                  {t("manga_download_unread_chapters")}
+                </Stack.Toolbar.MenuAction>
+              </Stack.Toolbar.Menu>
             ) : null}
             {!chapterSelectMode && hasDownloads ? (
               <Stack.Toolbar.MenuAction
@@ -124,6 +128,14 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
                 onPress={props.onRemoveDownloads}
               >
                 {t("manga_remove_downloads")}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
+            {!chapterSelectMode ? (
+              <Stack.Toolbar.MenuAction
+                icon="checklist"
+                onPress={props.onSelectChapters}
+              >
+                {t("manga_select_chapters")}
               </Stack.Toolbar.MenuAction>
             ) : null}
             {chapterSelectMode ? (

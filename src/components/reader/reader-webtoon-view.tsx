@@ -25,6 +25,9 @@ import {
   type ReaderQuickActionAnchor,
 } from "@/components/reader/reader-quick-actions";
 import { ReaderPageImage } from "@/components/reader/reader-page-image";
+import { useSharedValue } from "react-native-reanimated";
+import { WebtoonScrollContext } from "@/components/reader/reader-webtoon-scroll-context";
+import { WebtoonZoom } from "@/components/reader/reader-webtoon-zoom";
 import { useReader } from "@/components/reader/reader-context";
 import type { ChapterSegment } from "@/hooks/use-reader-chapter-window";
 import {
@@ -144,6 +147,7 @@ type PageCellProps = {
   item: StripPageItem;
   width: number;
   frameHeight: number;
+  stickyTop?: number;
   reloadKey: number;
   settings: ReaderContextValue["settings"];
   dictionarySettings: ReaderContextValue["dictionarySettings"];
@@ -159,6 +163,7 @@ const PageCell = memo(function PageCell({
   item,
   width,
   frameHeight,
+  stickyTop,
   reloadKey,
   settings,
   dictionarySettings,
@@ -200,6 +205,7 @@ const PageCell = memo(function PageCell({
         pillarboxOrientation={settings.pillarboxOrientation}
         layout="intrinsic"
         containerWidth={width}
+        stickyTop={stickyTop}
         onMeasuredAspectRatio={handleMeasured}
         onSingleTap={onSingleTap}
         onLongPress={handleLongPress}
@@ -244,6 +250,7 @@ export function ReaderWebtoonView({
   const visibleIdRef = useRef<string | null>(null);
   const prevStripItemsRef = useRef<StripListItem[]>([]);
   const lastTapAtRef = useRef(0);
+  const lastTapToggledBarsRef = useRef(false);
   const userScrolledRef = useRef(false);
   const canLoadNextRef = useRef(false);
   const originChapterKeyRef = useRef(chapter.key);
@@ -622,7 +629,14 @@ export function ReaderWebtoonView({
       programmaticScrollRef.current = true;
       visibleIndexRef.current = target;
       visibleIdRef.current = items[target]?.id ?? null;
-      const offset = offsetForIndex(target, items);
+      let offset = offsetForIndex(target, items);
+      if (resumeIndexRef.current === 0) {
+        // Opening a chapter at its first page: keep the "chapter started" boundary visible.
+        const before = items[target - 1];
+        if (target === 0) offset = 0;
+        else if (before?.kind === "break")
+          offset = offsetForIndex(target - 1, items);
+      }
       lastOffsetYRef.current = offset;
       listRef.current?.scrollToOffset({ offset, animated: false });
       restoreDoneRef.current = true;
@@ -797,6 +811,7 @@ export function ReaderWebtoonView({
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const nativeEvent = event.nativeEvent;
       const offsetY = nativeEvent.contentOffset.y;
+      scrollY.value = offsetY;
       if (restoringRef.current || programmaticScrollRef.current) return;
       lastOffsetYRef.current = offsetY;
       const items = stripItemsRef.current;
@@ -844,15 +859,24 @@ export function ReaderWebtoonView({
     (x: number, y: number) => {
       const now = Date.now();
       if (now - lastTapAtRef.current < 120) return;
+      // Second tap of a double tap: it only zooms; running the tap action again would re-render the
+      // reader in the middle of the zoom animation.
+      if (!settings.disableDoubleTap && now - lastTapAtRef.current < 320)
+        return;
       lastTapAtRef.current = now;
+      lastTapToggledBarsRef.current = false;
       const currentActions = actionsRef.current;
       if (settings.tapZones === "disabled" || !areReaderTapZonesEnabled(mode)) {
+        lastTapToggledBarsRef.current = true;
         currentActions.toggleBars();
         return;
       }
       const action = tapActionAtPoint(tapGrid, x, y, width, height);
       if (action === "toggleBars" || action === "none") {
-        if (action === "toggleBars") currentActions.toggleBars();
+        if (action === "toggleBars") {
+          lastTapToggledBarsRef.current = true;
+          currentActions.toggleBars();
+        }
         return;
       }
       onInteraction();
@@ -881,6 +905,7 @@ export function ReaderWebtoonView({
       onInteraction,
       scrollToGlobal,
       settings.animatePageTransitions,
+      settings.disableDoubleTap,
       settings.tapZones,
       tapGrid,
       width,
@@ -894,6 +919,80 @@ export function ReaderWebtoonView({
     [],
   );
   const toggleBars = useCallback(() => actionsRef.current.toggleBars(), []);
+
+  // A double tap also delivered its first tap, which toggled the bars: undo that once the zoom
+  // animation has finished, so the toggle does not re-render the reader mid-animation.
+  const handleZoomDoubleTap = useCallback(() => {
+    if (
+      !lastTapToggledBarsRef.current ||
+      Date.now() - lastTapAtRef.current > 700
+    )
+      return;
+    lastTapToggledBarsRef.current = false;
+    setTimeout(() => actionsRef.current.toggleBars(), 380);
+  }, []);
+
+  // Zoomed-in dragging scrolls the list from JS (its own scrolling is locked while zoomed/pinching).
+  const [scrollLocked, setScrollLocked] = useState(false);
+  const contentHeightRef = useRef(0);
+  const viewportHeightRef = useRef(0);
+  const scrollY = useSharedValue(0);
+  const viewportHeightValue = useSharedValue(0);
+  const scrollApi = useMemo(
+    () => ({ scrollY, viewportHeight: viewportHeightValue }),
+    [scrollY, viewportHeightValue],
+  );
+  const momentumFrameRef = useRef<number | null>(null);
+
+  const stopMomentum = useCallback(() => {
+    if (momentumFrameRef.current != null) {
+      cancelAnimationFrame(momentumFrameRef.current);
+      momentumFrameRef.current = null;
+    }
+  }, []);
+
+  const scrollListTo = useCallback((offset: number) => {
+    const max = Math.max(
+      0,
+      contentHeightRef.current - viewportHeightRef.current,
+    );
+    const next = Math.min(max, Math.max(0, offset));
+    lastOffsetYRef.current = next;
+    listRef.current?.scrollToOffset({ offset: next, animated: false });
+    return next === offset;
+  }, []);
+
+  const handleZoomScrollBy = useCallback(
+    (dy: number) => {
+      stopMomentum();
+      scrollListTo(lastOffsetYRef.current + dy);
+    },
+    [scrollListTo, stopMomentum],
+  );
+
+  const handleZoomFling = useCallback(
+    (velocity: number) => {
+      stopMomentum();
+      let v = velocity / 1000; // list units per millisecond
+      if (Math.abs(v) < 0.05) return;
+      let last = performance.now();
+      const step = (now: number) => {
+        const dt = Math.min(32, now - last);
+        last = now;
+        const inside = scrollListTo(lastOffsetYRef.current + v * dt);
+        v *= Math.pow(0.997, dt);
+        if (!inside || Math.abs(v) < 0.02) {
+          momentumFrameRef.current = null;
+          return;
+        }
+        momentumFrameRef.current = requestAnimationFrame(step);
+      };
+      momentumFrameRef.current = requestAnimationFrame(step);
+    },
+    [scrollListTo, stopMomentum],
+  );
+
+  useEffect(() => stopMomentum, [stopMomentum]);
 
   const handleScrollBegin = useCallback(() => {
     userScrolledRef.current = true;
@@ -992,7 +1091,7 @@ export function ReaderWebtoonView({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: StripListItem }) => {
+    ({ item, index }: { item: StripListItem; index: number }) => {
       if (item.kind === "ghost") {
         return <View style={{ height: item.height }} />;
       }
@@ -1027,6 +1126,12 @@ export function ReaderWebtoonView({
           item={item}
           width={width}
           frameHeight={heightForItem(item)}
+          stickyTop={
+            // Only pages still loading (or failed) need it; keeping it stable for loaded pages lets PageCell's memo skip re-renders.
+            measuredIdsRef.current.has(item.id)
+              ? undefined
+              : headerHeightRef.current + (layout.offsets[index] ?? 0)
+          }
           reloadKey={reloadKeys[item.id] ?? 0}
           settings={settings}
           dictionarySettings={dictionarySettings}
@@ -1049,6 +1154,7 @@ export function ReaderWebtoonView({
       handleLookup,
       handleMeasured,
       heightForItem,
+      layout,
       reloadKeys,
       settings,
       stableTap,
@@ -1090,38 +1196,57 @@ export function ReaderWebtoonView({
 
   return (
     <View style={rootStyle}>
-      <FlatList
-        key={`strip-${listEpoch}`}
-        ref={listRef}
-        data={stripItems}
-        keyExtractor={stripKeyExtractor}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        pagingEnabled={false}
-        decelerationRate={mode === "continuous" ? "normal" : "fast"}
-        initialNumToRender={4}
-        windowSize={7}
-        maxToRenderPerBatch={4}
-        updateCellsBatchingPeriod={50}
-        removeClippedSubviews={Platform.OS === "android"}
-        initialScrollIndex={listEpoch > 0 ? initialIndexRef.current : undefined}
-        onScrollToIndexFailed={handleScrollToIndexFailed}
-        extraData={extraData}
-        getItemLayout={getItemLayout}
-        ListHeaderComponent={chapterStart}
-        ListFooterComponent={chapterEnd}
-        scrollEventThrottle={16}
-        {...(Platform.OS === "ios" && settings.liveText
-          ? ({ delaysContentTouches: false } as object)
-          : {})}
-        onScroll={handleScroll}
-        onScrollBeginDrag={handleScrollBegin}
-        onScrollEndDrag={handleScrollSettled}
-        onMomentumScrollEnd={handleScrollSettled}
-        onEndReached={requestNextChapter}
-        onEndReachedThreshold={1}
-        renderItem={renderItem}
-      />
+      <WebtoonScrollContext.Provider value={scrollApi}>
+      <WebtoonZoom
+        onScrollBy={handleZoomScrollBy}
+        onFling={handleZoomFling}
+        onLockChange={setScrollLocked}
+        onDoubleTap={handleZoomDoubleTap}
+      >
+        <FlatList
+          key={`strip-${listEpoch}`}
+          ref={listRef}
+          data={stripItems}
+          keyExtractor={stripKeyExtractor}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          pagingEnabled={false}
+          scrollEnabled={!scrollLocked}
+          onContentSizeChange={(_w, h) => {
+            contentHeightRef.current = h;
+          }}
+          onLayout={(event) => {
+            viewportHeightRef.current = event.nativeEvent.layout.height;
+            viewportHeightValue.value = event.nativeEvent.layout.height;
+          }}
+          decelerationRate={mode === "continuous" ? "normal" : "fast"}
+          initialNumToRender={4}
+          windowSize={7}
+          maxToRenderPerBatch={4}
+          updateCellsBatchingPeriod={50}
+          removeClippedSubviews={Platform.OS === "android"}
+          initialScrollIndex={
+            listEpoch > 0 ? initialIndexRef.current : undefined
+          }
+          onScrollToIndexFailed={handleScrollToIndexFailed}
+          extraData={extraData}
+          getItemLayout={getItemLayout}
+          ListHeaderComponent={chapterStart}
+          ListFooterComponent={chapterEnd}
+          scrollEventThrottle={16}
+          {...(Platform.OS === "ios" && settings.liveText
+            ? ({ delaysContentTouches: false } as object)
+            : {})}
+          onScroll={handleScroll}
+          onScrollBeginDrag={handleScrollBegin}
+          onScrollEndDrag={handleScrollSettled}
+          onMomentumScrollEnd={handleScrollSettled}
+          onEndReached={requestNextChapter}
+          onEndReachedThreshold={1}
+          renderItem={renderItem}
+        />
+      </WebtoonZoom>
+      </WebtoonScrollContext.Provider>
       <ReaderQuickActions
         visible={quickActionsPage != null}
         page={quickActionsPage}

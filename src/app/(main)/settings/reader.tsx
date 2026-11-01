@@ -242,6 +242,15 @@ export default function ReaderSettingsScreen() {
 
         <SectionLabel>{t('reader_paged_section')}</SectionLabel>
         <Card>
+          <SettingSwitch
+            label={t('reader_legacy_paged')}
+            value={settings.legacyPagedReader}
+            onChange={(value) => patch({ legacyPagedReader: value })}
+            isFirst
+            isLast
+          />
+        </Card>
+        <Card>
           <StepperRow
             label={t('reader_pages_to_preload')}
             value={settings.pagesToPreload}

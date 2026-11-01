@@ -21,7 +21,13 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useIsOpenDuo, useSystemRail, useWindowDimensions } from "@/hooks/use-duo-layout";
@@ -146,8 +152,16 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
   // back and more buttons become a transparent native header there. Regular iPhones keep the custom bar.
   const nativeHeader = Platform.OS === "ios" && (inRail || openDuo);
 
-  if (!visible) {
-    return nativeHeader ? <Stack.Screen options={{ headerShown: false }} /> : null;
+  // The custom bar stays mounted and only fades (mounting the glass controls on every tap made the
+  // menu appear late); the native-header variant still mounts and unmounts.
+  const opacity = useSharedValue(visible ? 1 : 0);
+  useEffect(() => {
+    opacity.value = withTiming(visible ? 1 : 0, { duration: 180 });
+  }, [opacity, visible]);
+  const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  if (!visible && nativeHeader) {
+    return <Stack.Screen options={{ headerShown: false }} />;
   }
 
   const scanlators = chapter.scanlators?.length
@@ -236,8 +250,8 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
 
   return (
     <Animated.View
-      entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(180)}
+      entering={nativeHeader ? FadeIn.duration(180) : undefined}
+      exiting={nativeHeader ? FadeOut.duration(180) : undefined}
       style={[
         styles.root,
         {
@@ -245,8 +259,9 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
           paddingLeft: Spacing.sm + rail.left,
           paddingRight: Spacing.sm + rail.right,
         },
+        nativeHeader ? null : fadeStyle,
       ]}
-      pointerEvents="box-none"
+      pointerEvents={visible ? "box-none" : "none"}
     >
       {nativeHeader ? (
         <>

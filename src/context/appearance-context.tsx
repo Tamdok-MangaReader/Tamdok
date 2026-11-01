@@ -18,6 +18,8 @@ type AppearanceContextValue = {
   setAccentColorId: (id: AccentColorId) => Promise<void>;
   setAppIconId: (id: AppIconId) => Promise<void>;
   appIconSupported: boolean;
+  /** False until the stored accent/icon have been read (avoids a flash of the default accent). */
+  isLoaded: boolean;
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
@@ -100,8 +102,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       setAccentColorId,
       setAppIconId,
       appIconSupported: Platform.OS === 'ios' && supportsAlternateIcons,
+      isLoaded,
     }),
-    [accentColorId, appIconId, setAccentColorId, setAppIconId],
+    [accentColorId, appIconId, setAccentColorId, setAppIconId, isLoaded],
   );
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
