@@ -56,6 +56,8 @@ export type LibraryRefreshOptions = {
   minAgeMs?: number;
   /** Manual refresh: ignore the library update filters (excluded categories, skip rules). */
   force?: boolean;
+  /** Only entries whose last update failed. */
+  failedOnly?: boolean;
 };
 
 export type LibraryRefreshResult = {
@@ -275,7 +277,19 @@ async function runRefresh(
         continue;
       }
     }
-    if (options.force || (await shouldRefreshLibraryEntry(entry))) {
+    if (options.failedOnly && !entry.updateFailed) {
+      skipped += 1;
+      continue;
+    }
+    if (options.force) {
+      // Ended series that were already refreshed once cannot gain chapters.
+      const settled =
+        (entry.status === "completed" || entry.status === "cancelled") &&
+        entry.lastRefreshed != null &&
+        !entry.updateFailed;
+      if (settled) skipped += 1;
+      else pending.push(entry);
+    } else if (await shouldRefreshLibraryEntry(entry)) {
       pending.push(entry);
     } else {
       skipped += 1;

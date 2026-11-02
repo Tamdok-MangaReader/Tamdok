@@ -84,7 +84,7 @@ export type LibraryDisplayMode = "grid" | "list" | "descriptiveList";
 export type LibraryFilters = {
   /** Manga statuses to keep; empty means every status. */
   statuses: string[];
-  readState: "all" | "unread" | "read";
+  readState: "all" | "unread" | "read" | "finished";
   downloaded: "all" | "downloaded" | "notDownloaded";
   /** Source ids to keep; empty means every source. */
   sourceIds: string[];

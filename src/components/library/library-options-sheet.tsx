@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Pressable,
@@ -33,9 +34,15 @@ import {
   type LibrarySortMode,
 } from "@/services/app-settings";
 import { hasActiveLibraryFilters, LIBRARY_SORT_MODES } from "@/services/library";
+import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 
-export type LibrarySourceOption = { id: string; name: string; count: number };
+export type LibrarySourceOption = {
+  id: string;
+  name: string;
+  count: number;
+  iconUri?: string;
+};
 
 type LibraryOptionsSheetProps = {
   visible: boolean;
@@ -61,10 +68,12 @@ function Pill({
   label,
   selected,
   onPress,
+  iconUri,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  iconUri?: string;
 }) {
   const { colors, radius } = useTheme();
   return (
@@ -78,8 +87,17 @@ function Pill({
           borderRadius: radius.pill,
           backgroundColor: selected ? colors.tint : colors.tertiaryFill,
         },
+        iconUri ? styles.pillWithIcon : null,
       ]}
     >
+      {iconUri ? (
+        <Image
+          source={{ uri: iconUri }}
+          style={styles.pillIcon}
+          contentFit="cover"
+          cachePolicy={IMAGE_CACHE_POLICY}
+        />
+      ) : null}
       <ThemedText
         variant="subheadline"
         color={selected ? "onTint" : "label"}
@@ -277,7 +295,7 @@ export function LibraryOptionsSheet({
 
               <Section title={t("library_filter_reading")}>
                 <View style={styles.pillWrap}>
-                  {(["all", "unread", "read"] as const).map((id) => (
+                  {(["all", "unread", "read", "finished"] as const).map((id) => (
                     <Pill
                       key={id}
                       label={t(`library_filter_${id}`)}
@@ -336,6 +354,7 @@ export function LibraryOptionsSheet({
                       <Pill
                         key={source.id}
                         label={`${source.name} · ${source.count}`}
+                        iconUri={source.iconUri}
                         selected={filters.sourceIds.includes(source.id)}
                         onPress={() =>
                           patchFilters({
@@ -579,6 +598,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: Spacing.sm,
+  },
+  pillWithIcon: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  pillIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
   },
   pill: {
     paddingHorizontal: Spacing.md,

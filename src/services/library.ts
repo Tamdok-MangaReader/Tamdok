@@ -196,6 +196,18 @@ export function sortLibraryEntries(
   return reversed ? next.reverse() : next;
 }
 
+/** A finished series: ended (completed/cancelled) with every known chapter read. */
+export function isLibraryEntryFinished(
+  entry: Pick<LibraryEntry, "status" | "knownChapterKeys">,
+  unreadCount: number,
+): boolean {
+  return (
+    (entry.status === "completed" || entry.status === "cancelled") &&
+    unreadCount === 0 &&
+    (entry.knownChapterKeys?.length ?? 0) > 0
+  );
+}
+
 /** True when no filter narrows the library. */
 export function hasActiveLibraryFilters(filters: LibraryFilters): boolean {
   return (
@@ -224,8 +236,13 @@ export function filterLibraryEntries(
     )
       return false;
     if (filters.readState !== "all") {
-      const unread = unreadOf(entry) > 0;
-      if (filters.readState === "unread" ? !unread : unread) return false;
+      const unreadCount = unreadOf(entry);
+      if (filters.readState === "finished") {
+        if (!isLibraryEntryFinished(entry, unreadCount)) return false;
+      } else {
+        const unread = unreadCount > 0;
+        if (filters.readState === "unread" ? !unread : unread) return false;
+      }
     }
     if (filters.downloaded !== "all") {
       const downloaded = (entry.downloadedCount ?? 0) > 0;

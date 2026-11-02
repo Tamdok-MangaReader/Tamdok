@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { getAppSettings } from '@/services/app-settings';
-import { getLibraryEntries, resolveLibraryUnreadCount, type LibraryEntry } from '@/services/library';
+import { getLibraryEntries, isLibraryEntryFinished, resolveLibraryUnreadCount, type LibraryEntry } from '@/services/library';
 import { getReadChapterKeysByManga } from '@/services/manga-tracking';
 
 export type LibraryMangaMeta = {
@@ -55,10 +55,7 @@ export function useLibraryLookup() {
         unreadCount,
         downloadedCount: entry.downloadedCount ?? 0,
         updateFailed: Boolean(entry.updateFailed),
-        finished:
-          entry.status === 'completed' &&
-          unreadCount === 0 &&
-          (entry.knownChapterKeys?.length ?? 0) > 0,
+        finished: isLibraryEntryFinished(entry, unreadCount),
       });
     }
     return map;

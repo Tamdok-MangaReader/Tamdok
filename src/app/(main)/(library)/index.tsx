@@ -47,7 +47,7 @@ import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { LibraryCategoryPicker } from "@/components/library/library-category-picker";
 import { processQueuedDownloads } from "@/services/download-processor";
-import { queueChapterDownloads } from "@/services/downloads";
+import { queueChapterDownloads, removeMangaDownloads } from "@/services/downloads";
 import { peekMangaDetailCache } from "@/services/manga-detail-cache";
 import { chaptersOldestFirst, formatChapterLabel } from "@/utils/chapter-label";
 import { type MangaGridItem } from "@/components/manga/manga-grid";
@@ -610,6 +610,7 @@ export default function LibraryScreen() {
         id,
         count,
         name: findInstalledSource(installed, id)?.manifest.info.name ?? id,
+        iconUri: findInstalledSource(installed, id)?.iconUri,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [visibleEntries, installed]);
@@ -675,11 +676,12 @@ export default function LibraryScreen() {
   );
 
   const refreshLibrary = useCallback(
-    async (categoryId: string, force = false) => {
+    async (categoryId: string, force = false, failedOnly = false) => {
       setRefreshing(true);
       try {
         await refreshLibraryEntries(installed, categoryId, undefined, {
           force,
+          failedOnly,
         });
         await loadLibrary();
       } finally {
@@ -697,6 +699,10 @@ export default function LibraryScreen() {
   // Refreshing a single category is explicit and skips the update-filter settings; refreshing all respects them.
   const handleRefreshCategory = useCallback(() => {
     void refreshLibrary(selectedCategoryId, true);
+  }, [refreshLibrary, selectedCategoryId]);
+
+  const handleRefreshFailed = useCallback(() => {
+    void refreshLibrary(selectedCategoryId, true, true);
   }, [refreshLibrary, selectedCategoryId]);
 
   const handleRefreshAll = useCallback(() => {
@@ -767,8 +773,8 @@ export default function LibraryScreen() {
   );
 
   const markSelected = useCallback(
-    async (read: boolean) => {
-      for (const entry of selectedEntries()) {
+    async (read: boolean, targets?: LibraryEntry[]) => {
+      for (const entry of targets ?? selectedEntries()) {
         const keys = chapterKeysForLibraryEntry(entry);
         if (keys.length === 0) continue;
         if (read) {
@@ -788,6 +794,39 @@ export default function LibraryScreen() {
     },
     [selectedEntries, exitSelection, loadLibrary],
   );
+
+  // Entries of the category on screen, as filtered by the user: category-wide actions apply only to these.
+  const categoryEntries = useMemo(
+    () =>
+      filterLibraryEntries(entriesForCategory(selectedCategoryId), filters, unreadOf),
+    [entriesForCategory, selectedCategoryId, filters, unreadOf],
+  );
+
+  const removeCategoryDownloads = useCallback(() => {
+    const targets = categoryEntries.filter(
+      (entry) => (entry.downloadedCount ?? 0) > 0,
+    );
+    if (targets.length === 0) return;
+    Alert.alert(
+      t("library_remove_downloads_confirm", { count: String(targets.length) }),
+      undefined,
+      [
+        { text: t("cancel"), style: "cancel" },
+        {
+          text: t("library_remove_downloads"),
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              for (const entry of targets) {
+                await removeMangaDownloads(entry.sourceId, entry.mangaKey);
+              }
+              await loadLibrary();
+            })();
+          },
+        },
+      ],
+    );
+  }, [categoryEntries, loadLibrary]);
 
   const removeSelected = useCallback(() => {
     const targets = selectedEntries();
@@ -815,9 +854,9 @@ export default function LibraryScreen() {
   }, [selectedEntries, exitSelection, loadLibrary]);
 
   const downloadSelected = useCallback(
-    async (unreadOnly: boolean) => {
+    async (unreadOnly: boolean, targets?: LibraryEntry[]) => {
       const items: Parameters<typeof queueChapterDownloads>[0] = [];
-      for (const entry of selectedEntries()) {
+      for (const entry of targets ?? selectedEntries()) {
         const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey)
           ?.manga.chapters;
         let chapters = cached
@@ -1017,8 +1056,9 @@ export default function LibraryScreen() {
       },
     ];
     if (!isRefreshingAny) {
+      const refreshChildren: LibraryMenuItem[] = [];
       if (hasCategoryScope) {
-        items.push({
+        refreshChildren.push({
           key: "refresh-category",
           label: t("library_refresh_category"),
           sf: "arrow.clockwise",
@@ -1026,12 +1066,84 @@ export default function LibraryScreen() {
           onPress: handleRefreshCategory,
         });
       }
-      items.push({
+      refreshChildren.push({
         key: "refresh-all",
         label: t("library_refresh_all"),
         sf: "arrow.triangle.2.circlepath",
         icon: "sync-outline",
         onPress: handleRefreshAll,
+      });
+      if (hasCategoryScope) {
+        refreshChildren.push({
+          key: "refresh-failed",
+          label: t("library_refresh_failed"),
+          sf: "exclamationmark.arrow.circlepath",
+          icon: "alert-circle-outline",
+          onPress: handleRefreshFailed,
+        });
+      }
+      items.push({
+        key: "refresh",
+        label: t("library_refresh"),
+        sf: "arrow.clockwise",
+        icon: "refresh-outline",
+        children: refreshChildren,
+      });
+    }
+    items.push(
+      {
+        key: "mark-all",
+        label: t("library_mark_all"),
+        sf: "checkmark.circle",
+        icon: "checkmark-done-outline",
+        children: [
+          {
+            key: "mark-all-read",
+            label: t("manga_read"),
+            sf: "checkmark",
+            icon: "checkmark-done-outline",
+            onPress: () => void markSelected(true, categoryEntries),
+          },
+          {
+            key: "mark-all-unread",
+            label: t("manga_unread"),
+            sf: "circle",
+            icon: "ellipse-outline",
+            onPress: () => void markSelected(false, categoryEntries),
+          },
+        ],
+      },
+      {
+        key: "download-all-menu",
+        label: t("library_download"),
+        sf: "arrow.down.circle",
+        icon: "download-outline",
+        children: [
+          {
+            key: "download-category-all",
+            label: t("manga_download_all_chapters"),
+            sf: "square.stack",
+            icon: "download-outline",
+            onPress: () => void downloadSelected(false, categoryEntries),
+          },
+          {
+            key: "download-category-unread",
+            label: t("manga_download_unread_chapters"),
+            sf: "circle",
+            icon: "arrow-down-circle-outline",
+            onPress: () => void downloadSelected(true, categoryEntries),
+          },
+        ],
+      },
+    );
+    if (categoryEntries.some((entry) => (entry.downloadedCount ?? 0) > 0)) {
+      items.push({
+        key: "remove-downloads",
+        label: t("library_remove_downloads"),
+        sf: "trash",
+        icon: "trash-outline",
+        destructive: true,
+        onPress: removeCategoryDownloads,
       });
     }
     items.push({
@@ -1054,6 +1166,9 @@ export default function LibraryScreen() {
     hasCategoryScope,
     handleRefreshCategory,
     handleRefreshAll,
+    handleRefreshFailed,
+    categoryEntries,
+    removeCategoryDownloads,
   ]);
 
   const handleSearchText = useCallback(
