@@ -73,6 +73,12 @@ const MENU_ITEMS_SECOND = [
 
 const MENU_ITEMS_THIRD = [
   {
+    icon: "stats-chart" as const,
+    color: "#30B0C7",
+    labelKey: "stats_title",
+    path: "/settings/statistics",
+  },
+  {
     icon: "lock-closed" as const,
     color: "#8E8E93",
     labelKey: "section_privacy",

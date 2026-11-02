@@ -18,6 +18,10 @@ export default function SettingsLayout() {
         options={{ headerLargeTitle: false, title: "" }}
       />
       <Stack.Screen
+        name="statistics"
+        options={{ headerLargeTitle: false, title: "" }}
+      />
+      <Stack.Screen
         name="notifications"
         options={{ headerLargeTitle: false, title: "" }}
       />

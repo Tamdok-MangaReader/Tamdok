@@ -195,6 +195,37 @@ export async function getMangaChapterProgress(
   return result;
 }
 
+export type ReadEvent = {
+  sourceId: string;
+  mangaKey: string;
+  chapterKey: string;
+  dateRead: number;
+};
+
+/** Fully read chapters with their read time, plus known manga titles; the input of reading statistics. */
+export async function getReadingActivity(): Promise<{
+  reads: ReadEvent[];
+  titles: Map<string, string>;
+}> {
+  const store = await readStore();
+  const reads: ReadEvent[] = [];
+  for (const progress of Object.values(store.chapters)) {
+    if (progress.page !== -1 || !progress.dateRead) continue;
+    reads.push({
+      sourceId: progress.sourceId,
+      mangaKey: progress.mangaKey,
+      chapterKey: progress.chapterKey,
+      dateRead: progress.dateRead,
+    });
+  }
+  const titles = new Map<string, string>();
+  for (const entry of store.history) {
+    const key = mangaHistoryKey(entry.sourceId, entry.mangaKey);
+    if (entry.mangaTitle && !titles.has(key)) titles.set(key, entry.mangaTitle);
+  }
+  return { reads, titles };
+}
+
 export async function getReadChapterKeysByManga(): Promise<
   Map<string, Set<string>>
 > {
