@@ -25,6 +25,7 @@ type MenuItem = {
     | "ellipse-outline"
     | "checkbox-outline"
     | "square-outline"
+    | "globe-outline"
     | "checkmark-done-outline";
   destructive?: boolean;
   onPress: () => void;
@@ -36,6 +37,7 @@ type MangaOverflowMenuProps = {
   canShare: boolean;
   canDownload: boolean;
   onShare: () => void;
+  onOpenInBrowser: () => void;
   onSelectChapters: () => void;
   onMarkAllRead: () => void;
   onMarkAllUnread: () => void;
@@ -107,6 +109,7 @@ function MangaOverflowMenuFallback({
   canShare,
   canDownload,
   onShare,
+  onOpenInBrowser,
   onSelectChapters,
   onMarkAllRead,
   onMarkAllUnread,
@@ -192,6 +195,16 @@ function MangaOverflowMenuFallback({
       }
     : null;
 
+  const browserItem: MenuItem | null = canShare
+    ? {
+        key: "browser",
+        label: t("manga_open_in_browser"),
+        sfSymbol: "safari",
+        fallbackIcon: "globe-outline",
+        onPress: onOpenInBrowser,
+      }
+    : null;
+
   const menu = !open ? null : (
     <Pressable style={styles.backdrop} onPress={close}>
       <View style={styles.menuAnchor}>
@@ -213,6 +226,13 @@ function MangaOverflowMenuFallback({
                     item={shareItem}
                     showDivider
                     onPress={() => run(shareItem.onPress)}
+                  />
+                ) : null}
+                {browserItem ? (
+                  <MenuRow
+                    item={browserItem}
+                    showDivider
+                    onPress={() => run(browserItem.onPress)}
                   />
                 ) : null}
                 <MenuRow

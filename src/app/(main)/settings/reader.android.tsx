@@ -312,6 +312,20 @@ export default function ReaderSettingsScreen() {
           />
         </Card>
 
+        <SectionLabel>{t('reader_experimental_section')}</SectionLabel>
+        <Card>
+          <SettingSwitch
+            label={t('reader_seamless_pages')}
+            value={settings.seamlessPages}
+            onChange={(value) => patch({ seamlessPages: value })}
+            isFirst
+            isLast
+          />
+        </Card>
+        <ThemedText variant='footnote' color='secondaryLabel' style={{ paddingHorizontal: 16 }}>
+          {t('reader_seamless_pages_hint')}
+        </ThemedText>
+
         <SectionLabel>{t('dictionary_section')}</SectionLabel>
         <Card>
           <SettingSwitch

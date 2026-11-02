@@ -37,6 +37,8 @@ export type LibraryEntry = {
   knownChapterKeys?: string[];
   updateFailed?: boolean;
   lastAttemptAt?: number;
+  /** Pinned by the user: shown with a star and sorted first. Cleared when the manga leaves the library. */
+  favorite?: boolean;
 };
 
 export type LibraryStore = {
@@ -145,6 +147,7 @@ export function sortLibraryEntries(
   lastReadAt: Map<string, number> = new Map(),
   reversed = false,
   unreadOf: (entry: LibraryEntry) => number = (entry) => entry.unreadCount ?? 0,
+  favoritesFirst = true,
 ): LibraryEntry[] {
   const next = [...entries];
   const byTitle = (a: LibraryEntry, b: LibraryEntry) =>
@@ -193,7 +196,13 @@ export function sortLibraryEntries(
       }
     }
   });
-  return reversed ? next.reverse() : next;
+  const ordered = reversed ? next.reverse() : next;
+  // Favorites always lead (also when the order is reversed); order inside each group is kept.
+  if (!favoritesFirst || !ordered.some((entry) => entry.favorite)) return ordered;
+  return [
+    ...ordered.filter((entry) => entry.favorite),
+    ...ordered.filter((entry) => !entry.favorite),
+  ];
 }
 
 /** A finished series: ended (completed/cancelled) with every known chapter read. */
@@ -214,6 +223,7 @@ export function hasActiveLibraryFilters(filters: LibraryFilters): boolean {
     filters.statuses.length > 0 ||
     filters.readState !== "all" ||
     filters.downloaded !== "all" ||
+    filters.favorites ||
     filters.sourceIds.length > 0
   );
 }
@@ -244,6 +254,7 @@ export function filterLibraryEntries(
         if (filters.readState === "unread" ? !unread : unread) return false;
       }
     }
+    if (filters.favorites && !entry.favorite) return false;
     if (filters.downloaded !== "all") {
       const downloaded = (entry.downloadedCount ?? 0) > 0;
       if (filters.downloaded === "downloaded" ? !downloaded : downloaded)
@@ -970,6 +981,7 @@ export type LibraryEntryMetadata = Partial<
     | "knownChapterKeys"
     | "updateFailed"
     | "lastAttemptAt"
+    | "favorite"
   >
 >;
 
@@ -1017,6 +1029,11 @@ function applyEntryMetadata(
     entry.lastRefreshed = metadata.lastRefreshed;
     changed = true;
   }
+  if (metadata.favorite !== undefined && Boolean(entry.favorite) !== metadata.favorite) {
+    if (metadata.favorite) entry.favorite = true;
+    else delete entry.favorite;
+    changed = true;
+  }
   if (metadata.status !== undefined && entry.status !== metadata.status) {
     entry.status = metadata.status;
     changed = true;
@@ -1043,6 +1060,14 @@ function applyEntryMetadata(
     changed = true;
   }
   return changed;
+}
+
+export async function setLibraryFavorite(
+  sourceId: string,
+  mangaKey: string,
+  favorite: boolean,
+): Promise<void> {
+  await updateLibraryEntryMetadata(sourceId, mangaKey, { favorite });
 }
 
 export async function updateLibraryEntryMetadata(

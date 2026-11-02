@@ -37,6 +37,7 @@ type MangaDetailHeaderRightProps = {
   canDownload: boolean;
   onApplySelect: () => void;
   onShare: () => void;
+  onOpenInBrowser: () => void;
   onSelectChapters: () => void;
   onMarkAllRead: () => void;
   onMarkAllUnread: () => void;
@@ -58,6 +59,7 @@ export const MangaDetailHeaderRight = memo(function MangaDetailHeaderRight({
   canDownload,
   onApplySelect,
   onShare,
+  onOpenInBrowser,
   onSelectChapters,
   onMarkAllRead,
   onMarkAllUnread,
@@ -82,6 +84,7 @@ export const MangaDetailHeaderRight = memo(function MangaDetailHeaderRight({
         canShare={canShare}
         canDownload={canDownload}
         onShare={onShare}
+        onOpenInBrowser={onOpenInBrowser}
         onSelectChapters={onSelectChapters}
         onMarkAllRead={onMarkAllRead}
         onMarkAllUnread={onMarkAllUnread}

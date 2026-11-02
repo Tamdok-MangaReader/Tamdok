@@ -54,6 +54,7 @@ import {
   getLibraryCategories,
   getLibraryEntry,
   isInLibrary,
+  setLibraryFavorite,
   toggleMangaLibraryCategory,
   type LibraryCategory,
 } from "@/services/library";
@@ -241,6 +242,7 @@ export default function MangaDetailScreen() {
   } = useMangaDetail({ source, runner, initialManga, cacheSourceId });
 
   const [inLibrary, setInLibraryState] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [chapterProgressMap, setChapterProgressMap] = useState<
     Record<string, ChapterProgress>
   >({});
@@ -275,6 +277,7 @@ export default function MangaDetailScreen() {
     onCancelSelect: () => {},
     onApplySelect: () => {},
     onShare: () => {},
+    onOpenInBrowser: () => {},
     onSelectChapters: () => {},
     onMarkAllRead: () => {},
     onMarkAllUnread: () => {},
@@ -318,6 +321,7 @@ export default function MangaDetailScreen() {
     selectedChapterKeys,
     installed,
     inLibrary,
+    isFavorite,
     mangaTitle: manga.title,
     mangaCover: manga.cover,
     mangaStatus: manga.status,
@@ -402,6 +406,7 @@ export default function MangaDetailScreen() {
       if (cancelled) return;
       setInLibraryState(library);
       setSelectedCategoryIds(entry?.categoryIds ?? []);
+      setIsFavorite(Boolean(entry?.favorite));
     };
 
     if (hasCachedContent) {
@@ -539,11 +544,21 @@ export default function MangaDetailScreen() {
       }).then((result) => {
         setInLibraryState(result.inLibrary);
         setSelectedCategoryIds(result.categoryIds);
-        if (!result.inLibrary) setLibraryPickerOpen(false);
+        if (!result.inLibrary) {
+          setLibraryPickerOpen(false);
+          setIsFavorite(false);
+        }
       });
     },
     [manifestSourceId, mangaKey],
   );
+
+  const handleToggleFavorite = useCallback(() => {
+    const next = !live.current.isFavorite;
+    setIsFavorite(next);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void setLibraryFavorite(manifestSourceId, mangaKey, next);
+  }, [manifestSourceId, mangaKey]);
 
   const handleOpenInBrowser = useCallback(() => {
     if (!mangaPageUrl) return;
@@ -775,6 +790,7 @@ export default function MangaDetailScreen() {
     onCancelSelect: exitChapterSelectMode,
     onApplySelect: exitChapterSelectMode,
     onShare: handleShare,
+    onOpenInBrowser: handleOpenInBrowser,
     onSelectChapters: enterChapterSelectMode,
     onMarkAllRead: handleMarkAllRead,
     onMarkAllUnread: handleMarkAllUnread,
@@ -807,6 +823,7 @@ export default function MangaDetailScreen() {
         canDownload={inLibrary}
         onApplySelect={() => handlersRef.current.onApplySelect()}
         onShare={() => handlersRef.current.onShare()}
+        onOpenInBrowser={() => handlersRef.current.onOpenInBrowser()}
         onSelectChapters={() => handlersRef.current.onSelectChapters()}
         onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
         onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
@@ -925,6 +942,7 @@ export default function MangaDetailScreen() {
           onCancelSelect={() => handlersRef.current.onCancelSelect()}
           onApplySelect={() => handlersRef.current.onApplySelect()}
           onShare={() => handlersRef.current.onShare()}
+          onOpenInBrowser={() => handlersRef.current.onOpenInBrowser()}
           onSelectChapters={() => handlersRef.current.onSelectChapters()}
           onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
           onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
@@ -961,6 +979,7 @@ export default function MangaDetailScreen() {
           onCancelSelect={() => handlersRef.current.onCancelSelect()}
           onApplySelect={() => handlersRef.current.onApplySelect()}
           onShare={() => handlersRef.current.onShare()}
+          onOpenInBrowser={() => handlersRef.current.onOpenInBrowser()}
           onSelectChapters={() => handlersRef.current.onSelectChapters()}
           onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
           onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
@@ -996,6 +1015,7 @@ export default function MangaDetailScreen() {
           onCancelSelect={() => handlersRef.current.onCancelSelect()}
           onApplySelect={() => handlersRef.current.onApplySelect()}
           onShare={() => handlersRef.current.onShare()}
+          onOpenInBrowser={() => handlersRef.current.onOpenInBrowser()}
           onSelectChapters={() => handlersRef.current.onSelectChapters()}
           onMarkAllRead={() => handlersRef.current.onMarkAllRead()}
           onMarkAllUnread={() => handlersRef.current.onMarkAllUnread()}
@@ -1025,6 +1045,7 @@ export default function MangaDetailScreen() {
         selectedCategoryIds={selectedCategoryIds}
         libraryPickerOpen={libraryPickerOpen}
         canOpenInBrowser={Boolean(mangaPageUrl)}
+        isFavorite={isFavorite}
         continueLabel={continueLabel}
         chapterSelectMode={chapterSelectMode}
         selectedChapterKeys={selectedChapterKeys}
@@ -1041,6 +1062,7 @@ export default function MangaDetailScreen() {
         onToggleLibraryPicker={handleToggleLibraryPicker}
         onToggleCategory={handleToggleCategory}
         onOpenInBrowser={handleOpenInBrowser}
+        onToggleFavorite={handleToggleFavorite}
         onMarkChapterRead={handleMarkChapterRead}
         onMarkChapterUnread={handleMarkChapterUnread}
         onToggleChapterBookmark={handleToggleChapterBookmark}

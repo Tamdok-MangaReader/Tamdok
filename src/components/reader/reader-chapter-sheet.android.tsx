@@ -1,6 +1,7 @@
 // Android copy: sheet without rounded top corners.
 import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
+import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,9 +23,13 @@ export function ReaderChapterSheet({ visible, onClose }: ReaderChapterSheetProps
   const { chapters, chapter, actions } = useReader();
 
   return (
-    <Modal visible={visible} animationType='slide' transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { backgroundColor: colors.secondarySystemBackground }]}>
+    <Modal visible={visible} animationType='none' transparent onRequestClose={onClose}>
+      <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+      <Animated.View
+        entering={SlideInDown.duration(320)}
+        style={[styles.sheet, { backgroundColor: colors.secondarySystemBackground }]}>
         <ModalHeader title={t('manga_chapters')} closeLabel={t('done')} onClose={onClose} />
         <ScrollView
           contentContainerStyle={[styles.list, { paddingTop: MODAL_HEADER_HEIGHT + Spacing.sm, paddingBottom: insets.bottom + Spacing.lg }]}
@@ -46,7 +51,7 @@ export function ReaderChapterSheet({ visible, onClose }: ReaderChapterSheetProps
             );
           })}
         </ScrollView>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

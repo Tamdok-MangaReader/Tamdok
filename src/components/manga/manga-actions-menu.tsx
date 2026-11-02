@@ -45,6 +45,7 @@ import {
   chapterKeysForLibraryEntry,
   isAllCategory,
   removeFromLibrary,
+  setLibraryFavorite,
   toggleMangaLibraryCategory,
   updateLibraryEntryMetadata,
 } from "@/services/library";
@@ -80,6 +81,8 @@ type MenuItem = {
   fallback: React.ComponentProps<typeof SFSymbolIcon>["fallback"];
   destructive?: boolean;
   checked?: boolean;
+  /** Omit the leading icon (the row shows only a label and its checkmark). */
+  plain?: boolean;
   onPress: () => void;
   children?: MenuItem[];
 };
@@ -149,6 +152,7 @@ function MenuRow({
   trailing,
   checked,
   inset,
+  plain,
   onPress,
   onLayout,
 }: {
@@ -160,6 +164,7 @@ function MenuRow({
   trailing?: "up" | "down" | "right";
   checked?: boolean;
   inset?: boolean;
+  plain?: boolean;
   onPress: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
@@ -181,7 +186,9 @@ function MenuRow({
       onLayout={onLayout}
       accessibilityRole="button"
     >
-      <SFSymbolIcon name={sfSymbol} fallback={fallback} size={18} color={color} />
+      {plain ? null : (
+        <SFSymbolIcon name={sfSymbol} fallback={fallback} size={18} color={color} />
+      )}
       <ThemedText
         variant="body"
         color={destructive ? "destructive" : "label"}
@@ -431,6 +438,7 @@ function MangaMenuOverlay({
                 label: t("library_category_all"),
                 sf: "circle",
                 fallback: "ellipse-outline",
+                plain: true,
                 checked: true,
                 onPress: NOOP,
               },
@@ -440,9 +448,20 @@ function MangaMenuOverlay({
               label: category.name,
               sf: "circle",
               fallback: "ellipse-outline" as const,
+              plain: true,
               checked: entry.categoryIds.includes(category.id),
               onPress: () => toggleCategory(category.id),
             })),
+    });
+    items.push({
+      key: "favorite",
+      label: entry.favorite
+        ? t("manga_favorite_remove")
+        : t("manga_favorite_add"),
+      sf: entry.favorite ? "star.slash" : "star",
+      fallback: entry.favorite ? "star" : "star-outline",
+      onPress: () =>
+        run(() => void setLibraryFavorite(sourceId, manga.key, !entry.favorite)),
     });
   } else {
     items.push({
@@ -737,6 +756,7 @@ function MangaMenuOverlay({
                     fallback={item.fallback}
                     destructive={item.destructive}
                     checked={item.checked}
+                    plain={item.plain}
                     showDivider
                     onPress={item.onPress}
                   />

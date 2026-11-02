@@ -1,3 +1,4 @@
+import Animated, { FadeIn } from "react-native-reanimated";
 import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { SwipeDismissSheet } from "@/components/ui/swipe-dismiss-sheet";
@@ -161,11 +162,13 @@ export function ReaderSettingsSheet({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
       <SwipeDismissSheet
         onClose={onClose}
         style={[styles.sheet, { backgroundColor: colors.groupedBackground }]}

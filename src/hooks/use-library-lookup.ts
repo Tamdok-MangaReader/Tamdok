@@ -12,6 +12,7 @@ export type LibraryMangaMeta = {
   updateFailed: boolean;
   /** Completed series with every chapter read. */
   finished: boolean;
+  favorite: boolean;
 };
 
 function metaKey(sourceId: string, mangaKey: string): string {
@@ -56,6 +57,7 @@ export function useLibraryLookup() {
         downloadedCount: entry.downloadedCount ?? 0,
         updateFailed: Boolean(entry.updateFailed),
         finished: isLibraryEntryFinished(entry, unreadCount),
+        favorite: Boolean(entry.favorite),
       });
     }
     return map;
@@ -71,6 +73,7 @@ export function useLibraryLookup() {
       downloadedCount: showBadges.downloaded ? meta.downloadedCount : 0,
       updateFailed: meta.updateFailed,
       finished: meta.finished,
+      favorite: meta.favorite,
     };
   };
 
@@ -93,6 +96,7 @@ export function enrichMangaWithLibraryMeta<
       downloadedCount: meta.downloadedCount,
       updateFailed: meta.updateFailed,
       finished: meta.finished,
+      favorite: meta.favorite,
     };
   }
 
@@ -103,5 +107,6 @@ export function enrichMangaWithLibraryMeta<
     downloadedCount: manga.downloadedCount ?? 0,
     updateFailed: Boolean(manga.updateFailed),
     finished: false,
+    favorite: false,
   };
 }

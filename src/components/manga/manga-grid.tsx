@@ -140,6 +140,7 @@ export const MangaGridCell = memo(function MangaGridCell({
       downloadedCount={hideBadges ? 0 : enriched.downloadedCount}
       updateFailed={hideBadges ? false : enriched.updateFailed}
       finished={hideBadges ? false : enriched.finished}
+      favorite={hideBadges ? false : enriched.favorite}
       refreshing={hideBadges ? false : refreshing}
       downloadProgress={hideBadges ? undefined : downloadProgress}
       downloadFailed={hideBadges ? 0 : downloadFailed}

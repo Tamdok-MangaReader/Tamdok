@@ -1,4 +1,4 @@
-import { createContext, useCallback, useMemo, type ComponentProps, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, type ComponentProps, type ReactNode } from "react";
 import { StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import {
   Gesture,
@@ -6,6 +6,7 @@ import {
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -33,18 +34,20 @@ type SwipeDismissSheetProps = {
  * far or fast enough. The gesture root is needed because a native Modal is a separate window.
  */
 export function SwipeDismissSheet({ onClose, style, children }: SwipeDismissSheetProps) {
-  const translateY = useSharedValue(0);
   const { colors } = useTheme();
   // Plain number: UI-thread worklets cannot call into Dimensions.
   const screenHeight = useWindowDimensions().height;
+  // The modal itself only fades (so the dimmed backdrop does not travel with the sheet);
+  // the sheet slides up on its own from below the screen.
+  const translateY = useSharedValue(screenHeight);
+
+  useEffect(() => {
+    translateY.value = withTiming(0, { duration: 320, easing: Easing.out(Easing.cubic) });
+  }, [translateY]);
 
   const finishClose = useCallback(() => {
     onClose();
-    // The modal slides out on its own; put the sheet back for the next time it opens.
-    setTimeout(() => {
-      translateY.value = 0;
-    }, 400);
-  }, [onClose, translateY]);
+  }, [onClose]);
 
   const gesture = useMemo(
     () =>
@@ -102,5 +105,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 10,
   },
-  grabber: { width: 36, height: 5, borderRadius: 3, opacity: 0.6 },
+  grabber: { width: 56, height: 5, borderRadius: 3, opacity: 0.6 },
 });

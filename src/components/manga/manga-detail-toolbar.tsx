@@ -20,6 +20,7 @@ type MangaDetailToolbarProps = {
   onCancelSelect: () => void;
   onApplySelect: () => void;
   onShare: () => void;
+  onOpenInBrowser: () => void;
   onSelectChapters: () => void;
   onMarkAllRead: () => void;
   onMarkAllUnread: () => void;
@@ -92,6 +93,14 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
                 onPress={props.onShare}
               >
                 {t("manga_share")}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
+            {!chapterSelectMode && canShare ? (
+              <Stack.Toolbar.MenuAction
+                icon="safari"
+                onPress={props.onOpenInBrowser}
+              >
+                {t("manga_open_in_browser")}
               </Stack.Toolbar.MenuAction>
             ) : null}
             {!chapterSelectMode ? (

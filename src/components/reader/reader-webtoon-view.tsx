@@ -206,6 +206,7 @@ const PageCell = memo(function PageCell({
         layout="intrinsic"
         containerWidth={width}
         stickyTop={stickyTop}
+        cellHeight={frameHeight}
         onMeasuredAspectRatio={handleMeasured}
         onSingleTap={onSingleTap}
         onLongPress={handleLongPress}

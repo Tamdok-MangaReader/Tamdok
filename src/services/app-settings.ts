@@ -54,6 +54,8 @@ export type ReaderSettings = {
   pagedPageLayout: PagedPageLayout;
   pagedPageOffset: boolean;
   splitWideImages: boolean;
+  /** Experimental: size webtoon page images to the list cell height to avoid hairline gaps. */
+  seamlessPages: boolean;
   reverseSplitOrder: boolean;
   verticalInfiniteScroll: boolean;
   pillarbox: boolean;
@@ -79,6 +81,13 @@ export type LibrarySortMode =
   | "chapters"
   | "downloaded";
 
+/** Sort order that applies to one category only, overriding the global one. */
+export type LibraryCategorySort = {
+  sortMode: LibrarySortMode;
+  sortReversed: boolean;
+  favoritesFirst?: boolean;
+};
+
 export type LibraryDisplayMode = "grid" | "list" | "descriptiveList";
 
 export type LibraryFilters = {
@@ -86,6 +95,8 @@ export type LibraryFilters = {
   statuses: string[];
   readState: "all" | "unread" | "read" | "finished";
   downloaded: "all" | "downloaded" | "notDownloaded";
+  /** Keep only favorites. */
+  favorites: boolean;
   /** Source ids to keep; empty means every source. */
   sourceIds: string[];
 };
@@ -94,6 +105,7 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFilters = {
   statuses: [],
   readState: "all",
   downloaded: "all",
+  favorites: false,
   sourceIds: [],
 };
 
@@ -115,6 +127,10 @@ export type LibraryDisplaySettings = {
   sortMode: LibrarySortMode;
   /** Flips the natural order of the selected sort mode. */
   sortReversed: boolean;
+  /** Keep favorites at the top of the list (off by default). */
+  favoritesFirst: boolean;
+  /** Per-category sort overrides, keyed by category id. */
+  categorySort?: Record<string, LibraryCategorySort>;
   filters: LibraryFilters;
   /** Categories left out of the library summary. */
   summaryExcludedCategoryIds: string[];
@@ -190,6 +206,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     pagedPageLayout: "auto",
     pagedPageOffset: false,
     splitWideImages: false,
+    seamlessPages: false,
     reverseSplitOrder: false,
     verticalInfiniteScroll: true,
     pillarbox: false,
@@ -231,6 +248,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     displayMode: "grid",
     sortMode: "unread",
     sortReversed: false,
+    favoritesFirst: false,
     filters: DEFAULT_LIBRARY_FILTERS,
     summaryExcludedCategoryIds: [],
   },

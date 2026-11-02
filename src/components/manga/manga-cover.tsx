@@ -36,6 +36,8 @@ type MangaCoverProps = {
   updateFailed?: boolean;
   /** Completed series with all chapters read: shows a seal on the cover. */
   finished?: boolean;
+  /** Library favorite: a yellow star replaces the bookmark badge. */
+  favorite?: boolean;
   refreshing?: boolean;
   downloadProgress?: number;
   downloadFailed?: number;
@@ -93,6 +95,7 @@ export const MangaCover = memo(function MangaCover({
   showTitleOverlay = true,
   updateFailed = false,
   finished = false,
+  favorite = false,
   refreshing = false,
   downloadProgress,
   downloadFailed = 0,
@@ -137,7 +140,8 @@ export const MangaCover = memo(function MangaCover({
   const showDownloaded = inLibrary && downloadedCount > 0;
   const showDownloading = downloadProgress != null;
   const showFailed = downloadFailed > 0;
-  const showBookmarkBadge = showBookmark && inLibrary;
+  const showFavoriteBadge = favorite && inLibrary;
+  const showBookmarkBadge = showBookmark && inLibrary && !showFavoriteBadge;
   const coverDisplay = useCoverDisplay();
   const showFinishedBadge =
     finished && coverDisplay.showFinishedBadge && !updateFailed;
@@ -235,6 +239,19 @@ export const MangaCover = memo(function MangaCover({
           {title.slice(0, 1)}
         </ThemedText>
       )}
+
+      {showFavoriteBadge ? (
+        <View style={styles.badges}>
+          <View style={[styles.bookmarkBadge, styles.favoriteBadge]}>
+            <SFSymbolIcon
+              name="star.fill"
+              size={12}
+              color="#FFFFFF"
+              fallback="star"
+            />
+          </View>
+        </View>
+      ) : null}
 
       {showBookmarkBadge ? (
         <View style={styles.badges}>
@@ -434,6 +451,9 @@ const styles = StyleSheet.create({
     top: Spacing.xs,
     right: Spacing.xs,
     zIndex: 2,
+  },
+  favoriteBadge: {
+    backgroundColor: "#F5B301",
   },
   bookmarkBadge: {
     width: 22,

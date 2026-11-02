@@ -1,3 +1,4 @@
+import Animated, { FadeIn } from "react-native-reanimated";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -81,11 +82,13 @@ export function LibrarySummarySheet({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
       <SwipeDismissSheet
         onClose={onClose}
         style={[

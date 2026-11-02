@@ -98,6 +98,7 @@ import {
   getAppSettings,
   libraryDisplayColumns,
   updateAppSettings,
+  type LibraryCategorySort,
   type LibraryDisplayMode,
   type LibraryFilters,
   type LibrarySortMode,
@@ -252,6 +253,10 @@ export default function LibraryScreen() {
   const [categories, setCategories] = useState<
     { id: string; label: string; count?: number }[]
   >([]);
+  const [countBadges, setCountBadges] = useState({
+    show: true,
+    hideEmpty: true,
+  });
   const [selectedCategoryId, setSelectedCategoryId] = useState(ALL_CATEGORY_ID);
   const [allEntries, setAllEntries] = useState<LibraryEntry[]>([]);
   const [showCategoryTabs, setShowCategoryTabs] = useState(false);
@@ -268,6 +273,10 @@ export default function LibraryScreen() {
     useState(false);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("unread");
   const [sortReversed, setSortReversed] = useState(false);
+  const [favoritesFirst, setFavoritesFirst] = useState(false);
+  const [categorySort, setCategorySort] = useState<
+    Record<string, LibraryCategorySort>
+  >({});
   const [displayMode, setDisplayMode] = useState<LibraryDisplayMode>("grid");
   const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
   const [readKeys, setReadKeys] = useState<Map<string, Set<string>>>(
@@ -384,6 +393,8 @@ export default function LibraryScreen() {
       settings.libraryDisplay.showLibraryRefreshStatus ?? false,
     );
     setSortMode(settings.libraryDisplay.sortMode ?? "unread");
+    setCategorySort(settings.libraryDisplay.categorySort ?? {});
+    setFavoritesFirst(settings.libraryDisplay.favoritesFirst ?? false);
     setLastReadAt((prev) => {
       if (prev.size !== nextLastRead.size) return nextLastRead;
       for (const [key, value] of nextLastRead) {
@@ -406,9 +417,14 @@ export default function LibraryScreen() {
       return {
         id: category.id,
         label: categoryLabel(category.id, category.name),
-        count: !showCounts || (count === 0 && hideEmptyCounts) ? undefined : count,
+        count,
       };
     });
+    setCountBadges((prev) =>
+      prev.show === showCounts && prev.hideEmpty === hideEmptyCounts
+        ? prev
+        : { show: showCounts, hideEmpty: hideEmptyCounts },
+    );
     setCategories((prev) =>
       JSON.stringify(prev) === JSON.stringify(nextTabs) ? prev : nextTabs,
     );
@@ -487,16 +503,38 @@ export default function LibraryScreen() {
     [hideCategorizedNsfw, visibleEntries, installed],
   );
 
+  // Tab counts follow what each tab actually lists (hidden NSFW and illustration mode included).
+  const categoryTabs = useMemo(
+    () =>
+      categories.map((category) => {
+        const count = entriesForCategory(category.id).length;
+        return {
+          ...category,
+          count:
+            !countBadges.show || (count === 0 && countBadges.hideEmpty)
+              ? undefined
+              : count,
+        };
+      }),
+    [categories, entriesForCategory, countBadges],
+  );
+
   const toListItems = useCallback(
-    (entries: LibraryEntry[]): LibraryListItem[] => {
+    (entries: LibraryEntry[], categoryId?: string): LibraryListItem[] => {
+      const order = (categoryId && categorySort[categoryId]) || {
+        sortMode,
+        sortReversed,
+        favoritesFirst,
+      };
       const listMode = displayMode !== "grid";
       const filtered = filterLibraryEntries(entries, filters, unreadOf);
       return sortLibraryEntries(
         filtered,
-        sortMode,
+        order.sortMode,
         lastReadAt,
-        sortReversed,
+        order.sortReversed,
         unreadOf,
+        order.favoritesFirst ?? favoritesFirst,
       ).map((entry): LibraryListItem => {
             const key = `${entry.sourceId}:${entry.mangaKey}`;
             return {
@@ -535,6 +573,8 @@ export default function LibraryScreen() {
       filters,
       unreadOf,
       sortMode,
+      categorySort,
+      favoritesFirst,
       lastReadAt,
       sortReversed,
       showUnreadBadges,
@@ -547,7 +587,10 @@ export default function LibraryScreen() {
   const basePages = useMemo(() => {
     const map = new Map<string, LibraryListItem[]>();
     for (const category of categories) {
-      map.set(category.id, toListItems(entriesForCategory(category.id)));
+      map.set(
+        category.id,
+        toListItems(entriesForCategory(category.id), category.id),
+      );
     }
     return map;
   }, [categories, entriesForCategory, toListItems]);
@@ -1286,11 +1329,7 @@ export default function LibraryScreen() {
               />
             ) : (
               <Stack.Toolbar.Button
-                icon={
-                  filtersActive
-                    ? "line.3.horizontal.decrease.circle.fill"
-                    : "line.3.horizontal.decrease.circle"
-                }
+                icon="line.3.horizontal.decrease"
                 accessibilityLabel={t("library_options_button")}
                 tintColor={filtersActive ? colors.tint : colors.label}
                 onPress={() => setOptionsOpen(true)}
@@ -1442,7 +1481,7 @@ export default function LibraryScreen() {
                   <LibraryCategoryTabs
                     fullWidth
                     key={pagerKey}
-                    tabs={categories}
+                    tabs={categoryTabs}
                     progress={progress}
                     onPress={handleTabPress}
                   />,
@@ -1457,6 +1496,11 @@ export default function LibraryScreen() {
         visible={optionsOpen}
         onClose={() => setOptionsOpen(false)}
         sources={sourceOptions}
+        categoryId={selectedCategoryId}
+        categoryName={
+          categories.find((category) => category.id === selectedCategoryId)
+            ?.label ?? ""
+        }
       />
       <LibraryCategoryPicker
         visible={moveOpen}

@@ -59,6 +59,7 @@ import { GlassSurface } from "@/components/ui/glass-surface";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
+import { ShimmerText } from "@/components/ui/shimmer-text";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t, getLocale, getExpoLocale } from "@/constants/locales";
@@ -303,6 +304,7 @@ type HeaderProps = {
   hasCustomCategories: boolean;
   libraryPickerOpen: boolean;
   canOpenInBrowser: boolean;
+  isFavorite: boolean;
   continueLabel: string;
   chapterSelectMode: boolean;
   /** Unfolded Duo split: "info" = cover/description (left), "chapters" = continue button + chapter list header (right). */
@@ -321,6 +323,7 @@ type HeaderProps = {
   onContinueReading: () => void;
   onLibraryPress: () => void;
   onOpenInBrowser: () => void;
+  onToggleFavorite: () => void;
   onSelectAllChapters?: () => void;
   onDeselectAllChapters?: () => void;
 };
@@ -349,6 +352,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   hasCustomCategories,
   libraryPickerOpen,
   canOpenInBrowser,
+  isFavorite,
   continueLabel,
   chapterSelectMode,
   part = "all",
@@ -366,6 +370,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   onContinueReading,
   onLibraryPress,
   onOpenInBrowser,
+  onToggleFavorite,
   onSelectAllChapters,
   onDeselectAllChapters,
 }: HeaderProps) {
@@ -609,7 +614,32 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
                 </View>
               )}
             </Pressable>
-            {canOpenInBrowser ? (
+            {inLibrary ? (
+              <Pressable
+                style={styles.safariPressable}
+                onPress={onToggleFavorite}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isFavorite
+                    ? t("manga_favorite_remove")
+                    : t("manga_favorite_add")
+                }
+              >
+                <GlassSurface
+                  borderRadius={radius.pill}
+                  style={styles.safariButton}
+                  interactive
+                >
+                  <SFSymbolIcon
+                    name={isFavorite ? "star.fill" : "star"}
+                    size={18}
+                    color={isFavorite ? "#F5B301" : colors.tint}
+                    fallback={isFavorite ? "star" : "star-outline"}
+                  />
+                </GlassSurface>
+              </Pressable>
+            ) : canOpenInBrowser ? (
               <Pressable
                 style={styles.safariPressable}
                 onPress={onOpenInBrowser}
@@ -861,14 +891,17 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       {showChapters ? (
       <View style={styles.chapterHeader}>
         <View style={styles.chapterTitleRow}>
-          <ThemedText variant="headline" style={styles.blockTitle}>
-            {chapterSelectMode
-              ? t("manga_select_chapters")
-              : `${t("manga_chapters")}${chaptersCount > 0 ? ` (${chaptersCount})` : ""}`}
-          </ThemedText>
-          {isRefreshing ? (
-            <ActivityIndicator size="small" color={colors.tint} />
-          ) : null}
+          {isRefreshing && !chapterSelectMode ? (
+            <ShimmerText variant="headline" style={styles.blockTitle}>
+              {t("manga_loading")}
+            </ShimmerText>
+          ) : (
+            <ThemedText variant="headline" style={styles.blockTitle}>
+              {chapterSelectMode
+                ? t("manga_select_chapters")
+                : `${t("manga_chapters")}${chaptersCount > 0 ? ` (${chaptersCount})` : ""}`}
+            </ThemedText>
+          )}
         </View>
         {progressNode}
         {chapterSelectMode ? (
@@ -905,6 +938,7 @@ type MangaDetailViewProps = {
   selectedCategoryIds: string[];
   libraryPickerOpen: boolean;
   canOpenInBrowser: boolean;
+  isFavorite: boolean;
   continueLabel: string;
   chapterSelectMode?: boolean;
   contentBottomInset?: number;
@@ -923,6 +957,7 @@ type MangaDetailViewProps = {
   onToggleLibraryPicker: () => void;
   onToggleCategory: (categoryId: string) => void;
   onOpenInBrowser: () => void;
+  onToggleFavorite: () => void;
   onMarkChapterRead: (chapter: Chapter) => void;
   onMarkChapterUnread: (chapter: Chapter) => void;
   onToggleChapterBookmark?: (chapter: Chapter) => void;
@@ -947,6 +982,7 @@ export function MangaDetailView({
   selectedCategoryIds,
   libraryPickerOpen,
   canOpenInBrowser,
+  isFavorite,
   continueLabel,
   chapterSelectMode = false,
   contentBottomInset = 0,
@@ -965,6 +1001,7 @@ export function MangaDetailView({
   onToggleLibraryPicker,
   onToggleCategory,
   onOpenInBrowser,
+  onToggleFavorite,
   onMarkChapterRead,
   onMarkChapterUnread,
   onToggleChapterBookmark,
@@ -1005,6 +1042,7 @@ export function MangaDetailView({
     onRemoveChapterDownload,
     onContinueReading,
     onOpenInBrowser,
+    onToggleFavorite,
     onDismissInlineError,
     onSelectAllChapters,
     onDeselectAllChapters,
@@ -1021,6 +1059,7 @@ export function MangaDetailView({
     onRemoveChapterDownload,
     onContinueReading,
     onOpenInBrowser,
+    onToggleFavorite,
     onDismissInlineError,
     onSelectAllChapters,
     onDeselectAllChapters,
@@ -1062,6 +1101,10 @@ export function MangaDetailView({
   );
   const stableOpenInBrowser = useCallback(
     () => handlersRef.current.onOpenInBrowser(),
+    [],
+  );
+  const stableToggleFavorite = useCallback(
+    () => handlersRef.current.onToggleFavorite(),
     [],
   );
   const stableDismissError = useCallback(
@@ -1167,6 +1210,7 @@ export function MangaDetailView({
       hasCustomCategories={hasCustomCategories}
       libraryPickerOpen={libraryPickerOpen}
       canOpenInBrowser={canOpenInBrowser}
+      isFavorite={isFavorite}
       continueLabel={continueLabel}
       chapterSelectMode={chapterSelectMode}
       showBigMangaCover={showBigMangaCover}
@@ -1185,6 +1229,7 @@ export function MangaDetailView({
       onContinueReading={stableContinue}
       onLibraryPress={handleLibraryPickerPress}
       onOpenInBrowser={stableOpenInBrowser}
+      onToggleFavorite={stableToggleFavorite}
       onSelectAllChapters={onSelectAllChapters ? stableSelectAll : undefined}
       onDeselectAllChapters={
         onDeselectAllChapters ? stableDeselectAll : undefined

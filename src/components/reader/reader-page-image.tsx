@@ -66,6 +66,8 @@ type ReaderPageImageProps = {
   containerWidth?: number;
   /** Top of this page in list content coordinates; enables the sticky loading/error indicator. */
   stickyTop?: number;
+  /** Height of the list cell holding this page; used when `seamlessPages` is on. */
+  cellHeight?: number;
 };
 
 const STICKY_PAD = 32;
@@ -140,6 +142,7 @@ export function ReaderPageImage({
   contentFit,
   containerWidth,
   stickyTop,
+  cellHeight,
 }: ReaderPageImageProps) {
   const { debugShowPageNumbers } = useReader();
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
@@ -571,9 +574,14 @@ export function ReaderPageImage({
       ? aspectRatio / page.splitTotal
       : aspectRatio;
   const showPlaceholder = layout === "intrinsic" && loadState !== "ready";
-  const frameHeight = Math.round(
-    intrinsicWidth / Math.max(displayAspectRatio, getReaderMinAspect()),
-  );
+  // The list ignores height changes under 2pt, so its cell can be 1pt taller than our own
+  // computed height; that strip shows the reader background as a line between pages.
+  const frameHeight =
+    settings.seamlessPages && layout === "intrinsic" && cellHeight
+      ? cellHeight
+      : Math.round(
+          intrinsicWidth / Math.max(displayAspectRatio, getReaderMinAspect()),
+        );
   const frameStyle =
     pillarboxPadding > 0
       ? pillarboxOrientation === "vertical"

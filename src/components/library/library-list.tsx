@@ -95,6 +95,7 @@ const LibraryListRow = memo(function LibraryListRow({
           downloadedCount={item.selecting ? 0 : enriched.downloadedCount}
           updateFailed={item.selecting ? false : enriched.updateFailed}
           finished={item.selecting ? false : enriched.finished}
+          favorite={item.selecting ? false : enriched.favorite}
           showTitleOverlay={false}
           showBookmark={false}
           showStatus={false}

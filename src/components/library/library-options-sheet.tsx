@@ -1,3 +1,4 @@
+import Animated, { FadeIn } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -24,6 +25,7 @@ import { useTheme } from "@/hooks/use-theme";
 import {
   DEFAULT_LIBRARY_FILTERS,
   DEFAULT_SETTINGS,
+  type LibraryCategorySort,
   getAppSettings,
   libraryDisplayColumns,
   updateAppSettings,
@@ -48,6 +50,9 @@ type LibraryOptionsSheetProps = {
   visible: boolean;
   onClose: () => void;
   sources: LibrarySourceOption[];
+  /** Category currently on screen; the sort page can be limited to it. */
+  categoryId: string;
+  categoryName: string;
 };
 
 const STATUS_IDS = [
@@ -143,6 +148,8 @@ export function LibraryOptionsSheet({
   visible,
   onClose,
   sources,
+  categoryId,
+  categoryName,
 }: LibraryOptionsSheetProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -159,19 +166,28 @@ export function LibraryOptionsSheet({
     setCover(settings.coverDisplay);
   }, []);
 
+  // Settings events caused by our own writes are ignored: reloading mid-write briefly restores the
+  // old value, which made controls (the columns slider especially) jump back and forth.
+  const lastLocalPatchRef = useRef(0);
+
   useEffect(() => {
     if (!visible) return;
     void load();
-    return subscribeAppSettings(() => void load());
+    return subscribeAppSettings(() => {
+      if (Date.now() - lastLocalPatchRef.current < 1500) return;
+      void load();
+    });
   }, [visible, load]);
 
   // Local state is updated first so controls react instantly; the stored value follows.
   const patchDisplay = useCallback((patch: Partial<LibraryDisplaySettings>) => {
+    lastLocalPatchRef.current = Date.now();
     setDisplay((prev) => (prev ? { ...prev, ...patch } : prev));
     void updateAppSettings({ libraryDisplay: patch });
   }, []);
 
   const patchCover = useCallback((patch: Partial<CoverDisplaySettings>) => {
+    lastLocalPatchRef.current = Date.now();
     setCover((prev) => (prev ? { ...prev, ...patch } : prev));
     void updateAppSettings({ coverDisplay: patch });
   }, []);
@@ -184,10 +200,51 @@ export function LibraryOptionsSheet({
     [display, patchDisplay],
   );
 
+  const categorySortMap = display?.categorySort ?? {};
+  const categoryOverride = categorySortMap[categoryId];
+
+  // Sort edits go to the category override when one exists, otherwise to the global order.
+  const patchSort = useCallback(
+    (patch: Partial<LibraryCategorySort>) => {
+      if (categoryOverride) {
+        patchDisplay({
+          categorySort: {
+            ...categorySortMap,
+            [categoryId]: { ...categoryOverride, ...patch },
+          },
+        });
+      } else {
+        patchDisplay(patch);
+      }
+    },
+    [categoryOverride, categorySortMap, categoryId, patchDisplay],
+  );
+
+  const toggleCategoryOnly = useCallback(
+    (on: boolean) => {
+      const next = { ...categorySortMap };
+      if (on && display) {
+        next[categoryId] = {
+          sortMode: display.sortMode,
+          sortReversed: display.sortReversed,
+          favoritesFirst: display.favoritesFirst ?? false,
+        };
+      } else {
+        delete next[categoryId];
+      }
+      patchDisplay({ categorySort: next });
+    },
+    [categorySortMap, categoryId, display, patchDisplay],
+  );
+
   const resetSort = useCallback(() => {
     const d = DEFAULT_SETTINGS.libraryDisplay;
-    patchDisplay({ sortMode: d.sortMode, sortReversed: d.sortReversed });
-  }, [patchDisplay]);
+    patchSort({
+      sortMode: d.sortMode,
+      sortReversed: d.sortReversed,
+      favoritesFirst: d.favoritesFirst,
+    });
+  }, [patchSort]);
 
   const resetDisplay = useCallback(() => {
     const { libraryDisplay: d, coverDisplay: c } = DEFAULT_SETTINGS;
@@ -230,16 +287,23 @@ export function LibraryOptionsSheet({
   };
 
   const filters = display?.filters ?? DEFAULT_LIBRARY_FILTERS;
+  const activeSort = categoryOverride ?? {
+    sortMode: display?.sortMode ?? DEFAULT_SETTINGS.libraryDisplay.sortMode,
+    sortReversed: display?.sortReversed ?? false,
+    favoritesFirst: display?.favoritesFirst ?? false,
+  };
   const selectedSourceCount = filters.sourceIds.length;
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="none"
       transparent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
       <SwipeDismissSheet
         onClose={onClose}
         style={[
@@ -303,6 +367,21 @@ export function LibraryOptionsSheet({
                       onPress={() => patchFilters({ readState: id })}
                     />
                   ))}
+                </View>
+              </Section>
+
+              <Section title={t("library_filter_favorites")}>
+                <View style={styles.pillWrap}>
+                  <Pill
+                    label={t("library_filter_all")}
+                    selected={!filters.favorites}
+                    onPress={() => patchFilters({ favorites: false })}
+                  />
+                  <Pill
+                    label={t("library_filter_favorites_only")}
+                    selected={filters.favorites}
+                    onPress={() => patchFilters({ favorites: true })}
+                  />
                 </View>
               </Section>
 
@@ -395,9 +474,9 @@ export function LibraryOptionsSheet({
                   {LIBRARY_SORT_MODES.map((mode: LibrarySortMode, index) => (
                     <Pressable
                       key={mode}
-                      onPress={() => patchDisplay({ sortMode: mode })}
+                      onPress={() => patchSort({ sortMode: mode })}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: display.sortMode === mode }}
+                      accessibilityState={{ selected: activeSort.sortMode === mode }}
                       style={[
                         styles.optionRow,
                         index > 0 && {
@@ -409,7 +488,7 @@ export function LibraryOptionsSheet({
                       <ThemedText variant="body" style={styles.switchLabel}>
                         {t(`library_sort_${mode}`)}
                       </ThemedText>
-                      {display.sortMode === mode ? (
+                      {activeSort.sortMode === mode ? (
                         <SFSymbolIcon
                           name="checkmark"
                           fallback="checkmark"
@@ -424,10 +503,27 @@ export function LibraryOptionsSheet({
               <View style={[styles.group, { backgroundColor: colors.tertiaryFill }]}>
                 <SwitchLine
                   label={t("library_sort_reverse")}
-                  value={display.sortReversed}
-                  onChange={(value) => patchDisplay({ sortReversed: value })}
+                  value={activeSort.sortReversed}
+                  onChange={(value) => patchSort({ sortReversed: value })}
                 />
               </View>
+              <View style={[styles.group, { backgroundColor: colors.tertiaryFill }]}>
+                <SwitchLine
+                  label={t("library_sort_favorites_first")}
+                  value={activeSort.favoritesFirst ?? false}
+                  onChange={(value) => patchSort({ favoritesFirst: value })}
+                />
+              </View>
+              <View style={[styles.group, { backgroundColor: colors.tertiaryFill }]}>
+                <SwitchLine
+                  label={t("library_sort_category_only")}
+                  value={Boolean(categoryOverride)}
+                  onChange={toggleCategoryOnly}
+                />
+              </View>
+              <ThemedText variant="footnote" color="secondaryLabel">
+                {t("library_sort_category_only_hint", { name: categoryName })}
+              </ThemedText>
               <Pressable
                 onPress={() => {
                   void Haptics.notificationAsync(
