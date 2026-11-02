@@ -774,7 +774,10 @@ export default function LibraryScreen() {
 
   const markSelected = useCallback(
     async (read: boolean, targets?: LibraryEntry[]) => {
-      for (const entry of targets ?? selectedEntries()) {
+      const entries = targets ?? selectedEntries();
+      // Leave selection mode right away; the work below can take a while.
+      exitSelection();
+      for (const entry of entries) {
         const keys = chapterKeysForLibraryEntry(entry);
         if (keys.length === 0) continue;
         if (read) {
@@ -789,7 +792,6 @@ export default function LibraryScreen() {
           unreadCount: read ? 0 : keys.length,
         });
       }
-      exitSelection();
       await loadLibrary();
     },
     [selectedEntries, exitSelection, loadLibrary],
@@ -828,6 +830,20 @@ export default function LibraryScreen() {
     );
   }, [categoryEntries, loadLibrary]);
 
+  const refreshSelected = useCallback(() => {
+    const keys = selectedEntries().map(
+      (entry) => `${entry.sourceId}:${entry.mangaKey}`,
+    );
+    exitSelection();
+    if (keys.length === 0) return;
+    setRefreshing(true);
+    void refreshLibraryEntries(installed, undefined, undefined, {
+      onlyKeys: keys,
+    })
+      .then(() => loadLibrary())
+      .finally(() => setRefreshing(false));
+  }, [selectedEntries, exitSelection, installed, loadLibrary]);
+
   const removeSelected = useCallback(() => {
     const targets = selectedEntries();
     if (targets.length === 0) return;
@@ -856,7 +872,9 @@ export default function LibraryScreen() {
   const downloadSelected = useCallback(
     async (unreadOnly: boolean, targets?: LibraryEntry[]) => {
       const items: Parameters<typeof queueChapterDownloads>[0] = [];
-      for (const entry of targets ?? selectedEntries()) {
+      const entries = targets ?? selectedEntries();
+      exitSelection();
+      for (const entry of entries) {
         const cached = peekMangaDetailCache(entry.sourceId, entry.mangaKey)
           ?.manga.chapters;
         let chapters = cached
@@ -887,7 +905,6 @@ export default function LibraryScreen() {
           });
         }
       }
-      exitSelection();
       if (items.length === 0) return;
       await queueChapterDownloads(items);
       void processQueuedDownloads(installed);
@@ -905,10 +922,11 @@ export default function LibraryScreen() {
   const confirmMove = useCallback(
     async (categoryIds: string[]) => {
       setMoveOpen(false);
-      for (const entry of selectedEntries()) {
+      const entries = selectedEntries();
+      exitSelection();
+      for (const entry of entries) {
         await setLibraryCategories(entry.sourceId, entry.mangaKey, categoryIds);
       }
-      exitSelection();
       await loadLibrary();
     },
     [selectedEntries, exitSelection, loadLibrary],
@@ -1028,6 +1046,13 @@ export default function LibraryScreen() {
               onPress: () => void downloadSelected(true),
             },
           ],
+        },
+        {
+          key: "refresh-selected",
+          label: t("library_refresh"),
+          sf: "arrow.clockwise",
+          icon: "refresh-outline",
+          onPress: refreshSelected,
         },
         {
           key: "move",
@@ -1161,6 +1186,7 @@ export default function LibraryScreen() {
     downloadSelected,
     openMovePicker,
     removeSelected,
+    refreshSelected,
     exitSelection,
     isRefreshingAny,
     hasCategoryScope,

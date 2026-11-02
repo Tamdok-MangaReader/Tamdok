@@ -58,6 +58,8 @@ export type LibraryRefreshOptions = {
   force?: boolean;
   /** Only entries whose last update failed. */
   failedOnly?: boolean;
+  /** Explicit list of `sourceId:mangaKey` to refresh; bypasses every skip rule. */
+  onlyKeys?: string[];
 };
 
 export type LibraryRefreshResult = {
@@ -276,6 +278,11 @@ async function runRefresh(
         skipped += 1;
         continue;
       }
+    }
+    if (options.onlyKeys) {
+      if (options.onlyKeys.includes(`${entry.sourceId}:${entry.mangaKey}`))
+        pending.push(entry);
+      continue;
     }
     if (options.failedOnly && !entry.updateFailed) {
       skipped += 1;

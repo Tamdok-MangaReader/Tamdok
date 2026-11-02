@@ -52,6 +52,7 @@ import {
   libraryMenuKey,
   useLibraryMenuSnapshot,
 } from "@/services/library-menu-store";
+import { refreshLibraryEntries } from "@/services/library-refresh";
 import {
   readMangaDetailCache,
   writeMangaDetailCache,
@@ -70,6 +71,17 @@ type MeasurableView = {
   measureInWindow: (
     callback: (x: number, y: number, width: number, height: number) => void,
   ) => void;
+};
+
+type MenuItem = {
+  key: string;
+  label: string;
+  sf: string;
+  fallback: React.ComponentProps<typeof SFSymbolIcon>["fallback"];
+  destructive?: boolean;
+  checked?: boolean;
+  onPress: () => void;
+  children?: MenuItem[];
 };
 
 type Anchor = { x: number; y: number; width: number; height: number };
@@ -138,16 +150,18 @@ function MenuRow({
   checked,
   inset,
   onPress,
+  onLayout,
 }: {
   label: string;
   sfSymbol: string;
   fallback: React.ComponentProps<typeof SFSymbolIcon>["fallback"];
   destructive?: boolean;
   showDivider?: boolean;
-  trailing?: "up" | "down";
+  trailing?: "up" | "down" | "right";
   checked?: boolean;
   inset?: boolean;
   onPress: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const { colors } = useTheme();
   const color = destructive ? colors.destructive : colors.label;
@@ -164,6 +178,7 @@ function MenuRow({
         pressed && { backgroundColor: colors.quaternaryFill },
       ]}
       onPress={onPress}
+      onLayout={onLayout}
       accessibilityRole="button"
     >
       <SFSymbolIcon name={sfSymbol} fallback={fallback} size={18} color={color} />
@@ -184,8 +199,14 @@ function MenuRow({
         />
       ) : trailing ? (
         <SFSymbolIcon
-          name={trailing === "up" ? "chevron.up" : "chevron.down"}
-          fallback="chevron-down"
+          name={
+            trailing === "up"
+              ? "chevron.up"
+              : trailing === "right"
+                ? "chevron.right"
+                : "chevron.down"
+          }
+          fallback={trailing === "right" ? "chevron-forward" : "chevron-down"}
           size={16}
           color={colors.tertiaryLabel}
         />
@@ -209,20 +230,41 @@ function MangaMenuOverlay({
   onSelect?: (manga: Manga) => void;
   onClose: () => void;
 }) {
-  const { radius } = useTheme();
+  const { radius, colors } = useTheme();
   const { installed } = useSources();
   const router = useRouter();
   const { entries, categories } = useLibraryMenuSnapshot();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [menuHeight, setMenuHeight] = useState(0);
-  const [markOpen, setMarkOpen] = useState(false);
-  const [downloadOpen, setDownloadOpen] = useState(false);
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [groupTop, setGroupTop] = useState(0);
+  const [subHeight, setSubHeight] = useState(0);
+  const rowTops = useRef<Record<string, number>>({});
+  const groupProgress = useSharedValue(0);
   const scale = useSharedValue(1);
 
   useEffect(() => {
     scale.value = withSpring(1.05, { damping: 16, stiffness: 220 });
   }, [scale]);
+
+  useEffect(() => {
+    groupProgress.value = openGroup
+      ? withSpring(1, { damping: 20, stiffness: 260 })
+      : 0;
+    if (!openGroup) setSubHeight(0);
+  }, [openGroup, groupProgress]);
+
+  // The parent menu recedes while its submenu floats above it.
+  // Opacity is never animated on a glass surface: it turns the blur transparent.
+  const mainStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - groupProgress.value * 0.04 }],
+  }));
+  const dimStyle = useAnimatedStyle(() => ({
+    opacity: groupProgress.value,
+  }));
+  const subStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 0.88 + groupProgress.value * 0.12 }],
+  }));
 
   const liftStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -351,12 +393,195 @@ function MangaMenuOverlay({
     ]);
   };
 
+  const refresh = () => {
+    void refreshLibraryEntries(installed, undefined, undefined, {
+      onlyKeys: [`${sourceId}:${manga.key}`],
+    });
+  };
+
   const share = () => {
     if (!pageUrl) return;
     setTimeout(() => {
       void Share.share({ url: pageUrl, message: pageUrl, title: manga.title });
     }, 350);
   };
+
+  const items: MenuItem[] = [];
+  if (onSelect) {
+    items.push({
+      key: "select",
+      label: t("library_select"),
+      sf: "checkmark.circle",
+      fallback: "checkbox-outline",
+      onPress: () => run(() => onSelect(manga)),
+    });
+  }
+  if (entry) {
+    items.push({
+      key: "categories",
+      label: t("manga_edit_categories"),
+      sf: "folder",
+      fallback: "folder-outline",
+      onPress: NOOP,
+      children:
+        userCategories.length === 0
+          ? [
+              {
+                key: "all",
+                label: t("library_category_all"),
+                sf: "circle",
+                fallback: "ellipse-outline",
+                checked: true,
+                onPress: NOOP,
+              },
+            ]
+          : userCategories.map((category) => ({
+              key: category.id,
+              label: category.name,
+              sf: "circle",
+              fallback: "ellipse-outline" as const,
+              checked: entry.categoryIds.includes(category.id),
+              onPress: () => toggleCategory(category.id),
+            })),
+    });
+  } else {
+    items.push({
+      key: "add",
+      label: t("manga_add_to_library"),
+      sf: "plus.circle",
+      fallback: "add-circle-outline",
+      onPress: () => run(() => addToLibrary([])),
+    });
+    if (userCategories.length > 0) {
+      items.push({
+        key: "add-category",
+        label: t("manga_menu_add_to_category"),
+        sf: "folder.badge.plus",
+        fallback: "folder-outline",
+        onPress: NOOP,
+        children: userCategories.map((category) => ({
+          key: category.id,
+          label: category.name,
+          sf: "folder",
+          fallback: "folder-outline" as const,
+          onPress: () => run(() => addToLibrary([category.id])),
+        })),
+      });
+    }
+  }
+  items.push({
+    key: "mark",
+    label: t("library_mark_chapters"),
+    sf: "checkmark.rectangle.stack",
+    fallback: "checkmark-done-outline",
+    onPress: NOOP,
+    children: [
+      {
+        key: "mark-read",
+        label: t("manga_mark_all_read"),
+        sf: "checkmark.circle",
+        fallback: "checkmark-circle-outline",
+        onPress: () => run(() => void markChapters(true)),
+      },
+      {
+        key: "mark-unread",
+        label: t("manga_mark_all_unread"),
+        sf: "circle",
+        fallback: "ellipse-outline",
+        onPress: () => run(() => void markChapters(false)),
+      },
+    ],
+  });
+  if (entry) {
+    items.push({
+      key: "download",
+      label: t("manga_download_chapters"),
+      sf: "arrow.down.circle",
+      fallback: "download-outline",
+      onPress: NOOP,
+      children: [
+        {
+          key: "download-all",
+          label: t("manga_download_all_chapters"),
+          sf: "square.stack",
+          fallback: "download-outline",
+          onPress: () => run(() => void downloadChapters(false)),
+        },
+        {
+          key: "download-unread",
+          label: t("manga_download_unread_chapters"),
+          sf: "circle",
+          fallback: "ellipse-outline",
+          onPress: () => run(() => void downloadChapters(true)),
+        },
+      ],
+    });
+    if ((entry.downloadedCount ?? 0) > 0) {
+      items.push({
+        key: "remove-downloads",
+        label: t("manga_remove_downloads"),
+        sf: "trash.slash",
+        fallback: "trash-outline",
+        onPress: () =>
+          run(() => void removeMangaDownloads(sourceId, manga.key)),
+      });
+    }
+    const more: MenuItem[] = [
+      {
+        key: "transfer",
+        label: t("manga_transfer"),
+        sf: "arrow.left.arrow.right",
+        fallback: "swap-horizontal-outline",
+        onPress: () =>
+          run(() =>
+            router.navigate(
+              mangaTransferHref(sourceId, manga.key, manga.title, manga.cover),
+            ),
+          ),
+      },
+      {
+        key: "refresh",
+        label: t("library_refresh"),
+        sf: "arrow.clockwise",
+        fallback: "refresh-outline",
+        onPress: () => run(refresh),
+      },
+    ];
+    if (pageUrl) {
+      more.push({
+        key: "share",
+        label: t("manga_share"),
+        sf: "square.and.arrow.up",
+        fallback: "share-outline",
+        onPress: () => run(share),
+      });
+    }
+    more.push({
+      key: "remove",
+      label: t("manga_remove_from_library"),
+      sf: "trash",
+      fallback: "trash-outline",
+      destructive: true,
+      onPress: () => run(remove),
+    });
+    items.push({
+      key: "more",
+      label: t("reader_more"),
+      sf: "ellipsis.circle",
+      fallback: "ellipsis-horizontal-circle-outline",
+      onPress: NOOP,
+      children: more,
+    });
+  } else if (pageUrl) {
+    items.push({
+      key: "share",
+      label: t("manga_share"),
+      sf: "square.and.arrow.up",
+      fallback: "share-outline",
+      onPress: () => run(share),
+    });
+  }
+  const activeGroup = items.find((item) => item.key === openGroup);
 
   const menuLeft = Math.min(
     Math.max(anchor.x + anchor.width / 2 - MENU_WIDTH / 2, EDGE),
@@ -370,6 +595,13 @@ function MangaMenuOverlay({
   const maxMenuHeight = placeBelow
     ? Math.max(160, spaceBelow)
     : Math.max(160, anchor.y - GAP - EDGE);
+
+  // Submenu floats over its parent row, nudged inward so the layering reads.
+  const subLeft = Math.min(menuLeft + 14, windowWidth - EDGE - MENU_WIDTH);
+  const subTop = Math.max(
+    EDGE,
+    Math.min(menuTop + groupTop, windowHeight - EDGE - subHeight),
+  );
 
   const onMenuLayout = (event: LayoutChangeEvent) => {
     const next = Math.round(event.nativeEvent.layout.height);
@@ -407,6 +639,7 @@ function MangaMenuOverlay({
           },
         ]}
       >
+        <Animated.View style={mainStyle}>
         <GlassSurface
           borderRadius={radius.md}
           style={styles.card}
@@ -417,200 +650,102 @@ function MangaMenuOverlay({
             showsVerticalScrollIndicator={false}
             onLayout={onMenuLayout}
           >
-            {onSelect ? (
+            {items.map((item, index) => (
               <MenuRow
-                label={t("library_select")}
-                sfSymbol="checkmark.circle"
-                fallback="checkbox-outline"
-                onPress={() => run(() => onSelect(manga))}
-              />
-            ) : null}
-            {entry ? (
-              <>
-                <MenuRow
-                  label={t("manga_edit_categories")}
-                  showDivider={Boolean(onSelect)}
-                  sfSymbol="folder"
-                  fallback="folder-outline"
-                  trailing={categoriesOpen ? "up" : "down"}
-                  onPress={() => setCategoriesOpen((value) => !value)}
-                />
-                {categoriesOpen
-                  ? userCategories.length === 0
-                    ? (
-                        <MenuRow
-                          label={t("library_category_all")}
-                          sfSymbol="circle"
-                          fallback="ellipse-outline"
-                          showDivider
-                          inset
-                          checked
-                          onPress={NOOP}
-                        />
-                      )
-                    : userCategories.map((category) => (
-                        <MenuRow
-                          key={category.id}
-                          label={category.name}
-                          sfSymbol="circle"
-                          fallback="ellipse-outline"
-                          showDivider
-                          inset
-                          checked={entry.categoryIds.includes(category.id)}
-                          onPress={() => toggleCategory(category.id)}
-                        />
-                      ))
-                  : null}
-              </>
-            ) : (
-              <>
-                <MenuRow
-                  label={t("manga_add_to_library")}
-                  showDivider={Boolean(onSelect)}
-                  sfSymbol="plus.circle"
-                  fallback="add-circle-outline"
-                  onPress={() => run(() => addToLibrary([]))}
-                />
-                {userCategories.length > 0 ? (
-                  <>
-                    <MenuRow
-                      label={t("manga_menu_add_to_category")}
-                      sfSymbol="folder.badge.plus"
-                      fallback="folder-outline"
-                      showDivider
-                      trailing={categoriesOpen ? "up" : "down"}
-                      onPress={() => setCategoriesOpen((value) => !value)}
-                    />
-                    {categoriesOpen
-                      ? userCategories.map((category) => (
-                          <MenuRow
-                            key={category.id}
-                            label={category.name}
-                            sfSymbol="folder"
-                            fallback="folder-outline"
-                            showDivider
-                            inset
-                            onPress={() =>
-                              run(() => addToLibrary([category.id]))
-                            }
-                          />
-                        ))
-                      : null}
-                  </>
-                ) : null}
-              </>
-            )}
-            <MenuRow
-              label={t("library_mark_chapters")}
-              sfSymbol="checkmark.rectangle.stack"
-              fallback="checkmark-done-outline"
-              showDivider
-              trailing={markOpen ? "up" : "down"}
-              onPress={() => setMarkOpen((value) => !value)}
-            />
-            {markOpen ? (
-              <>
-                <MenuRow
-                  label={t("manga_mark_all_read")}
-                  sfSymbol="checkmark.circle"
-                  fallback="checkmark-circle-outline"
-                  showDivider
-                  inset
-                  onPress={() => run(() => void markChapters(true))}
-                />
-                <MenuRow
-                  label={t("manga_mark_all_unread")}
-                  sfSymbol="circle"
-                  fallback="ellipse-outline"
-                  showDivider
-                  inset
-                  onPress={() => run(() => void markChapters(false))}
-                />
-              </>
-            ) : null}
-            {entry ? (
-              <MenuRow
-                label={t("manga_download_chapters")}
-                sfSymbol="arrow.down.circle"
-                fallback="download-outline"
-                showDivider
-                trailing={downloadOpen ? "up" : "down"}
-                onPress={() => setDownloadOpen((value) => !value)}
-              />
-            ) : null}
-            {entry && downloadOpen ? (
-              <>
-                <MenuRow
-                  label={t("manga_download_all_chapters")}
-                  sfSymbol="square.stack"
-                  fallback="download-outline"
-                  showDivider
-                  inset
-                  onPress={() => run(() => void downloadChapters(false))}
-                />
-                <MenuRow
-                  label={t("manga_download_unread_chapters")}
-                  sfSymbol="circle"
-                  fallback="ellipse-outline"
-                  showDivider
-                  inset
-                  onPress={() => run(() => void downloadChapters(true))}
-                />
-              </>
-            ) : null}
-            {entry && (entry.downloadedCount ?? 0) > 0 ? (
-              <MenuRow
-                label={t("manga_remove_downloads")}
-                sfSymbol="trash.slash"
-                fallback="trash-outline"
-                showDivider
-                onPress={() =>
-                  run(() => void removeMangaDownloads(sourceId, manga.key))
+                key={item.key}
+                label={item.label}
+                sfSymbol={item.sf}
+                fallback={item.fallback}
+                destructive={item.destructive}
+                showDivider={index > 0}
+                trailing={item.children ? "right" : undefined}
+                onLayout={(event) => {
+                  rowTops.current[item.key] = event.nativeEvent.layout.y;
+                }}
+                onPress={
+                  item.children
+                    ? () => {
+                        void Haptics.selectionAsync();
+                        setGroupTop(rowTops.current[item.key] ?? 0);
+                        setOpenGroup(item.key);
+                      }
+                    : item.onPress
                 }
               />
-            ) : null}
-            {entry ? (
-              <MenuRow
-                label={t("manga_transfer")}
-                sfSymbol="arrow.left.arrow.right"
-                fallback="swap-horizontal-outline"
-                showDivider
-                onPress={() =>
-                  run(() =>
-                    router.navigate(
-                      mangaTransferHref(
-                        sourceId,
-                        manga.key,
-                        manga.title,
-                        manga.cover,
-                      ),
-                    ),
-                  )
-                }
-              />
-            ) : null}
-            {pageUrl ? (
-              <MenuRow
-                label={t("manga_share")}
-                sfSymbol="square.and.arrow.up"
-                fallback="share-outline"
-                showDivider
-                onPress={() => run(share)}
-              />
-            ) : null}
-            {entry ? (
-              <MenuRow
-                label={t("manga_remove_from_library")}
-                sfSymbol="trash"
-                fallback="trash-outline"
-                destructive
-                showDivider
-                onPress={() => run(remove)}
-              />
-            ) : null}
+            ))}
           </ScrollView>
         </GlassSurface>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.dim,
+            { borderRadius: radius.md },
+            dimStyle,
+          ]}
+        />
+        </Animated.View>
       </View>
+      {activeGroup ? (
+        <>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpenGroup(null)}
+          />
+          <Animated.View
+            style={[
+              styles.menuWrap,
+              {
+                left: subLeft,
+                top: subTop,
+                width: MENU_WIDTH,
+                maxHeight: windowHeight - EDGE * 2,
+                opacity: subHeight === 0 ? 0 : 1,
+              },
+              styles.subShadow,
+              subStyle,
+            ]}
+          >
+            <View
+              style={[
+                styles.card,
+                {
+                  borderRadius: radius.md,
+                  backgroundColor: colors.tertiarySystemBackground,
+                },
+              ]}
+            >
+              <ScrollView
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+                onLayout={(event) => {
+                  const next = Math.round(event.nativeEvent.layout.height);
+                  setSubHeight((prev) => (prev === next ? prev : next));
+                }}
+              >
+                <MenuRow
+                  label={activeGroup.label}
+                  sfSymbol="chevron.left"
+                  fallback="chevron-back"
+                  onPress={() => setOpenGroup(null)}
+                />
+                {activeGroup.children?.map((item) => (
+                  <MenuRow
+                    key={item.key}
+                    label={item.label}
+                    sfSymbol={item.sf}
+                    fallback={item.fallback}
+                    destructive={item.destructive}
+                    checked={item.checked}
+                    showDivider
+                    onPress={item.onPress}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          </Animated.View>
+        </>
+      ) : null}
     </View>
   );
 
@@ -640,6 +775,15 @@ const styles = StyleSheet.create({
   },
   menuWrap: {
     position: "absolute",
+  },
+  dim: {
+    backgroundColor: "rgba(0,0,0,0.28)",
+  },
+  subShadow: {
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   card: {
     overflow: "hidden",
