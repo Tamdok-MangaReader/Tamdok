@@ -57,6 +57,7 @@ export function LibraryMangaCover({
       showStatus={manga.status && true}
       mangaStatus={manga.status}
       updateFailed={enriched.updateFailed}
+      finished={enriched.finished}
       showTitleOverlay={showTitleOverlay ?? true}
       rating={rating}
       isRatingCompact={isRatingCompact}

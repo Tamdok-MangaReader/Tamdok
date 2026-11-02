@@ -54,6 +54,8 @@ export type LibraryRefreshOptions = {
   budgetMs?: number;
   entryTimeoutMs?: number;
   minAgeMs?: number;
+  /** Manual refresh: ignore the library update filters (excluded categories, skip rules). */
+  force?: boolean;
 };
 
 export type LibraryRefreshResult = {
@@ -273,7 +275,7 @@ async function runRefresh(
         continue;
       }
     }
-    if (await shouldRefreshLibraryEntry(entry)) {
+    if (options.force || (await shouldRefreshLibraryEntry(entry))) {
       pending.push(entry);
     } else {
       skipped += 1;

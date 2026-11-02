@@ -3,5 +3,7 @@
   "CFBundleName": "Tamdok",
   "NSUserNotificationsUsageDescription": "Tamdok планирует локальные напоминания о новых главах.",
   "NSContactsUsageDescription": "Tamdok использует Live Text на страницах манги. На некоторых изображениях iOS может распознать контактную информацию.",
-  "NSLocalNetworkUsageDescription": "Tamdok подключается к серверу разработки в локальной сети во время разработки."
+  "NSLocalNetworkUsageDescription": "Tamdok подключается к серверу разработки в локальной сети во время разработки.",
+  "library_hide_empty_category_count_badges": "Скрывать счётчики пустых категорий",
+  "library_hide_empty_category_count_badges_hint": "Не показывать 0, если в категории нет манги."
 }

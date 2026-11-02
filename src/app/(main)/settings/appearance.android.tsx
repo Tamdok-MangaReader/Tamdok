@@ -17,22 +17,21 @@ import type { AccentColorId } from '@/constants/accent-colors';
 import type { AppIconId } from '@/constants/app-icons';
 import { useAppearance } from '@/context/appearance-context';
 import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
-import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, updateAppSettings, type LibraryDisplaySettings } from '@/services/app-settings';
+import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, updateAppSettings } from '@/services/app-settings';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 
 const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
-const GRID_SIZES: LibraryDisplaySettings['gridSize'][] = ['small', 'medium', 'large', 'extraLarge'];
 
 export default function AppearanceScreen() {
   const { themeMode, setThemeMode, resolvedColorScheme } = useThemePreference();
   const { accentColorId, appIconId, setAccentColorId, setAppIconId, appIconSupported } = useAppearance();
   const isDark = resolvedColorScheme === 'dark';
   const selectedIndex = THEME_MODES.indexOf(themeMode);
-  const [gridSize, setGridSize] = useState<LibraryDisplaySettings['gridSize']>('medium');
   const [showBigMangaCover, setShowBigMangaCover] = useState(true);
   const [stretchMangaCover, setStretchMangaCover] = useState(true);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
   const [showStatusBadge, setShowStatusBadge] = useState(true);
+  const [showFinishedBadge, setShowFinishedBadge] = useState(true);
   const [showRating, setShowRating] = useState(true);
   const [tabBadges, setTabBadges] = useState<TabBadgeSettings>({
     sourceUpdates: true,
@@ -42,11 +41,11 @@ export default function AppearanceScreen() {
 
   const load = useCallback(async () => {
     const settings = await getAppSettings();
-    setGridSize(settings.libraryDisplay.gridSize);
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
     setStretchMangaCover(settings.mangaScreen.stretchMangaCover);
     setShowChapterNumber(settings.mangaScreen.showChapterNumber);
     setShowStatusBadge(settings.coverDisplay.showStatusBadge);
+    setShowFinishedBadge(settings.coverDisplay.showFinishedBadge);
     setShowRating(settings.coverDisplay.showRating);
     setTabBadges(settings.tabBadges);
   }, []);
@@ -54,11 +53,6 @@ export default function AppearanceScreen() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const gridOptions = GRID_SIZES.map((size) => ({
-    id: size,
-    label: t(`library_grid_size_${size}`),
-  }));
 
   const updateMangaScreenSettings = (next: Partial<MangaScreenSettings>) => {
     void getAppSettings().then((settings) =>
@@ -192,27 +186,6 @@ export default function AppearanceScreen() {
           />
         </Card>
 
-        <SectionLabel>{t('library_display_section')}</SectionLabel>
-        <Card style={styles.card}>
-          <InlinePillGrid
-            options={gridOptions}
-            selectedId={gridSize}
-            preserveOrder
-            onSelect={(size) => {
-              const next = size as LibraryDisplaySettings['gridSize'];
-              setGridSize(next);
-              void getAppSettings().then((settings) =>
-                updateAppSettings({
-                  libraryDisplay: { ...settings.libraryDisplay, gridSize: next },
-                }).then(() => notifyMangaDataChanged()),
-              );
-            }}
-          />
-          <ThemedText variant='footnote' color='secondaryLabel'>
-            {t('library_grid_size_hint')}
-          </ThemedText>
-        </Card>
-
         <SectionLabel>{t('appearance_covers_section')}</SectionLabel>
         <Card>
           <SwitchRow
@@ -224,6 +197,16 @@ export default function AppearanceScreen() {
               updateCoverDisplaySettings({ showStatusBadge: value });
             }}
             isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_show_finished')}
+            hint={t('appearance_show_finished_hint')}
+            value={showFinishedBadge}
+            onChange={(value) => {
+              setShowFinishedBadge(value);
+              updateCoverDisplaySettings({ showFinishedBadge: value });
+            }}
           />
           <CardSeparator />
           <SwitchRow

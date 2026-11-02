@@ -166,7 +166,7 @@ export function MangaSearchFilterBar({
           contentContainerStyle={styles.row}
           keyboardShouldPersistTaps="handled"
         >
-          <GlassSurface borderRadius={999} style={styles.iconChip} interactive>
+          <GlassSurface borderRadius={999} style={styles.iconChip}>
             <Pressable
               style={styles.iconChipPressable}
               onPress={openModal}
@@ -244,7 +244,7 @@ function FilterChip({
   }
 
   return (
-    <GlassSurface borderRadius={radius.pill} style={styles.chip} interactive>
+    <GlassSurface borderRadius={radius.pill} style={styles.chip}>
       <Pressable
         style={styles.chipPressable}
         onPress={onPress}
@@ -514,7 +514,7 @@ function ModalHeaderButton({
   const { radius } = useTheme();
 
   return (
-    <GlassSurface borderRadius={radius.pill} interactive>
+    <GlassSurface borderRadius={radius.pill}>
       <Pressable
         style={styles.modalHeaderButton}
         onPress={onPress}
@@ -580,7 +580,6 @@ function SelectOptionsImpl({
             key={option.id}
             tintColor={colors.tertiaryFill}
             borderRadius={radius.pill}
-            interactive
           >
             <Pressable
               style={styles.sortPill}
@@ -662,7 +661,6 @@ function SortOptionsImpl({
             key={`${definition.id}-${index}`}
             borderRadius={radius.pill}
             tintColor={colors.tertiaryFill}
-            interactive
           >
             <Pressable
               style={styles.sortPill}
@@ -758,7 +756,6 @@ const PillOption = memo(function PillOption({
     <GlassSurface
       tintColor={colors.tertiaryFill}
       borderRadius={radius.pill}
-      interactive
     >
       <Pressable style={styles.sortPill} onPress={() => onToggle(id)}>
         <ThemedText variant="subheadline" numberOfLines={1}>
@@ -858,7 +855,6 @@ const TagOption = memo(function TagOption({
     <GlassSurface
       tintColor={colors.tertiaryFill}
       borderRadius={radius.pill}
-      interactive
     >
       <Pressable style={styles.tag} onPress={() => onToggle(id)}>
         <ThemedText variant="subheadline" numberOfLines={1}>

@@ -61,6 +61,7 @@ import { ThemedView } from "@/components/ui/themed-view";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useSources } from "@/context/sources-context";
+import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
 import { useTheme } from "@/hooks/use-theme";
@@ -827,6 +828,10 @@ export default function SourcesScreen() {
     [],
   );
 
+  const searchBarReset = useSearchBarReset(() =>
+    handleSearchText({ nativeEvent: { text: "" } }),
+  );
+
   return (
     <>
       <Stack.Screen options={screenOptions} />
@@ -955,7 +960,16 @@ export default function SourcesScreen() {
           placement="integratedButton"
           tintColor={colors.tint}
           onChangeText={handleSearchText}
-          onSearchButtonPress={handleSearchText}
+          onSearchButtonPress={(event) => {
+            searchBarReset.onSearchPress();
+            handleSearchText(event);
+          }}
+          onFocus={searchBarReset.onFocus}
+          onBlur={searchBarReset.onBlur}
+          onCancelButtonPress={() =>
+            handleSearchText({ nativeEvent: { text: "" } })
+          }
+          onClose={() => handleSearchText({ nativeEvent: { text: "" } })}
         />
       )}
     </>

@@ -1,17 +1,9 @@
-import { Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useMemo, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
-import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
-  ZoomIn,
-  ZoomOut,
-} from "react-native-reanimated";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import Animated, { ZoomIn, ZoomOut } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 
-import { GlassSurface } from "@/components/ui/glass-surface";
-import { ThemedText } from "@/components/ui/themed-text";
+import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
 import { t } from "@/constants/locales";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -28,7 +20,6 @@ export type RefreshStatusState = {
 const ICON_HIDE_MS = 8000;
 const TEXT_COLLAPSE_MS = 5000;
 const MAX_MESSAGE_LENGTH = 60;
-const MORPH = LinearTransition.springify().damping(18).stiffness(220);
 
 function shortError(message: string): string {
   const firstLine = message.split("\n")[0]?.trim() ?? "";
@@ -88,7 +79,7 @@ export function useRefreshStatus(
 
 function MangaRefreshStatusImpl({ status }: { status: RefreshStatusState }) {
   const { colors } = useTheme();
-  const { busy, result, expanded, toggle } = status;
+  const { busy, result } = status;
 
   if (busy) {
     return (
@@ -100,41 +91,24 @@ function MangaRefreshStatusImpl({ status }: { status: RefreshStatusState }) {
 
   if (!result) return null;
 
-  const color = result.ok ? "#34C759" : colors.destructive;
-  const label = result.ok
-    ? t("manga_refresh_success")
-    : t("manga_refresh_failed", { error: result.message });
-
   return (
     <Animated.View
-      layout={MORPH}
       entering={ZoomIn.duration(220)}
       exiting={ZoomOut.duration(180)}
+      style={styles.icon}
+      accessibilityRole="image"
+      accessibilityLabel={
+        result.ok
+          ? t("manga_refresh_success")
+          : t("manga_refresh_failed", { error: result.message })
+      }
     >
-      <Pressable onPress={toggle} hitSlop={8}>
-        <GlassSurface
-          borderRadius={14}
-          style={expanded ? styles.pill : styles.iconSurface}
-        >
-          <View style={styles.content}>
-            <Ionicons
-              name={result.ok ? "checkmark-circle" : "alert-circle"}
-              size={20}
-              color={color}
-            />
-            {expanded ? (
-              <Animated.View
-                entering={FadeIn.delay(80).duration(180)}
-                exiting={FadeOut.duration(100)}
-              >
-                <ThemedText variant="footnote" numberOfLines={1} style={styles.text}>
-                  {label}
-                </ThemedText>
-              </Animated.View>
-            ) : null}
-          </View>
-        </GlassSurface>
-      </Pressable>
+      <SFSymbolIcon
+        name={result.ok ? "checkmark.icloud" : "xmark.icloud"}
+        fallback={result.ok ? "cloud-done-outline" : "cloud-offline-outline"}
+        size={22}
+        color={result.ok ? colors.label : colors.destructive}
+      />
     </Animated.View>
   );
 }
@@ -147,27 +121,5 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconSurface: {
-    height: 28,
-    minWidth: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pill: {
-    height: 28,
-    maxWidth: 240,
-    paddingHorizontal: 6,
-    justifyContent: "center",
-  },
-  content: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  text: {
-    flexShrink: 1,
-    maxWidth: 200,
   },
 });

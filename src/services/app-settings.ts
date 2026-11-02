@@ -71,7 +71,31 @@ export type DownloadSettings = {
   deleteAfterReading: boolean;
 };
 
-export type LibrarySortMode = "unread" | "title" | "recent" | "lastRead";
+export type LibrarySortMode =
+  | "unread"
+  | "title"
+  | "recent"
+  | "lastRead"
+  | "chapters"
+  | "downloaded";
+
+export type LibraryDisplayMode = "grid" | "list" | "descriptiveList";
+
+export type LibraryFilters = {
+  /** Manga statuses to keep; empty means every status. */
+  statuses: string[];
+  readState: "all" | "unread" | "read";
+  downloaded: "all" | "downloaded" | "notDownloaded";
+  /** Source ids to keep; empty means every source. */
+  sourceIds: string[];
+};
+
+export const DEFAULT_LIBRARY_FILTERS: LibraryFilters = {
+  statuses: [],
+  readState: "all",
+  downloaded: "all",
+  sourceIds: [],
+};
 
 export type LibraryDisplaySettings = {
   /** Title text drawn over each cover in the library grid. */
@@ -79,13 +103,21 @@ export type LibraryDisplaySettings = {
   showUnreadBadges: boolean;
   showDownloadedBadges: boolean;
   showCategoryCountBadges: boolean;
-  showEmptyCategoryCountBadges: boolean;
+  hideEmptyCategoryCountBadges: boolean;
   hideEmptyCategories: boolean;
   showLibraryRefreshStatus: boolean;
   showLibraryRefreshLiveActivity: boolean;
   updateOnWifiOnly: boolean;
   gridSize: "small" | "medium" | "large" | "extraLarge";
+  /** Items per row in grid mode (1-6); falls back to the value implied by gridSize. */
+  gridColumns?: number;
+  displayMode: LibraryDisplayMode;
   sortMode: LibrarySortMode;
+  /** Flips the natural order of the selected sort mode. */
+  sortReversed: boolean;
+  filters: LibraryFilters;
+  /** Categories left out of the library summary. */
+  summaryExcludedCategoryIds: string[];
 };
 
 export type TabBadgeSettings = {
@@ -109,6 +141,8 @@ export type MangaScreenSettings = {
 export type CoverDisplaySettings = {
   showStatusBadge: boolean;
   showRating: boolean;
+  /** Badge for completed series whose chapters are all read. */
+  showFinishedBadge: boolean;
 };
 
 export type PrivacySettings = {
@@ -132,7 +166,7 @@ export type AppSettings = {
   debug: DebugSettings;
 };
 
-const DEFAULT_SETTINGS: AppSettings = {
+export const DEFAULT_SETTINGS: AppSettings = {
   incognitoMode: false,
   reader: {
     readingMode: "auto",
@@ -188,13 +222,17 @@ const DEFAULT_SETTINGS: AppSettings = {
     showUnreadBadges: true,
     showDownloadedBadges: true,
     showCategoryCountBadges: true,
-    showEmptyCategoryCountBadges: false,
+    hideEmptyCategoryCountBadges: true,
     hideEmptyCategories: true,
     showLibraryRefreshStatus: Platform.OS === "android",
     showLibraryRefreshLiveActivity: true,
     updateOnWifiOnly: false,
     gridSize: "medium",
+    displayMode: "grid",
     sortMode: "unread",
+    sortReversed: false,
+    filters: DEFAULT_LIBRARY_FILTERS,
+    summaryExcludedCategoryIds: [],
   },
   mangaScreen: {
     showBigMangaCover: Platform.OS !== "android",
@@ -204,6 +242,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   coverDisplay: {
     showStatusBadge: true,
     showRating: true,
+    showFinishedBadge: true,
   },
   privacy: {
     requireBiometrics: false,
@@ -257,15 +296,25 @@ async function readSettings(): Promise<AppSettings> {
       sortMode:
         stored.libraryDisplay?.sortMode ??
         DEFAULT_SETTINGS.libraryDisplay.sortMode,
+      displayMode:
+        stored.libraryDisplay?.displayMode ??
+        DEFAULT_SETTINGS.libraryDisplay.displayMode,
+      sortReversed:
+        stored.libraryDisplay?.sortReversed ??
+        DEFAULT_SETTINGS.libraryDisplay.sortReversed,
+      filters: {
+        ...DEFAULT_LIBRARY_FILTERS,
+        ...(stored.libraryDisplay?.filters ?? {}),
+      },
       showCategoryCountBadges:
         stored.libraryDisplay?.showCategoryCountBadges ??
         DEFAULT_SETTINGS.libraryDisplay.showCategoryCountBadges,
       hideEmptyCategories:
         stored.libraryDisplay?.hideEmptyCategories ??
         DEFAULT_SETTINGS.libraryDisplay.hideEmptyCategories,
-      showEmptyCategoryCountBadges:
-        stored.libraryDisplay?.showEmptyCategoryCountBadges ??
-        DEFAULT_SETTINGS.libraryDisplay.showEmptyCategoryCountBadges,
+      hideEmptyCategoryCountBadges:
+        stored.libraryDisplay?.hideEmptyCategoryCountBadges ??
+        DEFAULT_SETTINGS.libraryDisplay.hideEmptyCategoryCountBadges,
       showLibraryRefreshStatus:
         stored.libraryDisplay?.showLibraryRefreshStatus ??
         DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshStatus,
@@ -291,6 +340,9 @@ async function readSettings(): Promise<AppSettings> {
       showRating:
         stored.coverDisplay?.showRating ??
         DEFAULT_SETTINGS.coverDisplay.showRating,
+      showFinishedBadge:
+        stored.coverDisplay?.showFinishedBadge ??
+        DEFAULT_SETTINGS.coverDisplay.showFinishedBadge,
     },
     privacy: {
       requireBiometrics:
@@ -343,7 +395,14 @@ export async function updateAppSettings(
     reader: { ...current.reader, ...patch.reader },
     dictionary: { ...current.dictionary, ...patch.dictionary },
     downloads: { ...current.downloads, ...patch.downloads },
-    libraryDisplay: { ...current.libraryDisplay, ...patch.libraryDisplay },
+    libraryDisplay: {
+      ...current.libraryDisplay,
+      ...patch.libraryDisplay,
+      filters: {
+        ...current.libraryDisplay.filters,
+        ...patch.libraryDisplay?.filters,
+      },
+    },
     mangaScreen: { ...current.mangaScreen, ...patch.mangaScreen },
     coverDisplay: { ...current.coverDisplay, ...patch.coverDisplay },
     privacy: { ...current.privacy, ...patch.privacy },
@@ -366,6 +425,15 @@ export async function getShowLibraryBadges(): Promise<boolean> {
 export async function resetAppSettings(): Promise<void> {
   await writeSettings(DEFAULT_SETTINGS);
   notifyAppSettingsChanged();
+}
+
+/** Effective grid column count: explicit choice wins over the coarse gridSize preset. */
+export function libraryDisplayColumns(
+  display: Pick<LibraryDisplaySettings, "gridSize" | "gridColumns">,
+): number {
+  const explicit = display.gridColumns;
+  if (explicit && explicit >= 1 && explicit <= 6) return Math.round(explicit);
+  return libraryGridColumns(display.gridSize);
 }
 
 export function libraryGridColumns(

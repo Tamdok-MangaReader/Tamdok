@@ -8,6 +8,8 @@ import {
   StyleSheet,
   View,
   type ListRenderItemInfo,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type ScrollViewProps,
 } from "react-native";
 
@@ -21,11 +23,13 @@ import {
   GlobalSearchSourceSection,
   type SourceSearchGroup,
 } from "@/components/search/global-search-source-section";
+import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ThemedView } from "@/components/ui/themed-view";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
+import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { useSources } from "@/context/sources-context";
 import type { InstalledSource, Manga } from "@/parsers/shared/types";
@@ -69,10 +73,6 @@ async function runPool<T>(
 }
 
 const keyExtractor = (item: SourceSearchGroup) => sourceRouteId(item.source);
-
-const renderScrollComponent = (props: ScrollViewProps) => (
-  <LiquidGlassScrollComponent {...props} />
-);
 
 export default function SearchScreen() {
   const router = useRouter();
@@ -342,6 +342,27 @@ export default function SearchScreen() {
     [installed, filters],
   );
 
+  // The filter bar stays pinned under the header while results scroll, like the library category tabs.
+  const { setScrollOffset, spacer, renderTabs } = usePinnedTabs(true, {
+    gap: Spacing.lg,
+  });
+  const handleListScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      setScrollOffset(event.nativeEvent.contentOffset.y);
+    },
+    [setScrollOffset],
+  );
+  // Rendered as the last child of the scroll content so it paints above the result rows.
+  const renderScrollComponent = useCallback(
+    (props: ScrollViewProps) => (
+      <LiquidGlassScrollComponent {...props}>
+        {props.children}
+        {renderTabs(filterBar)}
+      </LiquidGlassScrollComponent>
+    ),
+    [renderTabs, filterBar],
+  );
+
   const openManga = useCallback(
     (source: InstalledSource, manga: Manga) => {
       router.navigate(mangaHref(source, manga));
@@ -361,6 +382,10 @@ export default function SearchScreen() {
       setQuery(event.nativeEvent.text);
     },
     [],
+  );
+
+  const searchBarReset = useSearchBarReset(() =>
+    handleSearchText({ nativeEvent: { text: "" } }),
   );
 
   const emptyComponent = useMemo(() => {
@@ -418,7 +443,16 @@ export default function SearchScreen() {
         placeholder={t("search_placeholder")}
         {...stackSearchBarProps}
         onChangeText={handleSearchText}
-        onSearchButtonPress={handleSearchText}
+        onSearchButtonPress={(event) => {
+            searchBarReset.onSearchPress();
+            handleSearchText(event);
+          }}
+          onFocus={searchBarReset.onFocus}
+          onBlur={searchBarReset.onBlur}
+          onCancelButtonPress={() =>
+            handleSearchText({ nativeEvent: { text: "" } })
+          }
+          onClose={() => handleSearchText({ nativeEvent: { text: "" } })}
       />
       {!isSearchActive ? (
         <ThemedView color="groupedBackground" style={styles.root}>
@@ -451,7 +485,9 @@ export default function SearchScreen() {
             automaticallyAdjustsScrollIndicatorInsets
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={filterBar}
+            ListHeaderComponent={spacer ?? undefined}
+            onScroll={handleListScroll}
+            scrollEventThrottle={16}
             ListEmptyComponent={emptyComponent}
             renderScrollComponent={renderScrollComponent}
             initialNumToRender={4}

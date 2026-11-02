@@ -10,6 +10,8 @@ export type LibraryMangaMeta = {
   unreadCount: number;
   downloadedCount: number;
   updateFailed: boolean;
+  /** Completed series with every chapter read. */
+  finished: boolean;
 };
 
 function metaKey(sourceId: string, mangaKey: string): string {
@@ -47,11 +49,16 @@ export function useLibraryLookup() {
     const map = new Map<string, LibraryMangaMeta>();
     for (const entry of entries) {
       const key = metaKey(entry.sourceId, entry.mangaKey);
+      const unreadCount = resolveLibraryUnreadCount(entry, readKeysByManga.get(key));
       map.set(key, {
         inLibrary: true,
-        unreadCount: resolveLibraryUnreadCount(entry, readKeysByManga.get(key)),
+        unreadCount,
         downloadedCount: entry.downloadedCount ?? 0,
         updateFailed: Boolean(entry.updateFailed),
+        finished:
+          entry.status === 'completed' &&
+          unreadCount === 0 &&
+          (entry.knownChapterKeys?.length ?? 0) > 0,
       });
     }
     return map;
@@ -66,6 +73,7 @@ export function useLibraryLookup() {
       unreadCount: showBadges.unread ? meta.unreadCount : 0,
       downloadedCount: showBadges.downloaded ? meta.downloadedCount : 0,
       updateFailed: meta.updateFailed,
+      finished: meta.finished,
     };
   };
 
@@ -87,6 +95,7 @@ export function enrichMangaWithLibraryMeta<
       unreadCount: meta.unreadCount,
       downloadedCount: meta.downloadedCount,
       updateFailed: meta.updateFailed,
+      finished: meta.finished,
     };
   }
 
@@ -96,5 +105,6 @@ export function enrichMangaWithLibraryMeta<
     unreadCount: manga.unreadCount ?? 0,
     downloadedCount: manga.downloadedCount ?? 0,
     updateFailed: Boolean(manga.updateFailed),
+    finished: false,
   };
 }

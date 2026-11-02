@@ -117,7 +117,7 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
   }
 
   return (
-    <GlassSurface borderRadius={radius.pill} style={styles.chip} interactive>
+    <GlassSurface borderRadius={radius.pill} style={styles.chip}>
       <Pressable style={styles.chipPressable} onPress={onPress} accessibilityRole='button'>
         <ThemedText variant='subheadline' numberOfLines={1}>
           {label}
@@ -165,7 +165,7 @@ function PillOptions<T extends string>({
           }
 
           return (
-            <GlassSurface key={option.id} borderRadius={radius.pill} interactive>
+            <GlassSurface key={option.id} borderRadius={radius.pill}>
               <Pressable style={styles.sortPill} onPress={() => onToggle(option.id)}>
                 <ThemedText variant='subheadline' numberOfLines={1}>
                   {option.label}
@@ -183,7 +183,7 @@ function ModalHeaderButton({ label, onPress, primary }: { label: string; onPress
   const { radius } = useTheme();
 
   return (
-    <GlassSurface borderRadius={radius.pill} interactive>
+    <GlassSurface borderRadius={radius.pill}>
       <Pressable style={styles.modalHeaderButton} onPress={onPress} accessibilityRole='button' accessibilityLabel={label}>
         <ThemedText variant='headline' color={primary ? 'tint' : 'label'}>
           {label}
@@ -350,7 +350,7 @@ export function GlobalSearchFilterBar({ installed, filters, onChange }: GlobalSe
           style={styles.scroll}
           contentContainerStyle={styles.row}
           keyboardShouldPersistTaps='handled'>
-          <GlassSurface borderRadius={999} style={styles.iconChip} interactive>
+          <GlassSurface borderRadius={999} style={styles.iconChip}>
             <Pressable
               style={styles.iconChipPressable}
               onPress={openModal}

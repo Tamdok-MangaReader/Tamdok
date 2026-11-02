@@ -41,11 +41,14 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
+import { ReaderPageSlider } from "@/components/reader/reader-page-slider";
 import { useTheme } from "@/hooks/use-theme";
 import {
   getAppSettings,
   updateAppSettings,
   type LibraryDisplaySettings,
+  libraryDisplayColumns,
+  type LibraryDisplayMode,
   type LibrarySortMode,
 } from "@/services/app-settings";
 import {
@@ -122,13 +125,16 @@ export default function LibrarySettingsScreen() {
   const [showDownloadedBadges, setShowDownloadedBadges] = useState(true);
   const [showCategoryCountBadges, setShowCategoryCountBadges] = useState(true);
   const [hideEmptyCategories, setHideEmptyCategories] = useState(true);
-  const [showEmptyCategoryCountBadges, setShowEmptyCategoryCountBadges] =
-    useState(false);
+  const [hideEmptyCategoryCountBadges, setHideEmptyCategoryCountBadges] =
+    useState(true);
   const [showLibraryRefreshStatus, setShowLibraryRefreshStatus] =
     useState(false);
   const [showLibraryRefreshLiveActivity, setShowLibraryRefreshLiveActivity] =
     useState(true);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("unread");
+  const [sortReversed, setSortReversed] = useState(false);
+  const [gridColumns, setGridColumns] = useState(3);
+  const [displayMode, setDisplayMode] = useState<LibraryDisplayMode>("grid");
   const allLocked = isAllCategoryLocked(defaultCategoryId);
 
   const load = useCallback(async () => {
@@ -169,8 +175,8 @@ export default function LibrarySettingsScreen() {
       appSettings.libraryDisplay.showCategoryCountBadges ?? true,
     );
     setHideEmptyCategories(appSettings.libraryDisplay.hideEmptyCategories ?? true);
-    setShowEmptyCategoryCountBadges(
-      appSettings.libraryDisplay.showEmptyCategoryCountBadges ?? false,
+    setHideEmptyCategoryCountBadges(
+      appSettings.libraryDisplay.hideEmptyCategoryCountBadges ?? true,
     );
     setShowLibraryRefreshStatus(
       appSettings.libraryDisplay.showLibraryRefreshStatus ?? false,
@@ -179,6 +185,9 @@ export default function LibrarySettingsScreen() {
       appSettings.libraryDisplay.showLibraryRefreshLiveActivity ?? true,
     );
     setSortMode(appSettings.libraryDisplay.sortMode ?? "unread");
+    setSortReversed(appSettings.libraryDisplay.sortReversed ?? false);
+    setGridColumns(libraryDisplayColumns(appSettings.libraryDisplay));
+    setDisplayMode(appSettings.libraryDisplay.displayMode ?? "grid");
   }, []);
 
   useEffect(() => {
@@ -214,6 +223,15 @@ export default function LibrarySettingsScreen() {
         id: interval,
         label: intervalLabel(interval),
       })),
+    [],
+  );
+
+  const displayModeOptions = useMemo(
+    () => [
+      { id: "grid", label: t("library_display_grid") },
+      { id: "list", label: t("library_display_list") },
+      { id: "descriptiveList", label: t("library_display_descriptive") },
+    ],
     [],
   );
 
@@ -495,7 +513,55 @@ export default function LibrarySettingsScreen() {
                 patchLibraryDisplay({ sortMode: next });
               }}
             />
+            <ThemedText variant="body">{t("library_display_columns")}</ThemedText>
+            <View style={{ flexDirection: "row" }}>
+              <ReaderPageSlider
+                untinted
+                currentPage={gridColumns - 1}
+                totalPages={6}
+                accentColor={colors.tint}
+                labelColor={colors.label}
+                onSeek={(page) => {
+                  const next = page + 1;
+                  setGridColumns(next);
+                  patchLibraryDisplay({
+                    gridColumns: next,
+                    gridSize:
+                      next >= 4
+                        ? "small"
+                        : next === 3
+                          ? "medium"
+                          : next === 2
+                            ? "large"
+                            : "extraLarge",
+                  });
+                }}
+              />
+            </View>
+            <ThemedText variant="body">{t("library_display_mode")}</ThemedText>
+            <InlinePillGrid
+              options={displayModeOptions}
+              selectedId={displayMode}
+              preserveOrder
+              onSelect={(mode) => {
+                const next = mode as LibraryDisplayMode;
+                setDisplayMode(next);
+                patchLibraryDisplay({ displayMode: next });
+              }}
+            />
           </View>
+        </Card>
+        <Card>
+          <SwitchRow
+            label={t("library_sort_reverse")}
+            value={sortReversed}
+            onChange={(value) => {
+              setSortReversed(value);
+              patchLibraryDisplay({ sortReversed: value });
+            }}
+            isFirst
+            isLast
+          />
         </Card>
         <Card>
           <SwitchRow
@@ -541,12 +607,12 @@ export default function LibrarySettingsScreen() {
             <>
               <CardSeparator />
               <SwitchRow
-                label={t("library_show_empty_category_count_badges")}
-                hint={t("library_show_empty_category_count_badges_hint")}
-                value={showEmptyCategoryCountBadges}
+                label={t("library_hide_empty_category_count_badges")}
+                hint={t("library_hide_empty_category_count_badges_hint")}
+                value={hideEmptyCategoryCountBadges}
                 onChange={(value) => {
-                  setShowEmptyCategoryCountBadges(value);
-                  patchLibraryDisplay({ showEmptyCategoryCountBadges: value });
+                  setHideEmptyCategoryCountBadges(value);
+                  patchLibraryDisplay({ hideEmptyCategoryCountBadges: value });
                 }}
                 isLast
               />

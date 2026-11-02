@@ -395,10 +395,8 @@ export function ReaderPageImage({
     const needsSingleTap = Boolean(onSingleTap) || dictionarySingleTap;
     const taps =
       !disableDoubleTap && needsSingleTap
-        ? hasExternalZoom
-          // Webtoon: react to the first tap at once instead of waiting out the double-tap window.
-          ? Gesture.Simultaneous(doubleTap, singleTap)
-          : Gesture.Exclusive(doubleTap, singleTap)
+        ? // The single tap waits for the double-tap window, so a double tap never flashes the menu.
+          Gesture.Exclusive(doubleTap, singleTap)
         : !disableDoubleTap
           ? doubleTap
           : needsSingleTap

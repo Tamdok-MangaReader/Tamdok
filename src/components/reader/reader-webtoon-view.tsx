@@ -815,7 +815,20 @@ export function ReaderWebtoonView({
       if (restoringRef.current || programmaticScrollRef.current) return;
       lastOffsetYRef.current = offsetY;
       const items = stripItemsRef.current;
-      const index = indexForOffset(offsetY, items);
+      let index = indexForOffset(offsetY, items);
+      // A short last page never reaches the top of the viewport, so at the very bottom of the list
+      // the last page is reported as visible instead; this is what marks the final chapter as read.
+      if (
+        offsetY + nativeEvent.layoutMeasurement.height >=
+        nativeEvent.contentSize.height - 2
+      ) {
+        for (let i = items.length - 1; i > index; i -= 1) {
+          if (items[i].kind === "page") {
+            index = i;
+            break;
+          }
+        }
+      }
       visibleIndexRef.current = index;
       visibleIdRef.current = items[index]?.id ?? null;
       reportLocation(index);
@@ -859,10 +872,6 @@ export function ReaderWebtoonView({
     (x: number, y: number) => {
       const now = Date.now();
       if (now - lastTapAtRef.current < 120) return;
-      // Second tap of a double tap: it only zooms; running the tap action again would re-render the
-      // reader in the middle of the zoom animation.
-      if (!settings.disableDoubleTap && now - lastTapAtRef.current < 320)
-        return;
       lastTapAtRef.current = now;
       lastTapToggledBarsRef.current = false;
       const currentActions = actionsRef.current;
@@ -905,7 +914,6 @@ export function ReaderWebtoonView({
       onInteraction,
       scrollToGlobal,
       settings.animatePageTransitions,
-      settings.disableDoubleTap,
       settings.tapZones,
       tapGrid,
       width,

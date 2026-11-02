@@ -34,6 +34,8 @@ type MangaCoverProps = {
   scaleBadges?: boolean;
   showTitleOverlay?: boolean;
   updateFailed?: boolean;
+  /** Completed series with all chapters read: shows a seal on the cover. */
+  finished?: boolean;
   refreshing?: boolean;
   downloadProgress?: number;
   downloadFailed?: number;
@@ -90,6 +92,7 @@ export const MangaCover = memo(function MangaCover({
   scaleBadges = false,
   showTitleOverlay = true,
   updateFailed = false,
+  finished = false,
   refreshing = false,
   downloadProgress,
   downloadFailed = 0,
@@ -136,8 +139,13 @@ export const MangaCover = memo(function MangaCover({
   const showFailed = downloadFailed > 0;
   const showBookmarkBadge = showBookmark && inLibrary;
   const coverDisplay = useCoverDisplay();
+  const showFinishedBadge =
+    finished && coverDisplay.showFinishedBadge && !updateFailed;
   const showStatusBadge =
-    showStatus && coverDisplay.showStatusBadge && !updateFailed;
+    showStatus &&
+    coverDisplay.showStatusBadge &&
+    !updateFailed &&
+    !showFinishedBadge;
 
   const pressableStyle = useMemo(() => [styles.pressable, { width }], [width]);
 
@@ -155,7 +163,13 @@ export const MangaCover = memo(function MangaCover({
   );
 
   const countStyles = useMemo(() => {
-    if (!showUnread && !showDownloaded && !showDownloading && !showFailed)
+    if (
+      !showUnread &&
+      !showDownloaded &&
+      !showDownloading &&
+      !showFailed &&
+      !showFinishedBadge
+    )
       return null;
     const scale = scaleBadges ? coverBadgeScale(width) : 1;
     const size = Math.round(20 * scale);
@@ -180,6 +194,7 @@ export const MangaCover = memo(function MangaCover({
     showDownloaded,
     showDownloading,
     showFailed,
+    showFinishedBadge,
     scaleBadges,
     width,
   ]);
@@ -238,6 +253,24 @@ export const MangaCover = memo(function MangaCover({
 
       {countStyles ? (
         <View style={countStyles.row}>
+          {showFinishedBadge ? (
+            <View
+              style={[
+                styles.countBadge,
+                styles.finishedBadge,
+                countStyles.badge,
+              ]}
+              accessibilityRole="image"
+              accessibilityLabel={t("manga_finished")}
+            >
+              <SFSymbolIcon
+                name="checkmark.seal"
+                fallback="ribbon-outline"
+                size={Math.round(countStyles.ringSize * 0.85)}
+                color="#FFFFFF"
+              />
+            </View>
+          ) : null}
           {showUnread ? (
             <View
               style={[styles.countBadge, styles.unreadBadge, countStyles.badge]}
@@ -420,6 +453,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 3,
+  },
+  finishedBadge: {
+    backgroundColor: "#2FA84F",
   },
   countRow: {
     position: "absolute",

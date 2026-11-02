@@ -12,7 +12,9 @@ export type AndroidPopupItem = {
   label: string;
   icon?: keyof typeof Ionicons.glyphMap;
   destructive?: boolean;
-  onPress: () => void;
+  /** Nested actions: tapping the row opens them in place of the current list. */
+  children?: AndroidPopupItem[];
+  onPress?: () => void;
 };
 
 type AndroidPopupMenuProps = {
@@ -29,7 +31,12 @@ export function AndroidPopupMenu({ items, triggerIcon = 'ellipsis-vertical', acc
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
+  const [submenu, setSubmenu] = useState<AndroidPopupItem | null>(null);
+  const close = () => {
+    setOpen(false);
+    setSubmenu(null);
+  };
+  const visibleItems = submenu?.children ?? items;
 
   return (
     <>
@@ -41,15 +48,32 @@ export function AndroidPopupMenu({ items, triggerIcon = 'ellipsis-vertical', acc
               styles.card,
               { top: insets.top + 8, backgroundColor: colors.tertiarySystemBackground, borderColor: colors.separator },
             ]}>
-            {items.map((item) => (
+            {submenu ? (
+              <Pressable
+                style={styles.row}
+                android_ripple={{ color: colors.quaternaryFill }}
+                onPress={() => setSubmenu(null)}
+                accessibilityRole="menuitem"
+              >
+                <Ionicons name="chevron-back" size={20} color={colors.label} />
+                <ThemedText variant="body" style={styles.label}>
+                  {submenu.label}
+                </ThemedText>
+              </Pressable>
+            ) : null}
+            {visibleItems.map((item) => (
               <Pressable
                 key={item.key}
                 style={styles.row}
                 android_ripple={{ color: colors.quaternaryFill }}
                 onPress={() => {
+                  if (item.children?.length) {
+                    setSubmenu(item);
+                    return;
+                  }
                   close();
                   // Let the modal dismiss first so follow-up alerts/sheets can present.
-                  setTimeout(item.onPress, 0);
+                  if (item.onPress) setTimeout(item.onPress, 0);
                 }}
                 accessibilityRole="menuitem">
                 {item.icon ? (

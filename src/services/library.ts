@@ -10,7 +10,7 @@ import {
   type ChapterProgress,
 } from "@/services/manga-tracking";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
-import type { LibrarySortMode } from "@/services/app-settings";
+import type { LibraryFilters, LibrarySortMode } from "@/services/app-settings";
 
 export const ALL_CATEGORY_ID = "all";
 
@@ -131,6 +131,8 @@ export const LIBRARY_SORT_MODES: LibrarySortMode[] = [
   "title",
   "recent",
   "lastRead",
+  "chapters",
+  "downloaded",
 ];
 
 function titleSortKey(title: string): string {
@@ -141,8 +143,15 @@ export function sortLibraryEntries(
   entries: LibraryEntry[],
   sortMode: LibrarySortMode,
   lastReadAt: Map<string, number> = new Map(),
+  reversed = false,
+  unreadOf: (entry: LibraryEntry) => number = (entry) => entry.unreadCount ?? 0,
 ): LibraryEntry[] {
   const next = [...entries];
+  const byTitle = (a: LibraryEntry, b: LibraryEntry) =>
+    titleSortKey(a.title).localeCompare(titleSortKey(b.title), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
   next.sort((a, b) => {
     switch (sortMode) {
       case "title":
@@ -163,9 +172,18 @@ export function sortLibraryEntries(
           { numeric: true, sensitivity: "base" },
         );
       }
+      case "chapters": {
+        const diff =
+          (b.knownChapterKeys?.length ?? 0) - (a.knownChapterKeys?.length ?? 0);
+        return diff !== 0 ? diff : byTitle(a, b);
+      }
+      case "downloaded": {
+        const diff = (b.downloadedCount ?? 0) - (a.downloadedCount ?? 0);
+        return diff !== 0 ? diff : byTitle(a, b);
+      }
       case "unread":
       default: {
-        const unreadDiff = (b.unreadCount ?? 0) - (a.unreadCount ?? 0);
+        const unreadDiff = unreadOf(b) - unreadOf(a);
         if (unreadDiff !== 0) return unreadDiff;
         return titleSortKey(a.title).localeCompare(
           titleSortKey(b.title),
@@ -175,8 +193,49 @@ export function sortLibraryEntries(
       }
     }
   });
-  return next;
+  return reversed ? next.reverse() : next;
 }
+
+/** True when no filter narrows the library. */
+export function hasActiveLibraryFilters(filters: LibraryFilters): boolean {
+  return (
+    filters.statuses.length > 0 ||
+    filters.readState !== "all" ||
+    filters.downloaded !== "all" ||
+    filters.sourceIds.length > 0
+  );
+}
+
+export function filterLibraryEntries(
+  entries: LibraryEntry[],
+  filters: LibraryFilters,
+  unreadOf: (entry: LibraryEntry) => number = (entry) => entry.unreadCount ?? 0,
+): LibraryEntry[] {
+  if (!hasActiveLibraryFilters(filters)) return entries;
+  return entries.filter((entry) => {
+    if (
+      filters.statuses.length > 0 &&
+      !filters.statuses.includes(entry.status ?? "unknown")
+    )
+      return false;
+    if (
+      filters.sourceIds.length > 0 &&
+      !filters.sourceIds.includes(entry.sourceId)
+    )
+      return false;
+    if (filters.readState !== "all") {
+      const unread = unreadOf(entry) > 0;
+      if (filters.readState === "unread" ? !unread : unread) return false;
+    }
+    if (filters.downloaded !== "all") {
+      const downloaded = (entry.downloadedCount ?? 0) > 0;
+      if (filters.downloaded === "downloaded" ? !downloaded : downloaded)
+        return false;
+    }
+    return true;
+  });
+}
+
 
 async function applyEntryBadges(
   entry: LibraryEntry,

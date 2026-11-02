@@ -989,6 +989,7 @@ export default function MangaDetailScreen() {
         <MangaDetailToolbar
           chapterSelectMode={chapterSelectMode}
           hasDownloads={hasDownloads}
+          refreshStatus={refreshStatus}
           canShare={Boolean(mangaPageUrl)}
           canDownload={inLibrary}
           onBack={() => router.back()}

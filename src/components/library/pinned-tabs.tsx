@@ -128,7 +128,15 @@ export function usePinnedTabs(
       </Animated.View>
     ) : null;
 
-  return { onScroll, spacer, renderTabs };
+  // For lists whose scroll events already arrive on the JS thread (FlatList virtualization needs them).
+  const setScrollOffset = useCallback(
+    (offsetY: number) => {
+      scrollY.value = offsetY;
+    },
+    [scrollY],
+  );
+
+  return { onScroll, setScrollOffset, spacer, renderTabs };
 }
 
 const styles = StyleSheet.create({

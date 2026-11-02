@@ -4,18 +4,23 @@ import { getAppSettings, type CoverDisplaySettings } from '@/services/app-settin
 import { subscribeAppSettings } from '@/utils/app-settings-events';
 
 const listeners = new Set<() => void>();
-let snapshot: CoverDisplaySettings = { showStatusBadge: true, showRating: true };
+let snapshot: CoverDisplaySettings = { showStatusBadge: true, showRating: true, showFinishedBadge: true };
 let started = false;
 
 async function load(): Promise<void> {
   const { coverDisplay } = await getAppSettings();
   if (
     coverDisplay.showStatusBadge === snapshot.showStatusBadge &&
-    coverDisplay.showRating === snapshot.showRating
+    coverDisplay.showRating === snapshot.showRating &&
+    coverDisplay.showFinishedBadge === snapshot.showFinishedBadge
   ) {
     return;
   }
-  snapshot = { showStatusBadge: coverDisplay.showStatusBadge, showRating: coverDisplay.showRating };
+  snapshot = {
+    showStatusBadge: coverDisplay.showStatusBadge,
+    showRating: coverDisplay.showRating,
+    showFinishedBadge: coverDisplay.showFinishedBadge,
+  };
   for (const listener of listeners) listener();
 }
 

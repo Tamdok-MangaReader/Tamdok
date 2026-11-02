@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { InlinePillGrid } from "@/components/library/inline-pill-grid";
 import { useReader } from "@/components/reader/reader-context";
+import { areReaderTapZonesEnabled } from "@/utils/reader-tap-zones";
 import { TapZonePreview } from "@/components/reader/tap-zone-preview";
 import { Card } from "@/components/ui/card";
 import { GlassIconButton } from "@/components/ui/glass-icon-button";
@@ -24,6 +25,9 @@ import { t } from "@/constants/locales";
 import { useTheme } from "@/hooks/use-theme";
 import {
   updateAppSettings,
+  type PagedPageLayout,
+  type ReaderBackgroundColor,
+  type ReaderOrientation,
   type ReadingMode,
   type TapZones,
 } from "@/services/app-settings";
@@ -35,8 +39,8 @@ import {
 import { setReaderSlowMode, useReaderSlowMode } from "@/utils/reader-slow-mode";
 
 const MANGA_READING_MODES: Array<ReadingMode | "default"> = [
-  "default",
   "auto",
+  "default",
   "rtl",
   "ltr",
   "vertical",
@@ -52,6 +56,10 @@ const TAP_ZONES: TapZones[] = [
   "auto",
   "disabled",
 ];
+
+const BACKGROUND_COLORS: ReaderBackgroundColor[] = ["system", "white", "black"];
+const ORIENTATIONS: ReaderOrientation[] = ["device", "portrait", "landscape"];
+const PAGE_LAYOUTS: PagedPageLayout[] = ["auto", "single", "double"];
 
 type ReaderSettingsSheetProps = {
   visible: boolean;
@@ -91,6 +99,31 @@ export function ReaderSettingsSheet({
         label: t(`reader_tap_zones_${zone.replace("-", "_")}`),
       })),
     [],
+  );
+
+  const backgroundOptions = useMemo(
+    () =>
+      BACKGROUND_COLORS.map((id) => ({
+        id,
+        label: t(`reader_background_${id}`),
+      })),
+    [],
+  );
+  const orientationOptions = useMemo(
+    () =>
+      ORIENTATIONS.map((id) => ({ id, label: t(`reader_orientation_${id}`) })),
+    [],
+  );
+  const pageLayoutOptions = useMemo(
+    () =>
+      PAGE_LAYOUTS.map((id) => ({ id, label: t(`reader_page_layout_${id}`) })),
+    [],
+  );
+  const patchReader = useCallback(
+    (patch: Partial<typeof settings>) => {
+      void updateAppSettings({ reader: { ...settings, ...patch } });
+    },
+    [settings],
   );
 
   const handleSelectMode = useCallback(
@@ -194,6 +227,8 @@ export function ReaderSettingsSheet({
             </View>
           </Card>
 
+          {areReaderTapZonesEnabled(mode) ? (
+            <>
           <ThemedText
             variant="footnote"
             color="secondaryLabel"
@@ -201,16 +236,7 @@ export function ReaderSettingsSheet({
           >
             {t("reader_controls_section")}
           </ThemedText>
-          {mode === "continuous" ? (
-            <ThemedText
-              variant="footnote"
-              color="secondaryLabel"
-              style={styles.hint}
-            >
-              {t("reader_tap_zones_continuous_disabled")}
-            </ThemedText>
-          ) : (
-            <Card style={styles.card}>
+                      <Card style={styles.card}>
               <ThemedText variant="subheadline" style={styles.cardTitle}>
                 {t("reader_tap_zones")}
               </ThemedText>
@@ -239,7 +265,88 @@ export function ReaderSettingsSheet({
                 />
               </View>
             </Card>
-          )}
+            </>
+          ) : null}
+
+          <ThemedText
+            variant="footnote"
+            color="secondaryLabel"
+            style={styles.sectionLabel}
+          >
+            {t("reader_display_section")}
+          </ThemedText>
+          <Card style={styles.card}>
+            <ThemedText variant="subheadline" style={styles.cardTitle}>
+              {t("reader_background_color")}
+            </ThemedText>
+            <InlinePillGrid
+              options={backgroundOptions}
+              selectedId={settings.backgroundColor}
+              preserveOrder
+              onSelect={(id) =>
+                patchReader({ backgroundColor: id as ReaderBackgroundColor })
+              }
+            />
+            <ThemedText variant="subheadline" style={styles.cardTitle}>
+              {t("reader_orientation")}
+            </ThemedText>
+            <InlinePillGrid
+              options={orientationOptions}
+              selectedId={settings.orientation}
+              preserveOrder
+              onSelect={(id) =>
+                patchReader({ orientation: id as ReaderOrientation })
+              }
+            />
+            {mode !== "continuous" && mode !== "webtoon" ? (
+              <>
+                <ThemedText variant="subheadline" style={styles.cardTitle}>
+                  {t("reader_page_layout")}
+                </ThemedText>
+                <InlinePillGrid
+                  options={pageLayoutOptions}
+                  selectedId={settings.pagedPageLayout}
+                  preserveOrder
+                  onSelect={(id) =>
+                    patchReader({ pagedPageLayout: id as PagedPageLayout })
+                  }
+                />
+              </>
+            ) : null}
+          </Card>
+          <Card style={styles.card}>
+            <View style={styles.invertRow}>
+              <ThemedText variant="body" style={styles.invertLabel}>
+                {t("reader_crop_borders")}
+              </ThemedText>
+              <Switch
+                value={settings.cropBorders}
+                onValueChange={(value) => patchReader({ cropBorders: value })}
+              />
+            </View>
+            <View style={styles.invertRow}>
+              <ThemedText variant="body" style={styles.invertLabel}>
+                {t("reader_split_wide_images")}
+              </ThemedText>
+              <Switch
+                value={settings.splitWideImages}
+                onValueChange={(value) =>
+                  patchReader({ splitWideImages: value })
+                }
+              />
+            </View>
+            <View style={styles.invertRow}>
+              <ThemedText variant="body" style={styles.invertLabel}>
+                {t("reader_animate_transitions")}
+              </ThemedText>
+              <Switch
+                value={settings.animatePageTransitions}
+                onValueChange={(value) =>
+                  patchReader({ animatePageTransitions: value })
+                }
+              />
+            </View>
+          </Card>
 
           <Pressable onPress={handleOpenGlobalSettings}>
             <Card style={styles.linkCard}>

@@ -80,6 +80,8 @@ type MangaActionsMenuProps = {
   sourceId: string | undefined;
   manga: Manga;
   renderCover: RenderCover;
+  /** Library only: starts multi-select with this title selected. */
+  onSelect?: (manga: Manga) => void;
 };
 
 const MENU_WIDTH = 270;
@@ -91,6 +93,7 @@ export const MangaActionsMenu = memo(function MangaActionsMenu({
   sourceId,
   manga,
   renderCover,
+  onSelect,
 }: MangaActionsMenuProps) {
   const ref = useRef<MeasurableView>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -117,6 +120,7 @@ export const MangaActionsMenu = memo(function MangaActionsMenu({
           sourceId={effectiveSourceId}
           manga={manga}
           renderCover={renderCover}
+          onSelect={onSelect}
           onClose={handleClose}
         />
       ) : null}
@@ -195,12 +199,14 @@ function MangaMenuOverlay({
   sourceId,
   manga,
   renderCover,
+  onSelect,
   onClose,
 }: {
   anchor: Anchor;
   sourceId: string;
   manga: Manga;
   renderCover: RenderCover;
+  onSelect?: (manga: Manga) => void;
   onClose: () => void;
 }) {
   const { radius } = useTheme();
@@ -411,10 +417,19 @@ function MangaMenuOverlay({
             showsVerticalScrollIndicator={false}
             onLayout={onMenuLayout}
           >
+            {onSelect ? (
+              <MenuRow
+                label={t("library_select")}
+                sfSymbol="checkmark.circle"
+                fallback="checkbox-outline"
+                onPress={() => run(() => onSelect(manga))}
+              />
+            ) : null}
             {entry ? (
               <>
                 <MenuRow
                   label={t("manga_edit_categories")}
+                  showDivider={Boolean(onSelect)}
                   sfSymbol="folder"
                   fallback="folder-outline"
                   trailing={categoriesOpen ? "up" : "down"}
@@ -451,6 +466,7 @@ function MangaMenuOverlay({
               <>
                 <MenuRow
                   label={t("manga_add_to_library")}
+                  showDivider={Boolean(onSelect)}
                   sfSymbol="plus.circle"
                   fallback="add-circle-outline"
                   onPress={() => run(() => addToLibrary([]))}

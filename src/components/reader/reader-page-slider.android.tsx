@@ -20,6 +20,8 @@ type ReaderPageSliderProps = {
   accentColor: string;
   labelColor: string;
   inverted?: boolean;
+  /** Drops the dark reader tint from the glass (for use outside the reader). */
+  untinted?: boolean;
   onSeek: (page: number) => void;
 };
 
@@ -36,6 +38,7 @@ export function ReaderPageSlider({
   accentColor,
   labelColor,
   inverted = false,
+  untinted = false,
   onSeek,
 }: ReaderPageSliderProps) {
   const [sliding, setSliding] = useState(false);
@@ -199,7 +202,7 @@ export function ReaderPageSlider({
   });
 
   return (
-    <GlassSurface borderRadius={BAR_HEIGHT / 2} glassStyle="clear" tintColor={READER_GLASS_TINT} style={styles.glass}>
+    <GlassSurface borderRadius={BAR_HEIGHT / 2} glassStyle="clear" tintColor={untinted ? undefined : READER_GLASS_TINT} style={styles.glass}>
       <ThemedText
         variant="footnote"
         style={[styles.label, { color: labelColor }]}

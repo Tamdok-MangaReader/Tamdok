@@ -1,5 +1,9 @@
 import { Stack } from "expo-router";
 
+import {
+  MangaRefreshStatus,
+  type RefreshStatusState,
+} from "@/components/manga/manga-refresh-status";
 import { t } from "@/constants/locales";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -10,6 +14,8 @@ type MangaDetailToolbarProps = {
   hasDownloads: boolean;
   canShare: boolean;
   canDownload: boolean;
+  /** Refresh spinner / result icon shown next to the menu. */
+  refreshStatus?: RefreshStatusState;
   onBack: () => void;
   onCancelSelect: () => void;
   onApplySelect: () => void;
@@ -61,6 +67,11 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
               tintColor={colors.label}
               onPress={props.onApplySelect}
             />
+          ) : null}
+          {props.refreshStatus?.visible && !chapterSelectMode ? (
+            <Stack.Toolbar.View>
+              <MangaRefreshStatus status={props.refreshStatus} />
+            </Stack.Toolbar.View>
           ) : null}
           <Stack.Toolbar.Menu
             icon="ellipsis"

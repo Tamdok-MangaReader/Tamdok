@@ -12,6 +12,8 @@ import { uniqueByKey } from "@/utils/unique-entries";
 import { useAdaptiveColumns, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { MangaActionsMenu } from "@/components/manga/manga-actions-menu";
 import { MangaCover } from "@/components/manga/manga-cover";
+import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
+import { useTheme } from "@/hooks/use-theme";
 import {
   useMangaDownloadFailures,
   useMangaDownloadProgress,
@@ -37,6 +39,9 @@ export type MangaGridItem = Manga & {
   updateFailed?: boolean;
   /** Hides the title drawn over the cover. */
   hideTitle?: boolean;
+  /** Library multi-select mode: draws a selection marker over the cover. */
+  selecting?: boolean;
+  selected?: boolean;
 };
 
 type MangaGridProps = {
@@ -71,6 +76,7 @@ type CellProps = {
   scaleBadges: boolean;
   onPress: (manga: MangaGridItem) => void;
   onLongPress?: (manga: MangaGridItem) => void;
+  onSelect?: (manga: MangaGridItem) => void;
 };
 
 export const MangaGridCell = memo(function MangaGridCell({
@@ -84,6 +90,7 @@ export const MangaGridCell = memo(function MangaGridCell({
   scaleBadges,
   onPress,
   onLongPress,
+  onSelect,
 }: CellProps) {
   const enriched = useMemo(
     () => enrichMangaWithLibraryMeta(item, sourceId ?? item.sourceId, getMeta),
@@ -119,6 +126,9 @@ export const MangaGridCell = memo(function MangaGridCell({
     [onLongPress, item],
   );
 
+  // Selection mode keeps covers clean so the selection marker is the only overlay.
+  const hideBadges = Boolean(item.selecting);
+
   const renderCover = (onCoverLongPress: () => void) => (
     <MangaCover
       sourceId={sourceId ?? item.sourceId}
@@ -126,16 +136,17 @@ export const MangaGridCell = memo(function MangaGridCell({
       cover={item.cover}
       width={width}
       inLibrary={enriched.inLibrary}
-      unreadCount={enriched.unreadCount}
-      downloadedCount={enriched.downloadedCount}
-      updateFailed={enriched.updateFailed}
-      refreshing={refreshing}
-      downloadProgress={downloadProgress}
-      downloadFailed={downloadFailed}
+      unreadCount={hideBadges ? 0 : enriched.unreadCount}
+      downloadedCount={hideBadges ? 0 : enriched.downloadedCount}
+      updateFailed={hideBadges ? false : enriched.updateFailed}
+      finished={hideBadges ? false : enriched.finished}
+      refreshing={hideBadges ? false : refreshing}
+      downloadProgress={hideBadges ? undefined : downloadProgress}
+      downloadFailed={hideBadges ? 0 : downloadFailed}
       showTitleOverlay={!(item as MangaGridItem).hideTitle}
       showBookmark={showBookmark}
       scaleBadges={scaleBadges}
-      showStatus={!!item.status}
+      showStatus={!hideBadges && !!item.status}
       mangaStatus={item.status}
       rating={rating}
       isRatingCompact={isRatingCompact}
@@ -144,15 +155,90 @@ export const MangaGridCell = memo(function MangaGridCell({
     />
   );
 
-  if (handleLongPress) return renderCover(handleLongPress);
-
-  return (
+  const body = handleLongPress ? (
+    renderCover(handleLongPress)
+  ) : (
     <MangaActionsMenu
       sourceId={sourceId ?? item.sourceId}
       manga={item}
       renderCover={renderCover}
+      onSelect={onSelect as never}
     />
   );
+
+  if (!item.selecting) return body;
+
+  return (
+    <View>
+      {body}
+      <SelectionMarker
+        selected={Boolean(item.selected)}
+        height={Math.round(width * 1.45)}
+      />
+    </View>
+  );
+});
+
+/** Dimming + check circle drawn over a cover while the library is in selection mode. */
+export function SelectionMarker({
+  selected,
+  height,
+}: {
+  selected: boolean;
+  height?: number;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        selectionStyles.overlay,
+        height ? { height } : selectionStyles.fill,
+        selected && { backgroundColor: "rgba(0,0,0,0.35)" },
+      ]}
+    >
+      <View
+        style={[
+          selectionStyles.circle,
+          selected
+            ? { backgroundColor: colors.tint, borderColor: colors.tint }
+            : { borderColor: "#FFFFFF", backgroundColor: "rgba(0,0,0,0.25)" },
+        ]}
+      >
+        {selected ? (
+          <SFSymbolIcon
+            name="checkmark"
+            fallback="checkmark"
+            size={14}
+            color="#FFFFFF"
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const selectionStyles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    borderRadius: 10,
+    padding: 6,
+    alignItems: "flex-start",
+  },
+  fill: {
+    bottom: 0,
+  },
+  circle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
 
 const keyExtractor = (item: { key: string }) => item.key;

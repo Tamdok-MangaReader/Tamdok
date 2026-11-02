@@ -104,6 +104,8 @@ import { prefetchReaderPagesAhead } from "@/utils/reader-prefetch";
 import { clearDecodedImageCache } from "@/utils/image-memory";
 import type { ResolvedReadingMode } from "@/services/app-settings";
 
+const READ_PROGRESS_THRESHOLD = 0.88;
+
 const MODE_HINT_MS = 2_200;
 
 type AppSettings = Awaited<ReturnType<typeof getAppSettings>>;
@@ -610,8 +612,11 @@ export function ReaderView({
         cover: manga.cover,
         notify,
       };
-      // Treat reaching the final page as finishing the chapter.
-      const isLastPage = pageCount > 0 && pageIndex >= pageCount - 1;
+      // The chapter counts as read once ~88% of it has been scrolled; the final page always counts.
+      const isLastPage =
+        pageCount > 0 &&
+        (pageIndex >= pageCount - 1 ||
+          (pageIndex + 1) / pageCount >= READ_PROGRESS_THRESHOLD);
       const existing = await getChapterProgress(
         sourceId,
         manga.key,

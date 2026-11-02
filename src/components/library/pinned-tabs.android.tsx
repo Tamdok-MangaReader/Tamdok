@@ -126,7 +126,14 @@ export function usePinnedTabs(
       </Animated.View>
     ) : null;
 
-  return { onScroll, spacer, renderTabs };
+  const setScrollOffset = useCallback(
+    (offsetY: number) => {
+      scrollY.value = offsetY;
+    },
+    [scrollY],
+  );
+
+  return { onScroll, setScrollOffset, spacer, renderTabs };
 }
 
 const styles = StyleSheet.create({

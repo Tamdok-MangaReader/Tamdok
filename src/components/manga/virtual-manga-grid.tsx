@@ -29,6 +29,7 @@ type VirtualMangaGridProps = {
   scaleBadges?: boolean;
   onPressManga: (manga: MangaGridItem) => void;
   onLongPressManga?: (manga: MangaGridItem) => void;
+  onSelectManga?: (manga: MangaGridItem) => void;
   empty?: ReactNode;
   footer?: ReactNode;
 };
@@ -44,6 +45,7 @@ type GridRowViewProps = {
   scaleBadges: boolean;
   onPress: (manga: MangaGridItem) => void;
   onLongPress?: (manga: MangaGridItem) => void;
+  onSelect?: (manga: MangaGridItem) => void;
 };
 
 const GridRowView = memo(function GridRowView({
@@ -57,6 +59,7 @@ const GridRowView = memo(function GridRowView({
   scaleBadges,
   onPress,
   onLongPress,
+  onSelect,
 }: GridRowViewProps) {
   return (
     <View style={styles.row}>
@@ -73,6 +76,7 @@ const GridRowView = memo(function GridRowView({
           scaleBadges={scaleBadges}
           onPress={onPress}
           onLongPress={onLongPress}
+          onSelect={onSelect}
         />
       ))}
     </View>
@@ -93,6 +97,7 @@ export function VirtualMangaGrid({
   scaleBadges = false,
   onPressManga,
   onLongPressManga,
+  onSelectManga,
   empty,
   footer,
 }: VirtualMangaGridProps) {
@@ -119,7 +124,14 @@ export function VirtualMangaGrid({
     (m: MangaGridItem) => longPressRef.current?.(m),
     [],
   );
+  const selectRef = useRef(onSelectManga);
+  selectRef.current = onSelectManga;
+  const handleSelect = useCallback(
+    (m: MangaGridItem) => selectRef.current?.(m),
+    [],
+  );
   const hasLongPress = !!onLongPressManga;
+  const hasSelect = !!onSelectManga;
 
   const rows = useMemo(() => {
     const list = uniqueByKey(entries as MangaGridItem[]);
@@ -144,6 +156,7 @@ export function VirtualMangaGrid({
         scaleBadges={scaleBadges}
         onPress={handlePress}
         onLongPress={hasLongPress ? handleLongPress : undefined}
+        onSelect={hasSelect ? handleSelect : undefined}
       />
     ),
     [
@@ -157,6 +170,8 @@ export function VirtualMangaGrid({
       handlePress,
       handleLongPress,
       hasLongPress,
+      handleSelect,
+      hasSelect,
     ],
   );
 

@@ -449,12 +449,6 @@ function RealSourceHomeScreen() {
                 <MangaRefreshStatus status={refreshStatus} />
               </Stack.Toolbar.View>
             ) : null}
-            <Stack.Toolbar.Button
-              icon="magnifyingglass"
-              accessibilityLabel={t("search")}
-              tintColor={colors.label}
-              onPress={openSearch}
-            />
             <Stack.Toolbar.Menu
               icon="ellipsis"
               accessibilityLabel={t("source_settings_title")}
@@ -472,6 +466,13 @@ function RealSourceHomeScreen() {
                 </Stack.Toolbar.MenuAction>
               ) : null}
             </Stack.Toolbar.Menu>
+            <Stack.Toolbar.Button
+              icon="magnifyingglass"
+              accessibilityLabel={t("search")}
+              separateBackground
+              tintColor={colors.label}
+              onPress={openSearch}
+            />
           </Stack.Toolbar>
         ) : null}
         <ScreenContent
