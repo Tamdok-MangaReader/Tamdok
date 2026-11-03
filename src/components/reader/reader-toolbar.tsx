@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -14,6 +14,7 @@ import { GlassIconButton } from "@/components/ui/glass-icon-button";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
+import { useGlassEpoch } from "@/hooks/use-glass-epoch";
 import { useSystemRail } from "@/hooks/use-duo-layout";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -29,6 +30,7 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
   const { chrome, actions, foregroundColor, mode, bookmarked } = useReader();
 
   // Stays mounted and only fades: mounting the glass controls on every tap made the menu appear late.
+  const glassEpoch = useGlassEpoch(visible);
   const opacity = useSharedValue(visible ? 1 : 0);
   useEffect(() => {
     opacity.value = withTiming(visible ? 1 : 0, { duration: 180 });
@@ -51,6 +53,7 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
       ]}
       pointerEvents={visible ? "box-none" : "none"}
     >
+      <Fragment key={glassEpoch}>
       <View style={styles.controls}>
         <GlassIconButton
           icon={bookmarked ? "bookmark" : "bookmark-outline"}
@@ -92,6 +95,7 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
           {t("incognito_mode_active")}
         </ThemedText>
       ) : null}
+      </Fragment>
     </Animated.View>
   );
 }

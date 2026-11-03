@@ -14,13 +14,14 @@ import {
   menuStyle,
 } from "@expo/ui/swift-ui/modifiers";
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, Fragment } from "react";
 import {
   Platform,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   FadeIn,
   FadeOut,
@@ -30,6 +31,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useGlassEpoch } from "@/hooks/use-glass-epoch";
 import { useIsOpenDuo, useSystemRail, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { READER_GLASS_TINT } from "@/utils/reader-glass";
 import { useReader } from "@/components/reader/reader-context";
@@ -58,6 +60,8 @@ type ReaderNavBarProps = {
 const BUTTON_SIZE = 44;
 const ICON_SIZE = 22;
 const SIDE_GAP = Spacing.sm;
+// How far the top shade reaches below the status bar area.
+const SCRIM_EXTRA = 84;
 
 function TitlePill({
   title,
@@ -154,6 +158,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
 
   // The custom bar stays mounted and only fades (mounting the glass controls on every tap made the
   // menu appear late); the native-header variant still mounts and unmounts.
+  const glassEpoch = useGlassEpoch(visible);
   const opacity = useSharedValue(visible ? 1 : 0);
   useEffect(() => {
     opacity.value = withTiming(visible ? 1 : 0, { duration: 180 });
@@ -263,6 +268,11 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
       ]}
       pointerEvents={visible ? "box-none" : "none"}
     >
+      <LinearGradient
+        pointerEvents="none"
+        colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0)"]}
+        style={[styles.scrim, { height: Math.max(insets.top, Spacing.sm) + SCRIM_EXTRA }]}
+      />
       {nativeHeader ? (
         <>
           <Stack.Screen
@@ -304,6 +314,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
           </Stack.Toolbar>
         </>
       ) : null}
+      <Fragment key={glassEpoch}>
       <View style={styles.row} pointerEvents="box-none">
         {nativeHeader ? null : backNode}
         <View style={styles.center} pointerEvents="box-none">
@@ -381,6 +392,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
         </View>
         {nativeHeader ? null : dotsNode}
       </View>
+      </Fragment>
       <InlineActionMenu
         visible={menuAnchor !== null}
         anchor={menuAnchor}
@@ -407,6 +419,12 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
 }
 
 const styles = StyleSheet.create({
+  scrim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   root: {
     position: "absolute",
     left: 0,

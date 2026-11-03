@@ -5,6 +5,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -26,6 +27,8 @@ type ReaderNavBarProps = {
 };
 
 const BUTTON_SIZE = 44;
+// How far the top shade reaches below the status bar area.
+const SCRIM_EXTRA = 84;
 const ICON_SIZE = 22;
 const SIDE_GAP = Spacing.sm;
 
@@ -111,6 +114,11 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
       style={[styles.root, { paddingTop: Math.max(insets.top, Spacing.sm) }]}
       pointerEvents="box-none"
     >
+      <LinearGradient
+        pointerEvents="none"
+        colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0)"]}
+        style={[styles.scrim, { height: Math.max(insets.top, Spacing.sm) + SCRIM_EXTRA }]}
+      />
       <View style={styles.row} pointerEvents="box-none">
         <GlassIconButton
           icon="chevron-back"
@@ -174,6 +182,12 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
 }
 
 const styles = StyleSheet.create({
+  scrim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   root: {
     position: "absolute",
     left: 0,

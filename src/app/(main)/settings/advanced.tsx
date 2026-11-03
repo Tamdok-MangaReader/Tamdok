@@ -13,6 +13,7 @@ import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { removeValue, storageKeys } from '@/constants/storage';
 import { useSources } from '@/context/sources-context';
+import { useTheme } from '@/hooks/use-theme';
 import { getAppSettings, resetAppSettings, updateAppSettings } from '@/services/app-settings';
 import { invalidateLibraryCache } from '@/services/library';
 import { resetRegistryUrlsToDefault } from '@/services/sources';
@@ -23,6 +24,7 @@ import { replayWelcome } from '@/utils/welcome-data-loader';
 
 export default function AdvancedSettingsScreen() {
   const { refresh } = useSources();
+  const { colors, isDark } = useTheme();
   const [showReaderPageNumbers, setShowReaderPageNumbers] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
   const [maxHeightRatio, setMaxHeightRatio] = useState('100');
@@ -176,7 +178,9 @@ export default function AdvancedSettingsScreen() {
               value={maxHeightRatio}
               onChangeText={changeMaxHeightRatio}
               keyboardType='number-pad'
-              style={styles.ratioInput}
+              style={[styles.ratioInput, { color: colors.label }]}
+              placeholderTextColor={colors.tertiaryLabel}
+              keyboardAppearance={isDark ? 'dark' : 'light'}
             />
           </View>
         </Card>
