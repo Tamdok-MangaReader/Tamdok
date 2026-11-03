@@ -934,12 +934,14 @@ export default function HistoryScreen() {
   }, [scheduleLoad]);
 
   const [showNsfwHistory, setShowNsfwHistory] = useState(true);
+  const [separateNsfwHistory, setSeparateNsfwHistory] = useState(false);
   const [nsfwKillSwitch, setNsfwKillSwitch] = useState(false);
 
   useEffect(() => {
     const load = () => {
       void getAppSettings().then((settings) => {
         setShowNsfwHistory(settings.privacy.showNsfwHistory);
+        setSeparateNsfwHistory(settings.privacy.separateNsfwHistory);
         setNsfwKillSwitch(settings.privacy.nsfwKillSwitch);
       });
     };
@@ -955,7 +957,13 @@ export default function HistoryScreen() {
     [installed],
   );
 
+  const illustration = useIllustrationMode();
+  const nsfwAllowed = showNsfwHistory && !nsfwKillSwitch && !illustration;
+  const showTabs = nsfwAllowed && separateNsfwHistory;
+  const mergeNsfw = nsfwAllowed && !separateNsfwHistory;
+
   const { mainEntries, nsfwEntries } = useMemo(() => {
+    if (mergeNsfw) return { mainEntries: entries, nsfwEntries: [] };
     const main: HistoryEntry[] = [];
     const nsfw: HistoryEntry[] = [];
     for (const entry of entries) {
@@ -963,7 +971,7 @@ export default function HistoryScreen() {
       else main.push(entry);
     }
     return { mainEntries: main, nsfwEntries: nsfw };
-  }, [entries, isNsfwEntry]);
+  }, [entries, isNsfwEntry, mergeNsfw]);
 
   const [activatedPages, setActivatedPages] = useState<Set<HistoryPageId>>(
     () => new Set<HistoryPageId>(["main"]),
@@ -974,8 +982,6 @@ export default function HistoryScreen() {
   const mainCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
   const nsfwCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
 
-  const illustration = useIllustrationMode();
-  const showTabs = showNsfwHistory && !nsfwKillSwitch && !illustration;
 
   const mainRows = useMemo(() => {
     const result = buildRows(mainEntries, mainCacheRef.current);

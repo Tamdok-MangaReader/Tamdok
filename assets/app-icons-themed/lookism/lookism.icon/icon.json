@@ -1,0 +1,70 @@
+{
+  "fill": {
+    "automatic-gradient": "display-p3:0.55000,0.45000,0.95000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Split.png",
+          "name": "Split",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Left.png",
+          "name": "Left",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Right.png",
+          "name": "Right",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Crack.png",
+          "name": "Crack",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name": "Art",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

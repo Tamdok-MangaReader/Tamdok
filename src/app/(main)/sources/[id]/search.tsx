@@ -1,27 +1,38 @@
 import { uniqueByKey } from "@/utils/unique-entries";
 import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { SourceNotFound } from "@/components/sources/source-not-found";
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
   Platform,
+  type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useHeaderHeight } from "@react-navigation/elements";
 
 import { MangaGrid, type MangaGridItem } from "@/components/manga/manga-grid";
-import { MangaSearchFilterBar } from "@/components/sources/manga-search-filter-bar";
+import {
+  MangaFilterModal,
+  MangaSearchFilterBar,
+} from "@/components/sources/manga-search-filter-bar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { GlassIconButton } from "@/components/ui/glass-icon-button";
-import { GlassSurface } from "@/components/ui/glass-surface";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ErrorState } from "@/components/ui/error-state";
@@ -31,7 +42,9 @@ import { useSources } from "@/context/sources-context";
 import { useAidokuSourceRequests } from "@/hooks/use-aidoku-source-requests";
 import { useSourceFilters } from "@/hooks/use-source-filters";
 import { useSourceRunner } from "@/hooks/use-source-runner";
+import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { useTheme } from "@/hooks/use-theme";
+import type { SearchBarCommands } from "react-native-screens";
 import { mergeFilterValues } from "@/parsers/shared/filters";
 import type { FilterValue, Manga } from "@/parsers/shared/types";
 import { isAidokuRequestCancelled } from "@/parsers/aidoku/wasm-bridge";
@@ -39,6 +52,8 @@ import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { mangaHref } from "@/utils/manga-route";
 
 const SEARCH_DEBOUNCE_MS = 400;
+// Height of the floating filter chips (the chips are 40pt tall).
+const FILTER_BAR_HEIGHT = 40;
 const FOOTER_SPINNER_STYLE = { paddingVertical: Spacing.lg } as const;
 
 const ResultsGrid = memo(MangaGrid);
@@ -53,7 +68,6 @@ function decodeSourceRouteId(id: string): string {
 
 export default function SourceSearchScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { colors, radius, isDark } = useTheme();
   const {
     id: rawId,
@@ -74,6 +88,10 @@ export default function SourceSearchScreen() {
     isLoading: filtersLoading,
   } = useSourceFilters(runner);
   const headerHeight = useHeaderHeight();
+  const { stackSearchBarProps } = useNavigationTheme();
+  const searchBarRef = useRef<SearchBarCommands>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const openFilters = useCallback(() => setFiltersOpen(true), []);
   const listRef = useRef<FlatList<MangaGridItem>>(null);
   const [query, setQuery] = useState(initialQuery);
   const [entries, setEntries] = useState<Manga[]>([]);
@@ -90,7 +108,15 @@ export default function SourceSearchScreen() {
 
   useEffect(() => {
     setQuery(initialQuery);
+    if (initialQuery) searchBarRef.current?.setText(initialQuery);
   }, [initialQuery]);
+
+  const handleSearchText = useCallback(
+    (event: { nativeEvent: { text: string } }) => {
+      setQuery(event.nativeEvent.text);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!rawFilters || typeof rawFilters !== "string") return;
@@ -151,7 +177,7 @@ export default function SourceSearchScreen() {
   useEffect(() => {
     if (!runner || filtersLoading) return;
     const timer = setTimeout(() => {
-      listRef.current?.scrollToOffset({ offset: -headerHeight, animated: true });
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
       void load(1, false);
     }, SEARCH_DEBOUNCE_MS);
     return () => {
@@ -159,11 +185,7 @@ export default function SourceSearchScreen() {
       busyRef.current = false;
       clearTimeout(timer);
     };
-  }, [runner, query, filters, load, filtersLoading, headerHeight]);
-
-  const submitQuery = useCallback(() => {
-    router.setParams({ q: query });
-  }, [router, query]);
+  }, [runner, query, filters, load, filtersLoading]);
 
   const openManga = useCallback(
     (manga: Manga) => {
@@ -178,18 +200,12 @@ export default function SourceSearchScreen() {
     void loadRef.current(pageRef.current + 1, true);
   }, []);
 
-  const handleCancel = useCallback(() => router.back(), [router]);
-
   const footer = useMemo(
     () =>
       isLoadingMore ? <ActivityIndicator style={FOOTER_SPINNER_STYLE} /> : null,
     [isLoadingMore],
   );
 
-  const searchHeaderStyle = useMemo(
-    () => [styles.searchHeader, { paddingTop: insets.top + Spacing.xs }],
-    [insets.top],
-  );
   const rootStyle = useMemo(
     () => [styles.root, { backgroundColor: colors.systemBackground }],
     [colors.systemBackground],
@@ -198,10 +214,16 @@ export default function SourceSearchScreen() {
     () => [styles.searchOverlayCard, { backgroundColor: colors.secondaryFill }],
     [colors.secondaryFill],
   );
-  const searchInputStyle = useMemo(
-    () => [styles.searchInput, { color: colors.label }],
-    [colors.label],
+
+  const hasFilterBar = definitions.length > 0;
+  // The native header is transparent and the filter bar floats under it; the list reserves both.
+  const topInset =
+    headerHeight + (hasFilterBar ? FILTER_BAR_HEIGHT + Spacing.sm : 0) + Spacing.sm;
+  const topSpacer = useMemo(
+    () => <View style={{ height: topInset }} />,
+    [topInset],
   );
+  const topSpaceStyle = useMemo(() => ({ paddingTop: topInset }), [topInset]);
 
   const displayError = error ?? loadError;
   const showInitialLoading =
@@ -223,55 +245,39 @@ export default function SourceSearchScreen() {
       style={rootStyle}
       keyboardVerticalOffset={0}
     >
-      <View style={searchHeaderStyle}>
-        <GlassSurface
-          style={styles.searchRow}
-          borderRadius={radius.pill}
-          interactive
-        >
-          <View style={styles.searchRowInner}>
-            <Ionicons
-              name="search"
-              size={18}
-              color={colors.tertiaryLabel}
-              style={styles.searchIcon}
-            />
-            <TextInput
-              style={searchInputStyle}
-              placeholder={t("search_placeholder")}
-              placeholderTextColor={colors.tertiaryLabel}
-              value={query}
-              onChangeText={setQuery}
-              onSubmitEditing={submitQuery}
-              returnKeyType="search"
-              autoFocus
-              clearButtonMode="while-editing"
-              keyboardAppearance={isDark ? "dark" : "light"}
-            />
-          </View>
-        </GlassSurface>
-        <GlassIconButton
-          icon="close"
-          onPress={handleCancel}
-          size={44}
-          iconSize={22}
-          iconColor={colors.destructive}
-          accessibilityLabel={t("cancel")}
-        />
-      </View>
-
-      {definitions.length > 0 ? (
-        <MangaSearchFilterBar
-          definitions={definitions}
-          values={filters}
-          onChange={setFilters}
-        />
+      {Platform.OS === "ios" && hasFilterBar ? (
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button
+            icon="line.3.horizontal.decrease"
+            separateBackground
+            accessibilityLabel={t("source_search_filters")}
+            tintColor={colors.label}
+            onPress={openFilters}
+          />
+        </Stack.Toolbar>
       ) : null}
-
+      <Stack.SearchBar
+        ref={searchBarRef}
+        key={isDark ? "source-search-dark" : "source-search-light"}
+        placeholder={t("search_placeholder")}
+        {...stackSearchBarProps}
+        placement="integratedButton"
+        autoFocus
+        onChangeText={handleSearchText}
+        onSearchButtonPress={handleSearchText}
+        onCancelButtonPress={() =>
+          handleSearchText({ nativeEvent: { text: "" } })
+        }
+        onClose={() => handleSearchText({ nativeEvent: { text: "" } })}
+      />
+      <View style={styles.flex}>
       <ScreenContent
         padded={false}
         centerContent={centerContent}
         scrollable={false}
+        contentContainerStyle={
+          entries.length === 0 ? topSpaceStyle : undefined
+        }
       >
         {displayError ? (
           <View style={styles.errorWrap}>
@@ -300,6 +306,8 @@ export default function SourceSearchScreen() {
               isRatingCompact={false}
               onPressManga={openManga}
               onEndReached={handleEndReached}
+              ListHeaderComponent={topSpacer}
+              contentInsetAdjustmentBehavior="never"
               ListFooterComponent={footer}
             />
             {isLoading ? (
@@ -312,6 +320,30 @@ export default function SourceSearchScreen() {
           </View>
         )}
       </ScreenContent>
+      {hasFilterBar ? (
+        <View
+          style={[styles.topOverlay, { top: headerHeight }]}
+          pointerEvents="box-none"
+        >
+          <MangaSearchFilterBar
+            definitions={definitions}
+            values={filters}
+            onChange={setFilters}
+            onOpenFilters={openFilters}
+            hideFiltersButton={Platform.OS === "ios"}
+          />
+        </View>
+      ) : null}
+      {hasFilterBar ? (
+        <MangaFilterModal
+          visible={filtersOpen}
+          definitions={definitions}
+          values={filters}
+          onChange={setFilters}
+          onClose={() => setFiltersOpen(false)}
+        />
+      ) : null}
+      </View>
     </KeyboardAvoidingView>
     </SourceCoverHeadersProvider>
   );
@@ -321,31 +353,13 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  searchHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.sm,
-  },
-  searchRow: {
+  flex: {
     flex: 1,
-    minHeight: 44,
   },
-  searchRowInner: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 44,
-    paddingHorizontal: Spacing.md,
-  },
-  searchIcon: {
-    marginRight: Spacing.xs,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 17,
-    paddingVertical: Spacing.sm,
+  topOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
   },
   gridWrap: {
     flex: 1,

@@ -26,10 +26,6 @@ import {
 } from "react-native";
 
 import { HomePlaceholderLayout } from "@/components/manga/home-placeholder-layout";
-import {
-  MangaRefreshStatus,
-  useRefreshStatus,
-} from "@/components/manga/manga-refresh-status";
 import { HomeSection } from "@/components/manga/home-section";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import {
@@ -216,7 +212,6 @@ function RealSourceHomeScreen() {
   const showHomePlaceholder =
     (isLoading || runnerLoading) && !hasCachedContent && !hasHomeContent;
 
-  const showHeaderSpinner = isRefreshing || showHomePlaceholder;
 
   const alertBanner = useMemo(
     () =>
@@ -240,12 +235,9 @@ function RealSourceHomeScreen() {
     [refresh, colors.tint],
   );
 
-  const refreshStatus = useRefreshStatus(showHeaderSpinner, combinedError ?? null);
-
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        <MangaRefreshStatus status={refreshStatus} />
         <HeaderIconButton icon="search" onPress={openSearch} />
         <SourceOverflowMenu
           onOpenSettings={openSettings}
@@ -253,7 +245,7 @@ function RealSourceHomeScreen() {
         />
       </View>
     ),
-    [refreshStatus, openSearch, openSettings, websiteUrl],
+    [openSearch, openSettings, websiteUrl],
   );
 
   const sourceName = source?.manifest.info.name;
@@ -444,11 +436,6 @@ function RealSourceHomeScreen() {
         <Stack.Screen options={screenOptions} />
         {Platform.OS === "ios" ? (
           <Stack.Toolbar placement="right">
-            {refreshStatus.visible ? (
-              <Stack.Toolbar.View>
-                <MangaRefreshStatus status={refreshStatus} />
-              </Stack.Toolbar.View>
-            ) : null}
             <Stack.Toolbar.Menu
               icon="ellipsis"
               accessibilityLabel={t("source_settings_title")}

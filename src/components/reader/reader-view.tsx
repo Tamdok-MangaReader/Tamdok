@@ -40,6 +40,7 @@ import { ReaderModeHint } from "@/components/reader/reader-mode-hint";
 import { useReaderChapterWindow } from "@/hooks/use-reader-chapter-window";
 import type { Chapter, Manga, Page } from "@/parsers/shared/types";
 import { getAppSettings } from "@/services/app-settings";
+import { noteChapterFinished } from "@/services/review-prompt";
 import { syncReadingLiveActivity } from "@/services/library-live-activity";
 import {
   getDownloadedPageUrls,
@@ -640,6 +641,7 @@ export function ReaderView({
             historyMeta,
           );
         }
+        void noteChapterFinished();
         const nextChapter = findAdjacentChapter(
           chapters,
           targetChapter.key,

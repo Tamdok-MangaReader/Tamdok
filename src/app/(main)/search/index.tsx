@@ -1,31 +1,33 @@
 import { useHeaderHeight } from "@react-navigation/elements";
 import { isIllustrationSource } from "@/services/illustration-mode";
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   FlatList,
   Platform,
   StyleSheet,
   View,
   type ListRenderItemInfo,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
-  type ScrollViewProps,
 } from "react-native";
 
 import {
   DEFAULT_GLOBAL_SEARCH_FILTERS,
   filterInstalledForSearch,
   GlobalSearchFilterBar,
+  GlobalSearchFilterModal,
   type GlobalSearchFilters,
 } from "@/components/search/global-search-filter-bar";
 import {
   GlobalSearchSourceSection,
   type SourceSearchGroup,
 } from "@/components/search/global-search-source-section";
-import { usePinnedTabs } from "@/components/library/pinned-tabs";
 import { EmptyState } from "@/components/ui/empty-state";
-import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { ThemedView } from "@/components/ui/themed-view";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -71,6 +73,9 @@ async function runPool<T>(
     Array.from({ length: Math.min(limit, items.length) }, lane),
   );
 }
+
+// Room the floating filter bar takes at the top of the list: 40pt chips plus the bar's top padding.
+const FILTER_BAR_HEIGHT = 48;
 
 const keyExtractor = (item: SourceSearchGroup) => sourceRouteId(item.source);
 
@@ -327,9 +332,19 @@ export default function SearchScreen() {
     ],
   );
 
+  const lastResetKeyRef = useRef(resetKey);
   useEffect(() => {
-    listRef.current?.scrollToOffset({ offset: -headerHeight, animated: true });
-  }, [resetKey, headerHeight]);
+    // Only a real query/filter change resets the scroll; header size changes must not move the list.
+    if (lastResetKeyRef.current === resetKey) return;
+    lastResetKeyRef.current = resetKey;
+    listRef.current?.scrollToOffset({
+      offset: 0,
+      animated: true,
+    });
+  }, [resetKey]);
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const openFilters = useCallback(() => setFiltersOpen(true), []);
 
   const filterBar = useMemo(
     () => (
@@ -337,31 +352,12 @@ export default function SearchScreen() {
         installed={installed}
         filters={filters}
         onChange={setFilters}
+        onOpenFilters={openFilters}
       />
     ),
-    [installed, filters],
+    [installed, filters, openFilters],
   );
 
-  // The filter bar stays pinned under the header while results scroll, like the library category tabs.
-  const { setScrollOffset, spacer, renderTabs } = usePinnedTabs(true, {
-    gap: Spacing.lg,
-  });
-  const handleListScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      setScrollOffset(event.nativeEvent.contentOffset.y);
-    },
-    [setScrollOffset],
-  );
-  // Rendered as the last child of the scroll content so it paints above the result rows.
-  const renderScrollComponent = useCallback(
-    (props: ScrollViewProps) => (
-      <LiquidGlassScrollComponent {...props}>
-        {props.children}
-        {renderTabs(filterBar)}
-      </LiquidGlassScrollComponent>
-    ),
-    [renderTabs, filterBar],
-  );
 
   const openManga = useCallback(
     (source: InstalledSource, manga: Manga) => {
@@ -428,8 +424,12 @@ export default function SearchScreen() {
   );
 
   const contentContainerStyle = useMemo(
-    () => [styles.listContent, !showResultsList && styles.listContentEmpty],
-    [showResultsList],
+    () => [
+      styles.listContent,
+      { paddingTop: headerHeight + FILTER_BAR_HEIGHT + Spacing.sm },
+      !showResultsList && styles.listContentEmpty,
+    ],
+    [showResultsList, headerHeight],
   );
 
   const listData = showResultsList ? view.visible : EMPTY_GROUPS;
@@ -437,6 +437,13 @@ export default function SearchScreen() {
   return (
     <>
       <Stack.Title>{t("search")}</Stack.Title>
+      <GlobalSearchFilterModal
+        visible={filtersOpen}
+        installed={installed}
+        filters={filters}
+        onChange={setFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
       <Stack.SearchBar
         key={isDark ? "search-dark" : "search-light"}
         placement="automatic"
@@ -481,21 +488,24 @@ export default function SearchScreen() {
             keyExtractor={keyExtractor}
             renderItem={renderItem}
             contentContainerStyle={contentContainerStyle}
-            contentInsetAdjustmentBehavior="automatic"
-            automaticallyAdjustsScrollIndicatorInsets
+            contentInsetAdjustmentBehavior="never"
+            automaticallyAdjustsScrollIndicatorInsets={false}
+            scrollIndicatorInsets={{ top: headerHeight }}
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={spacer ?? undefined}
-            onScroll={handleListScroll}
-            scrollEventThrottle={16}
             ListEmptyComponent={emptyComponent}
-            renderScrollComponent={renderScrollComponent}
             initialNumToRender={4}
             maxToRenderPerBatch={3}
             updateCellsBatchingPeriod={50}
             windowSize={5}
             removeClippedSubviews={Platform.OS === "android"}
           />
+          <View
+            style={[styles.filterOverlay, { top: headerHeight }]}
+            pointerEvents="box-none"
+          >
+            {filterBar}
+          </View>
         </ThemedView>
       )}
     </>
@@ -525,6 +535,11 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  filterOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,

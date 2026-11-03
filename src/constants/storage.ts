@@ -197,6 +197,7 @@ export const storageKeys = {
   LIBRARY: "library_v1",
   DOWNLOADS: "downloads_v1",
   APP_SETTINGS: "app_settings_v1",
+  REVIEW_PROMPT: "review_prompt_v1",
   ACCENT_COLOR: "accent_color_v1",
   APP_ICON: "app_icon_v1",
 };

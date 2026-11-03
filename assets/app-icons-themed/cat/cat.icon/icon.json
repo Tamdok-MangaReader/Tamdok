@@ -1,0 +1,70 @@
+{
+  "fill": {
+    "automatic-gradient": "display-p3:1.00000,0.71000,0.28000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Cat.png",
+          "name": "Cat",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Face.png",
+          "name": "Face",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Book.png",
+          "name": "Book",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Paws.png",
+          "name": "Paws",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name": "Art",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

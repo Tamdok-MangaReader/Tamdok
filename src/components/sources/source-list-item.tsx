@@ -16,6 +16,7 @@ import { t } from "@/constants/locales";
 import type { InstalledSource, RegistryEntry } from "@/parsers/shared/types";
 import { useSources } from "@/context/sources-context";
 import { useTheme } from "@/hooks/use-theme";
+import { useShowSuggestiveBadge } from "@/hooks/use-suggestive-badge";
 import { getSuggestiveAgeLabel } from "@/utils/age-rating";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
 
@@ -54,6 +55,7 @@ export const SourceListItem = memo(function SourceListItem({
   imageTransition = 150,
 }: SourceListItemProps) {
   const { colors, radius } = useTheme();
+  const showSuggestive = useShowSuggestiveBadge();
   const rowPressable =
     (onPress != null || onLongPress != null) && trailing == null;
   const Container = rowPressable ? Pressable : View;
@@ -136,7 +138,7 @@ export const SourceListItem = memo(function SourceListItem({
             </ThemedText>
           </View>
         )}
-        {rating > 1 && (
+        {rating > 1 && (rating !== 2 || showSuggestive) && (
           <View
             style={[
               styles.updateBadge,

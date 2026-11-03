@@ -1,4 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
+import { useShowSuggestiveBadge } from "@/hooks/use-suggestive-badge";
+import { updateAppSettings } from "@/services/app-settings";
 import { checkSourceCompatibility } from "@/utils/app-version";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -141,6 +143,7 @@ export default function SettingsSourcesScreen() {
     getSourceUpdate,
     refreshInBackground,
   } = useSources();
+  const showSuggestiveBadge = useShowSuggestiveBadge();
   const [newRegistryUrl, setNewRegistryUrl] = useState("");
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<SourceKindFilter | null>(null);
@@ -824,6 +827,19 @@ export default function SettingsSourcesScreen() {
                   onValueChange={(value) => void setShowNsfw(value)}
                 />
               </View>
+              <View style={styles.switchRow}>
+                <ThemedText variant="body" style={styles.switchLabel}>
+                  {t("settings_sources_suggestive_badge")}
+                </ThemedText>
+                <Switch
+                  value={showSuggestiveBadge}
+                  onValueChange={(value) => {
+                    void updateAppSettings({
+                      sourceDisplay: { showSuggestiveBadge: value },
+                    });
+                  }}
+                />
+              </View>
             </Card>
 
             <SectionLabel
@@ -1055,6 +1071,7 @@ export default function SettingsSourcesScreen() {
       registryActions,
       registryCatalogs,
       setShowNsfw,
+      showSuggestiveBadge,
       showKindFilter,
       showNsfw,
       submitNewRegistry,

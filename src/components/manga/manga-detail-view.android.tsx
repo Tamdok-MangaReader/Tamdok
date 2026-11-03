@@ -1236,12 +1236,12 @@ export function MangaDetailView({
     () =>
       onRefresh ? (
         <RefreshControl
-          refreshing={false}
+          refreshing={isRefreshing}
           onRefresh={onRefresh}
           tintColor={colors.secondaryLabel}
         />
       ) : undefined,
-    [onRefresh, colors.tint],
+    [onRefresh, isRefreshing, colors.secondaryLabel],
   );
 
   const chaptersList = (

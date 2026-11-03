@@ -244,6 +244,9 @@ export default function SettingsScreen() {
             isLast
           />
         </Card>
+        <ThemedText variant="footnote" color="secondaryLabel" style={styles.supportHint}>
+          {t("support_star_hint")}
+        </ThemedText>
         <View style={styles.footer}>
           <ThemedText variant="footnote" color="secondaryLabel">
             {t("made_with_love_prefix")}
@@ -265,6 +268,10 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  supportHint: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
   heroCard: {
     flexDirection: "row",
     alignItems: "center",

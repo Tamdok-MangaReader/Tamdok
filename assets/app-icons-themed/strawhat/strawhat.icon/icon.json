@@ -1,0 +1,70 @@
+{
+  "fill": {
+    "automatic-gradient": "display-p3:0.13000,0.55000,0.86000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Brim.png",
+          "name": "Brim",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Dome.png",
+          "name": "Dome",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Band.png",
+          "name": "Band",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Waves.png",
+          "name": "Waves",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name": "Art",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

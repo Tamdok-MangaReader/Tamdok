@@ -1,0 +1,59 @@
+{
+  "fill": {
+    "automatic-gradient": "display-p3:0.78000,0.13000,0.20000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Back.png",
+          "name": "Back",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Bookmark.png",
+          "name": "Bookmark",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Accent.png",
+          "name": "Accent",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name": "Art",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

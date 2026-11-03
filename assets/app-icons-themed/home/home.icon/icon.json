@@ -1,0 +1,81 @@
+{
+  "fill": {
+    "automatic-gradient": "display-p3:0.10000,0.30000,0.30000,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Moon.png",
+          "name": "Moon",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Building.png",
+          "name": "Building",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Eye.png",
+          "name": "Eye",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Ground.png",
+          "name": "Ground",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "image-name": "Fog.png",
+          "name": "Fog",
+          "position": {
+            "scale": 0.512,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "name": "Art",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
+}

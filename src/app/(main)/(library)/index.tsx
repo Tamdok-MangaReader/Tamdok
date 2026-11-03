@@ -62,7 +62,10 @@ import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
-import { Spacing } from "@/constants/theme";
+import { maybeAskForReview } from "@/services/review-prompt";
+import { BottomTabInset, Spacing } from "@/constants/theme";
+import { GlassSurface } from "@/components/ui/glass-surface";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSources } from "@/context/sources-context";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
 import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
@@ -236,9 +239,15 @@ function reuseEntries(
 }
 
 export default function LibraryScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { installed } = useSources();
+
+  useEffect(() => {
+    const timer = setTimeout(() => void maybeAskForReview(), 4000);
+    return () => clearTimeout(timer);
+  }, []);
   const { stackSearchBarProps } = useNavigationTheme();
   const illustration = useIllustrationMode();
   const refreshTick = useMangaDataRefresh();
@@ -735,9 +744,10 @@ export default function LibraryScreen() {
   );
 
   // Pull-to-refresh updates the category that is currently on screen.
+  // Pull-to-refresh always updates the whole library using the configured update settings, whatever category is open.
   const handleRefresh = useCallback(() => {
-    void refreshLibrary(selectedCategoryId);
-  }, [refreshLibrary, selectedCategoryId]);
+    void refreshLibrary(ALL_CATEGORY_ID);
+  }, [refreshLibrary]);
 
   // Refreshing a single category is explicit and skips the update-filter settings; refreshing all respects them.
   const handleRefreshCategory = useCallback(() => {
@@ -1289,7 +1299,7 @@ export default function LibraryScreen() {
   );
 
   const refreshStatus =
-    showLibraryRefreshStatus && refreshProgress ? (
+    Platform.OS !== "ios" && showLibraryRefreshStatus && refreshProgress ? (
       <View style={styles.refreshStatus}>
         <ThemedText
           variant="subheadline"
@@ -1428,7 +1438,8 @@ export default function LibraryScreen() {
             contentInsetAdjustmentBehavior="automatic"
             automaticallyAdjustsScrollIndicatorInsets
             showsVerticalScrollIndicator={false}
-            refreshControl={isEmpty ? undefined : refreshControl}
+            refreshControl={refreshControl}
+            alwaysBounceVertical
             onScroll={handlePinnedScroll}
             scrollEventThrottle={16}
           >
@@ -1540,6 +1551,37 @@ export default function LibraryScreen() {
           onClose={() => handleSearchText({ nativeEvent: { text: "" } })}
         />
       ) : null}
+      {Platform.OS === "ios" && showLibraryRefreshStatus && refreshProgress ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.statusPillHost,
+            { bottom: BottomTabInset + insets.bottom + Spacing.sm },
+          ]}
+        >
+          <GlassSurface borderRadius={22} glassStyle="regular">
+            <View style={styles.statusPill}>
+              <ThemedText
+                variant="subheadline"
+                numberOfLines={1}
+                style={styles.refreshText}
+              >
+                {refreshProgress.title}
+              </ThemedText>
+              <ThemedText
+                variant="caption1"
+                color="secondaryLabel"
+                style={styles.refreshText}
+              >
+                {t("library_refresh_progress", {
+                  current: String(refreshProgress.current),
+                  total: String(refreshProgress.total),
+                })}
+              </ThemedText>
+            </View>
+          </GlassSurface>
+        </View>
+      ) : null}
     </>
   );
 }
@@ -1558,6 +1600,19 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: "center",
     justifyContent: "center",
+  },
+  statusPillHost: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  statusPill: {
+    width: 240,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    alignItems: "center",
+    gap: 2,
   },
   refreshStatus: {
     alignItems: "center",

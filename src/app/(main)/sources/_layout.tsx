@@ -23,7 +23,11 @@ export default function SourcesLayout() {
       />
       <Stack.Screen
         name="[id]/search"
-        options={{ headerShown: false, animation: "fade_from_bottom" }}
+        options={{
+          headerLargeTitle: false,
+          title: "",
+          headerBackButtonDisplayMode: "minimal",
+        }}
       />
       <Stack.Screen
         name="[id]/listing"

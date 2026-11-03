@@ -2,7 +2,7 @@ import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/ui/card';
@@ -22,18 +22,23 @@ export type GlobalSearchFilters = {
   sourceRouteIds: string[];
   languages: string[];
   contentFilter: GlobalSearchContentFilter;
+  includeNsfwSources: boolean;
 };
 
 export const DEFAULT_GLOBAL_SEARCH_FILTERS: GlobalSearchFilters = {
   sourceRouteIds: [],
   languages: [],
   contentFilter: 'all',
+  includeNsfwSources: false,
 };
 
 type GlobalSearchFilterBarProps = {
   installed: InstalledSource[];
   filters: GlobalSearchFilters;
   onChange: (filters: GlobalSearchFilters) => void;
+  /** Opens the full filter modal; the bar shows its own button for it unless `hideFiltersButton` is set. */
+  onOpenFilters: () => void;
+  hideFiltersButton?: boolean;
 };
 
 type OpenFilterId = 'sources' | 'languages' | 'content' | null;
@@ -82,7 +87,9 @@ export function filterInstalledForSearch(
   installed: InstalledSource[],
   filters: GlobalSearchFilters,
 ): InstalledSource[] {
-  let sources = installed;
+  let sources = filters.includeNsfwSources
+    ? installed
+    : installed.filter((source) => (source.manifest.info.contentRating ?? 0) < 3);
 
   if (filters.sourceRouteIds.length > 0) {
     const selected = new Set(filters.sourceRouteIds);
@@ -108,21 +115,61 @@ function FilterChip({ label, active, onPress }: { label: string; active: boolean
         onPress={onPress}
         accessibilityRole='button'
         style={[styles.chipActive, { borderRadius: radius.pill, backgroundColor: colors.tint }]}>
-        <ThemedText variant='subheadline' color='onTint' numberOfLines={1}>
+        <ThemedText variant='callout' color='onTint' numberOfLines={1}>
           {label}
         </ThemedText>
-        <Ionicons name='chevron-down' size={13} color={colors.onTint} />
+        <Ionicons name='chevron-down' size={15} color={colors.onTint} />
       </Pressable>
     );
   }
 
   return (
-    <GlassSurface borderRadius={radius.pill} style={styles.chip}>
+    <GlassSurface glassStyle='regular' borderRadius={radius.pill} style={styles.chip}>
       <Pressable style={styles.chipPressable} onPress={onPress} accessibilityRole='button'>
-        <ThemedText variant='subheadline' numberOfLines={1}>
+        <ThemedText variant='callout' numberOfLines={1}>
           {label}
         </ThemedText>
-        <Ionicons name='chevron-down' size={13} color={colors.tertiaryLabel} />
+        <Ionicons name='chevron-down' size={15} color={colors.tertiaryLabel} />
+      </Pressable>
+    </GlassSurface>
+  );
+}
+
+function ToggleChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const { colors, radius } = useTheme();
+  const content = (
+    <>
+      <Ionicons
+        name={active ? 'eye' : 'eye-off-outline'}
+        size={17}
+        color={active ? colors.onTint : colors.tertiaryLabel}
+      />
+      <ThemedText variant='callout' color={active ? 'onTint' : 'label'} numberOfLines={1}>
+        {label}
+      </ThemedText>
+    </>
+  );
+
+  if (active) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole='switch'
+        accessibilityState={{ checked: true }}
+        style={[styles.chipActive, { borderRadius: radius.pill, backgroundColor: colors.tint }]}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return (
+    <GlassSurface glassStyle='regular' borderRadius={radius.pill} style={styles.chip}>
+      <Pressable
+        style={styles.chipPressable}
+        onPress={onPress}
+        accessibilityRole='switch'
+        accessibilityState={{ checked: false }}>
+        {content}
       </Pressable>
     </GlassSurface>
   );
@@ -165,7 +212,7 @@ function PillOptions<T extends string>({
           }
 
           return (
-            <GlassSurface key={option.id} borderRadius={radius.pill}>
+            <GlassSurface key={option.id} glassStyle='regular' borderRadius={radius.pill}>
               <Pressable style={styles.sortPill} onPress={() => onToggle(option.id)}>
                 <ThemedText variant='subheadline' numberOfLines={1}>
                   {option.label}
@@ -183,7 +230,7 @@ function ModalHeaderButton({ label, onPress, primary }: { label: string; onPress
   const { radius } = useTheme();
 
   return (
-    <GlassSurface borderRadius={radius.pill}>
+    <GlassSurface glassStyle='regular' borderRadius={radius.pill}>
       <Pressable style={styles.modalHeaderButton} onPress={onPress} accessibilityRole='button' accessibilityLabel={label}>
         <ThemedText variant='headline' color={primary ? 'tint' : 'label'}>
           {label}
@@ -193,7 +240,7 @@ function ModalHeaderButton({ label, onPress, primary }: { label: string; onPress
   );
 }
 
-function GlobalSearchFilterModal({
+export function GlobalSearchFilterModal({
   visible,
   installed,
   filters,
@@ -296,6 +343,18 @@ function GlobalSearchFilterModal({
               onToggle={(id) => setDraft((current) => ({ ...current, contentFilter: id }))}
             />
           </Card>
+
+          <Card style={styles.modalSectionCard}>
+            <View style={styles.switchRow}>
+              <ThemedText variant='body' style={styles.switchLabel}>
+                {t('search_filter_include_nsfw')}
+              </ThemedText>
+              <Switch
+                value={draft.includeNsfwSources}
+                onValueChange={(includeNsfwSources) => setDraft((current) => ({ ...current, includeNsfwSources }))}
+              />
+            </View>
+          </Card>
         </ScrollView>
 
         <SafeAreaView edges={['bottom']} style={[styles.modalFooter, { borderTopColor: colors.separator }]}>
@@ -310,10 +369,15 @@ function GlobalSearchFilterModal({
   );
 }
 
-export function GlobalSearchFilterBar({ installed, filters, onChange }: GlobalSearchFilterBarProps) {
+export function GlobalSearchFilterBar({
+  installed,
+  filters,
+  onChange,
+  onOpenFilters,
+  hideFiltersButton = false,
+}: GlobalSearchFilterBarProps) {
   const { colors } = useTheme();
   const [openFilterId, setOpenFilterId] = useState<OpenFilterId>(null);
-  const [modalOpen, setModalOpen] = useState(false);
   const languages = useMemo(() => collectLanguages(installed), [installed]);
 
   const sourceOptions = useMemo(
@@ -338,7 +402,7 @@ export function GlobalSearchFilterBar({ installed, filters, onChange }: GlobalSe
 
   const openModal = () => {
     setOpenFilterId(null);
-    setModalOpen(true);
+    onOpenFilters();
   };
 
   return (
@@ -350,16 +414,23 @@ export function GlobalSearchFilterBar({ installed, filters, onChange }: GlobalSe
           style={styles.scroll}
           contentContainerStyle={styles.row}
           keyboardShouldPersistTaps='handled'>
-          <GlassSurface borderRadius={999} style={styles.iconChip}>
+          {hideFiltersButton ? null : (
+          <GlassSurface glassStyle='regular' borderRadius={999} style={styles.iconChip}>
             <Pressable
               style={styles.iconChipPressable}
               onPress={openModal}
               accessibilityRole='button'
               accessibilityLabel={t('source_search_filters')}>
-              <Ionicons name='options-outline' size={17} color={colors.label} />
+              <Ionicons name='options-outline' size={20} color={colors.label} />
             </Pressable>
           </GlassSurface>
+          )}
 
+          <ToggleChip
+            label={t('search_filter_nsfw_sources')}
+            active={filters.includeNsfwSources}
+            onPress={() => onChange({ ...filters, includeNsfwSources: !filters.includeNsfwSources })}
+          />
           <FilterChip
             label={sourcesLabel(filters, installed)}
             active={openFilterId === 'sources'}
@@ -402,14 +473,6 @@ export function GlobalSearchFilterBar({ installed, filters, onChange }: GlobalSe
           />
         ) : null}
       </View>
-
-      <GlobalSearchFilterModal
-        visible={modalOpen}
-        installed={installed}
-        filters={filters}
-        onChange={onChange}
-        onClose={() => setModalOpen(false)}
-      />
     </>
   );
 }
@@ -436,31 +499,31 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   iconChipPressable: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
   chip: {
-    maxWidth: 180,
+    maxWidth: 220,
     flexShrink: 0,
   },
   chipPressable: {
-    height: 32,
-    paddingHorizontal: Spacing.sm,
+    height: 40,
+    paddingHorizontal: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 4,
+    gap: 6,
   },
   chipActive: {
-    height: 32,
-    paddingHorizontal: Spacing.sm,
+    height: 40,
+    paddingHorizontal: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: 4,
-    maxWidth: 180,
+    gap: 6,
+    maxWidth: 220,
     flexShrink: 0,
   },
   dropdown: {
@@ -512,6 +575,15 @@ const styles = StyleSheet.create({
   modalSectionCard: {
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  switchLabel: {
+    flex: 1,
   },
   modalFooter: {
     paddingHorizontal: Spacing.lg,

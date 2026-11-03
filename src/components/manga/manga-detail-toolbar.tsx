@@ -65,12 +65,13 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
             <Stack.Toolbar.Button
               icon="checkmark"
               accessibilityLabel={t("done")}
+              separateBackground
               tintColor={colors.label}
               onPress={props.onApplySelect}
             />
           ) : null}
           {props.refreshStatus?.visible && !chapterSelectMode ? (
-            <Stack.Toolbar.View>
+            <Stack.Toolbar.View separateBackground>
               <MangaRefreshStatus status={props.refreshStatus} />
             </Stack.Toolbar.View>
           ) : null}

@@ -8,7 +8,7 @@ import {
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -226,7 +226,7 @@ function RootLayoutContent() {
         />
         <Stack.Screen name="[...unmatched]" />
       </Stack>
-      <LibraryRefreshIsland />
+      {Platform.OS === "ios" ? null : <LibraryRefreshIsland />}
       <AppLockGate />
     </ThemeProvider>
   );

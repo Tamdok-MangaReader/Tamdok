@@ -134,6 +134,8 @@ export default function LibrarySettingsScreen() {
     useState(false);
   const [showLibraryRefreshLiveActivity, setShowLibraryRefreshLiveActivity] =
     useState(true);
+  const [showCoverRefreshIndicator, setShowCoverRefreshIndicator] =
+    useState(true);
   const [sortMode, setSortMode] = useState<LibrarySortMode>("unread");
   const [sortReversed, setSortReversed] = useState(false);
   const [gridColumns, setGridColumns] = useState(3);
@@ -182,10 +184,13 @@ export default function LibrarySettingsScreen() {
       appSettings.libraryDisplay.hideEmptyCategoryCountBadges ?? true,
     );
     setShowLibraryRefreshStatus(
-      appSettings.libraryDisplay.showLibraryRefreshStatus ?? false,
+      appSettings.libraryDisplay.showLibraryRefreshStatus ?? true,
     );
     setShowLibraryRefreshLiveActivity(
       appSettings.libraryDisplay.showLibraryRefreshLiveActivity ?? true,
+    );
+    setShowCoverRefreshIndicator(
+      appSettings.libraryDisplay.showCoverRefreshIndicator ?? true,
     );
     setSortMode(appSettings.libraryDisplay.sortMode ?? "unread");
     setSortReversed(appSettings.libraryDisplay.sortReversed ?? false);
@@ -649,6 +654,16 @@ export default function LibrarySettingsScreen() {
               patchLibraryDisplay({ showLibraryRefreshStatus: value });
             }}
             isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t("library_show_cover_refresh")}
+            hint={t("library_show_cover_refresh_hint")}
+            value={showCoverRefreshIndicator}
+            onChange={(value) => {
+              setShowCoverRefreshIndicator(value);
+              patchLibraryDisplay({ showCoverRefreshIndicator: value });
+            }}
             isLast
           />
         </Card>

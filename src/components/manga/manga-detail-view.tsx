@@ -35,11 +35,14 @@ import {
   View,
   type LayoutChangeEvent,
   type ListRenderItem,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type PressableStateCallbackType,
   type TextStyle,
   type View as ViewType,
 } from "react-native";
 
+import { useHeaderHeight } from "@react-navigation/elements";
 import { StarRating } from "@/components/manga/star-rating";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import {
@@ -147,6 +150,9 @@ const libraryPressableStyle = ({ pressed }: PressableStateCallbackType) => [
   styles.libraryButtonPressable,
   pressed && PRESSED_85,
 ];
+
+// How far past the resting position the list must be pulled to trigger a refresh.
+const PULL_TRIGGER_DISTANCE = 70;
 
 const formatCount = (n: number) => (n > 99 ? "99+" : String(n));
 
@@ -1256,16 +1262,31 @@ export function MangaDetailView({
     [contentBottomInset],
   );
 
+  // The cover backdrop paints over the native spinner: with it the header shows progress and a long pull is detected below.
+  const coverBackdrop = Boolean(showBigMangaCover) && !split;
+
+  // Pull gesture for the cover-backdrop layout, where the native control is not visible.
+  const navHeaderHeight = useHeaderHeight();
+  const handlePullEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (isRefreshing || !onRefresh) return;
+      if (event.nativeEvent.contentOffset.y < -(navHeaderHeight + PULL_TRIGGER_DISTANCE)) {
+        onRefresh();
+      }
+    },
+    [isRefreshing, onRefresh, navHeaderHeight],
+  );
+
   const refreshControl = useMemo(
     () =>
       onRefresh ? (
         <RefreshControl
-          refreshing={false}
+          refreshing={isRefreshing}
           onRefresh={onRefresh}
           tintColor={colors.secondaryLabel}
         />
       ) : undefined,
-    [onRefresh, colors.tint],
+    [onRefresh, isRefreshing, colors.secondaryLabel],
   );
 
   const chaptersList = (
@@ -1281,7 +1302,8 @@ export function MangaDetailView({
           automaticallyAdjustsScrollIndicatorInsets
           scrollsToTop={false}
           showsVerticalScrollIndicator={false}
-          refreshControl={refreshControl}
+          refreshControl={coverBackdrop ? undefined : refreshControl}
+          onScrollEndDrag={coverBackdrop ? handlePullEnd : undefined}
           renderScrollComponent={split ? undefined : renderScrollComponent}
           initialNumToRender={10}
           maxToRenderPerBatch={6}
@@ -1738,6 +1760,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     paddingBottom: Spacing.xxxl,
   },
+
   header: {
     gap: Spacing.xl,
     paddingBottom: Spacing.sm,

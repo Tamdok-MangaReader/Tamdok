@@ -222,6 +222,134 @@
               "foregroundImage": "./assets/app-icons/brown/preview.png",
               "backgroundColor": "#F2F2F7"
             }
+          },
+          {
+            "name": "TamdokOrv",
+            "ios": "./assets/app-icons-themed/orv/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/orv/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokCat",
+            "ios": "./assets/app-icons-themed/cat/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/cat/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokWebtoon",
+            "ios": "./assets/app-icons-themed/webtoon/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/webtoon/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokMono",
+            "ios": "./assets/app-icons-themed/mono/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/mono/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokDomestic",
+            "ios": "./assets/app-icons-themed/domestic/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/domestic/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokEstate",
+            "ios": "./assets/app-icons-themed/estate/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/estate/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokDandan",
+            "ios": "./assets/app-icons-themed/dandan/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/dandan/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokStrawhat",
+            "ios": "./assets/app-icons-themed/strawhat/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/strawhat/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokChainsaw",
+            "ios": "./assets/app-icons-themed/chainsaw/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/chainsaw/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokFrieren",
+            "ios": "./assets/app-icons-themed/frieren/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/frieren/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokTower",
+            "ios": "./assets/app-icons-themed/tower/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/tower/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokBike",
+            "ios": "./assets/app-icons-themed/bike/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/bike/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokSao",
+            "ios": "./assets/app-icons-themed/sao/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/sao/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokLookism",
+            "ios": "./assets/app-icons-themed/lookism/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/lookism/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokSystem",
+            "ios": "./assets/app-icons-themed/system/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/system/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
+          },
+          {
+            "name": "TamdokHome",
+            "ios": "./assets/app-icons-themed/home/icon-1024.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons-themed/home/icon-1024.png",
+              "backgroundColor": "#F2F2F7"
+            }
           }
         ]
       ],

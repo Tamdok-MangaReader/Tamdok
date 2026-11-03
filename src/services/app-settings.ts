@@ -119,6 +119,8 @@ export type LibraryDisplaySettings = {
   hideEmptyCategories: boolean;
   showLibraryRefreshStatus: boolean;
   showLibraryRefreshLiveActivity: boolean;
+  /** Spinner on library covers whose title is queued for or being refreshed. */
+  showCoverRefreshIndicator: boolean;
   updateOnWifiOnly: boolean;
   gridSize: "small" | "medium" | "large" | "extraLarge";
   /** Items per row in grid mode (1-6); falls back to the value implied by gridSize. */
@@ -161,9 +163,15 @@ export type CoverDisplaySettings = {
   showFinishedBadge: boolean;
 };
 
+export type SourceDisplaySettings = {
+  /** Orange age badge on suggestive sources. */
+  showSuggestiveBadge: boolean;
+};
+
 export type PrivacySettings = {
   requireBiometrics: boolean;
   showNsfwHistory: boolean;
+  separateNsfwHistory: boolean;
   separateNsfwSources: boolean;
   nsfwKillSwitch: boolean;
   hideCategorizedNsfwInAll: boolean;
@@ -177,6 +185,7 @@ export type AppSettings = {
   libraryDisplay: LibraryDisplaySettings;
   mangaScreen: MangaScreenSettings;
   coverDisplay: CoverDisplaySettings;
+  sourceDisplay: SourceDisplaySettings;
   privacy: PrivacySettings;
   tabBadges: TabBadgeSettings;
   debug: DebugSettings;
@@ -241,8 +250,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showCategoryCountBadges: true,
     hideEmptyCategoryCountBadges: true,
     hideEmptyCategories: true,
-    showLibraryRefreshStatus: Platform.OS === "android",
+    showLibraryRefreshStatus: true,
     showLibraryRefreshLiveActivity: true,
+    showCoverRefreshIndicator: true,
     updateOnWifiOnly: false,
     gridSize: "medium",
     displayMode: "grid",
@@ -257,6 +267,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     stretchMangaCover: true,
     showChapterNumber: true,
   },
+  sourceDisplay: {
+    showSuggestiveBadge: true,
+  },
   coverDisplay: {
     showStatusBadge: true,
     showRating: true,
@@ -265,6 +278,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   privacy: {
     requireBiometrics: false,
     showNsfwHistory: true,
+    separateNsfwHistory: false,
     separateNsfwSources: false,
     nsfwKillSwitch: false,
     hideCategorizedNsfwInAll: false,
@@ -339,6 +353,9 @@ async function readSettings(): Promise<AppSettings> {
       showLibraryRefreshLiveActivity:
         stored.libraryDisplay?.showLibraryRefreshLiveActivity ??
         DEFAULT_SETTINGS.libraryDisplay.showLibraryRefreshLiveActivity,
+      showCoverRefreshIndicator:
+        stored.libraryDisplay?.showCoverRefreshIndicator ??
+        DEFAULT_SETTINGS.libraryDisplay.showCoverRefreshIndicator,
     },
     mangaScreen: {
       showBigMangaCover:
@@ -350,6 +367,11 @@ async function readSettings(): Promise<AppSettings> {
       showChapterNumber:
         stored.mangaScreen?.showChapterNumber ??
         DEFAULT_SETTINGS.mangaScreen.showChapterNumber,
+    },
+    sourceDisplay: {
+      showSuggestiveBadge:
+        stored.sourceDisplay?.showSuggestiveBadge ??
+        DEFAULT_SETTINGS.sourceDisplay.showSuggestiveBadge,
     },
     coverDisplay: {
       showStatusBadge:
@@ -369,6 +391,9 @@ async function readSettings(): Promise<AppSettings> {
       showNsfwHistory:
         stored.privacy?.showNsfwHistory ??
         DEFAULT_SETTINGS.privacy.showNsfwHistory,
+      separateNsfwHistory:
+        stored.privacy?.separateNsfwHistory ??
+        DEFAULT_SETTINGS.privacy.separateNsfwHistory,
       separateNsfwSources:
         stored.privacy?.separateNsfwSources ??
         DEFAULT_SETTINGS.privacy.separateNsfwSources,
@@ -423,6 +448,7 @@ export async function updateAppSettings(
     },
     mangaScreen: { ...current.mangaScreen, ...patch.mangaScreen },
     coverDisplay: { ...current.coverDisplay, ...patch.coverDisplay },
+    sourceDisplay: { ...current.sourceDisplay, ...patch.sourceDisplay },
     privacy: { ...current.privacy, ...patch.privacy },
     tabBadges: { ...current.tabBadges, ...patch.tabBadges },
     debug: { ...current.debug, ...patch.debug },

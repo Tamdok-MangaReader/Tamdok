@@ -1,5 +1,12 @@
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { Alert, StyleSheet, Switch, View } from "react-native";
 
 import { Card, CardSeparator } from "@/components/ui/card";
@@ -12,8 +19,24 @@ import {
   authenticateUser,
   isBiometricAuthAvailable,
 } from "@/services/app-lock";
-import { getAppSettings, updateAppSettings } from "@/services/app-settings";
+import type { InstalledSource } from "@/parsers/shared/types";
+import { useSources } from "@/context/sources-context";
+import {
+  DEFAULT_SETTINGS,
+  getAppSettings,
+  updateAppSettings,
+  type PrivacySettings,
+} from "@/services/app-settings";
+import { getLibraryEntries } from "@/services/library";
+import { getHistoryEntries } from "@/services/manga-tracking";
+import { findInstalledSource } from "@/services/sources";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
+
+const DEFAULT_PRIVACY_SETTINGS = DEFAULT_SETTINGS.privacy;
+
+function isNsfwSource(source: InstalledSource): boolean {
+  return (source.manifest.info.contentRating ?? 0) >= 3;
+}
 
 type SwitchRowProps = {
   label: string;
@@ -38,23 +61,24 @@ function SwitchRow({ label, hint, value, disabled, onChange }: SwitchRowProps) {
 }
 
 export default function PrivacySettingsScreen() {
+  const { installed } = useSources();
   const [ready, setReady] = useState(false);
   const [incognito, setIncognito] = useState(false);
-  const [showNsfwHistory, setShowNsfwHistory] = useState(true);
-  const [requireBiometrics, setRequireBiometrics] = useState(false);
-  const [separateNsfwSources, setSeparateNsfwSources] = useState(false);
-  const [nsfwKillSwitch, setNsfwKillSwitch] = useState(false);
-  const [hideCategorizedNsfwInAll, setHideCategorizedNsfwInAll] =
-    useState(false);
+  const [privacy, setPrivacy] = useState<PrivacySettings>(
+    DEFAULT_PRIVACY_SETTINGS,
+  );
+  const [hasNsfwHistory, setHasNsfwHistory] = useState(false);
+  const [hasNsfwLibrary, setHasNsfwLibrary] = useState(false);
+
+  const hasNsfwSources = useMemo(
+    () => installed.some(isNsfwSource),
+    [installed],
+  );
 
   const load = useCallback(async () => {
     const settings = await getAppSettings();
     setIncognito(settings.incognitoMode);
-    setShowNsfwHistory(settings.privacy.showNsfwHistory);
-    setRequireBiometrics(settings.privacy.requireBiometrics);
-    setSeparateNsfwSources(settings.privacy.separateNsfwSources);
-    setNsfwKillSwitch(settings.privacy.nsfwKillSwitch);
-    setHideCategorizedNsfwInAll(settings.privacy.hideCategorizedNsfwInAll);
+    setPrivacy(settings.privacy);
     setReady(true);
   }, []);
 
@@ -63,75 +87,37 @@ export default function PrivacySettingsScreen() {
     return subscribeAppSettings(() => void load());
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([getHistoryEntries(), getLibraryEntries()]).then(
+      ([history, library]) => {
+        if (cancelled) return;
+        const isNsfw = (sourceId: string) => {
+          const source = findInstalledSource(installed, sourceId);
+          return source ? isNsfwSource(source) : false;
+        };
+        setHasNsfwHistory(history.some((entry) => isNsfw(entry.sourceId)));
+        setHasNsfwLibrary(library.some((entry) => isNsfw(entry.sourceId)));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [installed]);
+
+  const updatePrivacy = (patch: Partial<PrivacySettings>) => {
+    setPrivacy((current) => ({ ...current, ...patch }));
+    void updateAppSettings({ privacy: { ...privacy, ...patch } });
+  };
+
   const toggleIncognito = (value: boolean) => {
     setIncognito(value);
     void updateAppSettings({ incognitoMode: value });
   };
 
-  const toggleNsfwHistory = (value: boolean) => {
-    setShowNsfwHistory(value);
-    void updateAppSettings({
-      privacy: {
-        requireBiometrics,
-        showNsfwHistory: value,
-        separateNsfwSources,
-        nsfwKillSwitch,
-        hideCategorizedNsfwInAll,
-      },
-    });
-  };
-
-  const toggleSeparateNsfwSources = (value: boolean) => {
-    setSeparateNsfwSources(value);
-    void updateAppSettings({
-      privacy: {
-        requireBiometrics,
-        showNsfwHistory,
-        separateNsfwSources: value,
-        nsfwKillSwitch,
-        hideCategorizedNsfwInAll,
-      },
-    });
-  };
-
-  const toggleHideCategorizedNsfw = (value: boolean) => {
-    setHideCategorizedNsfwInAll(value);
-    void updateAppSettings({
-      privacy: {
-        requireBiometrics,
-        showNsfwHistory,
-        separateNsfwSources,
-        nsfwKillSwitch,
-        hideCategorizedNsfwInAll: value,
-      },
-    });
-  };
-
-  const toggleNsfwKillSwitch = (value: boolean) => {
-    setNsfwKillSwitch(value);
-    void updateAppSettings({
-      privacy: {
-        requireBiometrics,
-        showNsfwHistory,
-        separateNsfwSources,
-        nsfwKillSwitch: value,
-        hideCategorizedNsfwInAll,
-      },
-    });
-  };
-
   const toggleBiometrics = async (value: boolean) => {
     if (!value) {
-      setRequireBiometrics(false);
-      await updateAppSettings({
-        privacy: {
-          requireBiometrics: false,
-          showNsfwHistory,
-          separateNsfwSources,
-          nsfwKillSwitch,
-          hideCategorizedNsfwInAll,
-        },
-      });
+      updatePrivacy({ requireBiometrics: false });
       return;
     }
     if (!(await isBiometricAuthAvailable())) {
@@ -143,17 +129,86 @@ export default function PrivacySettingsScreen() {
     }
     const ok = await authenticateUser(t("app_lock_prompt"), t("cancel"));
     if (!ok) return;
-    setRequireBiometrics(true);
-    await updateAppSettings({
-      privacy: {
-        requireBiometrics: true,
-        showNsfwHistory,
-        separateNsfwSources,
-        nsfwKillSwitch,
-        hideCategorizedNsfwInAll,
-      },
-    });
+    updatePrivacy({ requireBiometrics: true });
   };
+
+  const { nsfwKillSwitch } = privacy;
+  const showSourcesRow = hasNsfwSources || privacy.separateNsfwSources;
+  const showHistoryRows = hasNsfwHistory;
+  const showLibraryRow = hasNsfwLibrary || privacy.hideCategorizedNsfwInAll;
+  const showKillSwitch =
+    showSourcesRow || showHistoryRows || showLibraryRow || nsfwKillSwitch;
+
+  const rows: ReactNode[] = [
+    <SwitchRow
+      key="incognito"
+      label={t("incognito_mode")}
+      hint={t("incognito_mode_hint")}
+      value={incognito}
+      disabled={!ready}
+      onChange={toggleIncognito}
+    />,
+  ];
+  if (showHistoryRows) {
+    rows.push(
+      <SwitchRow
+        key="history"
+        label={t("privacy_nsfw_history")}
+        hint={t("privacy_nsfw_history_hint")}
+        value={privacy.showNsfwHistory}
+        disabled={!ready || nsfwKillSwitch}
+        onChange={(value) => updatePrivacy({ showNsfwHistory: value })}
+      />,
+      <SwitchRow
+        key="history-separate"
+        label={t("privacy_separate_nsfw_history")}
+        hint={t("privacy_separate_nsfw_history_hint")}
+        value={privacy.separateNsfwHistory}
+        disabled={!ready || nsfwKillSwitch || !privacy.showNsfwHistory}
+        onChange={(value) => updatePrivacy({ separateNsfwHistory: value })}
+      />,
+    );
+  }
+  if (showSourcesRow) {
+    rows.push(
+      <SwitchRow
+        key="sources"
+        label={t("privacy_separate_nsfw_sources")}
+        hint={t("privacy_separate_nsfw_sources_hint")}
+        value={privacy.separateNsfwSources}
+        disabled={!ready || nsfwKillSwitch}
+        onChange={(value) => updatePrivacy({ separateNsfwSources: value })}
+      />,
+    );
+  }
+  if (showKillSwitch) {
+    rows.push(
+      <SwitchRow
+        key="kill"
+        label={t("privacy_nsfw_kill_switch")}
+        hint={t("privacy_nsfw_kill_switch_hint")}
+        value={nsfwKillSwitch}
+        disabled={
+          !ready ||
+          (!nsfwKillSwitch &&
+            !(privacy.showNsfwHistory && privacy.separateNsfwSources))
+        }
+        onChange={(value) => updatePrivacy({ nsfwKillSwitch: value })}
+      />,
+    );
+  }
+  if (showLibraryRow) {
+    rows.push(
+      <SwitchRow
+        key="library"
+        label={t("privacy_hide_categorized_nsfw")}
+        hint={t("privacy_hide_categorized_nsfw_hint")}
+        value={privacy.hideCategorizedNsfwInAll}
+        disabled={!ready}
+        onChange={(value) => updatePrivacy({ hideCategorizedNsfwInAll: value })}
+      />,
+    );
+  }
 
   return (
     <>
@@ -161,48 +216,12 @@ export default function PrivacySettingsScreen() {
       <ScreenContent>
         <SectionLabel isFirst>{t("settings_privacy_section")}</SectionLabel>
         <Card>
-          <SwitchRow
-            label={t("incognito_mode")}
-            hint={t("incognito_mode_hint")}
-            value={incognito}
-            disabled={!ready}
-            onChange={toggleIncognito}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("privacy_nsfw_history")}
-            hint={t("privacy_nsfw_history_hint")}
-            value={showNsfwHistory}
-            disabled={!ready || nsfwKillSwitch}
-            onChange={toggleNsfwHistory}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("privacy_separate_nsfw_sources")}
-            hint={t("privacy_separate_nsfw_sources_hint")}
-            value={separateNsfwSources}
-            disabled={!ready || nsfwKillSwitch}
-            onChange={toggleSeparateNsfwSources}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("privacy_nsfw_kill_switch")}
-            hint={t("privacy_nsfw_kill_switch_hint")}
-            value={nsfwKillSwitch}
-            disabled={
-              !ready ||
-              (!nsfwKillSwitch && !(showNsfwHistory && separateNsfwSources))
-            }
-            onChange={toggleNsfwKillSwitch}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("privacy_hide_categorized_nsfw")}
-            hint={t("privacy_hide_categorized_nsfw_hint")}
-            value={hideCategorizedNsfwInAll}
-            disabled={!ready}
-            onChange={toggleHideCategorizedNsfw}
-          />
+          {rows.map((row, index) => (
+            <Fragment key={(row as { key: string }).key}>
+              {index > 0 ? <CardSeparator /> : null}
+              {row}
+            </Fragment>
+          ))}
         </Card>
 
         <SectionLabel>{t("privacy_security_section")}</SectionLabel>
@@ -210,7 +229,7 @@ export default function PrivacySettingsScreen() {
           <SwitchRow
             label={t("privacy_biometrics")}
             hint={t("privacy_biometrics_hint")}
-            value={requireBiometrics}
+            value={privacy.requireBiometrics}
             disabled={!ready}
             onChange={(value) => void toggleBiometrics(value)}
           />

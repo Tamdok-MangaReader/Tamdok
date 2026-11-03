@@ -810,12 +810,14 @@ export default function MangaDetailScreen() {
   const showHeaderSpinner = isRefreshing || isLoading;
   const headerError = error ?? loadError;
 
-  const refreshStatus = useRefreshStatus(showHeaderSpinner, headerError);
+  // With the big cover the pull-to-refresh spinner is hidden behind it, so progress shows in the header instead.
+  const rawRefreshStatus = useRefreshStatus(showHeaderSpinner, headerError);
+  const refreshStatus = showBigMangaCover ? rawRefreshStatus : undefined;
 
   const headerRight = useCallback(
     () => (
       <View style={styles.headerActions}>
-        <MangaRefreshStatus status={refreshStatus} />
+        {refreshStatus ? <MangaRefreshStatus status={refreshStatus} /> : null}
         <MangaDetailHeaderRight
         chapterSelectMode={chapterSelectMode}
         hasDownloads={hasDownloads}

@@ -40,7 +40,14 @@ type ScrollJsHandler = (
 // Optionally `onScrollJS` receives throttled scroll events on the JS thread (for logic that needs them).
 export function usePinnedTabs(
   visible: boolean,
-  options?: { gap?: number; onScrollJS?: ScrollJsHandler },
+  options?: {
+    gap?: number;
+    onScrollJS?: ScrollJsHandler;
+    /** Where the tabs stop below the screen top; defaults to the collapsed large-title bar. */
+    collapsedTop?: number;
+    /** Pushes the tabs (and the space reserved for them) down by this much, at rest and when pinned. */
+    extraTop?: number;
+  },
 ) {
   const insets = useSafeAreaInsets();
   const scrollY = useSharedValue(NOT_SCROLLED);
@@ -49,7 +56,9 @@ export function usePinnedTabs(
   const [height, setHeight] = useState(0);
   const gap = options?.gap ?? TABS_CONTENT_GAP;
   const onScrollJS = options?.onScrollJS;
-  const collapsedTop = insets.top + COLLAPSED_BAR_HEIGHT;
+  const extraTop = options?.extraTop ?? 0;
+  const collapsedTop =
+    (options?.collapsedTop ?? insets.top + COLLAPSED_BAR_HEIGHT) + extraTop;
 
   // Re-creates a scroll event on the JS thread from the plain numbers sent by the worklet.
   const callJs = useCallback(
@@ -103,9 +112,9 @@ export function usePinnedTabs(
   // The spacer's y is the tab bar's natural (unscrolled) position.
   const onSpacerLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      tabsTop.value = event.nativeEvent.layout.y;
+      tabsTop.value = event.nativeEvent.layout.y + extraTop;
     },
-    [tabsTop],
+    [tabsTop, extraTop],
   );
 
   const onTabsLayout = useCallback((event: LayoutChangeEvent) => {
@@ -114,7 +123,10 @@ export function usePinnedTabs(
   }, []);
 
   const spacer = visible ? (
-    <View style={{ height: height + gap }} onLayout={onSpacerLayout} />
+    <View
+      style={{ height: height + gap + extraTop }}
+      onLayout={onSpacerLayout}
+    />
   ) : null;
 
   const renderTabs = (tabs: ReactNode) =>

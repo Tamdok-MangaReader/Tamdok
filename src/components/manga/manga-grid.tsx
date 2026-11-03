@@ -18,6 +18,7 @@ import {
   useMangaDownloadFailures,
   useMangaDownloadProgress,
 } from "@/services/download-progress";
+import { useCoverRefreshIndicator } from "@/hooks/use-cover-refresh-indicator";
 import { useLibraryEntryRefreshing } from "@/services/library-refresh-progress";
 import { LiquidGlassScrollComponent } from "@/components/ui/liquid-glass-scroll-root";
 import { Spacing } from "@/constants/theme";
@@ -105,6 +106,7 @@ export const MangaGridCell = memo(function MangaGridCell({
     return parseRatingText(raw) ?? undefined;
   }, [showRating, item.rating, item.description]);
 
+  const showRefreshIndicator = useCoverRefreshIndicator();
   const refreshing = useLibraryEntryRefreshing(
     item.inLibrary ? (sourceId ?? item.sourceId) : undefined,
     item.key,
@@ -141,7 +143,7 @@ export const MangaGridCell = memo(function MangaGridCell({
       updateFailed={hideBadges ? false : enriched.updateFailed}
       finished={hideBadges ? false : enriched.finished}
       favorite={hideBadges ? false : enriched.favorite}
-      refreshing={hideBadges ? false : refreshing}
+      refreshing={hideBadges || !showRefreshIndicator ? false : refreshing}
       downloadProgress={hideBadges ? undefined : downloadProgress}
       downloadFailed={hideBadges ? 0 : downloadFailed}
       showTitleOverlay={!(item as MangaGridItem).hideTitle}

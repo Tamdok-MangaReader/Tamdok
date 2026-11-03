@@ -47,6 +47,9 @@ type MangaSearchFilterBarProps = {
   definitions: FilterDefinition[];
   values: FilterValue[];
   onChange: (values: FilterValue[]) => void;
+  /** When set, the full filter modal is owned by the parent and this opens it. */
+  onOpenFilters?: () => void;
+  hideFiltersButton?: boolean;
 };
 
 const EMPTY_IDS: string[] = [];
@@ -126,6 +129,8 @@ export function MangaSearchFilterBar({
   definitions,
   values,
   onChange,
+  onOpenFilters,
+  hideFiltersButton = false,
 }: MangaSearchFilterBarProps) {
   const { colors } = useTheme();
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
@@ -153,7 +158,8 @@ export function MangaSearchFilterBar({
 
   const openModal = () => {
     setOpenFilterId(null);
-    setModalOpen(true);
+    if (onOpenFilters) onOpenFilters();
+    else setModalOpen(true);
   };
 
   return (
@@ -166,6 +172,7 @@ export function MangaSearchFilterBar({
           contentContainerStyle={styles.row}
           keyboardShouldPersistTaps="handled"
         >
+          {hideFiltersButton ? null : (
           <GlassSurface borderRadius={999} style={styles.iconChip}>
             <Pressable
               style={styles.iconChipPressable}
@@ -173,9 +180,10 @@ export function MangaSearchFilterBar({
               accessibilityRole="button"
               accessibilityLabel={t("source_search_filters")}
             >
-              <Ionicons name="options-outline" size={17} color={colors.label} />
+              <Ionicons name="options-outline" size={20} color={colors.label} />
             </Pressable>
           </GlassSurface>
+          )}
 
           {inlineDefinitions.map((definition) => {
             const isOpen = openFilterId === definition.id;
@@ -203,6 +211,7 @@ export function MangaSearchFilterBar({
         ) : null}
       </View>
 
+      {onOpenFilters ? null : (
       <MangaFilterModal
         visible={modalOpen}
         definitions={definitions}
@@ -210,6 +219,7 @@ export function MangaSearchFilterBar({
         onChange={onChange}
         onClose={() => setModalOpen(false)}
       />
+      )}
     </>
   );
 }
@@ -235,10 +245,10 @@ function FilterChip({
           { borderRadius: radius.pill, backgroundColor: colors.tint },
         ]}
       >
-        <ThemedText variant="subheadline" color="onTint" numberOfLines={1}>
+        <ThemedText variant="callout" color="onTint" numberOfLines={1}>
           {label}
         </ThemedText>
-        <Ionicons name="chevron-down" size={13} color={colors.onTint} />
+        <Ionicons name="chevron-down" size={15} color={colors.onTint} />
       </Pressable>
     );
   }
@@ -250,10 +260,10 @@ function FilterChip({
         onPress={onPress}
         accessibilityRole="button"
       >
-        <ThemedText variant="subheadline" numberOfLines={1}>
+        <ThemedText variant="callout" numberOfLines={1}>
           {label}
         </ThemedText>
-        <Ionicons name="chevron-down" size={13} color={colors.tertiaryLabel} />
+        <Ionicons name="chevron-down" size={15} color={colors.tertiaryLabel} />
       </Pressable>
     </GlassSurface>
   );
@@ -334,7 +344,7 @@ function FilterDropdown({
   }
 }
 
-function MangaFilterModal({
+export function MangaFilterModal({
   visible,
   definitions,
   values,
@@ -729,7 +739,7 @@ const PillOption = memo(function PillOption({
         ]}
         onPress={() => onToggle(id)}
       >
-        <ThemedText variant="subheadline" color="onTint" numberOfLines={1}>
+        <ThemedText variant="callout" color="onTint" numberOfLines={1}>
           {label}
         </ThemedText>
       </Pressable>
@@ -828,7 +838,7 @@ const TagOption = memo(function TagOption({
         ]}
         onPress={() => onToggle(id)}
       >
-        <ThemedText variant="subheadline" color="onTint" numberOfLines={1}>
+        <ThemedText variant="callout" color="onTint" numberOfLines={1}>
           {label}
         </ThemedText>
       </Pressable>
@@ -1329,7 +1339,6 @@ const styles = StyleSheet.create({
   bar: {
     flexGrow: 0,
     flexShrink: 0,
-    marginBottom: Spacing.lg,
     gap: Spacing.sm,
   },
   scroll: {
@@ -1346,30 +1355,30 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   iconChipPressable: {
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
   chip: {
-    maxWidth: 180,
+    maxWidth: 220,
   },
   chipPressable: {
-    height: 32,
-    paddingHorizontal: Spacing.sm,
+    height: 40,
+    paddingHorizontal: Spacing.md,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 4,
   },
   chipActive: {
-    height: 32,
-    paddingHorizontal: Spacing.sm,
+    height: 40,
+    paddingHorizontal: Spacing.md,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 4,
-    maxWidth: 180,
+    maxWidth: 220,
   },
   dropdown: {
     paddingHorizontal: Spacing.lg,
