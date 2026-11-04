@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { Alert, Pressable, Switch, TextInput, View, StyleSheet } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
@@ -13,17 +14,22 @@ import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { removeValue, storageKeys } from '@/constants/storage';
 import { useSources } from '@/context/sources-context';
+import { clearMangaDetailCache } from '@/services/manga-detail-cache';
+import { clearSourceHomeCache } from '@/services/source-home-cache';
+import { clearHistory as clearReadingHistory } from '@/services/manga-tracking';
+import { setNotifyNewChapters } from '@/services/notifications';
+import { notifyAppearanceChanged } from '@/utils/appearance-events';
 import { useTheme } from '@/hooks/use-theme';
 import { getAppSettings, resetAppSettings, updateAppSettings } from '@/services/app-settings';
 import { invalidateLibraryCache } from '@/services/library';
-import { resetRegistryUrlsToDefault } from '@/services/sources';
+import { removeSource, resetRegistryUrlsToDefault } from '@/services/sources';
 import { subscribeAppSettings } from '@/utils/app-settings-events';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
-import { isIllustrationMode, setIllustrationMode } from '@/services/illustration-mode';
+import { isIllustrationMode, isIllustrationSource, setIllustrationMode } from '@/services/illustration-mode';
 import { replayWelcome } from '@/utils/welcome-data-loader';
 
 export default function AdvancedSettingsScreen() {
-  const { refresh } = useSources();
+  const { refresh, installed, setShowNsfw } = useSources();
   const { colors, isDark } = useTheme();
   const [showReaderPageNumbers, setShowReaderPageNumbers] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
@@ -81,18 +87,28 @@ export default function AdvancedSettingsScreen() {
         text: t('advanced_clear_action'),
         style: 'destructive',
         onPress: () => {
-          void removeValue(storageKeys.MANGA_TRACKING).then(() => notifyMangaDataChanged());
+          void clearReadingHistory().then(() => notifyMangaDataChanged());
         },
       },
     ]);
   };
 
   const clearCache = async () => {
+    // Detail/home caches live in the document directory, and expo-image keeps its own disk and memory caches.
+    await Promise.all([
+      clearMangaDetailCache(),
+      clearSourceHomeCache(),
+      Image.clearDiskCache(),
+      Image.clearMemoryCache(),
+    ]).catch(() => undefined);
     const cacheDir = `${FileSystem.cacheDirectory ?? ''}`;
     if (cacheDir) {
       const entries = await FileSystem.readDirectoryAsync(cacheDir).catch(() => [] as string[]);
-      await Promise.all(entries.map((entry) => FileSystem.deleteAsync(`${cacheDir}${entry}`, { idempotent: true })));
+      await Promise.all(
+        entries.map((entry) => FileSystem.deleteAsync(`${cacheDir}${entry}`, { idempotent: true }).catch(() => undefined)),
+      );
     }
+    notifyMangaDataChanged();
     Alert.alert(t('advanced_clear_cache_title'), t('advanced_clear_cache_done'));
   };
 
@@ -104,13 +120,50 @@ export default function AdvancedSettingsScreen() {
         style: 'destructive',
         onPress: () => {
           void (async () => {
-            await resetAppSettings();
+            // Preferences live in several storage keys besides app settings; the app-settings reset goes last
+            // because its change event also makes the theme context re-read its stored mode.
+            await removeValue(storageKeys.THEME_MODE);
+            await removeValue(storageKeys.ACCENT_COLOR);
+            await removeValue(storageKeys.APP_ICON);
+            await removeValue(storageKeys.NOTIFY_SOURCE_UPDATES);
+            await setNotifyNewChapters(false);
+            await setShowNsfw(false);
             await resetRegistryUrlsToDefault();
+            await resetAppSettings();
+            notifyAppearanceChanged();
             await refresh();
           })();
         },
       },
     ]);
+  };
+
+  const removeAllSources = () => {
+    const removable = installed.filter((source) => !isIllustrationSource(source));
+    if (removable.length === 0) {
+      Alert.alert(t('advanced_remove_sources_title'), t('advanced_remove_sources_none'));
+      return;
+    }
+    Alert.alert(
+      t('advanced_remove_sources_title'),
+      t('advanced_remove_sources_confirm', { count: String(removable.length) }),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('sources_uninstall_action'),
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              for (const source of removable) {
+                await removeSource(source).catch(() => undefined);
+                await clearSourceHomeCache(source.id).catch(() => undefined);
+              }
+              await refresh();
+            })();
+          },
+        },
+      ],
+    );
   };
 
   const resetLibrary = () => {
@@ -192,7 +245,15 @@ export default function AdvancedSettingsScreen() {
           <CardSeparator />
           <ListRow icon='refresh-outline' label={t('advanced_reset_settings')} onPress={resetSettings} />
           <CardSeparator />
-          <ListRow icon='trash-outline' label={t('advanced_reset_library')} onPress={resetLibrary} destructive isLast />
+          <ListRow icon='trash-outline' label={t('advanced_reset_library')} onPress={resetLibrary} destructive />
+          <CardSeparator />
+          <ListRow
+            icon='extension-puzzle-outline'
+            label={t('advanced_remove_sources')}
+            onPress={removeAllSources}
+            destructive
+            isLast
+          />
         </Card>
       </ScreenContent>
     </>

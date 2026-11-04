@@ -1,4 +1,5 @@
 import { Stack, useRouter } from "expo-router";
+import { DEMO_LIBRARY_ENTRIES } from "@/services/demo-library";
 import {
   isIllustrationMode,
   useIllustrationMode,
@@ -468,11 +469,13 @@ export default function LibraryScreen() {
   const visibleEntries = useMemo(
     () =>
       illustration
-        ? allEntries.filter(
-            (entry) =>
-              (findInstalledSource(installed, entry.sourceId)?.manifest.info
-                .contentRating ?? 0) < 3,
-          )
+        ? allEntries
+            .filter(
+              (entry) =>
+                (findInstalledSource(installed, entry.sourceId)?.manifest.info
+                  .contentRating ?? 0) < 3,
+            )
+            .concat(DEMO_LIBRARY_ENTRIES)
         : allEntries,
     [illustration, allEntries, installed],
   );
@@ -1279,7 +1282,7 @@ export default function LibraryScreen() {
     [handleRefresh, colors.tint],
   );
 
-  const libraryIsEmpty = allEntries.length === 0;
+  const libraryIsEmpty = allEntries.length === 0 && !illustration;
   const emptyTitle = libraryIsEmpty
     ? t("library_empty_title")
     : t("library_search_empty");

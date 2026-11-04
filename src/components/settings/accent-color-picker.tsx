@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { ACCENT_PRESETS, type AccentColorId } from '@/constants/accent-colors';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
+import { useAdaptiveColumns } from '@/hooks/use-duo-layout';
 import { useTheme } from '@/hooks/use-theme';
 
-const COLUMNS = 6;
+const BASE_COLUMNS = 6;
 const GAP = Spacing.md;
 
 type AccentColorPickerProps = {
@@ -16,6 +17,7 @@ type AccentColorPickerProps = {
 
 export function AccentColorPicker({ selectedId, onSelect }: AccentColorPickerProps) {
   const { colors, radius } = useTheme();
+  const COLUMNS = useAdaptiveColumns(BASE_COLUMNS);
   const [rowWidth, setRowWidth] = useState(0);
   const itemSize = rowWidth > 0 ? (rowWidth - GAP * (COLUMNS - 1)) / COLUMNS : 44;
   const swatchSize = Math.max(28, itemSize - 8);

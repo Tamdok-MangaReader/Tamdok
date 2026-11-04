@@ -10,15 +10,16 @@ type GlassEffectStyle = 'clear' | 'regular';
 type GlassDestructiveButtonProps = {
   label: string;
   onPress: () => void;
+  glassStyle?: GlassEffectStyle;
   style?: StyleProp<ViewStyle>;
 };
 
 /**
  * Full-width destructive action with Liquid Glass surface and red label text.
  */
-export function GlassDestructiveButton({ label, onPress, style }: GlassDestructiveButtonProps) {
+export function GlassDestructiveButton({ label, onPress, glassStyle, style }: GlassDestructiveButtonProps) {
   const { colors, radius, isDark, isGlass } = useTheme();
-  const effectStyle: GlassEffectStyle = isDark ? 'clear' : 'regular';
+  const effectStyle: GlassEffectStyle = glassStyle ?? (isDark ? 'clear' : 'regular');
 
   if (isGlass) {
     return (

@@ -11,6 +11,7 @@ type GlassSegmentedControlProps = {
   values: string[];
   selectedIndex: number;
   onChange: (index: number) => void;
+  glassStyle?: 'clear' | 'regular';
   style?: StyleProp<ViewStyle>;
 };
 
@@ -21,7 +22,7 @@ const SPRING = { stiffness: 420, damping: 32 };
 /**
  * Segmented control with Liquid Glass track, draggable thumb, and app tint color.
  */
-export function GlassSegmentedControl({ values, selectedIndex, onChange, style }: GlassSegmentedControlProps) {
+export function GlassSegmentedControl({ values, selectedIndex, onChange, glassStyle, style }: GlassSegmentedControlProps) {
   const { colors, radius, isGlass } = useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
   const segmentCount = values.length;
@@ -98,7 +99,7 @@ export function GlassSegmentedControl({ values, selectedIndex, onChange, style }
 
   if (isGlass) {
     return (
-      <GlassSurface borderRadius={radius.pill} style={[styles.track, style]} interactive>
+      <GlassSurface borderRadius={radius.pill} glassStyle={glassStyle} style={[styles.track, style]} interactive>
         {body}
       </GlassSurface>
     );

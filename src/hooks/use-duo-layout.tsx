@@ -43,6 +43,8 @@ const REFERENCE_WIDTH = 393;
 const OPEN_MIN_SHORT_SIDE = 500;
 /** Webtoon column width on the unfolded Duo: an iPhone Pro Max screen. */
 export const OPEN_READER_MAX_WIDTH = 440;
+/** Extra right-hand margin reserved on every screen (except reader and manga detail) while unfolded. */
+const OPEN_RIGHT_INSET = 84;
 
 /**
  * Wraps the content of a navigation screen. In folded mode it keeps the content clear of
@@ -53,12 +55,12 @@ export const OPEN_READER_MAX_WIDTH = 440;
 export function useSystemRail(): Rail {
   const edge = Platform.OS === "ios" ? useVerticalBarEdgeIOS() : null;
   const insets = useSafeAreaInsets();
-  // The unfolded display has no rail; ignore any stale inset while the window is wide.
+  // The unfolded display has no rail; use a fixed right margin instead of any stale inset.
   const open = useIsOpenDuo();
-  return useMemo<Rail>(
-    () => (edge && !open ? { left: insets.left, right: insets.right } : NO_RAIL),
-    [edge, open, insets.left, insets.right],
-  );
+  return useMemo<Rail>(() => {
+    if (open) return { left: 0, right: OPEN_RIGHT_INSET };
+    return edge ? { left: insets.left, right: insets.right } : NO_RAIL;
+  }, [edge, open, insets.left, insets.right]);
 }
 
 export function DuoScreenLayout({

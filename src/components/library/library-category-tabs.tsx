@@ -20,7 +20,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { GlassView } from "expo-glass-effect";
 
-import { useWindowDimensions } from "@/hooks/use-duo-layout";
+import { useIsOpenDuo, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
@@ -112,7 +112,11 @@ export const LibraryCategoryTabs = memo(function LibraryCategoryTabs({
   onPress,
   fullWidth = false,
 }: LibraryCategoryTabsProps) {
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: rawWindowWidth } = useWindowDimensions();
+  // Unfolded Duo: keep the pill compact and centered instead of stretching across the whole width.
+  const windowWidth = useIsOpenDuo()
+    ? Math.min(rawWindowWidth, 520 + Spacing.lg * 2)
+    : rawWindowWidth;
   const { colors, isDark, isGlass } = useTheme();
   const edge = Spacing.lg;
   const [fitWidth, setFitWidth] = useState<number | null>(null);

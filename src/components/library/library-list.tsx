@@ -14,6 +14,7 @@ import {
   enrichMangaWithLibraryMeta,
   useLibraryLookup,
 } from "@/hooks/use-library-lookup";
+import { useIsOpenDuo } from "@/hooks/use-duo-layout";
 import { useTheme } from "@/hooks/use-theme";
 
 /** Grid item plus the extra fields list rows show. */
@@ -37,11 +38,13 @@ type RowProps = {
   getMeta: ReturnType<typeof useLibraryLookup>["getMeta"];
   onPress: (manga: MangaGridItem) => void;
   onLongPress?: (manga: MangaGridItem) => void;
+  paired?: boolean;
 };
 
 const LibraryListRow = memo(function LibraryListRow({
   item,
   descriptive,
+  paired,
   getMeta,
   onPress,
   onLongPress,
@@ -82,6 +85,7 @@ const LibraryListRow = memo(function LibraryListRow({
       style={[
         styles.row,
         { height: descriptive ? DESCRIPTIVE_ROW_HEIGHT : LIST_ROW_HEIGHT },
+        paired && styles.paired,
       ]}
     >
       <View>
@@ -175,7 +179,9 @@ type LibraryListProps = {
   empty?: ReactNode;
 };
 
-const rowKey = (item: LibraryListItem) => `${item.sourceId}:${item.key}`;
+type ListRowGroup = { id: string; items: LibraryListItem[] };
+
+const rowKey = (group: ListRowGroup) => group.id;
 
 /** Single-column library view (compact list or list with descriptions), virtualised like the grid. */
 export function LibraryList({
@@ -203,17 +209,37 @@ export function LibraryList({
   );
   const hasLongPress = !!(onLongPressManga ?? onSelectManga);
 
+  // Unfolded Duo is wide enough for two columns of rows.
+  const perRow = useIsOpenDuo() ? 2 : 1;
+  const groups = useMemo<ListRowGroup[]>(() => {
+    const out: ListRowGroup[] = [];
+    for (let i = 0; i < entries.length; i += perRow) {
+      const items = entries.slice(i, i + perRow);
+      out.push({
+        id: items.map((e) => `${e.sourceId}:${e.key}`).join("|"),
+        items,
+      });
+    }
+    return out;
+  }, [entries, perRow]);
+
   const renderRow = useCallback(
-    (item: LibraryListItem) => (
-      <LibraryListRow
-        item={item}
-        descriptive={descriptive}
-        getMeta={getMeta}
-        onPress={handlePress}
-        onLongPress={hasLongPress ? handleLongPress : undefined}
-      />
+    (group: ListRowGroup) => (
+      <View style={styles.group}>
+        {group.items.map((item) => (
+          <LibraryListRow
+            key={`${item.sourceId}:${item.key}`}
+            item={item}
+            descriptive={descriptive}
+            paired={perRow > 1}
+            getMeta={getMeta}
+            onPress={handlePress}
+            onLongPress={hasLongPress ? handleLongPress : undefined}
+          />
+        ))}
+      </View>
     ),
-    [descriptive, getMeta, handlePress, handleLongPress, hasLongPress],
+    [descriptive, perRow, getMeta, handlePress, handleLongPress, hasLongPress],
   );
 
   if (entries.length === 0) {
@@ -229,7 +255,7 @@ export function LibraryList({
 
   return (
     <VirtualRows
-      rows={entries}
+      rows={groups}
       rowHeight={descriptive ? DESCRIPTIVE_ROW_HEIGHT : LIST_ROW_HEIGHT}
       keyOf={rowKey}
       renderRow={renderRow}
@@ -244,6 +270,14 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xxxl,
+  },
+  group: {
+    flexDirection: "row",
+    gap: Spacing.lg,
+  },
+  paired: {
+    flex: 1,
+    minWidth: 0,
   },
   row: {
     flexDirection: "row",

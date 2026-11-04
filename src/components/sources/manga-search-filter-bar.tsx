@@ -24,6 +24,7 @@ import {
   KeyboardAvoidingView,
   KeyboardAwareScrollView,
 } from "react-native-keyboard-controller";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Card } from "@/components/ui/card";
@@ -77,10 +78,9 @@ function getMultiSelectState(
 function sameFilterProps<
   P extends { definition: { id: string }; values: FilterValue[] },
 >(previous: P, next: P): boolean {
-  const keys = new Set([
-    ...Object.keys(previous),
-    ...Object.keys(next),
-  ]) as Set<keyof P>;
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)]) as Set<
+    keyof P
+  >;
   for (const key of keys) {
     if (key === "values") continue;
     if (previous[key] !== next[key]) return false;
@@ -132,7 +132,7 @@ export function MangaSearchFilterBar({
   onOpenFilters,
   hideFiltersButton = false,
 }: MangaSearchFilterBarProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const inlineDefinitions = useMemo(
@@ -165,6 +165,23 @@ export function MangaSearchFilterBar({
   return (
     <>
       <View style={styles.bar}>
+        {openDefinition ? (
+          <Animated.View
+            entering={FadeIn.duration(180)}
+            exiting={FadeOut.duration(150)}
+            style={[
+              styles.dim,
+              { backgroundColor: isDark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.3)" },
+            ]}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setOpenFilterId(null)}
+              accessibilityRole="button"
+              accessibilityLabel={t("cancel")}
+            />
+          </Animated.View>
+        ) : null}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -173,16 +190,20 @@ export function MangaSearchFilterBar({
           keyboardShouldPersistTaps="handled"
         >
           {hideFiltersButton ? null : (
-          <GlassSurface borderRadius={999} style={styles.iconChip}>
-            <Pressable
-              style={styles.iconChipPressable}
-              onPress={openModal}
-              accessibilityRole="button"
-              accessibilityLabel={t("source_search_filters")}
-            >
-              <Ionicons name="options-outline" size={20} color={colors.label} />
-            </Pressable>
-          </GlassSurface>
+            <GlassSurface glassStyle="regular" borderRadius={999} style={styles.iconChip}>
+              <Pressable
+                style={styles.iconChipPressable}
+                onPress={openModal}
+                accessibilityRole="button"
+                accessibilityLabel={t("source_search_filters")}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={20}
+                  color={colors.label}
+                />
+              </Pressable>
+            </GlassSurface>
           )}
 
           {inlineDefinitions.map((definition) => {
@@ -212,13 +233,13 @@ export function MangaSearchFilterBar({
       </View>
 
       {onOpenFilters ? null : (
-      <MangaFilterModal
-        visible={modalOpen}
-        definitions={definitions}
-        values={values}
-        onChange={onChange}
-        onClose={() => setModalOpen(false)}
-      />
+        <MangaFilterModal
+          visible={modalOpen}
+          definitions={definitions}
+          values={values}
+          onChange={onChange}
+          onClose={() => setModalOpen(false)}
+        />
       )}
     </>
   );
@@ -254,7 +275,11 @@ function FilterChip({
   }
 
   return (
-    <GlassSurface borderRadius={radius.pill} style={styles.chip}>
+    <GlassSurface
+      borderRadius={radius.pill}
+      style={styles.chip}
+      glassStyle="regular"
+    >
       <Pressable
         style={styles.chipPressable}
         onPress={onPress}
@@ -501,6 +526,7 @@ export function MangaFilterModal({
             style={[styles.modalFooter, { borderTopColor: colors.separator }]}
           >
             <GlassDestructiveButton
+              glassStyle="regular"
               label={t("source_search_filters_reset")}
               onPress={resetDraft}
               style={styles.footerButton}
@@ -524,7 +550,7 @@ function ModalHeaderButton({
   const { radius } = useTheme();
 
   return (
-    <GlassSurface borderRadius={radius.pill}>
+    <GlassSurface glassStyle="regular" borderRadius={radius.pill}>
       <Pressable
         style={styles.modalHeaderButton}
         onPress={onPress}
@@ -586,7 +612,7 @@ function SelectOptionsImpl({
         }
 
         return (
-          <GlassSurface
+          <GlassSurface glassStyle="regular"
             key={option.id}
             tintColor={colors.tertiaryFill}
             borderRadius={radius.pill}
@@ -667,7 +693,7 @@ function SortOptionsImpl({
         }
 
         return (
-          <GlassSurface
+          <GlassSurface glassStyle="regular"
             key={`${definition.id}-${index}`}
             borderRadius={radius.pill}
             tintColor={colors.tertiaryFill}
@@ -706,6 +732,7 @@ function MatchModeToggle({
 }) {
   return (
     <GlassSegmentedControl
+      glassStyle="regular"
       values={[
         t("source_search_filters_match_and"),
         t("source_search_filters_match_or"),
@@ -763,10 +790,7 @@ const PillOption = memo(function PillOption({
   }
 
   return (
-    <GlassSurface
-      tintColor={colors.tertiaryFill}
-      borderRadius={radius.pill}
-    >
+    <GlassSurface glassStyle="regular" tintColor={colors.tertiaryFill} borderRadius={radius.pill}>
       <Pressable style={styles.sortPill} onPress={() => onToggle(id)}>
         <ThemedText variant="subheadline" numberOfLines={1}>
           {label}
@@ -862,10 +886,7 @@ const TagOption = memo(function TagOption({
   }
 
   return (
-    <GlassSurface
-      tintColor={colors.tertiaryFill}
-      borderRadius={radius.pill}
-    >
+    <GlassSurface glassStyle="regular" tintColor={colors.tertiaryFill} borderRadius={radius.pill}>
       <Pressable style={styles.tag} onPress={() => onToggle(id)}>
         <ThemedText variant="subheadline" numberOfLines={1}>
           {label}
@@ -1091,10 +1112,15 @@ function MultiSelectOptionsImpl({
         />
       ) : null}
 
-      <View style={styles.textInputView}>
+      {compact ? (
+        <GlassSurface
+          glassStyle="regular"
+          borderRadius={radius.md}
+          style={styles.textInputView}
+        >
         <ThemedText
           variant="body"
-          style={{ width: "40%" }}
+          style={{ width: "40%", paddingLeft: Spacing.md }}
         >{`${definition.title}`}</ThemedText>
         <TextInput
           value={query}
@@ -1109,7 +1135,28 @@ function MultiSelectOptionsImpl({
           autoComplete="off"
           textContentType="none"
         />
-      </View>
+        </GlassSurface>
+      ) : (
+        <View style={styles.textInputView}>
+        <ThemedText
+          variant="body"
+          style={{ width: "40%", paddingLeft: Spacing.md }}
+        >{`${definition.title}`}</ThemedText>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder={definition.title}
+          placeholderTextColor={colors.tertiaryLabel}
+          style={[styles.genreSearch, { color: colors.label }]}
+          clearButtonMode="while-editing"
+          autoCorrect={false}
+          autoCapitalize="none"
+          spellCheck={false}
+          autoComplete="off"
+          textContentType="none"
+        />
+        </View>
+      )}
 
       {selectedOptions.length > 0 ? (
         <View style={styles.selectedSection}>
@@ -1298,7 +1345,9 @@ function RangeOptionsImpl({
         }}
         keyboardType="decimal-pad"
         placeholder={
-          definition.min != null ? String(definition.min) : t("filter_range_from")
+          definition.min != null
+            ? String(definition.min)
+            : t("filter_range_from")
         }
         placeholderTextColor={colors.tertiaryLabel}
         style={inputStyle}
@@ -1340,6 +1389,14 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     gap: Spacing.sm,
+  },
+  // Extends far below the bar so it dims the results list behind the open dropdown.
+  dim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4000,
   },
   scroll: {
     flexGrow: 0,

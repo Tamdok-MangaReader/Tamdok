@@ -3,6 +3,7 @@ import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Card } from '@/components/ui/card';
@@ -361,6 +362,7 @@ export function GlobalSearchFilterModal({
           <GlassDestructiveButton
             label={t('source_search_filters_reset')}
             onPress={() => setDraft(DEFAULT_GLOBAL_SEARCH_FILTERS)}
+            glassStyle='regular'
             style={styles.footerButton}
           />
         </SafeAreaView>
@@ -376,7 +378,7 @@ export function GlobalSearchFilterBar({
   onOpenFilters,
   hideFiltersButton = false,
 }: GlobalSearchFilterBarProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [openFilterId, setOpenFilterId] = useState<OpenFilterId>(null);
   const languages = useMemo(() => collectLanguages(installed), [installed]);
 
@@ -408,6 +410,19 @@ export function GlobalSearchFilterBar({
   return (
     <>
       <View style={styles.bar}>
+        {openFilterId !== null ? (
+          <Animated.View
+            entering={FadeIn.duration(180)}
+            exiting={FadeOut.duration(150)}
+            style={[styles.dim, { backgroundColor: isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.3)' }]}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setOpenFilterId(null)}
+              accessibilityRole='button'
+              accessibilityLabel={t('cancel')}
+            />
+          </Animated.View>
+        ) : null}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -484,6 +499,14 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     alignSelf: 'stretch',
     paddingTop: Spacing.xs,
+  },
+  // Extends far below the bar so it dims the results list behind the open dropdown.
+  dim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4000,
   },
   scroll: {
     flexGrow: 0,

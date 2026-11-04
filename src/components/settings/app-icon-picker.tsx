@@ -6,9 +6,10 @@ import { APP_ICON_OPTIONS, THEMED_APP_ICON_OPTIONS, type AppIconId, type AppIcon
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
+import { useAdaptiveColumns } from '@/hooks/use-duo-layout';
 import { useTheme } from '@/hooks/use-theme';
 
-const COLUMNS = 4;
+const BASE_COLUMNS = 4;
 const GAP = Spacing.md;
 const RING_WIDTH = 2.5;
 const RING_GAP = 2;
@@ -21,6 +22,7 @@ type AppIconPickerProps = {
 
 export function AppIconPicker({ selectedId, onSelect }: AppIconPickerProps) {
   const { colors } = useTheme();
+  const COLUMNS = useAdaptiveColumns(BASE_COLUMNS);
   const [rowWidth, setRowWidth] = useState(0);
   const itemWidth = rowWidth > 0 ? (rowWidth - GAP * (COLUMNS - 1)) / COLUMNS : 72;
   const frameSize = Math.max(48, itemWidth - 8);
