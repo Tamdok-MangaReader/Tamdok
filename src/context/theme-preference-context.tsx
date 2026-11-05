@@ -14,66 +14,45 @@ type ThemePreferenceContextValue = {
 
 const ThemePreferenceContext = createContext<ThemePreferenceContextValue | null>(null);
 
+// The override also switches native chrome (alerts, keyboards, status bar, system dialogs);
+// 'unspecified' hands control back to the system on both platforms.
+function applyNativeScheme(mode: AppThemeMode): void {
+  Appearance.setColorScheme(mode === 'system' ? 'unspecified' : mode);
+}
+
 export function ThemePreferenceProvider({ children }: { children: React.ReactNode }) {
+  // Follows the system scheme and, once an override is applied, the overridden one.
   const systemColorScheme = useColorScheme();
   const [themeMode, setThemeModeState] = useState<AppThemeMode>('system');
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [appearanceTick, setAppearanceTick] = useState(0);
 
   useEffect(() => {
-    getValue<AppThemeMode>(storageKeys.THEME_MODE, 'system').then((storedMode) => {
-      setThemeModeState(storedMode);
-      setIsLoaded(true);
-    });
+    const load = () =>
+      getValue<AppThemeMode>(storageKeys.THEME_MODE, 'system').then((stored) => {
+        applyNativeScheme(stored);
+        setThemeModeState(stored);
+      });
+    void load();
+    // Restoring a backup or resetting settings rewrites the stored mode.
+    return subscribeAppSettings(() => void load());
   }, []);
 
-  useEffect(() => {
-    return subscribeAppSettings(() => {
-      void getValue<AppThemeMode>(storageKeys.THEME_MODE, 'system').then(setThemeModeState);
-    });
-  }, []);
+  const resolvedColorScheme: 'light' | 'dark' =
+    themeMode === 'system' ? (systemColorScheme === 'dark' ? 'dark' : 'light') : themeMode;
 
-  useEffect(() => {
-    const subscription = Appearance.addChangeListener(() => {
-      setAppearanceTick((tick) => tick + 1);
-    });
-    return () => subscription.remove();
-  }, []);
-
-  const resolvedColorScheme = useMemo<'light' | 'dark'>(() => {
-    if (themeMode === 'light') return 'light';
-    if (themeMode === 'dark') return 'dark';
-    const scheme = Appearance.getColorScheme() ?? systemColorScheme;
-    return scheme === 'dark' ? 'dark' : 'light';
-  }, [themeMode, systemColorScheme, appearanceTick]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    const setColorScheme = (Appearance as unknown as { setColorScheme?: (scheme: 'light' | 'dark' | null) => void })
-      .setColorScheme;
-    if (!setColorScheme) return;
-    if (themeMode === 'system') {
-      setColorScheme(null);
-    } else {
-      setColorScheme(themeMode);
-    }
-  }, [themeMode, isLoaded]);
-
-  const setThemeMode = async (mode: AppThemeMode) => {
-    setThemeModeState(mode);
-    await setValue(storageKeys.THEME_MODE, mode);
-  };
-
-  return (
-    <ThemePreferenceContext.Provider
-      value={{
-        themeMode,
-        resolvedColorScheme,
-        setThemeMode,
-      }}>
-      {children}
-    </ThemePreferenceContext.Provider>
+  const value = useMemo<ThemePreferenceContextValue>(
+    () => ({
+      themeMode,
+      resolvedColorScheme,
+      setThemeMode: async (mode) => {
+        applyNativeScheme(mode);
+        setThemeModeState(mode);
+        await setValue(storageKeys.THEME_MODE, mode);
+      },
+    }),
+    [themeMode, resolvedColorScheme],
   );
+
+  return <ThemePreferenceContext.Provider value={value}>{children}</ThemePreferenceContext.Provider>;
 }
 
 export function useThemePreference() {

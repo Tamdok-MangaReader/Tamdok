@@ -292,6 +292,8 @@
   "appearance_badge_sources_hint": "Affiche sur l'onglet Sources le nombre de sources ayant une mise à jour disponible.",
   "appearance_badge_library": "Badge des chapitres non lus",
   "appearance_badge_library_hint": "Affiche sur l'onglet Bibliothèque le nombre total de chapitres non lus.",
+  "appearance_badge_library_manga": "Compter les mangas, pas les chapitres",
+  "appearance_badge_library_manga_hint": "Afficher le nombre de mangas avec des chapitres non lus plutôt que le nombre de chapitres non lus.",
   "appearance_badge_library_updatable": "Uniquement les catégories actualisables",
   "appearance_badge_library_updatable_hint": "Ne compte les chapitres non lus que pour les mangas des catégories qui participent aux mises à jour de la bibliothèque.",
   "source_search_filters_apply": "Appliquer",

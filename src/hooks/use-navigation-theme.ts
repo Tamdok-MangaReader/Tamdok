@@ -55,6 +55,8 @@ export function useNavigationTheme() {
       headerTintColor: colors.tint,
       headerTitleStyle: { color: colors.label },
       headerLargeTitleStyle: { color: colors.label },
+      // Follows the app theme, which can differ from the system one.
+      statusBarStyle: (isDark ? "light" : "dark") as "light" | "dark",
       freezeOnBlur: true,
       contentStyle: { backgroundColor: colors.groupedBackground },
       ...(useLiquidGlassHeader
@@ -66,7 +68,7 @@ export function useNavigationTheme() {
           ? { headerBlurEffect: "regular" as const }
           : {}),
     }),
-    [colors.groupedBackground, colors.label, colors.tint, useLiquidGlassHeader],
+    [colors.groupedBackground, colors.label, colors.tint, isDark, useLiquidGlassHeader],
   );
 
   const stackSearchBarProps = useMemo(

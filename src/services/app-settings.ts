@@ -142,6 +142,8 @@ export type TabBadgeSettings = {
   sourceUpdates: boolean;
   libraryUnread: boolean;
   libraryUnreadUpdatableOnly: boolean;
+  /** Library badge counts manga that have unread chapters instead of the unread chapters themselves. */
+  libraryUnreadMangaCount: boolean;
 };
 
 export type DebugSettings = {
@@ -287,6 +289,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     sourceUpdates: true,
     libraryUnread: true,
     libraryUnreadUpdatableOnly: true,
+    libraryUnreadMangaCount: false,
   },
   debug: {
     showReaderPageNumbers: false,

@@ -13,13 +13,15 @@ const DISABLED: TabBadgeSettings = {
   sourceUpdates: false,
   libraryUnread: false,
   libraryUnreadUpdatableOnly: false,
+  libraryUnreadMangaCount: false,
 };
 
 function sameSettings(a: TabBadgeSettings, b: TabBadgeSettings): boolean {
   return (
     a.sourceUpdates === b.sourceUpdates &&
     a.libraryUnread === b.libraryUnread &&
-    a.libraryUnreadUpdatableOnly === b.libraryUnreadUpdatableOnly
+    a.libraryUnreadUpdatableOnly === b.libraryUnreadUpdatableOnly &&
+    a.libraryUnreadMangaCount === b.libraryUnreadMangaCount
   );
 }
 
@@ -51,6 +53,7 @@ export function useTabBadges(): { sources: number; library: number } {
 
   const libraryEnabled = settings.libraryUnread;
   const updatableOnly = settings.libraryUnreadUpdatableOnly;
+  const countManga = settings.libraryUnreadMangaCount;
 
   useEffect(() => {
     if (!libraryEnabled) {
@@ -59,7 +62,7 @@ export function useTabBadges(): { sources: number; library: number } {
     }
     let active = true;
     const compute = () =>
-      void getLibraryUnreadTotal(updatableOnly).then((total) => {
+      void getLibraryUnreadTotal(updatableOnly, countManga).then((total) => {
         if (active) setUnread((previous) => (previous === total ? previous : total));
       });
     compute();
@@ -68,7 +71,7 @@ export function useTabBadges(): { sources: number; library: number } {
       active = false;
       unsubscribe();
     };
-  }, [libraryEnabled, updatableOnly]);
+  }, [libraryEnabled, updatableOnly, countManga]);
 
   return {
     sources: settings.sourceUpdates ? pendingUpdates.length : 0,

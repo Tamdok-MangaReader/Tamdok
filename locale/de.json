@@ -292,6 +292,8 @@
   "appearance_badge_sources_hint": "Zeigt im Tab „Quellen“ die Anzahl der Quellen mit verfügbarem Update.",
   "appearance_badge_library": "Abzeichen für ungelesene Kapitel",
   "appearance_badge_library_hint": "Zeigt im Tab „Bibliothek“ die Gesamtzahl ungelesener Kapitel.",
+  "appearance_badge_library_manga": "Mangas statt Kapitel zählen",
+  "appearance_badge_library_manga_hint": "Anzahl der Mangas mit ungelesenen Kapiteln statt der ungelesenen Kapitel anzeigen.",
   "appearance_badge_library_updatable": "Nur aus aktualisierbaren Kategorien",
   "appearance_badge_library_updatable_hint": "Zählt ungelesene Kapitel nur für Mangas in Kategorien, die an Bibliotheksaktualisierungen teilnehmen.",
   "source_search_filters_apply": "Anwenden",

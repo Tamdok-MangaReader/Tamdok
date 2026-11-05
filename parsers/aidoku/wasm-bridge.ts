@@ -59,6 +59,7 @@ const MAX_HOST_RESTART_RETRIES = 2;
 // An invoke waiting for its `result`/`error` message, keyed by call id.
 type PendingCall = {
   sourceId: string;
+  startedAt: number;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 };
@@ -67,6 +68,7 @@ type PendingCall = {
 // `generation` is compared with the source's current generation to detect cancellation.
 type InflightFetch = {
   sourceId?: string;
+  startedAt: number;
   generation: number;
   abort: AbortController;
   settled: boolean;
@@ -262,6 +264,23 @@ export function cancelAidokuSourceRequests(sourceId: string): void {
   logAidokuWasm('debug', `cancelled source requests ${sourceId}`);
 }
 
+/**
+ * Cancels only the calls and fetches of a source that started at or before `cutoff`. Unlike
+ * cancelAidokuSourceRequests it leaves the generation alone, so work a newer screen started for the
+ * same source keeps running.
+ */
+export function cancelAidokuSourceRequestsBefore(sourceId: string, cutoff: number): void {
+  for (const [id, pending] of [...pendingCalls]) {
+    if (pending.sourceId !== sourceId || pending.startedAt > cutoff) continue;
+    pendingCalls.delete(id);
+    pending.reject(new Error(AIDOKU_REQUEST_CANCELLED));
+  }
+  for (const [id, inflight] of [...inflightFetches]) {
+    if (inflight.sourceId !== sourceId || inflight.startedAt > cutoff) continue;
+    finishCancelledFetch(id, inflight);
+  }
+}
+
 function currentSourceGeneration(sourceId: string | undefined): number {
   if (!sourceId) return 0;
   return sourceRequestGeneration.get(sourceId) ?? 0;
@@ -389,6 +408,7 @@ async function invokeAidokuWasmOnce(args: AidokuInvokeArgs): Promise<unknown> {
 
     pendingCalls.set(id, {
       sourceId: args.sourceId,
+      startedAt: Date.now(),
       resolve: (value) => {
         clearTimeout(timeout);
         resolve(value);
@@ -453,6 +473,7 @@ export function handleHostMessage(message: HostInboundMessage): void {
 async function performFetch(message: Extract<HostInboundMessage, { type: 'fetch' }>): Promise<void> {
   const inflight: InflightFetch = {
     sourceId: message.sourceId,
+    startedAt: Date.now(),
     generation: currentSourceGeneration(message.sourceId),
     abort: new AbortController(),
     settled: false,

@@ -12,9 +12,13 @@ import type { InstalledSource, Manga } from "@/parsers/shared/types";
 import type { SourceRunner } from "@/parsers/shared/source-runner";
 import {
   cancelAidokuSourceRequests,
+  cancelAidokuSourceRequestsBefore,
   isAidokuRequestCancelled,
 } from "@/parsers/aidoku/wasm-bridge";
-import { cancelTamdokSourceRequests } from "@/parsers/tamdok/runtime";
+import {
+  cancelTamdokSourceRequests,
+  cancelTamdokSourceRequestsBefore,
+} from "@/parsers/tamdok/runtime";
 import {
   peekMangaDetailCache,
   readMangaDetailCache,
@@ -54,6 +58,37 @@ type MangaDetailCacheSnapshot = {
   isLoading: boolean;
 };
 
+// Manga fetches in flight per source and when each started. A screen that closes only cancels
+// requests older than the newest fetch of another screen, never the one opened right after it.
+const activeFetches = new Map<string, Map<symbol, number>>();
+
+function registerFetch(sourceId: string, token: symbol): void {
+  let entry = activeFetches.get(sourceId);
+  if (!entry) {
+    entry = new Map();
+    activeFetches.set(sourceId, entry);
+  }
+  entry.set(token, Date.now());
+}
+
+function unregisterFetch(sourceId: string, token: symbol): void {
+  const entry = activeFetches.get(sourceId);
+  if (!entry) return;
+  entry.delete(token);
+  if (entry.size === 0) activeFetches.delete(sourceId);
+}
+
+function newestFetchStart(sourceId: string): number | null {
+  const entry = activeFetches.get(sourceId);
+  if (!entry || entry.size === 0) return null;
+  return Math.max(...entry.values());
+}
+
+// Lets the screen render the fresh chapters and answer taps before the persistence work starts.
+function afterInteractions(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 400));
+}
+
 export function useMangaDetail({
   source,
   runner,
@@ -72,6 +107,7 @@ export function useMangaDetail({
     cachedSnapshot?.hasCachedContent ?? false,
   );
   const requestIdRef = useRef(0);
+  const fetchTokenRef = useRef<symbol | null>(null);
   const activeFetchRef = useRef(0);
   const sourceIdRef = useRef(source?.id);
   sourceIdRef.current = source?.id;
@@ -128,6 +164,10 @@ export function useMangaDetail({
 
       const requestId = ++requestIdRef.current;
       activeFetchRef.current = requestId;
+      if (fetchTokenRef.current) unregisterFetch(source.id, fetchTokenRef.current);
+      const fetchToken = Symbol("manga-fetch");
+      fetchTokenRef.current = fetchToken;
+      registerFetch(source.id, fetchToken);
       // Ignore stale responses when user switched manga before fetch finished.
       const hasDisplayedContent =
         hadCachedContent ||
@@ -174,6 +214,9 @@ export function useMangaDetail({
           setLoadError(null);
           setHasCachedContent(true);
         }
+        // Persisting a long chapter list (serialising it, rewriting the known chapters) is heavy work on the
+        // JS thread, so it waits until the screen has settled instead of competing with taps and navigation.
+        await afterInteractions();
         await writeMangaDetailCache(cacheSourceId, mangaKey, {
           manga: updated,
           cachedAt: Date.now(),
@@ -185,6 +228,7 @@ export function useMangaDetail({
             status: updated.status,
             lastRefreshed: Date.now(),
           });
+          await afterInteractions();
           await syncLibraryEntryUnread(
             cacheSourceId,
             mangaKey,
@@ -198,6 +242,8 @@ export function useMangaDetail({
         setLoadError(message);
       } finally {
         clearTimeout(timeout);
+        unregisterFetch(source.id, fetchToken);
+        if (fetchTokenRef.current === fetchToken) fetchTokenRef.current = null;
         if (activeFetchRef.current === requestId) activeFetchRef.current = 0;
         if (requestId === requestIdRef.current) {
           setIsLoading(false);
@@ -240,8 +286,19 @@ export function useMangaDetail({
       const sourceId = sourceIdRef.current;
       if (!sourceId || activeFetchRef.current === 0) return;
       activeFetchRef.current = 0;
-      cancelAidokuSourceRequests(sourceId);
-      cancelTamdokSourceRequests(sourceId);
+      const own = fetchTokenRef.current;
+      fetchTokenRef.current = null;
+      if (own) unregisterFetch(sourceId, own);
+      const newestOther = newestFetchStart(sourceId);
+      if (newestOther == null) {
+        cancelAidokuSourceRequests(sourceId);
+        cancelTamdokSourceRequests(sourceId);
+        return;
+      }
+      // Another manga of the same source is already loading: abort only what started before it, so
+      // leaving a screen never cancels the request of the one opened next.
+      cancelAidokuSourceRequestsBefore(sourceId, newestOther);
+      cancelTamdokSourceRequestsBefore(sourceId, newestOther);
     },
     [cacheSourceId, mangaKey],
   );

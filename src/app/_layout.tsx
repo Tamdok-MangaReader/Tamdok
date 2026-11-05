@@ -23,6 +23,7 @@ import { SourcesProvider } from "@/context/sources-context";
 import { ThemePreferenceProvider } from "@/context/theme-preference-context";
 import { duoScreenLayout } from "@/hooks/use-duo-layout";
 import { useExpoRouterTheme } from "@/hooks/use-navigation-theme";
+import { useTheme } from "@/hooks/use-theme";
 import {
   buildRegistrySettingsHref,
   parseRegistryDeepLink,
@@ -120,9 +121,15 @@ function RootLayoutContent() {
 
   useRestoreSourceStack();
 
+  const { isDark } = useTheme();
   const rootStackOptions = useMemo(
-    () => ({ headerShown: false as const, freezeOnBlur: true as const }),
-    [],
+    () => ({
+      headerShown: false as const,
+      freezeOnBlur: true as const,
+      // Status bar icons follow the app theme, not the system one.
+      statusBarStyle: (isDark ? "light" : "dark") as "light" | "dark",
+    }),
+    [isDark],
   );
 
   useEffect(() => {

@@ -292,6 +292,8 @@
   "appearance_badge_sources_hint": "Muestra en la pestaña Fuentes el número de fuentes con una actualización disponible.",
   "appearance_badge_library": "Insignia de capítulos sin leer",
   "appearance_badge_library_hint": "Muestra en la pestaña Biblioteca el total de capítulos sin leer.",
+  "appearance_badge_library_manga": "Contar mangas, no capítulos",
+  "appearance_badge_library_manga_hint": "Mostrar cuántos mangas tienen capítulos sin leer en lugar del número de capítulos sin leer.",
   "appearance_badge_library_updatable": "Solo de categorías actualizables",
   "appearance_badge_library_updatable_hint": "Cuenta los capítulos sin leer solo del manga en categorías que participan en las actualizaciones de la biblioteca.",
   "source_search_filters_apply": "Aplicar",

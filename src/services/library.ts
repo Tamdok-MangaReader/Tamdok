@@ -1071,8 +1071,10 @@ export async function updateLibraryUpdateSettings(
   }
 }
 
+/** Unread chapters of the library, or the number of manga with unread chapters when `countManga` is set. */
 export async function getLibraryUnreadTotal(
   onlyUpdatable: boolean,
+  countManga = false,
 ): Promise<number> {
   const store = await readStore();
   let total = 0;
@@ -1088,7 +1090,7 @@ export async function getLibraryUnreadTotal(
     ) {
       continue;
     }
-    total += unread;
+    total += countManga ? 1 : unread;
   }
   return total;
 }

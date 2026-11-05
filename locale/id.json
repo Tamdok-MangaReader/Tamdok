@@ -292,6 +292,8 @@
   "appearance_badge_sources_hint": "Menampilkan jumlah sumber yang punya pembaruan di tab Sumber.",
   "appearance_badge_library": "Lencana chapter belum dibaca",
   "appearance_badge_library_hint": "Menampilkan jumlah total chapter belum dibaca di tab Pustaka.",
+  "appearance_badge_library_manga": "Hitung manga, bukan bab",
+  "appearance_badge_library_manga_hint": "Tampilkan jumlah manga dengan bab belum dibaca, bukan jumlah bab belum dibaca.",
   "appearance_badge_library_updatable": "Hanya dari kategori yang dapat diperbarui",
   "appearance_badge_library_updatable_hint": "Hitung chapter belum dibaca hanya untuk manga di kategori yang ikut pembaruan pustaka.",
   "source_search_filters_apply": "Terapkan",

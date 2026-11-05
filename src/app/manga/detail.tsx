@@ -265,6 +265,17 @@ export default function MangaDetailScreen() {
   const [readChapterKeys, setReadChapterKeys] = useState<Set<string>>(
     () => new Set(),
   );
+  // Chapter rows wait for the first read/download state so they never flash as unread.
+  const [progressReady, setProgressReady] = useState(false);
+  const [downloadsReady, setDownloadsReady] = useState(false);
+  useEffect(() => {
+    // Safety net: a failed read must not keep the chapter list on its skeleton.
+    const timer = setTimeout(() => {
+      setProgressReady(true);
+      setDownloadsReady(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
   const [viewedChapter, setViewedChapter] = useState<ViewedChapter | undefined>();
   const [bookmarkedChapterKeys, setBookmarkedChapterKeys] = useState<
     Set<string>
@@ -374,6 +385,7 @@ export default function MangaDetailScreen() {
     setDownloadedChapterKeys((prev) =>
       setsEqual(prev, completed) ? prev : completed,
     );
+    setDownloadsReady(true);
   }, [manifestSourceId, mangaKey]);
 
   useEffect(() => {
@@ -405,6 +417,7 @@ export default function MangaDetailScreen() {
         : opened,
     );
     applyProgress(progress);
+    setProgressReady(true);
     setBookmarkedChapterKeys((prev) =>
       setsEqual(prev, bookmarks) ? prev : bookmarks,
     );
@@ -918,7 +931,9 @@ export default function MangaDetailScreen() {
   const showInlineError = Boolean(combinedError) && !showBlockingError;
   const showInitialLoading =
     isLoading && !hasCachedContent && !hasDisplayContent;
-  const showChapterLoading = isLoading && chapters.length === 0;
+  const showChapterLoading =
+    (isLoading && chapters.length === 0) ||
+    (chapters.length > 0 && !(progressReady && downloadsReady));
 
   const missingAlertShown = useRef(false);
   useEffect(() => {

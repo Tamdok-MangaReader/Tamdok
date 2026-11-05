@@ -37,6 +37,7 @@ export default function AppearanceScreen() {
     sourceUpdates: true,
     libraryUnread: true,
     libraryUnreadUpdatableOnly: true,
+    libraryUnreadMangaCount: false,
   });
 
   const load = useCallback(async () => {
@@ -174,6 +175,14 @@ export default function AppearanceScreen() {
             hint={t('appearance_badge_library_hint')}
             value={tabBadges.libraryUnread}
             onChange={(value) => updateTabBadges({ libraryUnread: value })}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('appearance_badge_library_manga')}
+            hint={t('appearance_badge_library_manga_hint')}
+            value={tabBadges.libraryUnreadMangaCount}
+            onChange={(value) => updateTabBadges({ libraryUnreadMangaCount: value })}
+            disabled={!tabBadges.libraryUnread}
           />
           <CardSeparator />
           <SwitchRow

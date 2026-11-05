@@ -695,7 +695,8 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         </View>
       ) : null;
 
-  const showCounts = inLibrary && (unreadCount > 0 || downloadedCount > 0);
+  const showCounts =
+    inLibrary && !isLoading && (unreadCount > 0 || downloadedCount > 0);
 
   const heroNode = (
     <View style={styles.hero}>
@@ -1259,10 +1260,10 @@ export function MangaDetailView({
       showsVerticalScrollIndicator={false}
       refreshControl={refreshControl}
       renderScrollComponent={split ? undefined : renderScrollComponent}
-      initialNumToRender={10}
-      maxToRenderPerBatch={6}
-      updateCellsBatchingPeriod={50}
-      windowSize={5}
+      initialNumToRender={14}
+      maxToRenderPerBatch={12}
+      updateCellsBatchingPeriod={30}
+      windowSize={7}
       removeClippedSubviews={Platform.OS === "android"}
     />
   );
@@ -1329,6 +1330,30 @@ let cachedChapterRowWidth = 0;
 const OPEN_META_WIDTH = 460;
 // A header at least this wide (inside the screen padding) is the unfolded Duo; measured via layout so the arrangement flips in the same frame as the resize.
 const OPEN_HEADER_MIN_WIDTH = 468;
+
+// Download entries are rebuilt on every progress tick, so they are compared by value: only the rows
+// whose own download changed re-render, not every row of the list.
+function downloadEntryEqual(a?: DownloadEntry, b?: DownloadEntry): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.status === b.status &&
+    a.progress === b.progress &&
+    a.error === b.error
+  );
+}
+
+function chapterRowPropsEqual(
+  previous: ChapterRowProps,
+  next: ChapterRowProps,
+): boolean {
+  const keys = Object.keys(next) as (keyof ChapterRowProps)[];
+  for (const key of keys) {
+    if (key === "downloadEntry") continue;
+    if (previous[key] !== next[key]) return false;
+  }
+  return downloadEntryEqual(previous.downloadEntry, next.downloadEntry);
+}
 
 const ChapterRow = memo(function ChapterRow({
   chapter,
@@ -1679,7 +1704,7 @@ const ChapterRow = memo(function ChapterRow({
       {!isLast ? <View style={separatorStyle} /> : null}
     </View>
   );
-});
+}, chapterRowPropsEqual);
 
 function formatStatus(status: NonNullable<Manga["status"]>): string {
   return status.charAt(0).toUpperCase() + status.slice(1);

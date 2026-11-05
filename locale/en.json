@@ -356,6 +356,8 @@
   "appearance_badge_sources_hint": "Shows the number of sources with an available update on the Sources tab.",
   "appearance_badge_library": "Unread chapters badge",
   "appearance_badge_library_hint": "Shows the total number of unread chapters on the Library tab.",
+  "appearance_badge_library_manga": "Unread manga count",
+  "appearance_badge_library_manga_hint": "Show how many manga have unread chapters instead of the number of unread chapters.",
   "appearance_badge_library_updatable": "Only from updatable categories",
   "appearance_badge_library_updatable_hint": "Count unread chapters only for manga in categories that take part in library updates.",
   "source_search_filters_apply": "Apply",
