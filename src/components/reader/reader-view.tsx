@@ -58,6 +58,7 @@ import {
   recordChapterProgress,
   getChapterProgress,
 } from "@/services/manga-tracking";
+import { noteViewedChapter } from "@/services/viewed-chapter";
 import {
   getMangaAutoResolvedMode,
   getMangaPageOffset,
@@ -624,8 +625,11 @@ export function ReaderView({
         targetChapter.key,
       );
       const alreadyRead = existing?.page === -1;
-      // Already read: nothing to record (see the note above).
-      if (alreadyRead) return;
+      // Already read: nothing to record (see the note above), only remembered for "Continue".
+      if (alreadyRead) {
+        void noteViewedChapter(sourceId, manga.key, targetChapter.key, pageIndex).catch(() => undefined);
+        return;
+      }
       if (isLastPage) {
         if (settings?.markDuplicateChapters) {
           await markChaptersInQueue(

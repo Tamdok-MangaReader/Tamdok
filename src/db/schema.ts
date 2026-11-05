@@ -35,7 +35,20 @@ const TABLES_V1: string[] = [
      date_read INTEGER NOT NULL,
      history_at INTEGER,
      chapter_title TEXT,
+     -- Bulk mark state, derived from the log (see bulkRefreshStatements): 0 normal, -1 hidden member of a
+     -- bulk group, n > 0 the representative row of a group of n chapters.
+     bulk INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (source_id, manga_key, chapter_key)
+   ) WITHOUT ROWID`,
+
+  // The chapter the reader opened last, for "Continue" when it left no reading record (already read).
+  `CREATE TABLE IF NOT EXISTS {s}.last_opened_chapter (
+     source_id TEXT NOT NULL,
+     manga_key TEXT NOT NULL,
+     chapter_key TEXT NOT NULL,
+     page INTEGER NOT NULL,
+     opened_at INTEGER NOT NULL,
+     PRIMARY KEY (source_id, manga_key)
    ) WITHOUT ROWID`,
 
   `CREATE TABLE IF NOT EXISTS {s}.categories (
@@ -97,7 +110,8 @@ const TABLES_V1: string[] = [
 // The schema qualifier of an index goes on the index name: "CREATE INDEX s.idx ON table (...)".
 const INDEXES_V1: string[] = [
   // History tab: newest first, paged.
-  `CREATE INDEX IF NOT EXISTS {s}.idx_log_recent ON reading_log (COALESCE(history_at, date_read) DESC)`,
+  // Bulk group members (bulk < 0) are not listed, so they are not indexed either.
+  `CREATE INDEX IF NOT EXISTS {s}.idx_log_recent ON reading_log (COALESCE(history_at, date_read) DESC) WHERE bulk >= 0`,
   // Statistics: only fully read chapters, ordered by time.
   `CREATE INDEX IF NOT EXISTS {s}.idx_log_done ON reading_log (date_read, source_id, manga_key) WHERE page = -1`,
   `CREATE INDEX IF NOT EXISTS {s}.idx_lec_category ON library_entry_categories (category_id)`,
@@ -122,9 +136,41 @@ export const DATA_TABLES = [
   "library_entry_categories",
   "known_chapters",
   "downloads",
+  "last_opened_chapter",
 ] as const;
 
 export type DataTable = (typeof DATA_TABLES)[number];
+
+/** This many chapters of one manga sharing one history time are a bulk mark ("mark all read"), not reading. */
+export const BULK_READ_THRESHOLD = 5;
+
+/**
+ * Recomputes reading_log.bulk. Values: 0 = ordinary chapter, -1 = member of a bulk group (hidden from the
+ * history and the statistics), n > 0 = the one representative row of a bulk group of n chapters (shown in
+ * the history as a single entry). Pass `scoped` to limit it to one manga: the statements then take
+ * `[sourceId, mangaKey]` parameters, in order, for each `?`.
+ */
+export function bulkRefreshStatements(scoped: boolean): string[] {
+  const where = scoped ? " AND source_id = ? AND manga_key = ?" : "";
+  const inner = scoped ? " AND source_id = ? AND manga_key = ?" : "";
+  return [
+    `UPDATE reading_log SET bulk = 0 WHERE bulk <> 0${where}`,
+    `UPDATE reading_log SET bulk = -1
+     WHERE page = -1${where} AND (source_id, manga_key, COALESCE(history_at, date_read)) IN (
+       SELECT source_id, manga_key, COALESCE(history_at, date_read) FROM reading_log
+       WHERE page = -1${inner}
+       GROUP BY source_id, manga_key, COALESCE(history_at, date_read)
+       HAVING COUNT(*) >= ${BULK_READ_THRESHOLD})`,
+    `UPDATE reading_log SET bulk = g.n
+     FROM (
+       SELECT source_id, manga_key, MIN(chapter_key) AS chapter_key, COUNT(*) AS n
+       FROM reading_log WHERE bulk = -1${inner}
+       GROUP BY source_id, manga_key, COALESCE(history_at, date_read)
+     ) AS g
+     WHERE reading_log.source_id = g.source_id AND reading_log.manga_key = g.manga_key
+       AND reading_log.chapter_key = g.chapter_key`,
+  ];
+}
 
 /** Migration steps by target version (index 0 builds version 1). */
 export const MIGRATIONS: Array<() => string[]> = [() => schemaStatements("main")];

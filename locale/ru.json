@@ -399,6 +399,8 @@
   "history_tab_main": "Основная",
   "history_tab_nsfw": "NSFW",
   "history_yesterday": "Вчера",
+  "history_chapters_count": "{count} гл.",
+  "history_bulk_badge": "Отмечено прочитанным: {count}",
   "history_show_more": "Показать ещё {count}",
   "history_unknown_chapter": "Глава",
   "history_on_page": "стр. {page}",

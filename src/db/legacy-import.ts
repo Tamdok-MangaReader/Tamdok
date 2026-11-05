@@ -1,7 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 
 import { insertMany, type Db } from "@/db/database";
-import { REFRESH_LAST_READ_SQL } from "@/db/schema";
+import { REFRESH_LAST_READ_SQL, bulkRefreshStatements } from "@/db/schema";
 
 /**
  * Converts the documents of the pre-SQLite storage (and of JSON backups) into table rows.
@@ -416,6 +416,7 @@ export async function migrateLegacyStorage(db: Db, run: Runner): Promise<void> {
       }
       await importPreferenceMap(tx, source.data);
       await tx.runAsync(REFRESH_LAST_READ_SQL);
+      for (const statement of bulkRefreshStatements(false)) await tx.runAsync(statement);
       await markMigrated(tx);
     });
   } catch {
@@ -427,7 +428,10 @@ export async function migrateLegacyStorage(db: Db, run: Runner): Promise<void> {
         failed = true;
       }
     }
-    await run((tx) => tx.runAsync(REFRESH_LAST_READ_SQL).then(() => undefined)).catch(() => undefined);
+    await run(async (tx) => {
+      await tx.runAsync(REFRESH_LAST_READ_SQL);
+      for (const statement of bulkRefreshStatements(false)) await tx.runAsync(statement);
+    }).catch(() => undefined);
     if (failed) return;
     await run(markMigrated);
   }

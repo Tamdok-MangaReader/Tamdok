@@ -66,6 +66,7 @@ import {
   markChapterUnread,
   type ChapterProgress,
 } from "@/services/manga-tracking";
+import { getViewedChapter, type ViewedChapter } from "@/services/viewed-chapter";
 import {
   findInstalledSource,
   parseSourceRouteId,
@@ -161,6 +162,7 @@ function readKeysFrom(progress: Record<string, ChapterProgress>): Set<string> {
 function resolveReadingTarget(
   chapters: Chapter[],
   progressMap: Record<string, ChapterProgress>,
+  viewedChapter?: ViewedChapter,
 ): { chapter: Chapter; page: number; hasHistory: boolean } | null {
   if (chapters.length === 0) return null;
 
@@ -170,6 +172,20 @@ function resolveReadingTarget(
   let latest: ChapterProgress | undefined;
   for (const entry of Object.values(progressMap)) {
     if (!latest || entry.dateRead > latest.dateRead) latest = entry;
+  }
+
+  // An already-read chapter opened after the last recorded activity (nothing is written for it). It only
+  // wins while everything is read: a new unread chapter takes over the button.
+  const allRead = chapters.every(
+    (item) => progressMap[item.key]?.page === -1,
+  );
+  if (
+    viewedChapter &&
+    allRead &&
+    (!latest || viewedChapter.at > latest.dateRead)
+  ) {
+    const opened = chapters.find((item) => item.key === viewedChapter.chapterKey);
+    if (opened) return { chapter: opened, page: viewedChapter.page, hasHistory: true };
   }
 
   if (!latest) {
@@ -249,6 +265,7 @@ export default function MangaDetailScreen() {
   const [readChapterKeys, setReadChapterKeys] = useState<Set<string>>(
     () => new Set(),
   );
+  const [viewedChapter, setViewedChapter] = useState<ViewedChapter | undefined>();
   const [bookmarkedChapterKeys, setBookmarkedChapterKeys] = useState<
     Set<string>
   >(() => new Set());
@@ -375,10 +392,18 @@ export default function MangaDetailScreen() {
   );
 
   const refreshProgress = useCallback(async () => {
-    const [progress, bookmarks] = await Promise.all([
+    const [progress, bookmarks, opened] = await Promise.all([
       getMangaChapterProgress(manifestSourceId, mangaKey),
       getBookmarkedChapterKeys(manifestSourceId, mangaKey),
+      getViewedChapter(manifestSourceId, mangaKey),
     ]);
+    setViewedChapter((prev) =>
+      prev?.chapterKey === opened?.chapterKey &&
+      prev?.page === opened?.page &&
+      prev?.at === opened?.at
+        ? prev
+        : opened,
+    );
     applyProgress(progress);
     setBookmarkedChapterKeys((prev) =>
       setsEqual(prev, bookmarks) ? prev : bookmarks,
@@ -437,8 +462,8 @@ export default function MangaDetailScreen() {
   }, [refreshTick]);
 
   const readingTarget = useMemo(
-    () => resolveReadingTarget(chapters, chapterProgressMap),
-    [chapters, chapterProgressMap],
+    () => resolveReadingTarget(chapters, chapterProgressMap, viewedChapter),
+    [chapters, chapterProgressMap, viewedChapter],
   );
 
   const continueLabel = useMemo(() => {

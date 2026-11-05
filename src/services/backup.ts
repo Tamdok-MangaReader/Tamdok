@@ -34,6 +34,7 @@ import {
   type BackupScope,
 } from "@/services/backup-config";
 import { invalidateDownloadsCache } from "@/services/downloads";
+import { refreshAllBulkMarks } from "@/services/manga-tracking";
 import {
   invalidateLibraryCache,
   recomputeAllLibraryUnread,
@@ -719,6 +720,7 @@ export async function restoreBackup(
 
   invalidateLibraryCache();
   invalidateDownloadsCache();
+  await refreshAllBulkMarks();
   if (touchedLibraryData) await recomputeAllLibraryUnread();
   notifyAppSettingsChanged();
   notifyAppearanceChanged();

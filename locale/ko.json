@@ -335,6 +335,8 @@
   "history_tab_main": "일반",
   "history_tab_nsfw": "NSFW",
   "history_yesterday": "어제",
+  "history_chapters_count": "{count}화",
+  "history_bulk_badge": "읽음 처리: {count}",
   "history_show_more": "{count}개 더 보기",
   "history_unknown_chapter": "챕터",
   "history_on_page": "{page}쪽",

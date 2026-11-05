@@ -91,8 +91,15 @@ type MangaHistoryGroup = {
   mangaKey: string;
   mangaTitle: string;
   cover?: string;
+  /** Chapters read one by one; bulk marks are not listed here. */
   chapters: HistoryEntry[];
   timeRange: string;
+  /** Time of the newest entry, used for ordering. */
+  latest: number;
+  /** Chapters covered by bulk marks ("mark all read") of this manga on this day. */
+  bulkCount: number;
+  /** History times of those bulk marks, needed to delete them. */
+  bulkTimes: number[];
 };
 
 // Flat row model for the virtualised list: a day header followed by one row per manga read that day.
@@ -226,6 +233,8 @@ function sameGroup(a: MangaHistoryGroup, b: MangaHistoryGroup): boolean {
     a.mangaTitle !== b.mangaTitle ||
     a.cover !== b.cover ||
     a.timeRange !== b.timeRange ||
+    a.latest !== b.latest ||
+    a.bulkCount !== b.bulkCount ||
     a.chapters.length !== b.chapters.length
   ) {
     return false;
@@ -280,6 +289,10 @@ function buildRows(
       chapters.sort((a, b) => b.dateRead - a.dateRead);
       const newest = chapters[0]!;
       const oldest = chapters[chapters.length - 1]!;
+      const bulkEntries = chapters.filter((entry) => entry.bulkCount);
+      const regular = bulkEntries.length
+        ? chapters.filter((entry) => !entry.bulkCount)
+        : chapters;
       const from = formatHistoryTime(oldest.dateRead);
       const to = formatHistoryTime(newest.dateRead);
 
@@ -291,8 +304,11 @@ function buildRows(
         mangaKey: newest.mangaKey,
         mangaTitle: newest.mangaTitle,
         cover: newest.cover,
-        chapters,
+        chapters: regular,
         timeRange: from === to ? from : `${from} – ${to}`,
+        latest: newest.dateRead,
+        bulkCount: bulkEntries.reduce((sum, entry) => sum + (entry.bulkCount ?? 0), 0),
+        bulkTimes: bulkEntries.map((entry) => entry.dateRead),
       };
 
       const id = `${title}:${key}`;
@@ -304,7 +320,7 @@ function buildRows(
 
     headerRow.count = groups.length;
     headerRow.groups = groups;
-    groups.sort((a, b) => b.chapters[0]!.dateRead - a.chapters[0]!.dateRead);
+    groups.sort((a, b) => b.latest - a.latest);
     for (const group of groups) {
       rows.push({ kind: "group", id: `${title}:${group.key}`, group });
     }
@@ -368,6 +384,7 @@ const HistoryHeaderRow = memo(function HistoryHeaderRow({
                   group.sourceId,
                   group.mangaKey,
                   group.chapters.map((chapter) => chapter.chapterKey),
+                  group.bulkTimes,
                 );
               }
               onChanged();
@@ -532,6 +549,11 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     }, 2500 * (coverRetry + 1));
   }, [coverRetry]);
 
+  const hasChapters = group.chapters.length > 0;
+  const chaptersLabel = t("history_chapters_count", {
+    count: String(group.chapters.length),
+  });
+  const bulkLabel = t("history_bulk_badge", { count: String(group.bulkCount) });
   const hiddenCount = Math.max(
     0,
     group.chapters.length - VISIBLE_CHAPTER_LIMIT,
@@ -604,6 +626,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
               group.sourceId,
               group.mangaKey,
               group.chapters.map((chapter) => chapter.chapterKey),
+              group.bulkTimes,
             ).then(onChanged);
           }),
       },
@@ -615,7 +638,10 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     () => onOpenManga(group),
     [onOpenManga, group],
   );
-  const handleToggleOpen = useCallback(() => setOpen((value) => !value), []);
+  const handleToggleOpen = useCallback(() => {
+    // A bulk mark has nothing to list, so such a card never expands.
+    if (hasChapters) setOpen((value) => !value);
+  }, [hasChapters]);
 
   const menuItems = useMemo<LiftedMenuItem[]>(() => {
     const items: LiftedMenuItem[] = [
@@ -651,6 +677,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
             group.sourceId,
             group.mangaKey,
             group.chapters.map((chapter) => chapter.chapterKey),
+            group.bulkTimes,
           ).then(onChanged);
         }),
     });
@@ -738,25 +765,43 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
                   {sourceLabel}
                 </ThemedText>
               </View>
+              {group.bulkCount > 0 ? (
+                <View
+                  style={[
+                    styles.sourceChip,
+                    styles.bulkChip,
+                    { backgroundColor: colors.tertiaryFill },
+                  ]}
+                >
+                  <Ionicons name="layers-outline" size={12} color={colors.tint} />
+                  <ThemedText variant="caption1" color="tint" numberOfLines={1}>
+                    {bulkLabel}
+                  </ThemedText>
+                </View>
+              ) : null}
             </View>
-            {group.timeRange ? (
-              <View style={styles.metaLine}>
-                <Ionicons
-                  name="time-outline"
-                  size={13}
-                  color={colors.tertiaryLabel}
-                />
-                <ThemedText variant="caption1" color="tertiaryLabel">
-                  {group.timeRange}
-                </ThemedText>
-              </View>
-            ) : null}
+            <View style={styles.metaLine}>
+              <Ionicons
+                name="time-outline"
+                size={13}
+                color={colors.tertiaryLabel}
+              />
+              <ThemedText variant="caption1" color="tertiaryLabel">
+                {hasChapters
+                  ? group.timeRange
+                    ? `${group.timeRange} · ${chaptersLabel}`
+                    : chaptersLabel
+                  : group.timeRange}
+              </ThemedText>
+            </View>
           </View>
-          <Ionicons
-            name={open ? "chevron-down" : "chevron-forward"}
-            size={16}
-            color={colors.tertiaryLabel}
-          />
+          {hasChapters ? (
+            <Ionicons
+              name={open ? "chevron-down" : "chevron-forward"}
+              size={16}
+              color={colors.tertiaryLabel}
+            />
+          ) : null}
               </Pressable>
             </View>
           )}
@@ -1457,6 +1502,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  bulkChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,

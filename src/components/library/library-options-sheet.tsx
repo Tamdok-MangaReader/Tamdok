@@ -151,7 +151,7 @@ export function LibraryOptionsSheet({
   categoryId,
   categoryName,
 }: LibraryOptionsSheetProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const pagerRef = useRef<PagerView>(null);
@@ -568,7 +568,9 @@ export function LibraryOptionsSheet({
                 <Section title={t("library_display_columns")}>
                   <View style={styles.sliderRow}>
                     <ReaderPageSlider
-              untinted
+                      untinted
+                      flat={!isDark}
+                      fillColor={colors.tertiaryFill}
                       currentPage={libraryDisplayColumns(display) - 1}
                       totalPages={MAX_COLUMNS}
                       accentColor={colors.tint}

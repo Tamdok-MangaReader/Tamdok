@@ -22,6 +22,9 @@ type ReaderPageSliderProps = {
   inverted?: boolean;
   /** Drops the dark reader tint from the glass (for use outside the reader). */
   untinted?: boolean;
+  /** Plain fill instead of glass, for light surfaces where the glass track would not read. */
+  flat?: boolean;
+  fillColor?: string;
   onSeek: (page: number) => void;
 };
 
@@ -38,6 +41,8 @@ export function ReaderPageSlider({
   labelColor,
   inverted = false,
   untinted = false,
+  flat = false,
+  fillColor,
   onSeek,
 }: ReaderPageSliderProps) {
   const [sliding, setSliding] = useState(false);
@@ -204,8 +209,8 @@ export function ReaderPageSlider({
       : { width: filled, left: 0 };
   });
 
-  return (
-    <GlassSurface borderRadius={BAR_HEIGHT / 2} glassStyle="clear" tintColor={untinted ? undefined : READER_GLASS_TINT} style={styles.glass}>
+  const content = (
+    <>
       <ThemedText
         variant="footnote"
         style={[styles.label, { color: labelColor }]}
@@ -226,18 +231,20 @@ export function ReaderPageSlider({
             });
           }}
         >
-          <View style={styles.track}>
+          <View style={[styles.track, flat && styles.trackFlat]}>
             <Animated.View
               style={[styles.fill, { backgroundColor: accentColor }, fillStyle]}
             />
           </View>
           <Animated.View style={[styles.thumb, thumbStyle]}>
-            <GlassSurface
-              borderRadius={THUMB_HEIGHT / 2}
-              glassStyle="clear"
-              interactive
-              style={StyleSheet.absoluteFill}
-            />
+            {flat ? null : (
+              <GlassSurface
+                borderRadius={THUMB_HEIGHT / 2}
+                glassStyle="clear"
+                interactive
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Animated.View style={[styles.thumbWhite, thumbWhiteStyle]} />
           </Animated.View>
         </View>
@@ -248,6 +255,24 @@ export function ReaderPageSlider({
       >
         {inverted ? clamped + 1 : totalPages}
       </ThemedText>
+    </>
+  );
+
+  if (flat) {
+    return (
+      <View style={[styles.glass, styles.flatBar, { backgroundColor: fillColor }]}>
+        {content}
+      </View>
+    );
+  }
+  return (
+    <GlassSurface
+      borderRadius={BAR_HEIGHT / 2}
+      glassStyle="clear"
+      tintColor={untinted ? undefined : READER_GLASS_TINT}
+      style={styles.glass}
+    >
+      {content}
     </GlassSurface>
   );
 }
@@ -278,6 +303,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     overflow: "hidden",
   },
+  flatBar: {
+    borderRadius: BAR_HEIGHT / 2,
+    overflow: "hidden",
+  },
+  trackFlat: {
+    backgroundColor: "rgba(120,120,128,0.25)",
+  },
   fill: {
     position: "absolute",
     top: 0,
@@ -285,6 +317,11 @@ const styles = StyleSheet.create({
   },
   thumbWhite: {
     ...StyleSheet.absoluteFill,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
     borderRadius: THUMB_HEIGHT / 2,
     backgroundColor: "#FFFFFF",
   },

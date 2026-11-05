@@ -335,6 +335,8 @@
   "history_tab_main": "メイン",
   "history_tab_nsfw": "NSFW",
   "history_yesterday": "昨日",
+  "history_chapters_count": "{count}話",
+  "history_bulk_badge": "既読にした: {count}",
   "history_show_more": "さらに{count}件を表示",
   "history_unknown_chapter": "章",
   "history_on_page": "{page}ページ",

@@ -335,6 +335,8 @@
   "history_tab_main": "Haupt",
   "history_tab_nsfw": "NSFW",
   "history_yesterday": "Gestern",
+  "history_chapters_count": "{count} Kap.",
+  "history_bulk_badge": "Als gelesen markiert: {count}",
   "history_show_more": "{count} weitere anzeigen",
   "history_unknown_chapter": "Kapitel",
   "history_on_page": "S. {page}",

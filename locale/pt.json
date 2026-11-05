@@ -335,6 +335,8 @@
   "history_tab_main": "Principal",
   "history_tab_nsfw": "NSFW",
   "history_yesterday": "Ontem",
+  "history_chapters_count": "{count} cap.",
+  "history_bulk_badge": "Marcados como lidos: {count}",
   "history_show_more": "Mostrar mais {count}",
   "history_unknown_chapter": "Capítulo",
   "history_on_page": "p. {page}",

@@ -1,4 +1,5 @@
 import { getDb, runWrite, type Db } from "@/db/database";
+import { bulkRefreshStatements } from "@/db/schema";
 import { getAppSettings } from "@/services/app-settings";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
 
@@ -23,6 +24,8 @@ export type HistoryEntry = {
   cover?: string;
   dateRead: number;
   page?: number;
+  /** Set on the one entry that stands for a bulk mark ("mark all read"): how many chapters it covers. */
+  bulkCount?: number;
 };
 
 type HistoryMeta = Pick<
@@ -210,8 +213,9 @@ export async function getReadingActivity(): Promise<{
     }>(
       // The offset is inlined as an integer literal: a bound JS number may arrive as REAL, which would
       // turn the day division into a fractional (and therefore useless) grouping key.
+      // Bulk-marked chapters ("mark all read") are not reading and stay out of the statistics.
       `SELECT source_id, manga_key, CAST(date_read + ${Math.round(offset)} AS INTEGER) / ${DAY_MS} AS day, COUNT(*) AS n
-       FROM reading_log WHERE page = -1 AND date_read > 0
+       FROM reading_log WHERE page = -1 AND date_read > 0 AND bulk = 0
        GROUP BY source_id, manga_key, day`,
     ),
     db.getAllAsync<{ source_id: string; manga_key: string; title: string }>(
@@ -235,6 +239,34 @@ export async function getReadingActivity(): Promise<{
   };
 }
 
+const BULK_STATEMENTS = bulkRefreshStatements(true);
+
+// Recomputes the bulk marks of one manga (see bulkRefreshStatements in the schema).
+async function refreshBulk(tx: Db, sourceId: string, mangaKey: string): Promise<void> {
+  for (const statement of BULK_STATEMENTS) {
+    const pairs = (statement.match(/\?/g)?.length ?? 0) / 2;
+    const params: string[] = [];
+    for (let i = 0; i < pairs; i += 1) params.push(sourceId, mangaKey);
+    await tx.runAsync(statement, params);
+  }
+}
+
+/** Recomputes the bulk marks of the whole reading log (after a restore or an import). */
+export async function refreshAllBulkMarks(): Promise<void> {
+  await runWrite(async (tx) => {
+    for (const statement of bulkRefreshStatements(false)) await tx.runAsync(statement);
+  });
+}
+
+// Cheap guard so single-chapter edits only pay for a refresh when the manga has bulk groups.
+async function refreshBulkIfPresent(tx: Db, sourceId: string, mangaKey: string): Promise<void> {
+  const row = await tx.getFirstAsync<{ found: number }>(
+    "SELECT 1 AS found FROM reading_log WHERE source_id = ? AND manga_key = ? AND bulk <> 0 LIMIT 1",
+    [sourceId, mangaKey],
+  );
+  if (row) await refreshBulk(tx, sourceId, mangaKey);
+}
+
 // Marks a chapter fully read (page = -1) and moves it to the top of the history. The first read time
 // is kept as the chapter's date_read.
 export async function markChapterRead(
@@ -255,6 +287,7 @@ export async function markChapterRead(
          chapter_title = COALESCE(excluded.chapter_title, reading_log.chapter_title)`,
       [sourceId, mangaKey, chapterKeyValue, now, now, meta?.chapterTitle ?? null],
     );
+    await refreshBulkIfPresent(tx, sourceId, mangaKey);
     await upsertMangaMeta(tx, sourceId, mangaKey, meta?.mangaTitle, meta?.cover);
   });
   if (meta?.notify !== false) scheduleNotify();
@@ -282,6 +315,7 @@ export async function importChapterReadStates(
         values,
       );
     }
+    await refreshBulk(tx, sourceId, mangaKey);
   });
   scheduleNotify();
   scheduleLibraryUnreadSync(sourceId, mangaKey);
@@ -296,7 +330,7 @@ export async function markChapterUnread(
     tx.runAsync(
       `DELETE FROM reading_log WHERE source_id = ? AND manga_key = ? AND chapter_key = ?`,
       [sourceId, mangaKey, chapterKeyValue],
-    ),
+    ).then(() => refreshBulkIfPresent(tx, sourceId, mangaKey)),
   );
   scheduleNotify();
   scheduleLibraryUnreadSync(sourceId, mangaKey);
@@ -330,6 +364,7 @@ export async function markAllChaptersRead(
       changed += result.changes;
     }
     if (changed > 0) {
+      await refreshBulk(tx, sourceId, mangaKey);
       await upsertMangaMeta(tx, sourceId, mangaKey, meta?.mangaTitle, meta?.cover);
     }
   });
@@ -357,6 +392,7 @@ export async function markAllChaptersUnread(
       );
       changed += result.changes;
     }
+    if (changed > 0) await refreshBulkIfPresent(tx, sourceId, mangaKey);
   });
   if (changed > 0) {
     scheduleNotify();
@@ -403,6 +439,7 @@ type HistoryRow = {
   chapter_title: string | null;
   manga_title: string | null;
   cover: string | null;
+  bulk: number;
 };
 
 function toHistoryEntry(row: HistoryRow): HistoryEntry {
@@ -415,11 +452,12 @@ function toHistoryEntry(row: HistoryRow): HistoryEntry {
     cover: row.cover ?? undefined,
     dateRead: row.history_at ?? row.date_read,
     page: row.page,
+    ...(row.bulk > 0 ? { bulkCount: row.bulk } : {}),
   };
 }
 
 const HISTORY_SELECT = `
-  SELECT r.source_id, r.manga_key, r.chapter_key, r.page, r.date_read, r.history_at, r.chapter_title,
+  SELECT r.source_id, r.manga_key, r.chapter_key, r.page, r.date_read, r.history_at, r.chapter_title, r.bulk,
          m.title AS manga_title, m.cover AS cover
   FROM reading_log r
   LEFT JOIN manga_meta m ON m.source_id = r.source_id AND m.manga_key = r.manga_key`;
@@ -431,7 +469,7 @@ export async function getMangaHistoryForEntry(
   const db = await getDb();
   const rows = await db.getAllAsync<HistoryRow>(
     `${HISTORY_SELECT}
-     WHERE r.source_id = ? AND r.manga_key = ? AND r.history_at IS NOT NULL
+     WHERE r.source_id = ? AND r.manga_key = ? AND r.history_at IS NOT NULL AND r.bulk >= 0
      ORDER BY r.history_at DESC`,
     [sourceId, mangaKey],
   );
@@ -448,7 +486,9 @@ export async function getHistoryEntries(
 ): Promise<HistoryEntry[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<HistoryRow>(
+    // Members of a bulk group (bulk < 0) are left out; their representative row stands for all of them.
     `${HISTORY_SELECT}
+     WHERE r.bulk >= 0
      ORDER BY COALESCE(r.history_at, r.date_read) DESC
      LIMIT ? OFFSET ?`,
     [limit ?? -1, offset],
@@ -459,7 +499,7 @@ export async function getHistoryEntries(
 export async function getHistoryCount(): Promise<number> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM reading_log",
+    "SELECT COUNT(*) AS n FROM reading_log WHERE bulk >= 0",
   );
   return row?.n ?? 0;
 }
@@ -487,8 +527,11 @@ export async function clearHistory(): Promise<void> {
 
 export async function removeHistorySince(cutoffMs: number): Promise<void> {
   await runWrite(async (tx) => {
-    if (cutoffMs <= 0) await tx.runAsync("DELETE FROM reading_log");
-    else {
+    if (cutoffMs <= 0) {
+      await tx.runAsync("DELETE FROM reading_log");
+      await tx.runAsync("DELETE FROM last_opened_chapter");
+    } else {
+      await tx.runAsync("DELETE FROM last_opened_chapter WHERE opened_at >= ?", [cutoffMs]);
       await tx.runAsync(
         "DELETE FROM reading_log WHERE COALESCE(history_at, date_read) >= ? OR date_read >= ?",
         [cutoffMs, cutoffMs],
@@ -515,7 +558,19 @@ export async function removeMangaHistoryGroup(
   sourceId: string,
   mangaKey: string,
   chapterKeys: string[],
+  bulkTimes: number[] = [],
 ): Promise<void> {
+  if (bulkTimes.length > 0) {
+    await runWrite((tx) =>
+      tx.runAsync(
+        `DELETE FROM reading_log WHERE source_id = ? AND manga_key = ? AND bulk <> 0
+         AND COALESCE(history_at, date_read) IN (${bulkTimes.map(() => "?").join(", ")})`,
+        [sourceId, mangaKey, ...bulkTimes],
+      ),
+    );
+    scheduleNotify();
+    scheduleLibraryUnreadSync(sourceId, mangaKey);
+  }
   await markAllChaptersUnread(sourceId, mangaKey, chapterKeys);
 }
 
