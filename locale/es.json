@@ -288,6 +288,8 @@
   "filter_range_from": "Desde",
   "filter_range_to": "Hasta",
   "appearance_tab_badges_section": "Insignias de la barra de pestañas",
+  "appearance_hide_nav_section": "Ocultar navegación",
+  "appearance_hide_nav_footer": "Oculta la barra de pestañas al desplazarse hacia abajo en las pestañas seleccionadas. Solo iOS.",
   "appearance_badge_sources": "Insignia de actualizaciones de fuentes",
   "appearance_badge_sources_hint": "Muestra en la pestaña Fuentes el número de fuentes con una actualización disponible.",
   "appearance_badge_library": "Insignia de capítulos sin leer",

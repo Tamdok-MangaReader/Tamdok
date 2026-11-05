@@ -288,6 +288,8 @@
   "filter_range_from": "Von",
   "filter_range_to": "Bis",
   "appearance_tab_badges_section": "Abzeichen der Tab-Leiste",
+  "appearance_hide_nav_section": "Navigation ausblenden",
+  "appearance_hide_nav_footer": "Blendet die Tab-Leiste beim Herunterscrollen auf den ausgewählten Tabs aus. Nur iOS.",
   "appearance_badge_sources": "Abzeichen für Quellen-Updates",
   "appearance_badge_sources_hint": "Zeigt im Tab „Quellen“ die Anzahl der Quellen mit verfügbarem Update.",
   "appearance_badge_library": "Abzeichen für ungelesene Kapitel",

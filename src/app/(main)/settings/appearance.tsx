@@ -16,7 +16,7 @@ import type { AccentColorId } from '@/constants/accent-colors';
 import type { AppIconId } from '@/constants/app-icons';
 import { useAppearance } from '@/context/appearance-context';
 import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
-import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, updateAppSettings } from '@/services/app-settings';
+import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, TabBarHideSettings, updateAppSettings } from '@/services/app-settings';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 
 const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
@@ -39,6 +39,13 @@ export default function AppearanceScreen() {
     libraryUnreadMangaCount: false,
   });
 
+  const [tabBarHide, setTabBarHide] = useState<TabBarHideSettings>({
+    library: true,
+    sources: true,
+    history: true,
+    settings: false,
+  });
+
   const load = useCallback(async () => {
     const settings = await getAppSettings();
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
@@ -48,6 +55,7 @@ export default function AppearanceScreen() {
     setShowFinishedBadge(settings.coverDisplay.showFinishedBadge);
     setShowRating(settings.coverDisplay.showRating);
     setTabBadges(settings.tabBadges);
+    setTabBarHide(settings.tabBarHide);
   }, []);
 
   useEffect(() => {
@@ -73,6 +81,11 @@ export default function AppearanceScreen() {
   const updateTabBadges = (next: Partial<TabBadgeSettings>) => {
     setTabBadges((previous) => ({ ...previous, ...next }));
     void updateAppSettings({ tabBadges: next });
+  };
+
+  const updateTabBarHide = (next: Partial<TabBarHideSettings>) => {
+    setTabBarHide((previous) => ({ ...previous, ...next }));
+    void updateAppSettings({ tabBarHide: next });
   };
 
   const handleAppIconSelect = (id: AppIconId) => {
@@ -202,6 +215,38 @@ export default function AppearanceScreen() {
           />
         </Card>
 
+        <SectionLabel>{t('appearance_hide_nav_section')}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t('library')}
+            value={tabBarHide.library}
+            onChange={(value) => updateTabBarHide({ library: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('sources')}
+            value={tabBarHide.sources}
+            onChange={(value) => updateTabBarHide({ sources: value })}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('history')}
+            value={tabBarHide.history}
+            onChange={(value) => updateTabBarHide({ history: value })}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t('settings')}
+            value={tabBarHide.settings}
+            onChange={(value) => updateTabBarHide({ settings: value })}
+            isLast
+          />
+        </Card>
+        <ThemedText variant='footnote' color='secondaryLabel' style={styles.footer}>
+          {t('appearance_hide_nav_footer')}
+        </ThemedText>
+
         <SectionLabel>{t('appearance_covers_section')}</SectionLabel>
         <Card>
           <SwitchRow
@@ -277,6 +322,9 @@ const styles = StyleSheet.create({
   card: {
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  footer: {
+    paddingHorizontal: Spacing.sm,
   },
   segmented: {
     height: 36,

@@ -288,6 +288,8 @@
   "filter_range_from": "시작",
   "filter_range_to": "종료",
   "appearance_tab_badges_section": "탭 바 배지",
+  "appearance_hide_nav_section": "내비게이션 숨기기",
+  "appearance_hide_nav_footer": "선택한 탭에서 아래로 스크롤하면 탭 바를 숨깁니다. iOS 전용.",
   "appearance_badge_sources": "소스 업데이트 배지",
   "appearance_badge_sources_hint": "소스 탭에 업데이트가 있는 소스의 수를 표시합니다.",
   "appearance_badge_library": "읽지 않은 챕터 배지",

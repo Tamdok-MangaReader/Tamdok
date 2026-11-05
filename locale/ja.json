@@ -288,6 +288,8 @@
   "filter_range_from": "から",
   "filter_range_to": "まで",
   "appearance_tab_badges_section": "タブバーのバッジ",
+  "appearance_hide_nav_section": "ナビゲーションを隠す",
+  "appearance_hide_nav_footer": "選択したタブで下にスクロールするとタブバーを隠します。iOS のみ。",
   "appearance_badge_sources": "ソース更新バッジ",
   "appearance_badge_sources_hint": "アップデートのあるソースの数をソースタブに表示します。",
   "appearance_badge_library": "未読の章バッジ",

@@ -352,6 +352,8 @@
   "filter_range_from": "From",
   "filter_range_to": "To",
   "appearance_tab_badges_section": "Tab bar badges",
+  "appearance_hide_nav_section": "Hide Navigation",
+  "appearance_hide_nav_footer": "Hides the tab bar when you scroll down, for the selected tabs. iOS only.",
   "appearance_badge_sources": "Source updates badge",
   "appearance_badge_sources_hint": "Shows the number of sources with an available update on the Sources tab.",
   "appearance_badge_library": "Unread chapters badge",

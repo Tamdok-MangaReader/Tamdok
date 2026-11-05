@@ -138,6 +138,14 @@ export type LibraryDisplaySettings = {
   summaryExcludedCategoryIds: string[];
 };
 
+/** Tabs whose bar collapses while scrolling down (iOS only). */
+export type TabBarHideSettings = {
+  library: boolean;
+  sources: boolean;
+  history: boolean;
+  settings: boolean;
+};
+
 export type TabBadgeSettings = {
   sourceUpdates: boolean;
   libraryUnread: boolean;
@@ -190,6 +198,7 @@ export type AppSettings = {
   sourceDisplay: SourceDisplaySettings;
   privacy: PrivacySettings;
   tabBadges: TabBadgeSettings;
+  tabBarHide: TabBarHideSettings;
   debug: DebugSettings;
 };
 
@@ -290,6 +299,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     libraryUnread: true,
     libraryUnreadUpdatableOnly: true,
     libraryUnreadMangaCount: false,
+  },
+  tabBarHide: {
+    library: true,
+    sources: true,
+    history: true,
+    settings: false,
   },
   debug: {
     showReaderPageNumbers: false,
@@ -411,6 +426,10 @@ async function readSettings(): Promise<AppSettings> {
       ...DEFAULT_SETTINGS.tabBadges,
       ...(stored.tabBadges ?? {}),
     },
+    tabBarHide: {
+      ...DEFAULT_SETTINGS.tabBarHide,
+      ...(stored.tabBarHide ?? {}),
+    },
     debug: {
       ...DEFAULT_SETTINGS.debug,
       ...(stored.debug ?? {}),
@@ -454,6 +473,7 @@ export async function updateAppSettings(
     sourceDisplay: { ...current.sourceDisplay, ...patch.sourceDisplay },
     privacy: { ...current.privacy, ...patch.privacy },
     tabBadges: { ...current.tabBadges, ...patch.tabBadges },
+    tabBarHide: { ...current.tabBarHide, ...patch.tabBarHide },
     debug: { ...current.debug, ...patch.debug },
   };
   await writeSettings(next);

@@ -356,6 +356,8 @@
   "filter_range_from": "От",
   "filter_range_to": "До",
   "appearance_tab_badges_section": "Бейджи в tab bar",
+  "appearance_hide_nav_section": "Скрытие навигации",
+  "appearance_hide_nav_footer": "Скрывает tab bar при прокрутке вниз на выбранных вкладках. Только iOS.",
   "appearance_badge_sources": "Бейдж обновлений источников",
   "appearance_badge_sources_hint": "Количество источников с доступным обновлением на кнопке «Источники».",
   "appearance_badge_library": "Бейдж непрочитанных глав",

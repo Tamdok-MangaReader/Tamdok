@@ -288,6 +288,8 @@
   "filter_range_from": "Dari",
   "filter_range_to": "Sampai",
   "appearance_tab_badges_section": "Lencana bilah tab",
+  "appearance_hide_nav_section": "Sembunyikan Navigasi",
+  "appearance_hide_nav_footer": "Menyembunyikan tab bar saat menggulir ke bawah pada tab yang dipilih. Hanya iOS.",
   "appearance_badge_sources": "Lencana pembaruan sumber",
   "appearance_badge_sources_hint": "Menampilkan jumlah sumber yang punya pembaruan di tab Sumber.",
   "appearance_badge_library": "Lencana chapter belum dibaca",

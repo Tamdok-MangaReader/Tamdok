@@ -4,10 +4,12 @@ import { useMemo } from "react";
 import { t } from "@/constants/locales";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { formatBadge, useTabBadges } from "@/hooks/use-tab-badges";
+import { useTabBarHideActive } from "@/hooks/use-tab-bar-hide";
 
 export default function MainTabLayout() {
   const { tabTintColor, tabIconColor } = useNavigationTheme();
   const badges = useTabBadges();
+  const hideOnScroll = useTabBarHideActive();
 
   const tabIconColors = useMemo(
     () => ({ default: tabIconColor, selected: tabTintColor }),
@@ -18,7 +20,7 @@ export default function MainTabLayout() {
     <NativeTabs
       tintColor={tabTintColor}
       iconColor={tabIconColors}
-      minimizeBehavior="onScrollDown"
+      minimizeBehavior={hideOnScroll ? "onScrollDown" : "never"}
     >
       <NativeTabs.Trigger name="(library)">
         <NativeTabs.Trigger.Label>{t("library")}</NativeTabs.Trigger.Label>

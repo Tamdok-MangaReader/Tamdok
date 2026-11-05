@@ -288,6 +288,8 @@
   "filter_range_from": "De",
   "filter_range_to": "Até",
   "appearance_tab_badges_section": "Selos da barra de abas",
+  "appearance_hide_nav_section": "Ocultar navegação",
+  "appearance_hide_nav_footer": "Oculta a barra de abas ao rolar para baixo nas abas selecionadas. Somente iOS.",
   "appearance_badge_sources": "Selo de atualizações de fontes",
   "appearance_badge_sources_hint": "Mostra na aba Fontes o número de fontes com atualização disponível.",
   "appearance_badge_library": "Selo de capítulos não lidos",

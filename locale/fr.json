@@ -288,6 +288,8 @@
   "filter_range_from": "De",
   "filter_range_to": "À",
   "appearance_tab_badges_section": "Badges de la barre d'onglets",
+  "appearance_hide_nav_section": "Masquer la navigation",
+  "appearance_hide_nav_footer": "Masque la barre d'onglets lors du défilement vers le bas sur les onglets sélectionnés. iOS uniquement.",
   "appearance_badge_sources": "Badge des mises à jour de sources",
   "appearance_badge_sources_hint": "Affiche sur l'onglet Sources le nombre de sources ayant une mise à jour disponible.",
   "appearance_badge_library": "Badge des chapitres non lus",
