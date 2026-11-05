@@ -1,5 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
-
+import { getCacheDb } from '@/db/cache-database';
 import type { Manga } from '@/parsers/shared/types';
 import { normalizeManga } from '@/parsers/shared/normalize-manga';
 import { LruMap } from '@/utils/lru-map';
@@ -9,7 +8,6 @@ export type MangaDetailCacheEntry = {
   cachedAt: number;
 };
 
-const CACHE_DIR = `${FileSystem.documentDirectory}manga-detail-cache/`;
 const memoryCache = new LruMap<MangaDetailCacheEntry>(40);
 
 function normalizeMangaKey(mangaKey: string): string {
@@ -22,18 +20,6 @@ function normalizeMangaKey(mangaKey: string): string {
 
 function cacheKey(sourceId: string, mangaKey: string): string {
   return `${sourceId}:${normalizeMangaKey(mangaKey)}`;
-}
-
-function cacheFilePath(sourceId: string, mangaKey: string): string {
-  const safeKey = cacheKey(sourceId, mangaKey).replace(/[^a-zA-Z0-9._-]+/g, '_');
-  return `${CACHE_DIR}${safeKey}.json`;
-}
-
-async function ensureCacheDirectory(): Promise<void> {
-  const info = await FileSystem.getInfoAsync(CACHE_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
-  }
 }
 
 function withNormalizedManga(entry: MangaDetailCacheEntry): MangaDetailCacheEntry {
@@ -52,13 +38,14 @@ export async function readMangaDetailCache(
   const memory = memoryCache.get(key);
   if (memory) return memory;
 
-  await ensureCacheDirectory();
-  const path = cacheFilePath(sourceId, mangaKey);
-  const info = await FileSystem.getInfoAsync(path);
-  if (!info.exists) return null;
-
   try {
-    const parsed = JSON.parse(await FileSystem.readAsStringAsync(path)) as MangaDetailCacheEntry;
+    const db = await getCacheDb();
+    const row = await db.getFirstAsync<{ data: string }>(
+      'SELECT data FROM manga_detail WHERE source_id = ? AND manga_key = ?',
+      [sourceId, normalizeMangaKey(mangaKey)],
+    );
+    if (!row) return null;
+    const parsed = JSON.parse(row.data) as MangaDetailCacheEntry;
     if (!parsed?.manga?.key) return null;
     const normalized = withNormalizedManga(parsed);
     memoryCache.set(key, normalized);
@@ -91,33 +78,39 @@ export async function writeMangaDetailCache(
   const key = cacheKey(sourceId, mangaKey);
   const normalized = withNormalizedManga(entry);
   memoryCache.set(key, normalized);
-  await ensureCacheDirectory();
-  await FileSystem.writeAsStringAsync(cacheFilePath(sourceId, mangaKey), JSON.stringify(normalized));
+  const db = await getCacheDb();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO manga_detail (source_id, manga_key, title, cover, url, data, cached_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sourceId,
+      normalizeMangaKey(mangaKey),
+      normalized.manga.title ?? '',
+      normalized.manga.cover ?? null,
+      normalized.manga.url ?? null,
+      JSON.stringify(normalized),
+      normalized.cachedAt,
+    ],
+  );
 }
 
 export async function clearMangaDetailCache(sourceId?: string, mangaKey?: string): Promise<void> {
+  const db = await getCacheDb();
   if (sourceId && mangaKey) {
     memoryCache.delete(cacheKey(sourceId, mangaKey));
-    await ensureCacheDirectory();
-    await FileSystem.deleteAsync(cacheFilePath(sourceId, mangaKey), { idempotent: true });
+    await db.runAsync('DELETE FROM manga_detail WHERE source_id = ? AND manga_key = ?', [
+      sourceId,
+      normalizeMangaKey(mangaKey),
+    ]);
     return;
   }
 
   memoryCache.clear();
-  await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+  await db.runAsync('DELETE FROM manga_detail');
 }
 
 export async function clearMangaDetailCacheForSource(sourceId: string): Promise<void> {
-  const memoryPrefix = `${sourceId}:`;
-  memoryCache.deleteWhere((key) => key.startsWith(memoryPrefix));
-
-  const filePrefix = `${memoryPrefix}`.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  const info = await FileSystem.getInfoAsync(CACHE_DIR);
-  if (!info.exists) return;
-  const files = await FileSystem.readDirectoryAsync(CACHE_DIR);
-  await Promise.all(
-    files
-      .filter((name) => name.startsWith(filePrefix))
-      .map((name) => FileSystem.deleteAsync(`${CACHE_DIR}${name}`, { idempotent: true }).catch(() => undefined)),
-  );
+  memoryCache.deleteWhere((key) => key.startsWith(`${sourceId}:`));
+  const db = await getCacheDb();
+  await db.runAsync('DELETE FROM manga_detail WHERE source_id = ?', [sourceId]);
 }

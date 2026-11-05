@@ -13,6 +13,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AppSplash } from "@/components/ui/app-splash";
+import { StartupOverlay } from "@/components/ui/startup-overlay";
 import { AppLockGate } from "@/components/privacy/app-lock-gate";
 import { LibraryRefreshIsland } from "@/components/library/library-refresh-island";
 import { WelcomeScreen } from "@/components/onboarding/WelcomeScreen";
@@ -39,6 +40,10 @@ import { syncBackgroundLibraryUpdates } from "@/services/background-library-upda
 import { runAutoBackupIfNeeded, syncAutoBackupTask } from "@/services/auto-backup";
 import { parseNewChapterResponse } from "@/services/notifications";
 import { mangaHref } from "@/utils/manga-route";
+import { getDb } from "@/db/database";
+
+// Open the database (and run the one-time import of the old JSON storage) as early as possible.
+void getDb().catch(() => undefined);
 
 export const unstable_settings = {
   anchor: "(main)",
@@ -228,6 +233,7 @@ function RootLayoutContent() {
       </Stack>
       {Platform.OS === "ios" ? null : <LibraryRefreshIsland />}
       <AppLockGate />
+      <StartupOverlay />
     </ThemeProvider>
   );
 }

@@ -26,7 +26,6 @@ type UseReaderChapterWindowOptions = {
 
 const MAX_SEGMENTS = 3;
 const MIN_DISTANCE_TO_DROP = 2;
-const RETRY_COOLDOWN_MS = 8000;
 
 function samePages(a: ReaderPage[], b: ReaderPage[]): boolean {
   if (a === b) return true;
@@ -94,6 +93,9 @@ export function useReaderChapterWindow({
   ]);
   const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [loadingNext, setLoadingNext] = useState(false);
+  // A direction whose neighbouring chapter could not be loaded stays failed until the user retries,
+  // so the reader can show a message instead of an endless spinner.
+  const [failed, setFailed] = useState({ previous: false, next: false });
   const segmentsRef = useRef(segments);
   const loadingRef = useRef({ previous: false, next: false });
   const routeKeyRef = useRef(routeChapter.key);
@@ -116,6 +118,7 @@ export function useReaderChapterWindow({
       routeKeyRef.current = routeChapter.key;
       generationRef.current += 1;
       failedRef.current.clear();
+      setFailed({ previous: false, next: false });
       loadingRef.current = { previous: false, next: false };
       setLoadingPrevious(false);
       setLoadingNext(false);
@@ -142,7 +145,7 @@ export function useReaderChapterWindow({
   }, [initialPages, routeChapter]);
 
   const loadAdjacent = useCallback(
-    async (direction: Direction) => {
+    async (direction: Direction, retry = false) => {
       if (!enabled || !settings || !loadChapterPages) return;
       if (loadingRef.current[direction]) return;
 
@@ -163,12 +166,14 @@ export function useReaderChapterWindow({
       )
         return;
 
-      const failedAt = failedRef.current.get(adjacent.key);
-      if (failedAt !== undefined && Date.now() - failedAt < RETRY_COOLDOWN_MS)
-        return;
+      if (failedRef.current.has(adjacent.key)) {
+        if (!retry) return;
+        failedRef.current.delete(adjacent.key);
+      }
 
       const generation = generationRef.current;
       loadingRef.current[direction] = true;
+      setFailed((state) => (state[direction] ? { ...state, [direction]: false } : state));
       if (direction === "previous") setLoadingPrevious(true);
       else setLoadingNext(true);
 
@@ -184,6 +189,7 @@ export function useReaderChapterWindow({
         if (!mountedRef.current || generation !== generationRef.current) return;
         if (pages.length === 0) {
           failedRef.current.set(adjacent.key, Date.now());
+          setFailed((state) => ({ ...state, [direction]: true }));
           return;
         }
         failedRef.current.delete(adjacent.key);
@@ -204,8 +210,10 @@ export function useReaderChapterWindow({
           );
         });
       } catch {
-        if (generation === generationRef.current)
+        if (generation === generationRef.current) {
           failedRef.current.set(adjacent.key, Date.now());
+          if (mountedRef.current) setFailed((state) => ({ ...state, [direction]: true }));
+        }
       } finally {
         if (generation === generationRef.current) {
           loadingRef.current[direction] = false;
@@ -226,5 +234,5 @@ export function useReaderChapterWindow({
     ],
   );
 
-  return { segments, loadAdjacent, loadingPrevious, loadingNext };
+  return { segments, loadAdjacent, loadingPrevious, loadingNext, failed };
 }

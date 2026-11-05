@@ -1,13 +1,30 @@
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as SQLite from "expo-sqlite";
 
 import {
+  flushPreferences,
   getAllPreferences,
   getValue,
   replacePreferences,
   setValue,
   storageKeys,
 } from "@/constants/storage";
+import {
+  flushWrites,
+  insertMany,
+  mainDatabasePath,
+  runWithAttached,
+  runWrite,
+  toDbPath,
+} from "@/db/database";
+import {
+  importDownloadsDocument,
+  importLibraryDocument,
+  importTrackingDocument,
+  LIBRARY_SETTINGS_KEY,
+} from "@/db/legacy-import";
+import { SCHEMA_VERSION, schemaStatements } from "@/db/schema";
 import { registryEntryKind } from "@/parsers/aidoku/registry";
 import { listInstalledSources } from "@/parsers/shared/source-manager";
 import type { RegistryEntry, SourceKind } from "@/parsers/shared/types";
@@ -16,7 +33,11 @@ import {
   fullBackupScope,
   type BackupScope,
 } from "@/services/backup-config";
-import { invalidateLibraryCache } from "@/services/library";
+import { invalidateDownloadsCache } from "@/services/downloads";
+import {
+  invalidateLibraryCache,
+  recomputeAllLibraryUnread,
+} from "@/services/library";
 import {
   getRegistryUrls,
   getSourceIdentityKey,
@@ -69,6 +90,10 @@ const SKIP_PREFERENCE_KEYS = new Set<string>([
 ]);
 const BOOKMARKS_PREF_KEY = "chapter_bookmarks_v1";
 const AUTO_PREFIX = "auto-";
+const BACKUP_EXTENSION = ".tdb";
+// New backups are .tdb (SQLite files); the pre-SQLite .json backups stay listed and restorable.
+const BACKUP_FILE_PATTERN = /\.(tdb|sqlite|json)$/;
+const BACKUP_FORMAT = "tamdok-backup-v1";
 
 type LooseRecord = Record<string, unknown>;
 
@@ -92,11 +117,6 @@ const LIBRARY_SETTING_KEYS = [
   "skipUnreadManga",
   "refreshMetadata",
   "backgroundRefresh",
-];
-const LIBRARY_CATEGORY_KEYS = [
-  "categories",
-  "defaultCategoryId",
-  "excludedCategoryIds",
 ];
 
 function prefKeysForScope(scope: BackupScope): {
@@ -182,12 +202,12 @@ export async function listBackups(): Promise<
   const files = await FileSystem.readDirectoryAsync(BACKUP_DIR);
   const backups = await Promise.all(
     files
-      .filter((file) => file.endsWith(".json"))
+      .filter((file) => BACKUP_FILE_PATTERN.test(file))
       .map(async (file) => {
         const uri = `${BACKUP_DIR}${file}`;
         const info = await FileSystem.getInfoAsync(uri);
         return {
-          name: file.replace(/\.json$/, ""),
+          name: file.replace(BACKUP_FILE_PATTERN, ""),
           uri,
           date:
             info.exists && "modificationTime" in info
@@ -206,9 +226,11 @@ async function defaultBackupName(auto: boolean): Promise<string> {
   const pad = (value: number) => String(value).padStart(2, "0");
   const base = `${auto ? AUTO_PREFIX : ""}backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const files = new Set(await FileSystem.readDirectoryAsync(BACKUP_DIR));
-  if (!files.has(`${base}.json`)) return base;
+  const taken = (name: string) =>
+    files.has(`${name}${BACKUP_EXTENSION}`) || files.has(`${name}.json`);
+  if (!taken(base)) return base;
   let index = 2;
-  while (files.has(`${base}_${index}.json`)) index += 1;
+  while (taken(`${base}_${index}`)) index += 1;
   return `${base}_${index}`;
 }
 
@@ -218,83 +240,195 @@ export type CreateBackupOptions = {
   auto?: boolean;
 };
 
-export async function createBackup(
-  options: CreateBackupOptions = {},
-): Promise<string> {
-  await ensureBackupDir();
-  const scope = options.scope ?? fullBackupScope();
-  const auto = options.auto ?? false;
+// Column lists of the tables copied into a backup. Explicit lists keep a backup restorable even if a
+// later schema version appends columns to the live tables.
+const COPY_COLUMNS = {
+  library_entries:
+    "source_id, manga_key, title, cover, date_added, unread_count, downloaded_count, last_refreshed, status, update_failed, last_attempt_at, favorite, chapter_count",
+  library_entry_categories: "source_id, manga_key, category_id",
+  known_chapters: "source_id, manga_key, chapter_key, position",
+  categories: "id, name, sort_order",
+  manga_meta: "source_id, manga_key, title, cover",
+  reading_log:
+    "source_id, manga_key, chapter_key, page, date_read, history_at, chapter_title",
+  downloads:
+    "source_id, manga_key, chapter_key, manga_title, chapter_title, status, progress, date_added, error",
+} as const;
 
-  const payload: BackupPayload = {
-    version: 3,
-    name: options.name ?? (await defaultBackupName(auto)),
-    date: Date.now(),
-    scope,
-    auto,
-  };
+type CopyTable = keyof typeof COPY_COLUMNS;
 
-  if (
-    scope.libraryManga ||
-    scope.libraryCategories ||
-    scope.libraryUpdateSettings
-  ) {
-    const library = asRecord(await getValue(storageKeys.LIBRARY, null));
+// Copies a table between the main database and an attached backup, natively (no rows cross into JS).
+function copySql(
+  table: CopyTable,
+  from: string,
+  to: string,
+  options: { select?: string; where?: string; verb?: string; tail?: string } = {},
+): string {
+  const columns = COPY_COLUMNS[table];
+  return `${options.verb ?? "INSERT"} INTO ${to}.${table} (${columns})
+          SELECT ${options.select ?? columns} FROM ${from}.${table}
+          WHERE ${options.where ?? "1"} ${options.tail ?? ""}`;
+}
+
+// Settings and preferences that travel in the backup's key-value table.
+async function collectBackupKeyValues(
+  scope: BackupScope,
+): Promise<Array<[string, unknown]>> {
+  const rows: Array<[string, unknown]> = [];
+
+  if (scope.libraryCategories || scope.libraryUpdateSettings) {
+    const settings = asRecord(await getValue(LIBRARY_SETTINGS_KEY, null));
     const part: LooseRecord = {};
-    if (scope.libraryManga) Object.assign(part, pickKeys(library, ["entries"]));
     if (scope.libraryCategories) {
-      Object.assign(part, pickKeys(library, LIBRARY_CATEGORY_KEYS));
+      Object.assign(
+        part,
+        pickKeys(settings, ["defaultCategoryId", "excludedCategoryIds"]),
+      );
     }
     if (scope.libraryUpdateSettings) {
-      Object.assign(part, pickKeys(library, LIBRARY_SETTING_KEYS));
+      Object.assign(part, pickKeys(settings, LIBRARY_SETTING_KEYS));
     }
-    payload.library = part;
-  }
-
-  if (scope.readProgress || scope.history) {
-    const tracking = asRecord(await getValue(storageKeys.MANGA_TRACKING, null));
-    const part: LooseRecord = {};
-    if (scope.readProgress) Object.assign(part, pickKeys(tracking, ["chapters"]));
-    if (scope.history) Object.assign(part, pickKeys(tracking, ["history"]));
-    payload.mangaTracking = part;
-  }
-
-  if (scope.downloads) {
-    payload.downloads = await getValue(storageKeys.DOWNLOADS, null);
+    rows.push([LIBRARY_SETTINGS_KEY, part]);
   }
 
   if (scope.appSettings || scope.privacy) {
     const settings = asRecord(await getValue(storageKeys.APP_SETTINGS, null));
+    const part: LooseRecord = {};
     if (scope.appSettings) {
       const { privacy: _privacy, ...general } = settings;
-      payload.appSettings = general;
+      Object.assign(part, general);
     }
-    if (scope.privacy) payload.privacySettings = settings.privacy ?? null;
+    if (scope.privacy) part.privacy = settings.privacy ?? null;
+    rows.push([storageKeys.APP_SETTINGS, part]);
   }
 
   const { exact, prefixes } = prefKeysForScope(scope);
   if (exact.length > 0 || prefixes.length > 0) {
     const preferences = await getAllPreferences();
-    const picked: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(preferences)) {
       if (SKIP_PREFERENCE_KEYS.has(key)) continue;
       if (
         exact.includes(key) ||
         prefixes.some((prefix) => key.startsWith(prefix))
       ) {
-        picked[key] = value;
+        rows.push([key, value]);
       }
     }
-    payload.preferences = picked;
   }
+  return rows;
+}
 
-  if (scope.installedSources) {
-    payload.installedSources = await snapshotInstalledSources();
+/**
+ * Creates a backup: a standalone SQLite file with the same schema as the app database, holding only the
+ * parts the scope selects. Tables are copied natively with INSERT ... SELECT, so the time is dominated
+ * by disk speed, not by the number of rows. The file is built under a temporary name and moved into
+ * place when complete, so a failure never leaves a half-written backup.
+ */
+export async function createBackup(
+  options: CreateBackupOptions = {},
+): Promise<string> {
+  await ensureBackupDir();
+  const scope = options.scope ?? fullBackupScope();
+  const auto = options.auto ?? false;
+  const name = options.name ?? (await defaultBackupName(auto));
+  const fileBase = name.replace(/[^\w.-]+/g, "_");
+  const finalUri = `${BACKUP_DIR}${fileBase}${BACKUP_EXTENSION}`;
+  const partName = `${fileBase}${BACKUP_EXTENSION}.part`;
+  const partUri = `${BACKUP_DIR}${partName}`;
+
+  const keyValues = await collectBackupKeyValues(scope);
+  const installedSources = scope.installedSources
+    ? await snapshotInstalledSources()
+    : undefined;
+  await flushWrites();
+  await FileSystem.deleteAsync(partUri, { idempotent: true });
+
+  const dest = await SQLite.openDatabaseAsync(
+    partName,
+    undefined,
+    toDbPath(BACKUP_DIR),
+  );
+  try {
+    // One self-contained file: no -wal/-shm companions to lose when the file is shared.
+    await dest.execAsync("PRAGMA journal_mode = DELETE");
+    for (const statement of schemaStatements("main")) {
+      await dest.execAsync(statement);
+    }
+    await dest.execAsync(
+      "CREATE TABLE backup_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID",
+    );
+    await dest.runAsync("ATTACH DATABASE ? AS src", [mainDatabasePath()]);
+    await dest.execAsync("BEGIN");
+    try {
+      if (scope.libraryManga) {
+        await dest.execAsync(copySql("library_entries", "src", "main"));
+        await dest.execAsync(copySql("library_entry_categories", "src", "main"));
+        await dest.execAsync(copySql("known_chapters", "src", "main"));
+      }
+      if (scope.libraryCategories) {
+        await dest.execAsync(copySql("categories", "src", "main"));
+      }
+      if (scope.readProgress || scope.history) {
+        await dest.execAsync(copySql("manga_meta", "src", "main"));
+        if (scope.readProgress && scope.history) {
+          await dest.execAsync(copySql("reading_log", "src", "main"));
+        } else if (scope.readProgress) {
+          await dest.execAsync(
+            copySql("reading_log", "src", "main", {
+              select:
+                "source_id, manga_key, chapter_key, page, date_read, NULL, NULL",
+            }),
+          );
+        } else {
+          await dest.execAsync(
+            copySql("reading_log", "src", "main", {
+              where: "history_at IS NOT NULL",
+            }),
+          );
+        }
+      }
+      if (scope.downloads) {
+        await dest.execAsync(copySql("downloads", "src", "main"));
+      }
+
+      await insertMany(
+        dest,
+        "INSERT OR REPLACE INTO kv (key, value)",
+        2,
+        keyValues.flatMap(([key, value]) => {
+          const serialized = JSON.stringify(value);
+          return serialized === undefined ? [] : [[key, serialized]];
+        }),
+      );
+
+      const meta: Array<[string, string]> = [
+        ["format", BACKUP_FORMAT],
+        ["name", name],
+        ["date", String(Date.now())],
+        ["auto", auto ? "1" : "0"],
+        ["scope", JSON.stringify(scope)],
+      ];
+      if (installedSources) {
+        meta.push(["installedSources", JSON.stringify(installedSources)]);
+      }
+      await insertMany(dest, "INSERT INTO backup_meta (key, value)", 2, meta);
+      await dest.execAsync("COMMIT");
+    } catch (error) {
+      await dest.execAsync("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
+    await dest.execAsync("DETACH DATABASE src");
+    await dest.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  } catch (error) {
+    await dest.closeAsync().catch(() => undefined);
+    await FileSystem.deleteAsync(partUri, { idempotent: true });
+    throw error;
   }
+  await dest.closeAsync();
 
-  const fileName = `${payload.name.replace(/[^\w.-]+/g, "_")}.json`;
-  const uri = `${BACKUP_DIR}${fileName}`;
-  await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload));
-  return uri;
+  await FileSystem.deleteAsync(finalUri, { idempotent: true });
+  await FileSystem.moveAsync({ from: partUri, to: finalUri });
+  return finalUri;
 }
 
 export async function shareBackup(uri: string): Promise<void> {
@@ -306,73 +440,198 @@ export async function shareBackup(uri: string): Promise<void> {
       to: tempUri,
     });
 
+    const legacy = uri.endsWith(".json");
     await Sharing.shareAsync(tempUri, {
-      mimeType: "application/json",
-      UTI: "public.json",
+      mimeType: legacy ? "application/json" : "application/vnd.sqlite3",
+      UTI: legacy ? "public.json" : "public.database",
     });
   } catch (error) {
     console.error("Backup share error:", error);
   }
 }
 
-async function restorePartial(payload: BackupPayload): Promise<void> {
-  if (payload.library && typeof payload.library === "object") {
-    const current = asRecord(await getValue(storageKeys.LIBRARY, null));
-    await setValue(storageKeys.LIBRARY, {
-      ...current,
-      ...asRecord(payload.library),
+// Settings documents are merged into what is stored (a partial backup only carries the keys it selected).
+async function applyKeyValue(key: string, value: unknown): Promise<void> {
+  if (SKIP_PREFERENCE_KEYS.has(key)) return;
+  if (key === storageKeys.APP_SETTINGS || key === LIBRARY_SETTINGS_KEY) {
+    const current = asRecord(await getValue(key, null));
+    await setValue(key, { ...current, ...asRecord(value) });
+    return;
+  }
+  await setValue(key, value);
+}
+
+type BackupMeta = Record<string, string>;
+
+const SQLITE_HEADER_BASE64 = "U1FMaXRlIGZvcm1hdCAz"; // "SQLite format 3"
+
+async function isSqliteFile(uri: string): Promise<boolean> {
+  try {
+    const head = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+      position: 0,
+      length: 15,
     });
-  }
-  if (payload.mangaTracking && typeof payload.mangaTracking === "object") {
-    const current = asRecord(await getValue(storageKeys.MANGA_TRACKING, null));
-    await setValue(storageKeys.MANGA_TRACKING, {
-      ...current,
-      ...asRecord(payload.mangaTracking),
-    });
-  }
-  if (payload.downloads != null) {
-    await setValue(storageKeys.DOWNLOADS, payload.downloads);
-  }
-  if (payload.appSettings != null || payload.privacySettings != null) {
-    const current = asRecord(await getValue(storageKeys.APP_SETTINGS, null));
-    const next: LooseRecord = { ...current, ...asRecord(payload.appSettings) };
-    if (payload.privacySettings != null) next.privacy = payload.privacySettings;
-    await setValue(storageKeys.APP_SETTINGS, next);
-  }
-  if (payload.preferences && typeof payload.preferences === "object") {
-    for (const [key, value] of Object.entries(payload.preferences)) {
-      if (SKIP_PREFERENCE_KEYS.has(key)) continue;
-      await setValue(key, value);
-    }
+    return head.startsWith(SQLITE_HEADER_BASE64);
+  } catch {
+    return false;
   }
 }
 
-async function restorePreferences(payload: BackupPayload): Promise<void> {
+/**
+ * Restores a SQLite backup. The backup file is attached to the app database and the selected tables are
+ * replaced with INSERT ... SELECT in one transaction: either everything is restored or nothing changes.
+ */
+async function restoreSqliteBackup(
+  uri: string,
+): Promise<{ meta: BackupMeta; scope: BackupScope }> {
+  const path = toDbPath(uri);
+  const { meta, keyValues } = await runWithAttached(path, async (conn) => {
+    const metaRows = await conn
+      .getAllAsync<{ key: string; value: string }>(
+        "SELECT key, value FROM bk.backup_meta",
+      )
+      .catch(() => [] as Array<{ key: string; value: string }>);
+    const meta: BackupMeta = {};
+    for (const row of metaRows) meta[row.key] = row.value;
+    if (meta.format !== BACKUP_FORMAT) throw new Error("Not a Tamdok backup");
+    const version = await conn.getFirstAsync<{ user_version: number }>(
+      "PRAGMA bk.user_version",
+    );
+    if ((version?.user_version ?? 0) > SCHEMA_VERSION) {
+      throw new Error("This backup was made by a newer version of the app");
+    }
+
+    const scope = JSON.parse(meta.scope ?? "{}") as BackupScope;
+
+    if (scope.libraryManga) {
+      for (const table of [
+        "library_entries",
+        "library_entry_categories",
+        "known_chapters",
+      ] as const) {
+        await conn.execAsync(`DELETE FROM main.${table}`);
+        await conn.execAsync(copySql(table, "bk", "main"));
+      }
+    }
+    if (scope.libraryCategories) {
+      await conn.execAsync("DELETE FROM main.categories");
+      await conn.execAsync(copySql("categories", "bk", "main"));
+    }
+    if (scope.readProgress || scope.history) {
+      await conn.execAsync(
+        copySql("manga_meta", "bk", "main", { verb: "INSERT OR REPLACE" }),
+      );
+      if (scope.readProgress && scope.history) {
+        await conn.execAsync("DELETE FROM main.reading_log");
+        await conn.execAsync(copySql("reading_log", "bk", "main"));
+      } else if (scope.readProgress) {
+        // Progress is replaced; the history of the app is kept.
+        await conn.execAsync("DELETE FROM main.reading_log WHERE history_at IS NULL");
+        await conn.execAsync(
+          copySql("reading_log", "bk", "main", {
+            tail: `ON CONFLICT (source_id, manga_key, chapter_key) DO UPDATE SET
+                     page = excluded.page, date_read = excluded.date_read`,
+          }),
+        );
+      } else {
+        // History is replaced; reading progress is kept (rows missing there are added).
+        await conn.execAsync(
+          "UPDATE main.reading_log SET history_at = NULL, chapter_title = NULL",
+        );
+        await conn.execAsync(
+          copySql("reading_log", "bk", "main", {
+            tail: `ON CONFLICT (source_id, manga_key, chapter_key) DO UPDATE SET
+                     history_at = excluded.history_at, chapter_title = excluded.chapter_title`,
+          }),
+        );
+      }
+    }
+    if (scope.downloads) {
+      await conn.execAsync("DELETE FROM main.downloads");
+      await conn.execAsync(copySql("downloads", "bk", "main"));
+    }
+
+    const kvRows = await conn.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM bk.kv",
+    );
+    return { meta, keyValues: kvRows };
+  });
+
+  for (const row of keyValues) {
+    try {
+      await applyKeyValue(row.key, JSON.parse(row.value));
+    } catch {}
+  }
+  await flushPreferences();
+  return { meta, scope: JSON.parse(meta.scope!) as BackupScope };
+}
+
+// Pre-SQLite backups: JSON documents of versions 1-3, converted through the same importers as the
+// one-time migration.
+async function restoreLegacyBackup(payload: BackupPayload): Promise<void> {
+  await flushPreferences();
+
   if (payload.version >= 3) {
-    await restorePartial(payload);
+    await runWrite(async (tx) => {
+      if (payload.library && typeof payload.library === "object") {
+        await importLibraryDocument(tx, payload.library);
+      }
+      if (payload.mangaTracking && typeof payload.mangaTracking === "object") {
+        await importTrackingDocument(tx, payload.mangaTracking);
+      }
+      if (payload.downloads != null) {
+        await importDownloadsDocument(tx, payload.downloads);
+      }
+    });
+    if (payload.appSettings != null || payload.privacySettings != null) {
+      const next: LooseRecord = { ...asRecord(payload.appSettings) };
+      if (payload.privacySettings != null) next.privacy = payload.privacySettings;
+      await applyKeyValue(storageKeys.APP_SETTINGS, next);
+    }
+    if (payload.preferences && typeof payload.preferences === "object") {
+      for (const [key, value] of Object.entries(payload.preferences)) {
+        await applyKeyValue(key, value);
+      }
+    }
+    await flushPreferences();
     return;
   }
+
   if (
     payload.version >= 2 &&
     payload.preferences &&
     typeof payload.preferences === "object"
   ) {
     const next = { ...payload.preferences };
-    for (const key of SKIP_PREFERENCE_KEYS) {
-      delete next[key];
-    }
+    for (const key of SKIP_PREFERENCE_KEYS) delete next[key];
     await replacePreferences(next);
     return;
   }
 
-  if (payload.library != null)
-    await setValue(storageKeys.LIBRARY, payload.library);
-  if (payload.mangaTracking != null)
-    await setValue(storageKeys.MANGA_TRACKING, payload.mangaTracking);
-  if (payload.downloads != null)
-    await setValue(storageKeys.DOWNLOADS, payload.downloads);
-  if (payload.appSettings != null)
+  await runWrite(async (tx) => {
+    if (payload.library != null) {
+      for (const table of [
+        "library_entries",
+        "library_entry_categories",
+        "known_chapters",
+        "categories",
+      ]) {
+        await tx.runAsync(`DELETE FROM ${table}`);
+      }
+      await importLibraryDocument(tx, payload.library);
+    }
+    if (payload.mangaTracking != null) {
+      await importTrackingDocument(tx, payload.mangaTracking);
+    }
+    if (payload.downloads != null) {
+      await importDownloadsDocument(tx, payload.downloads);
+    }
+  });
+  if (payload.appSettings != null) {
     await setValue(storageKeys.APP_SETTINGS, payload.appSettings);
+    await flushPreferences();
+  }
 }
 
 async function reinstallSources(
@@ -442,15 +701,29 @@ export async function restoreBackup(
   onProgress?: (progress: RestoreProgress) => void,
 ): Promise<RestoreResult> {
   onProgress?.({ phase: "preferences", current: 0, total: 1 });
-  const raw = await FileSystem.readAsStringAsync(uri);
-  const payload = JSON.parse(raw) as BackupPayload;
-  await restorePreferences(payload);
+
+  let sources: BackupSourceRef[] = [];
+  let touchedLibraryData = true;
+  if (await isSqliteFile(uri)) {
+    const { meta, scope } = await restoreSqliteBackup(uri);
+    sources = meta.installedSources
+      ? (JSON.parse(meta.installedSources) as BackupSourceRef[])
+      : [];
+    touchedLibraryData = scope.libraryManga || scope.readProgress || scope.history;
+  } else {
+    const raw = await FileSystem.readAsStringAsync(uri);
+    const payload = JSON.parse(raw) as BackupPayload;
+    await restoreLegacyBackup(payload);
+    sources = payload.installedSources ?? [];
+  }
+
   invalidateLibraryCache();
+  invalidateDownloadsCache();
+  if (touchedLibraryData) await recomputeAllLibraryUnread();
   notifyAppSettingsChanged();
   notifyAppearanceChanged();
   notifyMangaDataChanged();
 
-  const sources = payload.installedSources ?? [];
   const sourcesFailed = await reinstallSources(sources, onProgress);
   notifyMangaDataChanged();
 

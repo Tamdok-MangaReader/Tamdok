@@ -600,6 +600,9 @@
   "advanced_clear_cache": "캐시 삭제",
   "advanced_clear_cache_title": "캐시를 삭제했습니다",
   "advanced_clear_cache_done": "임시 캐시 파일을 삭제했습니다.",
+  "advanced_clear_downloads": "다운로드 삭제",
+  "advanced_clear_downloads_title": "모든 다운로드를 삭제할까요?",
+  "advanced_clear_downloads_confirm": "다운로드한 모든 챕터가 기기에서 삭제됩니다.",
   "advanced_clear_history": "읽기 기록 삭제",
   "advanced_clear_history_title": "기록을 삭제할까요?",
   "advanced_clear_history_confirm": "모든 챕터 진행 상황과 기록이 삭제됩니다.",
@@ -673,5 +676,8 @@
   "update_failed": "업데이트 실패",
   "update_install": "다운로드 및 설치",
   "update_release_page": "새로운 기능",
-  "section_app_update": "앱 업데이트"
+  "section_app_update": "앱 업데이트",
+  "library_list_downloaded": "{count}개 다운로드됨",
+  "history_load_more": "더 보기",
+  "reader_adjacent_failed": "이 챕터를 불러오지 못했습니다. 연결을 확인하고 다시 시도하세요."
 }

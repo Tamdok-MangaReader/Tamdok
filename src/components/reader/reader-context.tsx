@@ -32,6 +32,7 @@ export type ReaderActions = {
   selectChapter: (chapter: Chapter) => void;
   lookupDictionary: (pageUrl: string, x: number, y: number, layout: { width: number; height: number }) => void;
   loadAdjacentChapter: (direction: 'previous' | 'next') => void;
+  retryAdjacentChapter: (direction: 'previous' | 'next') => void;
 };
 
 export type ReaderContextValue = {
@@ -53,6 +54,8 @@ export type ReaderContextValue = {
   mangaPageUrl?: string;
   bookmarked: boolean;
   stripSegments: ChapterSegment[];
+  /** Directions whose neighbouring chapter failed to load (offline, timeout). */
+  adjacentFailed: { previous: boolean; next: boolean };
   debugShowPageNumbers: boolean;
 };
 

@@ -7,7 +7,6 @@ import {
   type ReactElement,
 } from "react";
 import {
-  ActivityIndicator,
   StyleSheet,
   View,
 } from "react-native";
@@ -21,6 +20,7 @@ import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useWindowDimensions } from "@/hooks/use-duo-layout";
+import { ReaderAdjacentPlaceholder } from "@/components/reader/reader-adjacent-placeholder";
 import { ReaderChapterBoundary } from "@/components/reader/reader-chapter-boundary";
 import {
   ReaderQuickActions,
@@ -440,7 +440,7 @@ export function ReaderPagedView({
     pagerChildren.push(
       <View key="chapter-start-page" style={styles.page} collapsable={false}>
         <View style={styles.edgePage}>
-          <ActivityIndicator color={foregroundColor} />
+          <ReaderAdjacentPlaceholder direction="previous" foregroundColor={foregroundColor} />
         </View>
       </View>,
     );
@@ -508,7 +508,7 @@ export function ReaderPagedView({
     <View key="chapter-end-page" style={styles.page} collapsable={false}>
       <View style={styles.edgePage}>
         {nextChapter ? (
-          <ActivityIndicator color={foregroundColor} />
+          <ReaderAdjacentPlaceholder direction="next" foregroundColor={foregroundColor} />
         ) : (
           <ReaderChapterBoundary
             kind="end"

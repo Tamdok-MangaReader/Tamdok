@@ -189,7 +189,7 @@ async function refreshEntry(
 
   const chapters = updated.chapters ?? [];
   const chapterKeys = chapters.map((chapter) => chapter.key);
-  const previousKeys = chapterKeysForLibraryEntry(entry);
+  const previousKeys = await chapterKeysForLibraryEntry(entry);
 
   if (chapterKeys.length === 0 && previousKeys.length > 0) {
     throw new Error("Empty chapter list");

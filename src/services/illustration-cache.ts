@@ -1,9 +1,5 @@
-import * as FileSystem from "expo-file-system/legacy";
-
-import type { InstalledSource, Manga } from "@/parsers/shared/types";
-
-const CACHE_DIR = `${FileSystem.documentDirectory}manga-detail-cache/`;
-const READ_CONCURRENCY = 8;
+import { getCacheDb } from "@/db/cache-database";
+import type { InstalledSource } from "@/parsers/shared/types";
 
 export type IllustrationCacheItem = {
   key: string;
@@ -14,66 +10,40 @@ export type IllustrationCacheItem = {
   sourceRoute: string;
 };
 
-type SourceMatcher = {
-  prefix: string;
-  source: InstalledSource;
+type IndexRow = {
+  source_id: string;
+  manga_key: string;
+  title: string;
+  cover: string | null;
+  url: string | null;
 };
-
-function sanitize(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "_");
-}
 
 export type IllustrationCacheIndex = {
-  files: Array<{ name: string; source: InstalledSource }>;
+  files: Array<{ row: IndexRow; source: InstalledSource }>;
 };
 
+// Lists cached manga of sources allowed in illustration mode (content rating below 3). Only the light
+// columns are read; the cached documents themselves stay in the database.
 export async function buildIllustrationCacheIndex(
   sources: InstalledSource[],
 ): Promise<IllustrationCacheIndex> {
-  const allowed: SourceMatcher[] = [];
+  const allowed = new Map<string, InstalledSource>();
   for (const source of sources) {
     if ((source.manifest.info.contentRating ?? 0) >= 3) continue;
-    allowed.push({ prefix: sanitize(`${source.id}:`), source });
+    allowed.set(source.id, source);
   }
-  allowed.sort((a, b) => b.prefix.length - a.prefix.length);
+  if (allowed.size === 0) return { files: [] };
 
-  const info = await FileSystem.getInfoAsync(CACHE_DIR);
-  if (!info.exists) return { files: [] };
-
-  const names = await FileSystem.readDirectoryAsync(CACHE_DIR);
+  const db = await getCacheDb();
+  const rows = await db.getAllAsync<IndexRow>(
+    "SELECT source_id, manga_key, title, cover, url FROM manga_detail WHERE title <> ''",
+  );
   const files: IllustrationCacheIndex["files"] = [];
-  for (const name of names) {
-    if (!name.endsWith(".json")) continue;
-    for (const matcher of allowed) {
-      if (name.startsWith(matcher.prefix)) {
-        files.push({ name, source: matcher.source });
-        break;
-      }
-    }
+  for (const row of rows) {
+    const source = allowed.get(row.source_id);
+    if (source) files.push({ row, source });
   }
   return { files };
-}
-
-async function readItem(
-  entry: IllustrationCacheIndex["files"][number],
-  routeOf: (source: InstalledSource) => string,
-): Promise<IllustrationCacheItem | null> {
-  try {
-    const raw = await FileSystem.readAsStringAsync(`${CACHE_DIR}${entry.name}`);
-    const parsed = JSON.parse(raw) as { manga?: Manga };
-    const manga = parsed?.manga;
-    if (!manga?.key || !manga.title) return null;
-    return {
-      key: manga.key,
-      title: manga.title,
-      cover: manga.cover,
-      url: manga.url,
-      sourceId: entry.source.id,
-      sourceRoute: routeOf(entry.source),
-    };
-  } catch {
-    return null;
-  }
 }
 
 export async function readIllustrationChunk(
@@ -82,21 +52,12 @@ export async function readIllustrationChunk(
   count: number,
   routeOf: (source: InstalledSource) => string,
 ): Promise<IllustrationCacheItem[]> {
-  const slice = index.files.slice(from, from + count);
-  const result: Array<IllustrationCacheItem | null> = new Array(slice.length);
-  let cursor = 0;
-
-  const worker = async () => {
-    while (cursor < slice.length) {
-      const current = cursor;
-      cursor += 1;
-      result[current] = await readItem(slice[current]!, routeOf);
-    }
-  };
-
-  await Promise.all(
-    Array.from({ length: Math.min(READ_CONCURRENCY, slice.length) }, worker),
-  );
-
-  return result.filter((item): item is IllustrationCacheItem => item !== null);
+  return index.files.slice(from, from + count).map(({ row, source }) => ({
+    key: row.manga_key,
+    title: row.title,
+    cover: row.cover ?? undefined,
+    url: row.url ?? undefined,
+    sourceId: source.id,
+    sourceRoute: routeOf(source),
+  }));
 }

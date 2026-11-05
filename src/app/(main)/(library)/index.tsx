@@ -49,7 +49,11 @@ import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { LibraryCategoryPicker } from "@/components/library/library-category-picker";
 import { processQueuedDownloads } from "@/services/download-processor";
 import { queueChapterDownloads, removeMangaDownloads } from "@/services/downloads";
-import { peekMangaDetailCache } from "@/services/manga-detail-cache";
+import type { Manga } from "@/parsers/shared/types";
+import {
+  peekMangaDetailCache,
+  readMangaDetailCache,
+} from "@/services/manga-detail-cache";
 import { chaptersOldestFirst, formatChapterLabel } from "@/utils/chapter-label";
 import { type MangaGridItem } from "@/components/manga/manga-grid";
 import { VirtualMangaGrid } from "@/components/manga/virtual-manga-grid";
@@ -108,13 +112,12 @@ import {
   type LibrarySortMode,
 } from "@/services/app-settings";
 import {
-  getHistoryEntries,
   getMangaChapterProgress,
-  getReadChapterKeysByManga,
   markAllChaptersRead,
   markAllChaptersUnread,
 } from "@/services/manga-tracking";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
+import { markStartupReady } from "@/utils/startup-gate";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
 import { mangaHref, mangaTransferHref } from "@/utils/manga-route";
 
@@ -289,9 +292,6 @@ export default function LibraryScreen() {
   >({});
   const [displayMode, setDisplayMode] = useState<LibraryDisplayMode>("grid");
   const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
-  const [readKeys, setReadKeys] = useState<Map<string, Set<string>>>(
-    () => new Map(),
-  );
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -304,23 +304,27 @@ export default function LibraryScreen() {
   const [lastReadAt, setLastReadAt] = useState<Map<string, number>>(
     () => new Map(),
   );
+  // Extra row details (authors, tags, rating) for the descriptive list; the in-memory detail cache
+  // is empty after a relaunch, so they are loaded from the on-disk cache.
+  const [detailMeta, setDetailMeta] = useState<
+    Map<
+      string,
+      Pick<Manga, "description" | "authors" | "tags" | "rating">
+    >
+  >(() => new Map());
   const loadLibrary = useCallback(async () => {
     const [
       rawCategories,
       storedCategoryId,
       customCategories,
       settings,
-      history,
       rawEntries,
-      readKeysByManga,
     ] = await Promise.all([
       getLibraryCategories(),
       getCurrentCategoryId(),
       hasCustomLibraryCategories(),
       getAppSettings(),
-      getHistoryEntries(),
       getLibraryEntries(),
-      getReadChapterKeysByManga(),
     ]);
 
     const hiddenCategoryIds = new Set(
@@ -380,11 +384,9 @@ export default function LibraryScreen() {
     }
 
     const nextLastRead = new Map<string, number>();
-
-    for (const item of history) {
-      const key = `${item.sourceId}:${item.mangaKey}`;
-      if (!nextLastRead.has(key)) {
-        nextLastRead.set(key, item.dateRead);
+    for (const entry of rawEntries) {
+      if (entry.lastReadAt) {
+        nextLastRead.set(`${entry.sourceId}:${entry.mangaKey}`, entry.lastReadAt);
       }
     }
 
@@ -393,7 +395,6 @@ export default function LibraryScreen() {
     setDisplayMode(settings.libraryDisplay.displayMode);
     setSortReversed(settings.libraryDisplay.sortReversed);
     setFilters(settings.libraryDisplay.filters);
-    setReadKeys(readKeysByManga);
     setSummaryExcluded(settings.libraryDisplay.summaryExcludedCategoryIds ?? []);
     setAllCategories(rawCategories);
     setShowUnreadBadges(settings.libraryDisplay.showUnreadBadges);
@@ -446,6 +447,10 @@ export default function LibraryScreen() {
   }, [progress]);
 
   useEffect(() => {
+    if (loaded) markStartupReady();
+  }, [loaded]);
+
+  useEffect(() => {
     void loadLibrary();
   }, [loadLibrary, refreshTick]);
 
@@ -485,10 +490,10 @@ export default function LibraryScreen() {
     const map = new Map<string, number>();
     for (const entry of allEntries) {
       const key = `${entry.sourceId}:${entry.mangaKey}`;
-      map.set(key, resolveLibraryUnreadCount(entry, readKeys.get(key)));
+      map.set(key, resolveLibraryUnreadCount(entry));
     }
     return map;
-  }, [allEntries, readKeys]);
+  }, [allEntries]);
 
   const unreadOf = useCallback(
     (entry: LibraryEntry) =>
@@ -531,6 +536,68 @@ export default function LibraryScreen() {
     [categories, entriesForCategory, countBadges],
   );
 
+  // Entries already looked up on disk, so a miss is not retried on every update.
+  const detailTried = useRef(new Set<string>());
+  useEffect(() => {
+    if (displayMode !== "descriptiveList") return;
+    const missing = allEntries.filter((entry) => {
+      const key = `${entry.sourceId}:${entry.mangaKey}`;
+      return !detailTried.current.has(key);
+    });
+    if (missing.length === 0) return;
+    let cancelled = false;
+    // Starts late and reads in small, spaced batches so it never competes with source loading.
+    const timer = setTimeout(() => {
+      void (async () => {
+        let pending = new Map<
+          string,
+          Pick<Manga, "description" | "authors" | "tags" | "rating">
+        >();
+        const flush = () => {
+          if (pending.size === 0) return;
+          const batch = pending;
+          pending = new Map();
+          setDetailMeta((prev) => {
+            const next = new Map(prev);
+            batch.forEach((value, key) => next.set(key, value));
+            return next;
+          });
+        };
+        for (let i = 0; i < missing.length; i += 4) {
+          if (cancelled) {
+            flush();
+            return;
+          }
+          await Promise.all(
+            missing.slice(i, i + 4).map(async (entry) => {
+              const key = `${entry.sourceId}:${entry.mangaKey}`;
+              detailTried.current.add(key);
+              const cached = await readMangaDetailCache(
+                entry.sourceId,
+                entry.mangaKey,
+              ).catch(() => null);
+              const manga = cached?.manga;
+              if (!manga) return;
+              pending.set(key, {
+                description: manga.description,
+                authors: manga.authors,
+                tags: manga.tags,
+                rating: manga.rating,
+              });
+            }),
+          );
+          if (pending.size >= 40) flush();
+          await new Promise((resolve) => setTimeout(resolve, 60));
+        }
+        flush();
+      })();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [displayMode, allEntries]);
+
   const toListItems = useCallback(
     (entries: LibraryEntry[], categoryId?: string): LibraryListItem[] => {
       const order = (categoryId && categorySort[categoryId]) || {
@@ -568,13 +635,22 @@ export default function LibraryScreen() {
                     statusLabel: t(
                       `library_status_${entry.status ?? "unknown"}`,
                     ),
-                    totalChapters: entry.knownChapterKeys?.length ?? 0,
+                    totalChapters: entry.chapterCount ?? 0,
                     lastReadAt: lastReadAt.get(key),
-                    summary:
-                      displayMode === "descriptiveList"
-                        ? peekMangaDetailCache(entry.sourceId, entry.mangaKey)
-                            ?.manga.description
-                        : undefined,
+                    downloadedTotal: entry.downloadedCount ?? 0,
+                    ...(displayMode === "descriptiveList"
+                      ? (() => {
+                          const detail =
+                            peekMangaDetailCache(entry.sourceId, entry.mangaKey)
+                              ?.manga ?? detailMeta.get(key);
+                          return {
+                            summary: detail?.description,
+                            authors: detail?.authors,
+                            tags: detail?.tags,
+                            rating: detail?.rating,
+                          };
+                        })()
+                      : null),
                   }
                 : null),
             };
@@ -588,6 +664,7 @@ export default function LibraryScreen() {
       categorySort,
       favoritesFirst,
       lastReadAt,
+      detailMeta,
       sortReversed,
       showUnreadBadges,
       showDownloadedBadges,
@@ -834,7 +911,7 @@ export default function LibraryScreen() {
       // Leave selection mode right away; the work below can take a while.
       exitSelection();
       for (const entry of entries) {
-        const keys = chapterKeysForLibraryEntry(entry);
+        const keys = await chapterKeysForLibraryEntry(entry);
         if (keys.length === 0) continue;
         if (read) {
           await markAllChaptersRead(entry.sourceId, entry.mangaKey, keys, {
@@ -938,7 +1015,7 @@ export default function LibraryScreen() {
               key: chapter.key,
               title: formatChapterLabel(chapter),
             }))
-          : chapterKeysForLibraryEntry(entry).map((key) => ({
+          : (await chapterKeysForLibraryEntry(entry)).map((key) => ({
               key,
               title: key,
             }));

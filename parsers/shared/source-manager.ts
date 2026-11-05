@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { unzipSync, zipSync } from 'fflate';
 
+import { getCacheDb } from '@/db/cache-database';
 import { parseAidokuPackage } from '../aidoku/package';
 import { base64ToBytes, bytesToBase64 } from './base64';
 import { shiftAidokuContentRating } from '../aidoku/registry';
@@ -10,7 +11,6 @@ import type { FilterDefinition, InstalledSource, RegistryEntry, SourceKind, Sour
 
 // Installed sources live under documentDirectory/sources/<kind>-<id>/ where kind is `aidoku` or `tamdok`.
 const SOURCES_DIR = `${FileSystem.documentDirectory}sources/`;
-const REGISTRY_CACHE_DIR = `${FileSystem.documentDirectory}registry-cache/`;
 
 export function joinInstallPath(installPath: string, filename: string): string {
   const base = installPath.endsWith('/') ? installPath : `${installPath}/`;
@@ -202,38 +202,30 @@ export async function downloadRegistryEntry(
   return new Uint8Array(await response.arrayBuffer());
 }
 
-// Registries are cached on disk so the Sources screen works offline and loads instantly.
+// Registries are cached in the cache database so the Sources screen works offline and loads instantly.
 export async function cacheRegistry(url: string, data: unknown): Promise<void> {
-  await ensureRegistryCacheDirectory();
-  const cachePath = registryCachePath(url);
-  await FileSystem.writeAsStringAsync(cachePath, JSON.stringify({ cachedAt: Date.now(), data }));
+  const cachedAt = Date.now();
+  const db = await getCacheDb();
+  await db.runAsync('INSERT OR REPLACE INTO registry_cache (url, data, cached_at) VALUES (?, ?, ?)', [
+    url,
+    JSON.stringify(data),
+    cachedAt,
+  ]);
 }
 
 export async function readCachedRegistry(url: string): Promise<{ data: unknown; cachedAt: number } | null> {
-  await ensureRegistryCacheDirectory();
-  const cachePath = registryCachePath(url);
-  const info = await FileSystem.getInfoAsync(cachePath);
-  if (!info.exists) return null;
   try {
-    const raw = await FileSystem.readAsStringAsync(cachePath);
-    const cached = JSON.parse(raw) as { cachedAt?: number; data: unknown };
-    if (!cached.data) return null;
-    return { data: cached.data, cachedAt: cached.cachedAt ?? 0 };
+    const db = await getCacheDb();
+    const row = await db.getFirstAsync<{ data: string; cached_at: number }>(
+      'SELECT data, cached_at FROM registry_cache WHERE url = ?',
+      [url],
+    );
+    if (!row) return null;
+    const data = JSON.parse(row.data) as unknown;
+    return data ? { data, cachedAt: row.cached_at } : null;
   } catch {
     return null;
   }
-}
-
-async function ensureRegistryCacheDirectory(): Promise<void> {
-  const info = await FileSystem.getInfoAsync(REGISTRY_CACHE_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(REGISTRY_CACHE_DIR, { intermediates: true });
-  }
-}
-
-function registryCachePath(url: string): string {
-  const slug = encodeURIComponent(url).replace(/%/g, '_');
-  return `${REGISTRY_CACHE_DIR}${slug}.json`;
 }
 
 // Packs a .tamdok archive (a zip with a Payload/ folder, same layout as Aidoku's .aix).

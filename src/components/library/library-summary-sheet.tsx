@@ -13,7 +13,7 @@ import { Modal, useWindowDimensions } from "@/hooks/use-duo-layout";
 import { useTheme } from "@/hooks/use-theme";
 import type { LibraryEntry } from "@/services/library";
 import { peekMangaDetailCache } from "@/services/manga-detail-cache";
-import { getReadChapterKeysByManga } from "@/services/manga-tracking";
+import { getMangaChapterProgress } from "@/services/manga-tracking";
 import {
   chapterTitleForDisplay,
   formatChapterLabel,
@@ -46,6 +46,7 @@ export function LibrarySummarySheet({
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Read chapters of the expanded manga only; loaded when a row is opened.
   const [readKeys, setReadKeys] = useState<Map<string, Set<string>>>(
     () => new Map(),
   );
@@ -55,14 +56,29 @@ export function LibrarySummarySheet({
       setExpanded(null);
       return;
     }
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !expanded) return;
+    const separator = expanded.indexOf(":");
+    if (separator < 0) return;
     let cancelled = false;
-    void getReadChapterKeysByManga().then((map) => {
-      if (!cancelled) setReadKeys(map);
+    void getMangaChapterProgress(
+      expanded.slice(0, separator),
+      expanded.slice(separator + 1),
+    ).then((progress) => {
+      if (cancelled) return;
+      const read = new Set(
+        Object.values(progress)
+          .filter((item) => item.page === -1)
+          .map((item) => item.chapterKey),
+      );
+      setReadKeys((prev) => new Map(prev).set(expanded, read));
     });
     return () => {
       cancelled = true;
     };
-  }, [visible]);
+  }, [visible, expanded]);
 
   const unreadChapterLabels = (entry: LibraryEntry): string[] => {
     const chapters = peekMangaDetailCache(entry.sourceId, entry.mangaKey)?.manga

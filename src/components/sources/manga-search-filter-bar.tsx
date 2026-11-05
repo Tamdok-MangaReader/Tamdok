@@ -11,6 +11,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentRef,
 } from "react";
 import {
   Platform,
@@ -19,6 +20,7 @@ import {
   StyleSheet,
   TextInput,
   View,
+  useWindowDimensions as useRNWindowDimensions,
 } from "react-native";
 import {
   KeyboardAvoidingView,
@@ -55,7 +57,13 @@ type MangaSearchFilterBarProps = {
 
 const EMPTY_IDS: string[] = [];
 const OPTION_PAGE_SIZE = 80;
+/** In the inline dropdown only this many leading options get a glass effect (each GlassView is a native blur); the modal and the rest stay flat. */
 const GLASS_OPTION_LIMIT = 36;
+const INLINE_TAGS_START = 24;
+const INLINE_TAGS_STEP = 12;
+const INLINE_TAGS_MAX = 120;
+/** Space kept free below the dropdown for the tab bar. */
+const INLINE_TAGS_BOTTOM_RESERVE = 110;
 
 type MultiSelectDefinition = Extract<FilterDefinition, { type: "multiSelect" }>;
 type MultiSelectOption = MultiSelectDefinition["options"][number];
@@ -747,16 +755,33 @@ const PillOption = memo(function PillOption({
   id,
   label,
   selected,
+  excluded,
   glass,
   onToggle,
 }: {
   id: string;
   label: string;
   selected: boolean;
+  excluded?: boolean;
   glass: boolean;
   onToggle: (id: string) => void;
 }) {
   const { colors, radius } = useTheme();
+  if (excluded) {
+    return (
+      <Pressable
+        style={[
+          styles.sortPillActive,
+          { borderRadius: radius.pill, backgroundColor: colors.destructive },
+        ]}
+        onPress={() => onToggle(id)}
+      >
+        <ThemedText variant="callout" color="onTint" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  }
   if (selected) {
     return (
       <Pressable
@@ -778,7 +803,7 @@ const PillOption = memo(function PillOption({
       <Pressable
         style={[
           styles.sortPill,
-          { borderRadius: radius.pill, backgroundColor: colors.tertiaryFill },
+          { borderRadius: radius.pill, backgroundColor: colors.secondaryFill },
         ]}
         onPress={() => onToggle(id)}
       >
@@ -804,12 +829,14 @@ const CheckboxOption = memo(function CheckboxOption({
   id,
   label,
   selected,
+  excluded,
   grid,
   onToggle,
 }: {
   id: string;
   label: string;
   selected: boolean;
+  excluded?: boolean;
   grid: boolean;
   onToggle: (id: string) => void;
 }) {
@@ -819,7 +846,7 @@ const CheckboxOption = memo(function CheckboxOption({
       style={[
         styles.checkboxRow,
         grid && styles.checkboxGridItem,
-        selected && {
+        (selected || excluded) && {
           backgroundColor: colors.secondaryFill,
           borderRadius: radius.sm,
         },
@@ -827,11 +854,21 @@ const CheckboxOption = memo(function CheckboxOption({
       onPress={() => onToggle(id)}
     >
       <Ionicons
-        name={selected ? "checkbox" : "square-outline"}
+        name={excluded ? "close-circle" : selected ? "checkbox" : "square-outline"}
         size={22}
-        color={selected ? colors.tint : colors.tertiaryLabel}
+        color={
+          excluded
+            ? colors.destructive
+            : selected
+              ? colors.tint
+              : colors.tertiaryLabel
+        }
       />
-      <ThemedText variant="body" numberOfLines={1}>
+      <ThemedText
+        variant="body"
+        numberOfLines={1}
+        color={excluded ? "destructive" : undefined}
+      >
         {label}
       </ThemedText>
     </Pressable>
@@ -842,16 +879,34 @@ const TagOption = memo(function TagOption({
   id,
   label,
   selected,
+  excluded,
   glass,
   onToggle,
 }: {
   id: string;
   label: string;
   selected: boolean;
+  excluded?: boolean;
   glass: boolean;
   onToggle: (id: string) => void;
 }) {
   const { colors, radius } = useTheme();
+  if (excluded) {
+    return (
+      <Pressable
+        style={[
+          styles.tag,
+          styles.tagSelected,
+          { borderRadius: radius.pill, backgroundColor: colors.destructive },
+        ]}
+        onPress={() => onToggle(id)}
+      >
+        <ThemedText variant="callout" color="onTint" numberOfLines={1}>
+          {label}
+        </ThemedText>
+      </Pressable>
+    );
+  }
   if (selected) {
     return (
       <Pressable
@@ -874,7 +929,7 @@ const TagOption = memo(function TagOption({
       <Pressable
         style={[
           styles.tag,
-          { borderRadius: radius.pill, backgroundColor: colors.tertiaryFill },
+          { borderRadius: radius.pill, backgroundColor: colors.secondaryFill },
         ]}
         onPress={() => onToggle(id)}
       >
@@ -943,7 +998,14 @@ function MultiSelectOptionsImpl({
 }) {
   const { colors, radius } = useTheme();
   const [localQuery, setLocalQuery] = useState("");
-  const [limit, setLimit] = useState(OPTION_PAGE_SIZE);
+  // Inline dropdown: tag lists are filled with glass tags down to the bottom of the screen
+  // (see fillScreen below); the search field reaches the rest.
+  const fillScreen =
+    Boolean(compact) && variant !== "pills" && variant !== "checkbox";
+  const initialLimit = fillScreen ? INLINE_TAGS_START : OPTION_PAGE_SIZE;
+  const gridRef = useRef<ComponentRef<typeof View>>(null);
+  const { height: screenHeight } = useRNWindowDimensions();
+  const [limit, setLimit] = useState(initialLimit);
   const query = controlledQuery ?? localQuery;
   const setQuery = onQueryChange ?? setLocalQuery;
   const deferredQuery = useDeferredValue(query);
@@ -953,6 +1015,8 @@ function MultiSelectOptionsImpl({
   );
 
   const includedSet = useMemo(() => new Set(included), [included]);
+  const excludedSet = useMemo(() => new Set(excluded), [excluded]);
+  const canExclude = Boolean(definition.canExclude);
   const optionById = useMemo(() => {
     const map = new Map<string, MultiSelectOption>();
     for (const option of definition.options) map.set(option.id, option);
@@ -964,6 +1028,7 @@ function MultiSelectOptionsImpl({
     excluded,
     matchAll,
     showMatchMode,
+    canExclude,
     definitionId: definition.id,
     onApply,
   });
@@ -973,13 +1038,14 @@ function MultiSelectOptionsImpl({
       excluded,
       matchAll,
       showMatchMode,
+      canExclude,
       definitionId: definition.id,
       onApply,
     };
   });
 
   useEffect(() => {
-    setLimit(OPTION_PAGE_SIZE);
+    setLimit(initialLimit);
   }, [deferredQuery]);
 
   const visibleOptions = useMemo(() => {
@@ -992,16 +1058,19 @@ function MultiSelectOptionsImpl({
 
   const selectedOptions = useMemo(() => {
     const result: MultiSelectOption[] = [];
-    for (const id of included) {
+    for (const id of [...included, ...excluded]) {
       const option = optionById.get(id);
       if (option) result.push(option);
     }
     return result;
-  }, [optionById, included]);
+  }, [optionById, included, excluded]);
 
   const unselectedOptions = useMemo(
-    () => visibleOptions.filter((option) => !includedSet.has(option.id)),
-    [visibleOptions, includedSet],
+    () =>
+      visibleOptions.filter(
+        (option) => !includedSet.has(option.id) && !excludedSet.has(option.id),
+      ),
+    [visibleOptions, includedSet, excludedSet],
   );
 
   const toggleOption = useCallback((optionId: string) => {
@@ -1016,10 +1085,14 @@ function MultiSelectOptionsImpl({
       });
     };
 
+    // none -> included -> excluded (only when the filter allows it) -> none
     if (state.included.includes(optionId)) {
+      const nextIncluded = state.included.filter((id) => id !== optionId);
       commit(
-        state.included.filter((id) => id !== optionId),
-        state.excluded.filter((id) => id !== optionId),
+        nextIncluded,
+        state.canExclude
+          ? [optionId, ...state.excluded.filter((id) => id !== optionId)]
+          : state.excluded.filter((id) => id !== optionId),
       );
       return;
     }
@@ -1038,20 +1111,20 @@ function MultiSelectOptionsImpl({
     [],
   );
 
-  const glass = definition.options.length <= GLASS_OPTION_LIMIT;
 
   if (variant === "pills") {
     const shown = definition.options.slice(0, limit);
     const remaining = definition.options.length - shown.length;
     return (
       <View style={[styles.pillGrid, compact && styles.pillGridCompact]}>
-        {shown.map((option) => (
+        {shown.map((option, index) => (
           <PillOption
             key={option.id}
             id={option.id}
             label={option.label}
             selected={includedSet.has(option.id)}
-            glass={glass}
+            excluded={excludedSet.has(option.id)}
+            glass={Boolean(compact) && index < GLASS_OPTION_LIMIT}
             onToggle={toggleOption}
           />
         ))}
@@ -1081,6 +1154,7 @@ function MultiSelectOptionsImpl({
             id={option.id}
             label={option.label}
             selected={includedSet.has(option.id)}
+            excluded={excludedSet.has(option.id)}
             grid={useGrid}
             onToggle={toggleOption}
           />
@@ -1169,7 +1243,8 @@ function MultiSelectOptionsImpl({
                 key={`selected-${option.id}`}
                 id={option.id}
                 label={option.label}
-                selected
+                selected={includedSet.has(option.id)}
+                excluded={excludedSet.has(option.id)}
                 glass={false}
                 onToggle={toggleOption}
               />
@@ -1178,18 +1253,30 @@ function MultiSelectOptionsImpl({
         </View>
       ) : null}
 
-      <View style={styles.tagGrid}>
+      <View
+        ref={gridRef}
+        style={styles.tagGrid}
+        onLayout={() => {
+          if (!fillScreen || remainingTags <= 0 || limit >= INLINE_TAGS_MAX) return;
+          // Keep adding tags until the grid reaches the bottom of the screen.
+          gridRef.current?.measureInWindow((_x, y, _w, h) => {
+            if (y + h < screenHeight - INLINE_TAGS_BOTTOM_RESERVE) {
+              setLimit((current) => current + INLINE_TAGS_STEP);
+            }
+          });
+        }}
+      >
         {shownTags.map((option) => (
           <TagOption
             key={option.id}
             id={option.id}
             label={option.label}
             selected={false}
-            glass={glass}
+            glass={Boolean(compact)}
             onToggle={toggleOption}
           />
         ))}
-        {remainingTags > 0 ? (
+        {remainingTags > 0 && !fillScreen ? (
           <ShowMoreButton remaining={remainingTags} onPress={showMore} />
         ) : null}
       </View>

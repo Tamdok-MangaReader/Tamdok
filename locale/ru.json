@@ -669,6 +669,9 @@
   "advanced_clear_cache": "Очистить кэш",
   "advanced_clear_cache_title": "Кэш очищен",
   "advanced_clear_cache_done": "Временные файлы кэша удалены.",
+  "advanced_clear_downloads": "Очистить загрузки",
+  "advanced_clear_downloads_title": "Удалить все загрузки?",
+  "advanced_clear_downloads_confirm": "Все скачанные главы будут удалены с устройства.",
   "advanced_clear_history": "Очистить историю чтения",
   "advanced_clear_history_title": "Очистить историю?",
   "advanced_clear_history_confirm": "Будут удалены весь прогресс глав и история.",
@@ -812,6 +815,7 @@
   "library_remove_selected_confirm": "Удалить {count} манг из библиотеки?",
   "library_list_chapters": "Непрочитано {unread} из {total}",
   "library_list_chapters_total": "Глав: {total}",
+  "library_list_downloaded": "{count} скачано",
   "library_list_last_read": "Читали {date}",
   "library_hide_empty_category_count_badges": "Скрывать счётчики пустых категорий",
   "library_hide_empty_category_count_badges_hint": "Не показывать 0, если в категории нет манги.",
@@ -834,5 +838,7 @@
   "review_prompt_later": "Позже",
   "review_feedback_title": "Жаль это слышать",
   "review_feedback_message": "Расскажете, что можно улучшить?",
-  "review_feedback_send": "Написать отзыв"
+  "review_feedback_send": "Написать отзыв",
+  "history_load_more": "Показать ещё",
+  "reader_adjacent_failed": "Не удалось загрузить главу. Проверьте подключение и попробуйте снова."
 }

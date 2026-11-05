@@ -58,7 +58,7 @@ function signatureOf(
     entries
       .map(
         (entry) =>
-          `${entry.sourceId}:${entry.mangaKey}:${entry.categoryIds.join(",")}:${(entry.knownChapterKeys ?? []).length}:${entry.favorite ? 1 : 0}`,
+          `${entry.sourceId}:${entry.mangaKey}:${entry.categoryIds.join(",")}:${(entry.chapterCount ?? 0)}:${entry.favorite ? 1 : 0}`,
       )
       .join("|") +
     "#" +

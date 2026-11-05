@@ -18,6 +18,8 @@ import {
   StyleSheet,
   View,
   type LayoutChangeEvent,
+  type StyleProp,
+  type ViewStyle,
   useWindowDimensions,
 } from "react-native";
 import Animated, {
@@ -97,6 +99,10 @@ type MangaActionsMenuProps = {
   renderCover: RenderCover;
   /** Library only: starts multi-select with this title selected. */
   onSelect?: (manga: Manga) => void;
+  /** Style for the measured wrapper (e.g. flex:1 inside a row). */
+  style?: StyleProp<ViewStyle>;
+  /** Fill and corner radius for the lifted copy (whole-card rows need a backing). */
+  lift?: { backgroundColor: string; borderRadius: number };
 };
 
 const MENU_WIDTH = 270;
@@ -109,6 +115,8 @@ export const MangaActionsMenu = memo(function MangaActionsMenu({
   manga,
   renderCover,
   onSelect,
+  style,
+  lift,
 }: MangaActionsMenuProps) {
   const ref = useRef<MeasurableView>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -126,7 +134,7 @@ export const MangaActionsMenu = memo(function MangaActionsMenu({
 
   return (
     <>
-      <View ref={ref as never} collapsable={false}>
+      <View ref={ref as never} collapsable={false} style={style}>
         {renderCover(handleLongPress)}
       </View>
       {anchor && effectiveSourceId ? (
@@ -136,6 +144,7 @@ export const MangaActionsMenu = memo(function MangaActionsMenu({
           manga={manga}
           renderCover={renderCover}
           onSelect={onSelect}
+          lift={lift}
           onClose={handleClose}
         />
       ) : null}
@@ -228,6 +237,7 @@ function MangaMenuOverlay({
   manga,
   renderCover,
   onSelect,
+  lift,
   onClose,
 }: {
   anchor: Anchor;
@@ -235,6 +245,7 @@ function MangaMenuOverlay({
   manga: Manga;
   renderCover: RenderCover;
   onSelect?: (manga: Manga) => void;
+  lift?: { backgroundColor: string; borderRadius: number };
   onClose: () => void;
 }) {
   const { radius, colors } = useTheme();
@@ -315,7 +326,7 @@ function MangaMenuOverlay({
   const markChapters = async (read: boolean) => {
     let keys: string[] | null = null;
     if (entry) {
-      const known = chapterKeysForLibraryEntry(entry);
+      const known = await chapterKeysForLibraryEntry(entry);
       if (known.length > 0) keys = known;
     }
     if (!keys) {
@@ -384,7 +395,6 @@ function MangaMenuOverlay({
       cover: manga.cover,
       unreadCount: entry?.unreadCount,
       downloadedCount: entry?.downloadedCount,
-      knownChapterKeys: entry?.knownChapterKeys,
       status: entry?.status,
     });
   };
@@ -639,8 +649,9 @@ function MangaMenuOverlay({
             top: anchor.y,
             width: anchor.width,
             height: anchor.height,
-            borderRadius: radius.sm,
+            borderRadius: lift?.borderRadius ?? radius.sm,
           },
+          lift ? { backgroundColor: lift.backgroundColor } : null,
           liftStyle,
         ]}
       >

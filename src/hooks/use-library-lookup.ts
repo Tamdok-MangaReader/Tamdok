@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMangaDataRefresh } from '@/hooks/use-manga-data';
 import { getAppSettings } from '@/services/app-settings';
 import { getLibraryEntries, isLibraryEntryFinished, resolveLibraryUnreadCount, type LibraryEntry } from '@/services/library';
-import { getReadChapterKeysByManga } from '@/services/manga-tracking';
 
 export type LibraryMangaMeta = {
   inLibrary: true;
@@ -22,20 +21,17 @@ function metaKey(sourceId: string, mangaKey: string): string {
 export function useLibraryLookup() {
   const refreshTick = useMangaDataRefresh();
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
-  const [readKeysByManga, setReadKeysByManga] = useState<Map<string, Set<string>>>(() => new Map());
   const [showBadges, setShowBadges] = useState({ unread: true, downloaded: true });
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [libraryEntries, appSettings, readKeys] = await Promise.all([
+      const [libraryEntries, appSettings] = await Promise.all([
         getLibraryEntries(),
         getAppSettings(),
-        getReadChapterKeysByManga(),
       ]);
       if (cancelled) return;
       setEntries(libraryEntries);
-      setReadKeysByManga(readKeys);
       setShowBadges({
         unread: appSettings.libraryDisplay.showUnreadBadges,
         downloaded: appSettings.libraryDisplay.showDownloadedBadges,
@@ -50,7 +46,7 @@ export function useLibraryLookup() {
     const map = new Map<string, LibraryMangaMeta>();
     for (const entry of entries) {
       const key = metaKey(entry.sourceId, entry.mangaKey);
-      const unreadCount = resolveLibraryUnreadCount(entry, readKeysByManga.get(key));
+      const unreadCount = resolveLibraryUnreadCount(entry);
       map.set(key, {
         inLibrary: true,
         unreadCount,
@@ -61,7 +57,7 @@ export function useLibraryLookup() {
       });
     }
     return map;
-  }, [entries, readKeysByManga]);
+  }, [entries]);
 
   const getMeta = (sourceId: string | undefined, mangaKey: string): LibraryMangaMeta | undefined => {
     if (!sourceId) return undefined;

@@ -53,26 +53,28 @@ export function computeReadingStats(
   let last30 = 0;
 
   for (const read of reads) {
+    // A read event may stand for several chapters read on the same day.
+    const n = read.count ?? 1;
     const day = dayIndex(read.dateRead);
-    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+    perDay.set(day, (perDay.get(day) ?? 0) + n);
     const age = today - day;
-    if (age === 0) todayCount += 1;
-    if (age >= 0 && age < 7) last7 += 1;
-    if (age >= 0 && age < 30) last30 += 1;
+    if (age === 0) todayCount += n;
+    if (age >= 0 && age < 7) last7 += n;
+    if (age >= 0 && age < 30) last30 += n;
     // getDay(): Sunday = 0; shift so Monday comes first.
-    weekdays[(new Date(read.dateRead).getDay() + 6) % 7] += 1;
+    weekdays[(new Date(read.dateRead).getDay() + 6) % 7] += n;
 
     const key = `${read.sourceId}:${read.mangaKey}`;
     const entry = perManga.get(key);
-    if (entry) entry.count += 1;
+    if (entry) entry.count += n;
     else
       perManga.set(key, {
         sourceId: read.sourceId,
         mangaKey: read.mangaKey,
         title: titles.get(key) ?? read.mangaKey,
-        count: 1,
+        count: n,
       });
-    perSource.set(read.sourceId, (perSource.get(read.sourceId) ?? 0) + 1);
+    perSource.set(read.sourceId, (perSource.get(read.sourceId) ?? 0) + n);
   }
 
   const sortedDays = [...perDay.keys()].sort((a, b) => a - b);
@@ -99,7 +101,7 @@ export function computeReadingStats(
   });
 
   return {
-    total: reads.length,
+    total: reads.reduce((sum, read) => sum + (read.count ?? 1), 0),
     today: todayCount,
     last7,
     last30,

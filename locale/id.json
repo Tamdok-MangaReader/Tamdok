@@ -600,6 +600,9 @@
   "advanced_clear_cache": "Bersihkan cache",
   "advanced_clear_cache_title": "Cache dibersihkan",
   "advanced_clear_cache_done": "File cache sementara telah dihapus.",
+  "advanced_clear_downloads": "Hapus unduhan",
+  "advanced_clear_downloads_title": "Hapus semua unduhan?",
+  "advanced_clear_downloads_confirm": "Semua bab yang diunduh akan dihapus dari perangkat.",
   "advanced_clear_history": "Hapus riwayat baca",
   "advanced_clear_history_title": "Hapus riwayat?",
   "advanced_clear_history_confirm": "Ini menghapus semua progres chapter dan riwayat.",
@@ -664,5 +667,8 @@
   "source_requires_app_short": "Perlu aplikasi {version}+",
   "source_token_title": "Access token",
   "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
-  "source_token_saved": "Token saved. The source will use your account."
+  "source_token_saved": "Token saved. The source will use your account.",
+  "library_list_downloaded": "{count} diunduh",
+  "history_load_more": "Muat lebih banyak",
+  "reader_adjacent_failed": "Tidak dapat memuat bab ini. Periksa koneksi Anda lalu coba lagi."
 }

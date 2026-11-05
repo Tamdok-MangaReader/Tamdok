@@ -600,6 +600,9 @@
   "advanced_clear_cache": "キャッシュを消去",
   "advanced_clear_cache_title": "キャッシュを消去しました",
   "advanced_clear_cache_done": "一時的なキャッシュファイルを削除しました。",
+  "advanced_clear_downloads": "ダウンロードを削除",
+  "advanced_clear_downloads_title": "すべてのダウンロードを削除しますか？",
+  "advanced_clear_downloads_confirm": "ダウンロード済みのチャプターはすべて端末から削除されます。",
   "advanced_clear_history": "閲覧履歴を消去",
   "advanced_clear_history_title": "履歴を消去しますか？",
   "advanced_clear_history_confirm": "すべての章の進捗と履歴が削除されます。",
@@ -664,5 +667,8 @@
   "source_requires_app_short": "アプリ {version}+ が必要",
   "source_token_title": "Access token",
   "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
-  "source_token_saved": "Token saved. The source will use your account."
+  "source_token_saved": "Token saved. The source will use your account.",
+  "library_list_downloaded": "{count}件ダウンロード済み",
+  "history_load_more": "さらに読み込む",
+  "reader_adjacent_failed": "このチャプターを読み込めませんでした。接続を確認してもう一度お試しください。"
 }

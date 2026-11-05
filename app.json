@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tamdok",
     "slug": "tamdok",
-    "version": "1.3",
+    "version": "1.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tamdok",
@@ -360,7 +360,8 @@
       "./plugins/with-android-gradle-compat.js",
       "./plugins/with-android-orientation.js",
       "./plugins/with-android-release-signing.js",
-      "./plugins/with-android-release-build-fixes.js"
+      "./plugins/with-android-release-build-fixes.js",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

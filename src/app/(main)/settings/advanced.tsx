@@ -13,6 +13,8 @@ import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
 import { removeValue, storageKeys } from '@/constants/storage';
+import { cacheDatabaseSize, cacheRowCount, compactCacheDatabase } from '@/db/cache-database';
+import { countRows, mainDatabaseSize, walDatabaseSize } from '@/db/database';
 import { useSources } from '@/context/sources-context';
 import { clearMangaDetailCache } from '@/services/manga-detail-cache';
 import { clearSourceHomeCache } from '@/services/source-home-cache';
@@ -21,12 +23,50 @@ import { setNotifyNewChapters } from '@/services/notifications';
 import { notifyAppearanceChanged } from '@/utils/appearance-events';
 import { useTheme } from '@/hooks/use-theme';
 import { getAppSettings, resetAppSettings, updateAppSettings } from '@/services/app-settings';
-import { invalidateLibraryCache } from '@/services/library';
+import { resetLibrary as resetLibraryData } from '@/services/library';
+import { clearAllDownloads } from '@/services/downloads';
 import { removeSource, resetRegistryUrlsToDefault } from '@/services/sources';
 import { subscribeAppSettings } from '@/utils/app-settings-events';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
 import { isIllustrationMode, isIllustrationSource, setIllustrationMode } from '@/services/illustration-mode';
 import { replayWelcome } from '@/utils/welcome-data-loader';
+
+// `null` values are still loading and render as a placeholder.
+type StorageRow = { label: string; bytes: number | null; files?: number | null };
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+const STORAGE_TABLES = ['reading_log', 'manga_meta', 'library_entries', 'known_chapters', 'downloads'];
+
+// The section is shown at once with placeholders; each row fills in as soon as its own value is ready.
+function initialStorageRows(): StorageRow[] {
+  return [
+    { label: 'tamdok.db', bytes: null },
+    ...STORAGE_TABLES.map((table) => ({ label: `  ${table}`, bytes: 0, files: null })),
+    { label: 'cache.db', bytes: null },
+    { label: '  manga_detail', bytes: 0, files: null },
+    { label: '  source_home', bytes: 0, files: null },
+  ];
+}
+
+function loadStorageRows(update: (label: string, patch: Partial<StorageRow>) => void): void {
+  const run = (task: Promise<void>) => void task.catch(() => undefined);
+  run(
+    Promise.all([mainDatabaseSize(), walDatabaseSize()]).then(([db, wal]) =>
+      update('tamdok.db', { bytes: db + wal }),
+    ),
+  );
+  for (const table of STORAGE_TABLES) {
+    run(countRows(table).then((count) => update(`  ${table}`, { bytes: 0, files: count })));
+  }
+  run(cacheDatabaseSize().then((bytes) => update('cache.db', { bytes })));
+  run(cacheRowCount('manga_detail').then((count) => update('  manga_detail', { bytes: 0, files: count })));
+  run(cacheRowCount('source_home').then((count) => update('  source_home', { bytes: 0, files: count })));
+}
 
 export default function AdvancedSettingsScreen() {
   const { refresh, installed, setShowNsfw } = useSources();
@@ -34,6 +74,7 @@ export default function AdvancedSettingsScreen() {
   const [showReaderPageNumbers, setShowReaderPageNumbers] = useState(false);
   const [showImageSize, setShowImageSize] = useState(false);
   const [maxHeightRatio, setMaxHeightRatio] = useState('100');
+  const [storageRows, setStorageRows] = useState<StorageRow[]>(initialStorageRows);
   const tapCountRef = useRef(0);
   const lastTapRef = useRef(0);
 
@@ -46,6 +87,16 @@ export default function AdvancedSettingsScreen() {
     void setIllustrationMode(!isIllustrationMode());
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
+
+  const refreshStorageRows = useCallback(() => {
+    loadStorageRows((label, patch) =>
+      setStorageRows((rows) => rows.map((row) => (row.label === label ? { ...row, ...patch } : row))),
+    );
+  }, []);
+
+  useEffect(() => {
+    refreshStorageRows();
+  }, [refreshStorageRows]);
 
   useEffect(() => {
     const apply = (settings: Awaited<ReturnType<typeof getAppSettings>>) => {
@@ -93,6 +144,24 @@ export default function AdvancedSettingsScreen() {
     ]);
   };
 
+  const clearDownloads = () => {
+    Alert.alert(t('advanced_clear_downloads_title'), t('advanced_clear_downloads_confirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('advanced_clear_action'),
+        style: 'destructive',
+        onPress: () => {
+          void clearAllDownloads()
+            .catch(() => undefined)
+            .then(() => {
+              notifyMangaDataChanged();
+              refreshStorageRows();
+            });
+        },
+      },
+    ]);
+  };
+
   const clearCache = async () => {
     // Detail/home caches live in the document directory, and expo-image keeps its own disk and memory caches.
     await Promise.all([
@@ -101,6 +170,7 @@ export default function AdvancedSettingsScreen() {
       Image.clearDiskCache(),
       Image.clearMemoryCache(),
     ]).catch(() => undefined);
+    await compactCacheDatabase().catch(() => undefined);
     const cacheDir = `${FileSystem.cacheDirectory ?? ''}`;
     if (cacheDir) {
       const entries = await FileSystem.readDirectoryAsync(cacheDir).catch(() => [] as string[]);
@@ -109,6 +179,7 @@ export default function AdvancedSettingsScreen() {
       );
     }
     notifyMangaDataChanged();
+    refreshStorageRows();
     Alert.alert(t('advanced_clear_cache_title'), t('advanced_clear_cache_done'));
   };
 
@@ -173,10 +244,7 @@ export default function AdvancedSettingsScreen() {
         text: t('advanced_reset_action'),
         style: 'destructive',
         onPress: () => {
-          void removeValue(storageKeys.LIBRARY).then(() => {
-            invalidateLibraryCache();
-            notifyMangaDataChanged();
-          });
+          void resetLibraryData().then(() => notifyMangaDataChanged());
         },
       },
     ]);
@@ -237,9 +305,29 @@ export default function AdvancedSettingsScreen() {
             />
           </View>
         </Card>
+        <SectionLabel>Storage</SectionLabel>
+        <Card>
+          {storageRows.map((row, index, rows) => (
+            <View key={row.label}>
+              <View style={[styles.switchRow, index === 0 && styles.switchRowFirst, index === rows.length - 1 && styles.switchRowLast]}>
+                <ThemedText variant='body' style={styles.switchText}>{row.label}</ThemedText>
+                <ThemedText variant='body' color='secondaryLabel'>
+                  {row.bytes === null || (row.files === null && row.bytes === 0)
+                    ? '…'
+                    : `${row.bytes > 0 || row.files == null ? formatBytes(row.bytes) : ''}${
+                        row.files != null ? `${row.bytes > 0 ? ' · ' : ''}${row.files}` : ''
+                      }`}
+                </ThemedText>
+              </View>
+              {index < rows.length - 1 ? <CardSeparator /> : null}
+            </View>
+          ))}
+        </Card>
         <SectionLabel>{t('advanced_maintenance_section')}</SectionLabel>
         <Card>
           <ListRow icon='cloud-outline' label={t('advanced_clear_cache')} onPress={() => void clearCache()} isFirst />
+          <CardSeparator />
+          <ListRow icon='download-outline' label={t('advanced_clear_downloads')} onPress={clearDownloads} />
           <CardSeparator />
           <ListRow icon='time-outline' label={t('advanced_clear_history')} onPress={clearHistory} />
           <CardSeparator />

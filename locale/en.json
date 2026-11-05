@@ -669,6 +669,9 @@
   "advanced_clear_cache": "Clear cache",
   "advanced_clear_cache_title": "Cache cleared",
   "advanced_clear_cache_done": "Temporary cache files were removed.",
+  "advanced_clear_downloads": "Clear downloads",
+  "advanced_clear_downloads_title": "Delete all downloads?",
+  "advanced_clear_downloads_confirm": "All downloaded chapters will be removed from this device.",
   "advanced_clear_history": "Clear reading history",
   "advanced_clear_history_title": "Clear history?",
   "advanced_clear_history_confirm": "This removes all chapter progress and history.",
@@ -812,6 +815,7 @@
   "library_remove_selected_confirm": "Remove {count} manga from your library?",
   "library_list_chapters": "{unread} unread of {total}",
   "library_list_chapters_total": "{total} chapters",
+  "library_list_downloaded": "{count} downloaded",
   "library_list_last_read": "Read {date}",
   "library_hide_empty_category_count_badges": "Hide empty category badges",
   "library_hide_empty_category_count_badges_hint": "Don't show a 0 badge when a category has no titles.",
@@ -834,5 +838,7 @@
   "review_prompt_later": "Later",
   "review_feedback_title": "Sorry to hear that",
   "review_feedback_message": "Would you like to tell us what could be better?",
-  "review_feedback_send": "Send feedback"
+  "review_feedback_send": "Send feedback",
+  "history_load_more": "Load more",
+  "reader_adjacent_failed": "Couldn't load this chapter. Check your connection and try again."
 }

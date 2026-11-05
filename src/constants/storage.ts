@@ -1,78 +1,50 @@
-import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
 
-const PREFS_PATH = `${FileSystem.documentDirectory}app-preferences.json`;
-const TMP_PATH = `${FileSystem.documentDirectory}app-preferences.json.tmp`;
-const CORRUPT_PATH = `${FileSystem.documentDirectory}app-preferences.corrupt.json`;
-const MIGRATION_FLAG = "storage_migrated_from_secure_store_v1";
-const PERSIST_DELAY_MS = 150;
+import { flushWrites, getDb, runWrite, insertMany } from "@/db/database";
+import { importPreferenceMap } from "@/db/legacy-import";
+import { DATA_TABLES } from "@/db/schema";
 
-type Preferences = Record<string, unknown>;
+/**
+ * Key-value preferences (theme, app settings, source settings, bookmarks, ...), stored in the `kv`
+ * table of the SQLite database. The table is small, so it is mirrored in memory; every write is
+ * persisted per key. The big domains (library, history, downloads) have their own tables.
+ */
+
+const MIGRATION_FLAG = "storage_migrated_from_secure_store_v1";
+const LEGACY_DONE_KEY = "legacy_json_migrated_v1";
+const PERSIST_DELAY_MS = 120;
+
 type PreferencesStore = Map<string, string>;
-type FileRead = { exists: boolean; data: Preferences | null };
 
 let cache: PreferencesStore | null = null;
 let loading: Promise<PreferencesStore> | null = null;
+// Keys changed since the last flush: a serialized value, or null for a deletion.
+const pending = new Map<string, string | null>();
 let persistRunning: Promise<void> | null = null;
-let persistRequested = false;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function readFile(path: string): Promise<FileRead> {
-  try {
-    const info = await FileSystem.getInfoAsync(path);
-    if (!info.exists) return { exists: false, data: null };
-    const raw = await FileSystem.readAsStringAsync(path);
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return { exists: true, data: parsed as Preferences };
-    }
-    return { exists: true, data: null };
-  } catch {
-    return { exists: true, data: null };
-  }
-}
-
-async function readPreferences(): Promise<Preferences> {
-  const main = await readFile(PREFS_PATH);
-  if (main.data) return main.data;
-  const backup = await readFile(TMP_PATH);
-  if (main.exists) {
-    try {
-      await FileSystem.deleteAsync(CORRUPT_PATH, { idempotent: true });
-      await FileSystem.copyAsync({ from: PREFS_PATH, to: CORRUPT_PATH });
-    } catch {}
-  }
-  return backup.data ?? {};
-}
-
-function serialize(store: PreferencesStore): string {
-  const parts: string[] = [];
-  for (const [key, value] of store)
-    parts.push(`${JSON.stringify(key)}:${value}`);
-  return `{${parts.join(",")}}`;
-}
-
-async function writeStore(store: PreferencesStore): Promise<void> {
-  await FileSystem.writeAsStringAsync(TMP_PATH, serialize(store));
-  await FileSystem.deleteAsync(PREFS_PATH, { idempotent: true });
-  await FileSystem.moveAsync({ from: TMP_PATH, to: PREFS_PATH });
+async function loadFromDatabase(): Promise<PreferencesStore> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ key: string; value: string }>(
+    "SELECT key, value FROM kv",
+  );
+  const store: PreferencesStore = new Map();
+  for (const row of rows) store.set(row.key, row.value);
+  return store;
 }
 
 function ensureLoaded(): Promise<PreferencesStore> {
   if (cache) return Promise.resolve(cache);
   if (!loading) {
     loading = (async () => {
-      const preferences = await readPreferences();
-      const store: PreferencesStore = new Map();
-      for (const [key, value] of Object.entries(preferences)) {
-        const serialized = JSON.stringify(value);
-        if (serialized !== undefined) store.set(key, serialized);
-      }
+      const store = await loadFromDatabase();
 
+      // Very old installs kept values in SecureStore; copy them over once.
       if (!store.has(MIGRATION_FLAG)) {
+        const found: Array<[string, string]> = [];
         for (const key of Object.values(storageKeys)) {
           if (store.has(key)) continue;
           try {
@@ -80,14 +52,22 @@ function ensureLoaded(): Promise<PreferencesStore> {
             if (legacyValue == null) continue;
             try {
               JSON.parse(legacyValue);
-              store.set(key, legacyValue);
+              found.push([key, legacyValue]);
             } catch {
-              store.set(key, JSON.stringify(legacyValue));
+              found.push([key, JSON.stringify(legacyValue)]);
             }
           } catch {}
         }
-        store.set(MIGRATION_FLAG, "true");
-        await writeStore(store);
+        found.push([MIGRATION_FLAG, "true"]);
+        const parsed: Record<string, unknown> = {};
+        for (const [key, value] of found) parsed[key] = JSON.parse(value);
+        // Library, history and downloads documents are routed to their tables by the importer.
+        await runWrite((tx) => importPreferenceMap(tx, parsed));
+        for (const [key, value] of found) {
+          if (key !== storageKeys.LIBRARY && key !== storageKeys.MANGA_TRACKING && key !== storageKeys.DOWNLOADS) {
+            store.set(key, value);
+          }
+        }
       }
 
       cache = store;
@@ -99,15 +79,37 @@ function ensureLoaded(): Promise<PreferencesStore> {
   return loading;
 }
 
+async function writePending(): Promise<void> {
+  if (pending.size === 0) return;
+  const batch = [...pending];
+  pending.clear();
+  try {
+    await runWrite(async (tx) => {
+      const upserts: Array<[string, string]> = [];
+      const removals: string[] = [];
+      for (const [key, value] of batch) {
+        if (value === null) removals.push(key);
+        else upserts.push([key, value]);
+      }
+      await insertMany(tx, "INSERT OR REPLACE INTO kv (key, value)", 2, upserts);
+      for (const key of removals) {
+        await tx.runAsync("DELETE FROM kv WHERE key = ?", [key]);
+      }
+    });
+  } catch (error) {
+    // Put the batch back (newer changes win) so the next flush retries it.
+    for (const [key, value] of batch) if (!pending.has(key)) pending.set(key, value);
+    throw error;
+  }
+}
+
 function persist(): Promise<void> {
-  persistRequested = true;
   if (!persistRunning) {
     persistRunning = (async () => {
       try {
-        while (persistRequested) {
+        while (pending.size > 0) {
           await sleep(PERSIST_DELAY_MS);
-          persistRequested = false;
-          if (cache) await writeStore(cache);
+          await writePending();
         }
       } finally {
         persistRunning = null;
@@ -117,17 +119,24 @@ function persist(): Promise<void> {
   return persistRunning;
 }
 
+/** Resolves once every preference change made so far is on disk. */
 export async function flushPreferences(): Promise<void> {
   while (persistRunning) {
-    await persistRunning;
+    await persistRunning.catch(() => undefined);
   }
+  await flushWrites();
 }
 
 export async function setValue<T>(key: string, value: T): Promise<void> {
   const store = await ensureLoaded();
   const serialized = JSON.stringify(value);
-  if (serialized === undefined) store.delete(key);
-  else store.set(key, serialized);
+  if (serialized === undefined) {
+    store.delete(key);
+    pending.set(key, null);
+  } else {
+    store.set(key, serialized);
+    pending.set(key, serialized);
+  }
   await persist();
 }
 
@@ -155,6 +164,7 @@ export async function hasValue(key: string): Promise<boolean> {
 export async function removeValue(key: string): Promise<void> {
   const store = await ensureLoaded();
   if (!store.delete(key)) return;
+  pending.set(key, null);
   await persist();
 }
 
@@ -169,19 +179,28 @@ export async function getAllPreferences(): Promise<Record<string, unknown>> {
   return result;
 }
 
+/** Reloads the in-memory mirror after another writer (a backup restore) changed the table. */
+export async function reloadPreferences(): Promise<void> {
+  await flushPreferences();
+  cache = await loadFromDatabase();
+}
+
+/**
+ * Replaces every preference with `next` (legacy full-replace restore). Keys of the old single-file
+ * format that now live in tables are routed there.
+ */
 export async function replacePreferences(
   next: Record<string, unknown>,
 ): Promise<void> {
-  const store = await ensureLoaded();
-  store.clear();
-  for (const [key, value] of Object.entries({
-    ...next,
-    [MIGRATION_FLAG]: true,
-  })) {
-    const serialized = JSON.stringify(value);
-    if (serialized !== undefined) store.set(key, serialized);
-  }
-  await persist();
+  await flushPreferences();
+  await runWrite(async (tx) => {
+    await tx.runAsync("DELETE FROM kv WHERE key <> ?", [LEGACY_DONE_KEY]);
+    for (const table of DATA_TABLES) {
+      if (table !== "kv") await tx.runAsync(`DELETE FROM ${table}`);
+    }
+    await importPreferenceMap(tx, { ...next, [MIGRATION_FLAG]: true });
+  });
+  cache = await loadFromDatabase();
 }
 
 export const storageKeys = {

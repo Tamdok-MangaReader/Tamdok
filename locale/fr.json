@@ -600,6 +600,9 @@
   "advanced_clear_cache": "Vider le cache",
   "advanced_clear_cache_title": "Cache vidé",
   "advanced_clear_cache_done": "Les fichiers temporaires du cache ont été supprimés.",
+  "advanced_clear_downloads": "Effacer les téléchargements",
+  "advanced_clear_downloads_title": "Supprimer tous les téléchargements ?",
+  "advanced_clear_downloads_confirm": "Tous les chapitres téléchargés seront supprimés de l'appareil.",
   "advanced_clear_history": "Effacer l'historique de lecture",
   "advanced_clear_history_title": "Effacer l'historique ?",
   "advanced_clear_history_confirm": "Cela supprime toute la progression des chapitres et l'historique.",
@@ -664,5 +667,8 @@
   "source_requires_app_short": "Requiert app {version}+",
   "source_token_title": "Access token",
   "source_token_not_found": "Token not found. Sign in to your account on the site first, then tap Save.",
-  "source_token_saved": "Token saved. The source will use your account."
+  "source_token_saved": "Token saved. The source will use your account.",
+  "library_list_downloaded": "{count} téléchargés",
+  "history_load_more": "Charger plus",
+  "reader_adjacent_failed": "Impossible de charger ce chapitre. Vérifiez votre connexion et réessayez."
 }

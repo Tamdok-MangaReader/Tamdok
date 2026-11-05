@@ -543,7 +543,7 @@ export function ReaderView({
     });
   }, [navigation, stripEnabled]);
 
-  const { segments, loadAdjacent } = useReaderChapterWindow({
+  const { segments, loadAdjacent, failed: adjacentFailed } = useReaderChapterWindow({
     enabled: stripEnabled && prefsReady,
     routeChapter: chapter,
     activeChapterKey: activeChapter.key,
@@ -1073,6 +1073,9 @@ export function ReaderView({
       loadAdjacentChapter: (direction) => {
         void loadAdjacent(direction);
       },
+      retryAdjacentChapter: (direction) => {
+        void loadAdjacent(direction, true);
+      },
     }),
     [
       activeChapterUrl,
@@ -1148,6 +1151,7 @@ export function ReaderView({
       mangaPageUrl,
       bookmarked,
       stripSegments: segments,
+      adjacentFailed,
       debugShowPageNumbers,
     };
   }, [
@@ -1157,6 +1161,7 @@ export function ReaderView({
     mangaPageUrl,
     bookmarked,
     activePages,
+    adjacentFailed,
     backgroundColor,
     chapters,
     chrome,

@@ -260,7 +260,7 @@ export function filterLabel(definition: FilterDefinition, values: FilterValue[])
       return definition.options.find((option) => option.id === selected)?.label ?? definition.title;
     }
     case 'multiSelect': {
-      const count = value?.type === 'multiSelect' ? value.included.length : 0;
+      const count = value?.type === 'multiSelect' ? value.included.length + (value.excluded?.length ?? 0) : 0;
       return count > 0 ? `${definition.title} (${count})` : definition.title;
     }
     default:

@@ -28,7 +28,7 @@ import {
   type PrivacySettings,
 } from "@/services/app-settings";
 import { getLibraryEntries } from "@/services/library";
-import { getHistoryEntries } from "@/services/manga-tracking";
+import { getHistorySourceIds } from "@/services/manga-tracking";
 import { findInstalledSource } from "@/services/sources";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 
@@ -89,14 +89,14 @@ export default function PrivacySettingsScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([getHistoryEntries(), getLibraryEntries()]).then(
+    void Promise.all([getHistorySourceIds(), getLibraryEntries()]).then(
       ([history, library]) => {
         if (cancelled) return;
         const isNsfw = (sourceId: string) => {
           const source = findInstalledSource(installed, sourceId);
           return source ? isNsfwSource(source) : false;
         };
-        setHasNsfwHistory(history.some((entry) => isNsfw(entry.sourceId)));
+        setHasNsfwHistory(history.some((sourceId) => isNsfw(sourceId)));
         setHasNsfwLibrary(library.some((entry) => isNsfw(entry.sourceId)));
       },
     );

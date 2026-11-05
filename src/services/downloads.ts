@@ -1,6 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 
-import { getValue, setValue, storageKeys } from "@/constants/storage";
+import { getDb, runWrite, type Db } from "@/db/database";
 import { getAppSettings } from "@/services/app-settings";
 import { isOnWifi } from "@/services/network";
 import { notifyMangaDataChanged } from "@/utils/manga-events";
@@ -20,7 +20,15 @@ export type DownloadEntry = {
 };
 
 type DownloadStore = {
-  entries: DownloadEntry[];
+  entries: Map<string, DownloadEntry>;
+  /** Entry keys per manga, so per-manga lookups do not scan the whole queue. */
+  byManga: Map<string, Set<string>>;
+};
+
+// Collects the rows a mutation touched, so only those rows are written.
+type DownloadChanges = {
+  upsert: Map<string, DownloadEntry>;
+  remove: Set<string>;
 };
 
 export type QueueDownloadInput = Pick<
@@ -34,20 +42,47 @@ const PAGE_CONCURRENCY = 4;
 const PROGRESS_NOTIFY_MS = 500;
 const SOURCE_PREFIX = /^(aidoku|tamdok):/;
 
-// The download list is persisted as one JSON document and mirrored in memory. All writes go through
-// mutateStore, which serialises them (mutationTail) so concurrent updates never overwrite each other.
+// Downloads live in the `downloads` table and are mirrored in memory (a map keyed by chapter). All writes go
+// through mutateStore, which serialises them (mutationTail), applies the change to memory and then writes
+// only the touched rows, so the cost of a change does not depend on the size of the queue.
 let cache: DownloadStore | null = null;
 let cacheLoad: Promise<DownloadStore> | null = null;
 let mutationTail: Promise<void> = Promise.resolve();
 
+type DownloadRow = {
+  source_id: string;
+  manga_key: string;
+  chapter_key: string;
+  manga_title: string;
+  chapter_title: string | null;
+  status: string;
+  progress: number;
+  date_added: number;
+  error: string | null;
+};
+
+function rowToEntry(row: DownloadRow): DownloadEntry {
+  return {
+    sourceId: row.source_id,
+    mangaKey: row.manga_key,
+    chapterKey: row.chapter_key,
+    mangaTitle: row.manga_title,
+    chapterTitle: row.chapter_title ?? undefined,
+    status: row.status as DownloadStatus,
+    progress: row.progress,
+    dateAdded: row.date_added,
+    error: row.error ?? undefined,
+  };
+}
+
 function loadStore(): Promise<DownloadStore> {
   if (cache) return Promise.resolve(cache);
   if (!cacheLoad) {
-    cacheLoad = getValue<DownloadStore>(storageKeys.DOWNLOADS, { entries: [] })
-      .then((stored) => {
-        const store: DownloadStore = {
-          entries: Array.isArray(stored?.entries) ? stored.entries : [],
-        };
+    cacheLoad = getDb()
+      .then((db) => db.getAllAsync<DownloadRow>("SELECT * FROM downloads"))
+      .then((rows) => {
+        const store: DownloadStore = { entries: new Map(), byManga: new Map() };
+        for (const row of rows) addEntry(store, rowToEntry(row));
         cache = store;
         return store;
       })
@@ -62,20 +97,86 @@ export function invalidateDownloadsCache(): void {
   cache = null;
 }
 
-// `apply` mutates the in-memory store and returns whether anything changed; only then it is
-// persisted and listeners are notified.
+async function persistChanges(tx: Db, changes: DownloadChanges) {
+  for (const key of changes.remove) {
+    const [sourceId, mangaKey, chapterKey] = JSON.parse(key) as string[];
+    await tx.runAsync(
+      "DELETE FROM downloads WHERE source_id = ? AND manga_key = ? AND chapter_key = ?",
+      [sourceId, mangaKey, chapterKey],
+    );
+  }
+  for (const entry of changes.upsert.values()) {
+    await tx.runAsync(
+      `INSERT OR REPLACE INTO downloads
+       (source_id, manga_key, chapter_key, manga_title, chapter_title, status, progress, date_added, error)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.sourceId,
+        entry.mangaKey,
+        entry.chapterKey,
+        entry.mangaTitle,
+        entry.chapterTitle ?? null,
+        entry.status,
+        entry.progress,
+        entry.dateAdded,
+        entry.error ?? null,
+      ],
+    );
+  }
+}
+
+// `apply` mutates the in-memory store, records touched rows in `changes` and returns whether anything
+// changed; only then the rows are persisted and listeners are notified.
 function mutateStore(
-  apply: (store: DownloadStore) => boolean,
-  persist = true,
+  apply: (store: DownloadStore, changes: DownloadChanges) => boolean,
 ): Promise<void> {
   const run = mutationTail.then(async () => {
     const store = await loadStore();
-    if (!apply(store)) return;
-    if (persist) await setValue(storageKeys.DOWNLOADS, store);
+    const changes: DownloadChanges = { upsert: new Map(), remove: new Set() };
+    if (!apply(store, changes)) return;
+    await runWrite((tx) => persistChanges(tx, changes));
     notifyMangaDataChanged();
   });
   mutationTail = run.catch(() => undefined);
   return run;
+}
+
+function mangaIndexKey(sourceId: string, mangaKey: string): string {
+  return `${sourceId.replace(SOURCE_PREFIX, "")}\u0000${mangaKey}`;
+}
+
+function addEntry(store: DownloadStore, entry: DownloadEntry): string {
+  const key = downloadKey(entry.sourceId, entry.mangaKey, entry.chapterKey);
+  store.entries.set(key, entry);
+  const index = mangaIndexKey(entry.sourceId, entry.mangaKey);
+  const keys = store.byManga.get(index);
+  if (keys) keys.add(key);
+  else store.byManga.set(index, new Set([key]));
+  return key;
+}
+
+function deleteEntry(store: DownloadStore, key: string): boolean {
+  const entry = store.entries.get(key);
+  if (!entry) return false;
+  store.entries.delete(key);
+  const index = mangaIndexKey(entry.sourceId, entry.mangaKey);
+  const keys = store.byManga.get(index);
+  keys?.delete(key);
+  if (keys && keys.size === 0) store.byManga.delete(index);
+  return true;
+}
+
+function mangaEntries(
+  store: DownloadStore,
+  sourceId: string,
+  mangaKey: string,
+): Array<[string, DownloadEntry]> {
+  const result: Array<[string, DownloadEntry]> = [];
+  for (const key of store.byManga.get(mangaIndexKey(sourceId, mangaKey)) ?? []) {
+    const entry = store.entries.get(key);
+    if (entry) result.push([key, entry]);
+  }
+  return result;
 }
 
 function downloadKey(
@@ -83,7 +184,7 @@ function downloadKey(
   mangaKey: string,
   chapterKey: string,
 ): string {
-  return `${sourceId}:${mangaKey}:${chapterKey}`;
+  return JSON.stringify([sourceId, mangaKey, chapterKey]);
 }
 
 function findEntry(
@@ -92,25 +193,7 @@ function findEntry(
   mangaKey: string,
   chapterKey: string,
 ): DownloadEntry | undefined {
-  return store.entries.find(
-    (item) =>
-      item.sourceId === sourceId &&
-      item.mangaKey === mangaKey &&
-      item.chapterKey === chapterKey,
-  );
-}
-
-function matchesDownload(
-  entry: Pick<DownloadEntry, "sourceId" | "mangaKey" | "chapterKey">,
-  sourceId: string,
-  mangaKey: string,
-  chapterKey: string,
-): boolean {
-  return (
-    sameDownloadSource(entry.sourceId, sourceId) &&
-    entry.mangaKey === mangaKey &&
-    entry.chapterKey === chapterKey
-  );
+  return store.entries.get(downloadKey(sourceId, mangaKey, chapterKey));
 }
 
 // Older data may have been stored with or without the `aidoku:`/`tamdok:` prefix, so lookups try both.
@@ -141,7 +224,7 @@ export function downloadDirectory(
 
 export async function getDownloads(): Promise<DownloadEntry[]> {
   const store = await loadStore();
-  return store.entries
+  return [...store.entries.values()]
     .map((entry) => ({ ...entry }))
     .sort((a, b) => b.dateAdded - a.dateAdded);
 }
@@ -151,16 +234,9 @@ export async function getMangaDownloads(
   mangaKey: string,
 ): Promise<DownloadEntry[]> {
   const store = await loadStore();
-  const result: DownloadEntry[] = [];
-  for (const entry of store.entries) {
-    if (
-      sameDownloadSource(entry.sourceId, sourceId) &&
-      entry.mangaKey === mangaKey
-    ) {
-      result.push({ ...entry });
-    }
-  }
-  return result;
+  return mangaEntries(store, sourceId, mangaKey).map(([, entry]) => ({
+    ...entry,
+  }));
 }
 
 export async function isChapterDownloaded(
@@ -169,10 +245,11 @@ export async function isChapterDownloaded(
   chapterKey: string,
 ): Promise<boolean> {
   const store = await loadStore();
-  const entry = store.entries.find((item) =>
-    matchesDownload(item, sourceId, mangaKey, chapterKey),
-  );
-  return entry?.status === "completed";
+  for (const id of sourceIdCandidates(sourceId)) {
+    if (findEntry(store, id, mangaKey, chapterKey)?.status === "completed")
+      return true;
+  }
+  return false;
 }
 
 export async function queueChapterDownloads(
@@ -180,21 +257,13 @@ export async function queueChapterDownloads(
 ): Promise<void> {
   if (entries.length === 0) return;
 
-  await mutateStore((store) => {
-    const index = new Map<string, DownloadEntry>();
-    for (const item of store.entries) {
-      index.set(
-        downloadKey(item.sourceId, item.mangaKey, item.chapterKey),
-        item,
-      );
-    }
-
+  await mutateStore((store, changes) => {
     const now = Date.now();
     let changed = false;
 
     entries.forEach((entry, order) => {
       const key = downloadKey(entry.sourceId, entry.mangaKey, entry.chapterKey);
-      const existing = index.get(key);
+      const existing = store.entries.get(key);
       if (existing && existing.status !== "failed") return;
 
       const dateAdded = now + order;
@@ -203,6 +272,7 @@ export async function queueChapterDownloads(
         existing.progress = 0;
         existing.error = undefined;
         existing.dateAdded = dateAdded;
+        changes.upsert.set(key, existing);
       } else {
         const created: DownloadEntry = {
           ...entry,
@@ -210,8 +280,8 @@ export async function queueChapterDownloads(
           progress: 0,
           dateAdded,
         };
-        store.entries.push(created);
-        index.set(key, created);
+        addEntry(store, created);
+        changes.upsert.set(key, created);
       }
       changed = true;
     });
@@ -234,12 +304,13 @@ export async function updateDownloadStatus(
   progress?: number,
   error?: string,
 ): Promise<void> {
-  await mutateStore((store) => {
+  await mutateStore((store, changes) => {
     const entry = findEntry(store, sourceId, mangaKey, chapterKey);
     if (!entry) return false;
     entry.status = status;
     if (progress != null) entry.progress = progress;
     if (error != null) entry.error = error;
+    changes.upsert.set(downloadKey(sourceId, mangaKey, chapterKey), entry);
     return true;
   });
 }
@@ -270,17 +341,11 @@ export async function removeChapterDownload(
   mangaKey: string,
   chapterKey: string,
 ): Promise<void> {
-  await mutateStore((store) => {
-    const before = store.entries.length;
-    store.entries = store.entries.filter(
-      (item) =>
-        !(
-          item.sourceId === sourceId &&
-          item.mangaKey === mangaKey &&
-          item.chapterKey === chapterKey
-        ),
-    );
-    return store.entries.length !== before;
+  await mutateStore((store, changes) => {
+    const key = downloadKey(sourceId, mangaKey, chapterKey);
+    if (!deleteEntry(store, key)) return false;
+    changes.remove.add(key);
+    return true;
   });
   await FileSystem.deleteAsync(
     downloadDirectory(sourceId, mangaKey, chapterKey),
@@ -296,21 +361,13 @@ export async function removeMangaDownloads(
 ): Promise<void> {
   const removed: DownloadEntry[] = [];
 
-  await mutateStore((store) => {
-    const keep: DownloadEntry[] = [];
-    for (const entry of store.entries) {
-      if (
-        sameDownloadSource(entry.sourceId, sourceId) &&
-        entry.mangaKey === mangaKey
-      ) {
-        removed.push(entry);
-      } else {
-        keep.push(entry);
-      }
+  await mutateStore((store, changes) => {
+    for (const [key, entry] of mangaEntries(store, sourceId, mangaKey)) {
+      removed.push(entry);
+      changes.remove.add(key);
     }
-    if (removed.length === 0) return false;
-    store.entries = keep;
-    return true;
+    for (const key of changes.remove) deleteEntry(store, key);
+    return removed.length > 0;
   });
 
   await Promise.all(
@@ -323,11 +380,25 @@ export async function removeMangaDownloads(
   );
 }
 
+// Drops every download row and then the whole Downloads directory (also removes orphaned files).
+export async function clearAllDownloads(): Promise<void> {
+  await mutateStore((store, changes) => {
+    for (const key of store.entries.keys()) changes.remove.add(key);
+    for (const key of changes.remove) deleteEntry(store, key);
+    return changes.remove.size > 0;
+  });
+  await FileSystem.deleteAsync(`${FileSystem.documentDirectory}Downloads/`, {
+    idempotent: true,
+  });
+}
+
 export async function clearFailedDownloads(): Promise<void> {
-  await mutateStore((store) => {
-    const before = store.entries.length;
-    store.entries = store.entries.filter((entry) => entry.status !== "failed");
-    return store.entries.length !== before;
+  await mutateStore((store, changes) => {
+    for (const [key, entry] of store.entries) {
+      if (entry.status === "failed") changes.remove.add(key);
+    }
+    for (const key of changes.remove) deleteEntry(store, key);
+    return changes.remove.size > 0;
   });
 }
 
@@ -458,12 +529,12 @@ export async function getDownloadStats(): Promise<{
   const store = await loadStore();
   let completed = 0;
   let pending = 0;
-  for (const entry of store.entries) {
+  for (const entry of store.entries.values()) {
     if (entry.status === "completed") completed += 1;
     else if (entry.status === "pending" || entry.status === "downloading")
       pending += 1;
   }
-  return { total: store.entries.length, completed, pending };
+  return { total: store.entries.size, completed, pending };
 }
 
 export type DownloadPageList = {
@@ -479,21 +550,23 @@ let queueGeneration = 0;
 
 export async function getActiveDownloads(): Promise<DownloadEntry[]> {
   const store = await loadStore();
-  return store.entries.filter(
+  return [...store.entries.values()].filter(
     (entry) => entry.status === "pending" || entry.status === "downloading",
   );
 }
 
 export async function getFailedDownloads(): Promise<DownloadEntry[]> {
   const store = await loadStore();
-  return store.entries.filter((entry) => entry.status === "failed");
+  return [...store.entries.values()].filter((entry) => entry.status === "failed");
 }
 
 export async function hasUnfinishedDownloads(): Promise<boolean> {
   const store = await loadStore();
-  return store.entries.some(
-    (entry) => entry.status === "pending" || entry.status === "downloading",
-  );
+  for (const entry of store.entries.values()) {
+    if (entry.status === "pending" || entry.status === "downloading")
+      return true;
+  }
+  return false;
 }
 
 // After the app was killed or suspended, entries can be stuck in `downloading` with nothing running.
@@ -501,12 +574,13 @@ export async function hasUnfinishedDownloads(): Promise<boolean> {
 export async function resetStuckDownloadQueue(): Promise<void> {
   queueGeneration += 1;
   queueTail = Promise.resolve();
-  await mutateStore((store) => {
+  await mutateStore((store, changes) => {
     let changed = false;
-    for (const entry of store.entries) {
+    for (const [key, entry] of store.entries) {
       if (entry.status === "downloading") {
         entry.status = "pending";
         entry.progress = 0;
+        changes.upsert.set(key, entry);
         changed = true;
       }
     }
@@ -535,7 +609,7 @@ export async function processDownloadQueue(
       if (appSettings.downloads.downloadOnlyOnWifi && !(await isOnWifi()))
         break;
       const store = await loadStore();
-      const pending = store.entries
+      const pending = [...store.entries.values()]
         .filter(
           (entry) =>
             entry.status === "pending" || entry.status === "downloading",

@@ -165,7 +165,7 @@ function resolveSearchQuery(sourceId: string, query: string | undefined, filters
   if (!sourceId.toLowerCase().includes('nhentai')) return trimmed;
   // Empty nhentai browse needs a default query or the source returns nothing.
   const hasTags = filters.some((filter) => {
-    if (filter.type === 'multiSelect') return (filter.included?.length ?? 0) > 0;
+    if (filter.type === 'multiSelect') return (filter.included?.length ?? 0) > 0 || (filter.excluded?.length ?? 0) > 0;
     if (filter.type === 'text') return Boolean(filter.value?.trim());
     return false;
   });

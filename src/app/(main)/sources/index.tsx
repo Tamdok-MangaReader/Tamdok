@@ -715,10 +715,11 @@ export default function SourcesScreen() {
     selectedPageIndex,
   );
   const showTabs = categoryTabs.length > 1 && !isLoading;
-  const { onScroll: handlePinnedScroll, spacer, renderTabs } = usePinnedTabs(
-    showTabs,
-    { gap: 0 },
-  );
+  const {
+    onScroll: handlePinnedScroll,
+    spacer,
+    renderTabs,
+  } = usePinnedTabs(showTabs, { gap: 0 });
 
   const pageScrollHandler = usePageScrollHandler({
     onPageScroll: (event) => {

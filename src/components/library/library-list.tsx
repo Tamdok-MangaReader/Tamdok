@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -5,6 +6,7 @@ import {
   SelectionMarker,
   type MangaGridItem,
 } from "@/components/manga/manga-grid";
+import { MangaActionsMenu } from "@/components/manga/manga-actions-menu";
 import { MangaCover } from "@/components/manga/manga-cover";
 import { ThemedText } from "@/components/ui/themed-text";
 import { VirtualRows } from "@/components/ui/virtual-rows";
@@ -15,7 +17,9 @@ import {
   useLibraryLookup,
 } from "@/hooks/use-library-lookup";
 import { useIsOpenDuo } from "@/hooks/use-duo-layout";
+import { useCoverRefreshIndicator } from "@/hooks/use-cover-refresh-indicator";
 import { useTheme } from "@/hooks/use-theme";
+import { useLibraryEntryRefreshing } from "@/services/library-refresh-progress";
 
 /** Grid item plus the extra fields list rows show. */
 export type LibraryListItem = MangaGridItem & {
@@ -24,13 +28,18 @@ export type LibraryListItem = MangaGridItem & {
   totalChapters?: number;
   lastReadAt?: number;
   summary?: string;
+  downloadedTotal?: number;
+  authors?: string[];
+  tags?: string[];
+  rating?: string;
 };
 
 const LIST_ROW_HEIGHT = 86;
-const DESCRIPTIVE_ROW_HEIGHT = 132;
+const DESCRIPTIVE_ROW_HEIGHT = 140;
 const LIST_COVER_WIDTH = 48;
 const DESCRIPTIVE_COVER_WIDTH = 80;
 const LONG_PRESS_DELAY = 340;
+const ROW_RADIUS = 14;
 
 type RowProps = {
   item: LibraryListItem;
@@ -38,16 +47,17 @@ type RowProps = {
   getMeta: ReturnType<typeof useLibraryLookup>["getMeta"];
   onPress: (manga: MangaGridItem) => void;
   onLongPress?: (manga: MangaGridItem) => void;
-  paired?: boolean;
+  /** Starts multi-select from the actions menu. */
+  onSelect?: (manga: MangaGridItem) => void;
 };
 
 const LibraryListRow = memo(function LibraryListRow({
   item,
   descriptive,
-  paired,
   getMeta,
   onPress,
   onLongPress,
+  onSelect,
 }: RowProps) {
   const { colors } = useTheme();
   const enriched = useMemo(
@@ -55,37 +65,56 @@ const LibraryListRow = memo(function LibraryListRow({
     [item, getMeta],
   );
   const coverWidth = descriptive ? DESCRIPTIVE_COVER_WIDTH : LIST_COVER_WIDTH;
-  const handlePress = useCallback(() => onPress(item), [onPress, item]);
+  const handlePress = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress(item);
+  }, [onPress, item]);
   const handleLongPress = useMemo(
     () => (onLongPress ? () => onLongPress(item) : undefined),
     [onLongPress, item],
   );
 
+  const showRefreshIndicator = useCoverRefreshIndicator();
+  const refreshing = useLibraryEntryRefreshing(
+    enriched.inLibrary ? item.sourceId : undefined,
+    item.key,
+  );
   const unread = enriched.unreadCount ?? 0;
   const total = item.totalChapters ?? 0;
   const chaptersLine =
     total > 0
       ? unread > 0
-        ? t("library_list_chapters", {
+        ? `${t("library_list_chapters", {
             unread: String(unread),
             total: String(total),
-          })
+          })} (${Math.min(100, Math.round((unread / total) * 100))}%)`
         : t("library_list_chapters_total", { total: String(total) })
       : unread > 0
         ? t("library_summary_unread", { count: String(unread) })
         : "";
-  const meta = [item.sourceName, item.statusLabel].filter(Boolean).join(" · ");
+  const downloaded = item.downloadedTotal ?? 0;
+  const chaptersWithDownloads =
+    descriptive && downloaded > 0
+      ? [chaptersLine, t("library_list_downloaded", { count: String(downloaded) })]
+          .filter(Boolean)
+          .join(" · ")
+      : chaptersLine;
+  const meta = [item.sourceName, item.statusLabel, descriptive ? item.rating : undefined]
+    .filter(Boolean)
+    .join(" · ");
+  const authors = descriptive ? (item.authors ?? []).slice(0, 3).join(", ") : "";
+  const tags = descriptive ? (item.tags ?? []).slice(0, 5).join(" · ") : "";
 
-  return (
+  const renderContent = (onRowLongPress?: () => void) => (
     <Pressable
       onPress={handlePress}
-      onLongPress={handleLongPress}
+      onLongPress={onRowLongPress}
       delayLongPress={LONG_PRESS_DELAY}
       accessibilityRole="button"
-      style={[
+      style={({ pressed }) => [
         styles.row,
         { height: descriptive ? DESCRIPTIVE_ROW_HEIGHT : LIST_ROW_HEIGHT },
-        paired && styles.paired,
+        pressed && { backgroundColor: colors.secondaryFill },
       ]}
     >
       <View>
@@ -95,16 +124,18 @@ const LibraryListRow = memo(function LibraryListRow({
           cover={item.cover}
           width={coverWidth}
           inLibrary={enriched.inLibrary}
-          unreadCount={item.selecting ? 0 : enriched.unreadCount}
+          // The unread count is already in the row text.
+          unreadCount={0}
           downloadedCount={item.selecting ? 0 : enriched.downloadedCount}
           updateFailed={item.selecting ? false : enriched.updateFailed}
           finished={item.selecting ? false : enriched.finished}
           favorite={item.selecting ? false : enriched.favorite}
+          refreshing={item.selecting || !showRefreshIndicator ? false : refreshing}
           showTitleOverlay={false}
           showBookmark={false}
           showStatus={false}
           onPress={handlePress}
-          onLongPress={handleLongPress}
+          onLongPress={onRowLongPress}
         />
         {item.selecting ? (
           <SelectionMarker
@@ -114,7 +145,7 @@ const LibraryListRow = memo(function LibraryListRow({
         ) : null}
       </View>
       <View style={styles.text}>
-        <ThemedText variant="headline" numberOfLines={descriptive ? 2 : 1}>
+        <ThemedText variant="headline" numberOfLines={1}>
           {item.title}
         </ThemedText>
         {meta ? (
@@ -126,13 +157,22 @@ const LibraryListRow = memo(function LibraryListRow({
             {meta}
           </ThemedText>
         ) : null}
-        {chaptersLine ? (
+        {authors ? (
+          <ThemedText
+            variant="footnote"
+            color="secondaryLabel"
+            numberOfLines={1}
+          >
+            {authors}
+          </ThemedText>
+        ) : null}
+        {chaptersWithDownloads ? (
           <ThemedText
             variant="footnote"
             color={unread > 0 ? "tint" : "secondaryLabel"}
             numberOfLines={1}
           >
-            {chaptersLine}
+            {chaptersWithDownloads}
           </ThemedText>
         ) : null}
         {descriptive && item.lastReadAt ? (
@@ -146,13 +186,9 @@ const LibraryListRow = memo(function LibraryListRow({
             })}
           </ThemedText>
         ) : null}
-        {descriptive && item.summary ? (
-          <ThemedText
-            variant="footnote"
-            color="secondaryLabel"
-            numberOfLines={3}
-          >
-            {item.summary}
+        {tags ? (
+          <ThemedText variant="caption1" color="tertiaryLabel" numberOfLines={1}>
+            {tags}
           </ThemedText>
         ) : null}
       </View>
@@ -160,10 +196,25 @@ const LibraryListRow = memo(function LibraryListRow({
         pointerEvents="none"
         style={[
           styles.separator,
-          { backgroundColor: colors.separator, left: coverWidth + Spacing.md },
+          { backgroundColor: colors.separator, left: coverWidth + Spacing.md + Spacing.sm },
         ]}
       />
     </Pressable>
+  );
+
+  // Selection mode long-presses directly; otherwise the lifted actions menu highlights the whole row.
+  if (onLongPress) {
+    return <View style={styles.paired}>{renderContent(handleLongPress)}</View>;
+  }
+  return (
+    <MangaActionsMenu
+      sourceId={item.sourceId}
+      manga={item}
+      renderCover={renderContent}
+      onSelect={onSelect as never}
+      style={styles.paired}
+      lift={{ backgroundColor: colors.secondarySystemBackground, borderRadius: ROW_RADIUS }}
+    />
   );
 });
 
@@ -174,7 +225,7 @@ type LibraryListProps = {
   onHeight: (pageId: string, height: number) => void;
   onPressManga: (manga: MangaGridItem) => void;
   onLongPressManga?: (manga: MangaGridItem) => void;
-  /** Long press on a row (list has no context menu) starts selection. */
+  /** Starts multi-select from the long-press actions menu. */
   onSelectManga?: (manga: MangaGridItem) => void;
   empty?: ReactNode;
 };
@@ -196,9 +247,11 @@ export function LibraryList({
 }: LibraryListProps) {
   const { getMeta } = useLibraryLookup();
   const pressRef = useRef(onPressManga);
-  const longPressRef = useRef(onLongPressManga ?? onSelectManga);
+  const longPressRef = useRef(onLongPressManga);
+  const selectRef = useRef(onSelectManga);
   pressRef.current = onPressManga;
-  longPressRef.current = onLongPressManga ?? onSelectManga;
+  longPressRef.current = onLongPressManga;
+  selectRef.current = onSelectManga;
   const handlePress = useCallback(
     (manga: MangaGridItem) => pressRef.current(manga),
     [],
@@ -207,7 +260,11 @@ export function LibraryList({
     (manga: MangaGridItem) => longPressRef.current?.(manga),
     [],
   );
-  const hasLongPress = !!(onLongPressManga ?? onSelectManga);
+  const handleSelect = useCallback(
+    (manga: MangaGridItem) => selectRef.current?.(manga),
+    [],
+  );
+  const hasLongPress = !!onLongPressManga;
 
   // Unfolded Duo is wide enough for two columns of rows.
   const perRow = useIsOpenDuo() ? 2 : 1;
@@ -231,15 +288,15 @@ export function LibraryList({
             key={`${item.sourceId}:${item.key}`}
             item={item}
             descriptive={descriptive}
-            paired={perRow > 1}
             getMeta={getMeta}
             onPress={handlePress}
             onLongPress={hasLongPress ? handleLongPress : undefined}
+            onSelect={handleSelect}
           />
         ))}
       </View>
     ),
-    [descriptive, perRow, getMeta, handlePress, handleLongPress, hasLongPress],
+    [descriptive, perRow, getMeta, handlePress, handleLongPress, handleSelect, hasLongPress],
   );
 
   if (entries.length === 0) {
@@ -268,7 +325,7 @@ export function LibraryList({
 
 const styles = StyleSheet.create({
   list: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.lg - Spacing.sm,
     paddingBottom: Spacing.xxxl,
   },
   group: {
@@ -284,6 +341,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.md,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: ROW_RADIUS,
+    borderCurve: "continuous",
   },
   text: {
     flex: 1,
@@ -292,7 +352,7 @@ const styles = StyleSheet.create({
   },
   separator: {
     position: "absolute",
-    right: 0,
+    right: Spacing.sm,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
   },

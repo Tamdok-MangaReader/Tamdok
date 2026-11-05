@@ -80,6 +80,7 @@ const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 
 const VISIBLE_CHAPTER_LIMIT = 5;
 const RELOAD_DEBOUNCE_MS = 100;
+const HISTORY_PAGE_SIZE = 400;
 const PRESSED_STYLE = { opacity: 0.72 } as const;
 
 type InstalledSourceLike = ReturnType<typeof findInstalledSource>;
@@ -842,6 +843,11 @@ export default function HistoryScreen() {
   const refreshTick = useMangaDataRefresh();
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // History is read from the database in pages, so a very long history never has to be in memory at once.
+  const [limit, setLimit] = useState(HISTORY_PAGE_SIZE);
+  const limitRef = useRef(HISTORY_PAGE_SIZE);
+  limitRef.current = limit;
+  const hasMore = entries.length >= limit;
 
   const entriesRef = useRef<HistoryEntry[]>([]);
   const installedRef = useRef(installed);
@@ -853,7 +859,7 @@ export default function HistoryScreen() {
 
   const loadHistory = useCallback(async () => {
     const [history, libraryEntries] = await Promise.all([
-      getHistoryEntries(),
+      getHistoryEntries(limitRef.current),
       getLibraryEntries(),
     ]);
     const libraryMeta = new Map(
@@ -926,7 +932,13 @@ export default function HistoryScreen() {
   useEffect(() => {
     dirtyRef.current = true;
     if (focusedRef.current) scheduleLoad();
-  }, [refreshTick, scheduleLoad]);
+  }, [refreshTick, limit, scheduleLoad]);
+
+  const loadMore = useCallback(() => {
+    if (entriesRef.current.length >= limitRef.current) {
+      setLimit((current) => current + HISTORY_PAGE_SIZE);
+    }
+  }, []);
 
   const requestReload = useCallback(() => {
     dirtyRef.current = true;
@@ -1251,6 +1263,8 @@ export default function HistoryScreen() {
         updateCellsBatchingPeriod={50}
         windowSize={7}
         removeClippedSubviews={Platform.OS === "android"}
+        onEndReached={hasMore ? loadMore : undefined}
+        onEndReachedThreshold={1.5}
       />
     );
   };
@@ -1278,6 +1292,15 @@ export default function HistoryScreen() {
         pageId={pageId}
         onHeight={handlePageHeight}
         style={styles.list}
+        footer={
+          hasMore ? (
+            <Pressable onPress={loadMore} style={styles.loadMore}>
+              <ThemedText variant="subheadline" color="tint">
+                {t("history_load_more")}
+              </ThemedText>
+            </Pressable>
+          ) : undefined
+        }
       />
     );
   };
@@ -1369,6 +1392,10 @@ function rowKeyExtractor(row: HistoryRow): string {
 }
 
 const styles = StyleSheet.create({
+  loadMore: {
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+  },
   root: {
     flex: 1,
   },

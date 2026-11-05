@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Platform,
   StyleSheet,
@@ -19,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useWindowDimensions } from "@/hooks/use-duo-layout";
+import { ReaderAdjacentPlaceholder } from "@/components/reader/reader-adjacent-placeholder";
 import { ReaderChapterBoundary } from "@/components/reader/reader-chapter-boundary";
 import {
   ReaderQuickActions,
@@ -1086,7 +1086,7 @@ export function ReaderWebtoonView({
 
   const chapterEnd = nextAfterWindow ? (
     <View style={styles.nextFooter}>
-      <ActivityIndicator color={foregroundColor} />
+      <ReaderAdjacentPlaceholder direction="next" foregroundColor={foregroundColor} />
     </View>
   ) : (
     <ReaderChapterBoundary

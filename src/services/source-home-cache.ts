@@ -1,5 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
-
+import { getCacheDb } from '@/db/cache-database';
 import type { HomeLayout, Listing } from '@/parsers/shared/types';
 
 export type SourceHomeCacheEntry = {
@@ -8,20 +7,7 @@ export type SourceHomeCacheEntry = {
   cachedAt: number;
 };
 
-const CACHE_DIR = `${FileSystem.documentDirectory}source-home-cache/`;
 const memoryCache = new Map<string, SourceHomeCacheEntry>();
-
-function cacheFilePath(sourceId: string): string {
-  const safeId = sourceId.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  return `${CACHE_DIR}${safeId}.json`;
-}
-
-async function ensureCacheDirectory(): Promise<void> {
-  const info = await FileSystem.getInfoAsync(CACHE_DIR);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
-  }
-}
 
 export function peekSourceHomeCache(sourceId: string): SourceHomeCacheEntry | null {
   return memoryCache.get(sourceId) ?? null;
@@ -31,13 +17,14 @@ export async function readSourceHomeCache(sourceId: string): Promise<SourceHomeC
   const memory = memoryCache.get(sourceId);
   if (memory) return memory;
 
-  await ensureCacheDirectory();
-  const path = cacheFilePath(sourceId);
-  const info = await FileSystem.getInfoAsync(path);
-  if (!info.exists) return null;
-
   try {
-    const parsed = JSON.parse(await FileSystem.readAsStringAsync(path)) as SourceHomeCacheEntry;
+    const db = await getCacheDb();
+    const row = await db.getFirstAsync<{ data: string }>(
+      'SELECT data FROM source_home WHERE source_id = ?',
+      [sourceId],
+    );
+    if (!row) return null;
+    const parsed = JSON.parse(row.data) as SourceHomeCacheEntry;
     if (!parsed?.home || !Array.isArray(parsed.listings)) return null;
     memoryCache.set(sourceId, parsed);
     return parsed;
@@ -48,18 +35,22 @@ export async function readSourceHomeCache(sourceId: string): Promise<SourceHomeC
 
 export async function writeSourceHomeCache(sourceId: string, entry: SourceHomeCacheEntry): Promise<void> {
   memoryCache.set(sourceId, entry);
-  await ensureCacheDirectory();
-  await FileSystem.writeAsStringAsync(cacheFilePath(sourceId), JSON.stringify(entry));
+  const db = await getCacheDb();
+  await db.runAsync('INSERT OR REPLACE INTO source_home (source_id, data, cached_at) VALUES (?, ?, ?)', [
+    sourceId,
+    JSON.stringify(entry),
+    entry.cachedAt,
+  ]);
 }
 
 export async function clearSourceHomeCache(sourceId?: string): Promise<void> {
+  const db = await getCacheDb();
   if (sourceId) {
     memoryCache.delete(sourceId);
-    await ensureCacheDirectory();
-    await FileSystem.deleteAsync(cacheFilePath(sourceId), { idempotent: true });
+    await db.runAsync('DELETE FROM source_home WHERE source_id = ?', [sourceId]);
     return;
   }
 
   memoryCache.clear();
-  await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+  await db.runAsync('DELETE FROM source_home');
 }

@@ -166,7 +166,8 @@ export default function BackupsSettingsScreen() {
 
   const handleImport = async () => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: "application/json",
+      // Backups are SQLite files; older ones are .json, so any file type is accepted.
+      type: "*/*",
       copyToCacheDirectory: true,
     });
     if (result.canceled || !result.assets[0]?.uri) return;
