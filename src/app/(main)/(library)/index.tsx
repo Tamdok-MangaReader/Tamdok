@@ -87,7 +87,7 @@ import {
   ALL_CATEGORY_ID,
   chapterKeysForLibraryEntry,
   filterLibraryEntries,
-  getCurrentCategoryId,
+  getDefaultCategoryId,
   getLibraryCategories,
   getLibraryEntries,
   hasActiveLibraryFilters,
@@ -96,7 +96,6 @@ import {
   libraryCategoryCount,
   removeFromLibrary,
   resolveLibraryUnreadCount,
-  setCurrentCategoryId,
   setLibraryCategories,
   sortLibraryEntries,
   updateLibraryEntryMetadata,
@@ -262,7 +261,6 @@ export default function LibraryScreen() {
   const loadedOnceRef = useRef(false);
   const pagerKeyRef = useRef("");
   const selectedCategoryIdRef = useRef(ALL_CATEGORY_ID);
-  const persistedCategoryIdRef = useRef(ALL_CATEGORY_ID);
   const progress = useSharedValue(0);
 
   const [categories, setCategories] = useState<
@@ -316,13 +314,13 @@ export default function LibraryScreen() {
   const loadLibrary = useCallback(async () => {
     const [
       rawCategories,
-      storedCategoryId,
+      defaultCategoryId,
       customCategories,
       settings,
       rawEntries,
     ] = await Promise.all([
       getLibraryCategories(),
-      getCurrentCategoryId(),
+      getDefaultCategoryId(),
       hasCustomLibraryCategories(),
       getAppSettings(),
       getLibraryEntries(),
@@ -355,8 +353,9 @@ export default function LibraryScreen() {
     );
 
     const isFirstLoad = !loadedOnceRef.current;
+    // A launch always opens the default category from the settings, not the last one viewed.
     const wantedCategoryId = isFirstLoad
-      ? storedCategoryId
+      ? defaultCategoryId
       : selectedCategoryIdRef.current;
 
     const validCategoryId = nextCategories.some(
@@ -365,10 +364,7 @@ export default function LibraryScreen() {
       ? wantedCategoryId
       : ALL_CATEGORY_ID;
 
-    if (isFirstLoad) {
-      persistedCategoryIdRef.current = storedCategoryId;
-      loadedOnceRef.current = true;
-    }
+    if (isFirstLoad) loadedOnceRef.current = true;
 
     selectedCategoryIdRef.current = validCategoryId;
 
@@ -445,11 +441,6 @@ export default function LibraryScreen() {
     setCategories((prev) =>
       JSON.stringify(prev) === JSON.stringify(nextTabs) ? prev : nextTabs,
     );
-
-    if (persistedCategoryIdRef.current !== validCategoryId) {
-      persistedCategoryIdRef.current = validCategoryId;
-      await setCurrentCategoryId(validCategoryId);
-    }
   }, [progress]);
 
   useEffect(() => {
@@ -800,11 +791,6 @@ export default function LibraryScreen() {
       progress.value = index;
       selectedCategoryIdRef.current = category.id;
       setSelectedCategoryId(category.id);
-
-      if (persistedCategoryIdRef.current !== category.id) {
-        persistedCategoryIdRef.current = category.id;
-        void setCurrentCategoryId(category.id);
-      }
 
       void Haptics.selectionAsync();
     },
