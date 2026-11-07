@@ -72,12 +72,6 @@ const MENU_ITEMS_SECOND = [
 
 const MENU_ITEMS_THIRD = [
   {
-    icon: "stats-chart" as const,
-    color: "#30B0C7",
-    labelKey: "stats_title",
-    path: "/settings/statistics",
-  },
-  {
     icon: "lock-closed" as const,
     color: "#8E8E93",
     labelKey: "section_privacy",
@@ -88,6 +82,15 @@ const MENU_ITEMS_THIRD = [
     color: "#FF3B30",
     labelKey: "section_notifications",
     path: "/settings/notifications",
+  },
+];
+
+const MENU_ITEMS_FOURTH = [
+  {
+    icon: "stats-chart" as const,
+    color: "#30B0C7",
+    labelKey: "stats_title",
+    path: "/settings/statistics",
   },
   {
     icon: "construct" as const,
@@ -203,6 +206,22 @@ export default function SettingsScreen() {
                 isLast={index === MENU_ITEMS_THIRD.length - 1}
               />
               {index < MENU_ITEMS_THIRD.length - 1 && <CardSeparator />}
+            </View>
+          ))}
+        </Card>
+
+        <Card>
+          {MENU_ITEMS_FOURTH.map((item, index) => (
+            <View key={item.path}>
+              <ListRow
+                icon={item.icon}
+                iconBackground={item.color}
+                label={t(item.labelKey)}
+                onPress={() => router.navigate(item.path as Href)}
+                isFirst={index === 0}
+                isLast={index === MENU_ITEMS_FOURTH.length - 1}
+              />
+              {index < MENU_ITEMS_FOURTH.length - 1 && <CardSeparator />}
             </View>
           ))}
         </Card>

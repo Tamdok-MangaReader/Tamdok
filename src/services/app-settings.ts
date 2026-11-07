@@ -176,6 +176,8 @@ export type CoverDisplaySettings = {
 export type SourceDisplaySettings = {
   /** Orange age badge on suggestive sources. */
   showSuggestiveBadge: boolean;
+  /** Flag emoji instead of language codes on source cards. */
+  languageFlags: boolean;
 };
 
 export type PrivacySettings = {
@@ -280,6 +282,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   sourceDisplay: {
     showSuggestiveBadge: true,
+    languageFlags: true,
   },
   coverDisplay: {
     showStatusBadge: true,
@@ -390,6 +393,9 @@ async function readSettings(): Promise<AppSettings> {
       showSuggestiveBadge:
         stored.sourceDisplay?.showSuggestiveBadge ??
         DEFAULT_SETTINGS.sourceDisplay.showSuggestiveBadge,
+      languageFlags:
+        stored.sourceDisplay?.languageFlags ??
+        DEFAULT_SETTINGS.sourceDisplay.languageFlags,
     },
     coverDisplay: {
       showStatusBadge:

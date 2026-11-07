@@ -1,14 +1,17 @@
 import { Modal } from "@/hooks/use-duo-layout";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from '@/components/ui/modal-header';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Image } from 'expo-image';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Card } from '@/components/ui/card';
-import { GlassDestructiveButton } from '@/components/ui/glass-destructive-button';
+import { Card, CardSeparator } from '@/components/ui/card';
 import { GlassSurface } from '@/components/ui/glass-surface';
+import { NativeChipMenu, NATIVE_MENU_MAX_OPTIONS } from '@/components/sources/native-filter-menu';
+import { SwipeDismissSheet } from '@/components/ui/swipe-dismiss-sheet';
+import { OptionSegmentedControl } from '@/components/ui/option-segmented-control';
+import { SectionFooter } from '@/components/ui/section-footer';
 import { SectionLabel } from '@/components/ui/section-label';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -16,6 +19,7 @@ import { t } from '@/constants/locales';
 import { useTheme } from '@/hooks/use-theme';
 import type { InstalledSource } from '@/parsers/shared/types';
 import { sourceRouteId } from '@/services/sources';
+import { languageWithFlag } from '@/utils/language-flag';
 
 export type GlobalSearchContentFilter = 'all' | 'safe' | 'nsfw';
 
@@ -69,7 +73,7 @@ function sourcesLabel(filters: GlobalSearchFilters, installed: InstalledSource[]
 
 function languagesLabel(filters: GlobalSearchFilters): string {
   if (filters.languages.length === 0) return t('search_filter_languages_all');
-  if (filters.languages.length === 1) return filters.languages[0]!;
+  if (filters.languages.length === 1) return languageWithFlag(filters.languages[0]!);
   return t('search_filter_languages_count', { count: String(filters.languages.length) });
 }
 
@@ -176,54 +180,89 @@ function ToggleChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-function PillOptions<T extends string>({
+/** Multi-select list in the Settings style: a row per option with a trailing checkmark. */
+function normalizeIconUri(uri: string): string {
+  if (/^https?:\/\//i.test(uri)) return uri;
+  if (uri.startsWith('file://')) return uri;
+  if (uri.startsWith('/')) return `file://${uri}`;
+  return uri;
+}
+
+function CheckList({
   options,
   selected,
   onToggle,
-  single = false,
-  inline = false,
 }: {
-  options: Array<{ id: T; label: string }>;
-  selected: T | T[];
-  onToggle: (id: T) => void;
-  single?: boolean;
-  inline?: boolean;
+  options: Array<{ id: string; label: string; iconUri?: string; initial?: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
 }) {
-  const { colors, radius } = useTheme();
-  const selectedSet = single
-    ? new Set([selected as T])
-    : new Set(Array.isArray(selected) ? selected : []);
-
+  const { colors } = useTheme();
   return (
-    <View style={inline ? undefined : styles.dropdown}>
-      <View style={styles.pillGrid}>
-        {options.map((option) => {
-          const isSelected = selectedSet.has(option.id);
-          if (isSelected) {
-            return (
-              <Pressable
-                key={option.id}
-                style={[styles.sortPillActive, { borderRadius: radius.pill, backgroundColor: colors.tint }]}
-                onPress={() => onToggle(option.id)}>
-                <ThemedText variant='subheadline' color='onTint' numberOfLines={1}>
-                  {option.label}
-                </ThemedText>
-              </Pressable>
-            );
-          }
-
-          return (
-            <GlassSurface key={option.id} glassStyle='regular' borderRadius={radius.pill}>
-              <Pressable style={styles.sortPill} onPress={() => onToggle(option.id)}>
-                <ThemedText variant='subheadline' numberOfLines={1}>
-                  {option.label}
-                </ThemedText>
-              </Pressable>
-            </GlassSurface>
-          );
-        })}
-      </View>
+    <View>
+      {options.map((option, index) => {
+        const isSelected = selected.includes(option.id);
+        return (
+          <Fragment key={option.id}>
+            {index > 0 ? <CardSeparator /> : null}
+            <Pressable
+              onPress={() => onToggle(option.id)}
+              accessibilityRole='checkbox'
+              accessibilityState={{ checked: isSelected }}
+              style={({ pressed }) => [styles.checkRow, pressed && { backgroundColor: colors.quaternaryFill }]}>
+              {option.initial !== undefined ? (
+                <View style={[styles.sourceIcon, { backgroundColor: colors.quaternaryFill }]}>
+                  {option.iconUri ? (
+                    <Image
+                      source={{ uri: normalizeIconUri(option.iconUri) }}
+                      style={styles.sourceIconImage}
+                      contentFit='cover'
+                      transition={150}
+                    />
+                  ) : (
+                    <ThemedText variant='caption1'>{option.initial}</ThemedText>
+                  )}
+                </View>
+              ) : null}
+              <ThemedText variant='body' style={styles.switchLabel} numberOfLines={1}>
+                {option.label}
+              </ThemedText>
+              {isSelected ? <Ionicons name='checkmark' size={20} color={colors.tint} /> : null}
+            </Pressable>
+          </Fragment>
+        );
+      })}
     </View>
+  );
+}
+
+/** Floating glass card under the chip row with a checkmark list (shown when the native menu is not used). */
+function OptionsPanel({
+  options,
+  selected,
+  onToggle,
+}: {
+  options: Array<{ id: string; label: string; iconUri?: string; initial?: string }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  const { isDark } = useTheme();
+  const { height } = useWindowDimensions();
+  return (
+    <Animated.View
+      entering={FadeIn.duration(160)}
+      exiting={FadeOut.duration(120)}
+      style={[styles.panel, { shadowOpacity: isDark ? 0.5 : 0.18 }]}>
+      <GlassSurface glassStyle='regular' borderRadius={20}>
+        <ScrollView
+          style={[styles.panelScroll, { maxHeight: height * 0.5 }]}
+          keyboardShouldPersistTaps='handled'
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled>
+          <CheckList options={options} selected={selected} onToggle={onToggle} />
+        </ScrollView>
+      </GlassSurface>
+    </Animated.View>
   );
 }
 
@@ -255,6 +294,7 @@ export function GlobalSearchFilterModal({
   onClose: () => void;
 }) {
   const { colors, radius } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
   const [draft, setDraft] = useState(filters);
   const languages = useMemo(() => collectLanguages(installed), [installed]);
 
@@ -263,12 +303,17 @@ export function GlobalSearchFilterModal({
   }, [visible, filters]);
 
   const sourceOptions = useMemo(
-    () => installed.map((source) => ({ id: sourceRouteId(source), label: source.manifest.info.name })),
+    () => installed.map((source) => ({
+      id: sourceRouteId(source),
+      label: source.manifest.info.name,
+      iconUri: source.iconUri,
+      initial: source.manifest.info.name.slice(0, 1),
+    })),
     [installed],
   );
 
   const languageOptions = useMemo(
-    () => languages.map((language) => ({ id: language, label: language })),
+    () => languages.map((language) => ({ id: language, label: languageWithFlag(language) })),
     [languages],
   );
 
@@ -279,8 +324,16 @@ export function GlobalSearchFilterModal({
   ];
 
   return (
-    <Modal visible={visible} animationType='slide' presentationStyle='pageSheet' onRequestClose={onClose}>
-      <View style={[styles.modalRoot, { backgroundColor: colors.systemBackground }]}>
+    <Modal visible={visible} animationType='none' transparent onRequestClose={onClose}>
+      <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+      <SwipeDismissSheet
+        onClose={onClose}
+        style={[
+          styles.sheet,
+          { backgroundColor: colors.systemBackground, maxHeight: Math.round(windowHeight * 0.9) },
+        ]}>
         <ModalHeader
           title={t('source_search_filters')}
           closeLabel={t('cancel')}
@@ -293,18 +346,36 @@ export function GlobalSearchFilterModal({
         />
 
         <ScrollView
-          style={styles.modalScroll}
+          style={styles.modalScrollFit}
           contentContainerStyle={[styles.modalContent, { paddingTop: MODAL_HEADER_HEIGHT + Spacing.md, paddingBottom: Spacing.xxxl }]}
           scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
           keyboardShouldPersistTaps='handled'
           showsVerticalScrollIndicator={false}>
-          <SectionLabel isFirst>{t('search_filter_sources')}</SectionLabel>
-          <Card style={styles.modalSectionCard}>
-            <ThemedText variant='footnote' color='secondaryLabel'>
-              {t('search_filter_sources_hint')}
-            </ThemedText>
-            <PillOptions
-              inline
+          <SectionLabel isFirst>{t('settings_sources_nsfw')}</SectionLabel>
+          <OptionSegmentedControl
+            options={contentOptions}
+            selectedId={draft.contentFilter}
+            onSelect={(id) =>
+              setDraft((current) => ({ ...current, contentFilter: id as GlobalSearchContentFilter }))
+            }
+          />
+
+          <Card style={styles.switchCard}>
+            <View style={styles.switchRow}>
+              <ThemedText variant='body' style={styles.switchLabel}>
+                {t('search_filter_include_nsfw')}
+              </ThemedText>
+              <Switch
+                accessibilityLabel={t('search_filter_include_nsfw')}
+                value={draft.includeNsfwSources}
+                onValueChange={(includeNsfwSources) => setDraft((current) => ({ ...current, includeNsfwSources }))}
+              />
+            </View>
+          </Card>
+
+          <SectionLabel>{t('search_filter_sources')}</SectionLabel>
+          <Card>
+            <CheckList
               options={sourceOptions}
               selected={draft.sourceRouteIds}
               onToggle={(id) =>
@@ -315,14 +386,11 @@ export function GlobalSearchFilterModal({
               }
             />
           </Card>
+          <SectionFooter>{t('search_filter_sources_hint')}</SectionFooter>
 
           <SectionLabel>{t('search_filter_languages')}</SectionLabel>
-          <Card style={styles.modalSectionCard}>
-            <ThemedText variant='footnote' color='secondaryLabel'>
-              {t('search_filter_languages_hint')}
-            </ThemedText>
-            <PillOptions
-              inline
+          <Card>
+            <CheckList
               options={languageOptions}
               selected={draft.languages}
               onToggle={(id) =>
@@ -333,40 +401,22 @@ export function GlobalSearchFilterModal({
               }
             />
           </Card>
+          <SectionFooter>{t('search_filter_languages_hint')}</SectionFooter>
 
-          <SectionLabel>{t('settings_sources_nsfw')}</SectionLabel>
-          <Card style={styles.modalSectionCard}>
-            <PillOptions
-              inline
-              options={contentOptions}
-              selected={draft.contentFilter}
-              single
-              onToggle={(id) => setDraft((current) => ({ ...current, contentFilter: id }))}
-            />
-          </Card>
-
-          <Card style={styles.modalSectionCard}>
-            <View style={styles.switchRow}>
-              <ThemedText variant='body' style={styles.switchLabel}>
-                {t('search_filter_include_nsfw')}
-              </ThemedText>
-              <Switch
-                value={draft.includeNsfwSources}
-                onValueChange={(includeNsfwSources) => setDraft((current) => ({ ...current, includeNsfwSources }))}
-              />
-            </View>
-          </Card>
+          <View style={styles.resetWrap}>
+            <Card style={styles.switchCard}>
+              <Pressable
+                onPress={() => setDraft(DEFAULT_GLOBAL_SEARCH_FILTERS)}
+                accessibilityRole='button'
+                style={styles.resetRow}>
+                <ThemedText variant='body' color='destructive'>
+                  {t('source_search_filters_reset')}
+                </ThemedText>
+              </Pressable>
+            </Card>
+          </View>
         </ScrollView>
-
-        <SafeAreaView edges={['bottom']} style={[styles.modalFooter, { borderTopColor: colors.separator }]}>
-          <GlassDestructiveButton
-            label={t('source_search_filters_reset')}
-            onPress={() => setDraft(DEFAULT_GLOBAL_SEARCH_FILTERS)}
-            glassStyle='regular'
-            style={styles.footerButton}
-          />
-        </SafeAreaView>
-      </View>
+      </SwipeDismissSheet>
     </Modal>
   );
 }
@@ -383,12 +433,17 @@ export function GlobalSearchFilterBar({
   const languages = useMemo(() => collectLanguages(installed), [installed]);
 
   const sourceOptions = useMemo(
-    () => installed.map((source) => ({ id: sourceRouteId(source), label: source.manifest.info.name })),
+    () => installed.map((source) => ({
+      id: sourceRouteId(source),
+      label: source.manifest.info.name,
+      iconUri: source.iconUri,
+      initial: source.manifest.info.name.slice(0, 1),
+    })),
     [installed],
   );
 
   const languageOptions = useMemo(
-    () => languages.map((language) => ({ id: language, label: language })),
+    () => languages.map((language) => ({ id: language, label: languageWithFlag(language) })),
     [languages],
   );
 
@@ -411,17 +466,15 @@ export function GlobalSearchFilterBar({
     <>
       <View style={styles.bar}>
         {openFilterId !== null ? (
-          <Animated.View
-            entering={FadeIn.duration(180)}
-            exiting={FadeOut.duration(150)}
-            style={[styles.dim, { backgroundColor: isDark ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.3)' }]}>
+          <View
+            style={[styles.dim, { backgroundColor: "transparent" }]}>
             <Pressable
               style={StyleSheet.absoluteFill}
               onPress={() => setOpenFilterId(null)}
               accessibilityRole='button'
               accessibilityLabel={t('cancel')}
             />
-          </Animated.View>
+          </View>
         ) : null}
         <ScrollView
           horizontal
@@ -446,25 +499,57 @@ export function GlobalSearchFilterBar({
             active={filters.includeNsfwSources}
             onPress={() => onChange({ ...filters, includeNsfwSources: !filters.includeNsfwSources })}
           />
-          <FilterChip
-            label={sourcesLabel(filters, installed)}
-            active={openFilterId === 'sources'}
-            onPress={() => toggleFilter('sources')}
-          />
-          <FilterChip
-            label={languagesLabel(filters)}
-            active={openFilterId === 'languages'}
-            onPress={() => toggleFilter('languages')}
-          />
-          <FilterChip
-            label={contentLabel(filters.contentFilter)}
-            active={openFilterId === 'content'}
-            onPress={() => toggleFilter('content')}
-          />
+          {Platform.OS === 'ios' && sourceOptions.length <= NATIVE_MENU_MAX_OPTIONS ? (
+            <NativeChipMenu
+              label={sourcesLabel(filters, installed)}
+              options={sourceOptions}
+              multiple
+              selected={filters.sourceRouteIds}
+              onChange={(sourceRouteIds) => onChange({ ...filters, sourceRouteIds })}
+            />
+          ) : (
+            <FilterChip
+              label={sourcesLabel(filters, installed)}
+              active={openFilterId === 'sources'}
+              onPress={() => toggleFilter('sources')}
+            />
+          )}
+          {Platform.OS === 'ios' && languageOptions.length <= NATIVE_MENU_MAX_OPTIONS ? (
+            <NativeChipMenu
+              label={languagesLabel(filters)}
+              options={languageOptions}
+              multiple
+              selected={filters.languages}
+              onChange={(languages) => onChange({ ...filters, languages })}
+            />
+          ) : (
+            <FilterChip
+              label={languagesLabel(filters)}
+              active={openFilterId === 'languages'}
+              onPress={() => toggleFilter('languages')}
+            />
+          )}
+          {Platform.OS === 'ios' ? (
+            <NativeChipMenu
+              label={contentLabel(filters.contentFilter)}
+              options={contentOptions}
+              multiple={false}
+              selected={[filters.contentFilter]}
+              onChange={([contentFilter]) =>
+                onChange({ ...filters, contentFilter: (contentFilter ?? 'all') as GlobalSearchContentFilter })
+              }
+            />
+          ) : (
+            <FilterChip
+              label={contentLabel(filters.contentFilter)}
+              active={openFilterId === 'content'}
+              onPress={() => toggleFilter('content')}
+            />
+          )}
         </ScrollView>
 
         {openFilterId === 'sources' ? (
-          <PillOptions
+          <OptionsPanel
             options={sourceOptions}
             selected={filters.sourceRouteIds}
             onToggle={(id) => onChange({ ...filters, sourceRouteIds: toggleValue(filters.sourceRouteIds, id) })}
@@ -472,7 +557,7 @@ export function GlobalSearchFilterBar({
         ) : null}
 
         {openFilterId === 'languages' ? (
-          <PillOptions
+          <OptionsPanel
             options={languageOptions}
             selected={filters.languages}
             onToggle={(id) => onChange({ ...filters, languages: toggleValue(filters.languages, id) })}
@@ -480,11 +565,10 @@ export function GlobalSearchFilterBar({
         ) : null}
 
         {openFilterId === 'content' ? (
-          <PillOptions
+          <OptionsPanel
             options={contentOptions}
-            selected={filters.contentFilter}
-            single
-            onToggle={(contentFilter) => onChange({ ...filters, contentFilter })}
+            selected={[filters.contentFilter]}
+            onToggle={(id) => onChange({ ...filters, contentFilter: id as GlobalSearchContentFilter })}
           />
         ) : null}
       </View>
@@ -566,6 +650,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  sheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+  },
+  // Sized to the content up to the sheet's maximum height, then scrolls.
+  modalScrollFit: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  panel: {
+    marginHorizontal: Spacing.lg,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  panelScroll: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   modalRoot: {
     flex: 1,
   },
@@ -593,11 +703,45 @@ const styles = StyleSheet.create({
   modalContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   modalSectionCard: {
     padding: Spacing.lg,
     gap: Spacing.md,
+  },
+  switchCard: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  resetWrap: {
+    marginTop: Spacing.lg,
+  },
+  resetRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  sourceIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sourceIconImage: {
+    width: 30,
+    height: 30,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    minHeight: 48,
   },
   switchRow: {
     flexDirection: 'row',

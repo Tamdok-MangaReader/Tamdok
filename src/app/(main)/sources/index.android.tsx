@@ -64,6 +64,7 @@ import { useSources } from "@/context/sources-context";
 import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
+import { useLanguageFlags } from "@/hooks/use-language-flags";
 import { useTheme } from "@/hooks/use-theme";
 import type { InstalledSource } from "@/parsers/shared/types";
 import { getSourceLayoutKey, sourceRouteId } from "@/services/sources";
@@ -200,9 +201,10 @@ const SourceRow = memo(function SourceRow({
   const handleDelete = useCallback(() => onDelete(source), [onDelete, source]);
   const handleUpdate = useCallback(() => onUpdate(source), [onUpdate, source]);
   const showKind = useHasMultipleSourceKinds();
+  const languageFlags = useLanguageFlags();
   const subtitle = useMemo(
     () => installedSourceSubtitle(source, undefined, showKind),
-    [source, showKind],
+    [source, showKind, languageFlags],
   );
 
   return (
@@ -256,9 +258,10 @@ const ReorderRow = memo(function ReorderRow({
 }) {
   const { colors } = useTheme();
   const showKind = useHasMultipleSourceKinds();
+  const languageFlags = useLanguageFlags();
   const subtitle = useMemo(
     () => installedSourceSubtitle(source, undefined, showKind),
-    [source, showKind],
+    [source, showKind, languageFlags],
   );
 
   return (
@@ -296,6 +299,7 @@ const DragPlaceholder = memo(function DragPlaceholder({
   source: InstalledSource;
 }) {
   const showKind = useHasMultipleSourceKinds();
+  useLanguageFlags();
   return (
     <View style={styles.reorderItem}>
       <Card style={[styles.card, styles.dragPlaceholder]}>
@@ -910,7 +914,7 @@ export default function SourcesScreen() {
                 key={pagerKey}
                 style={{ height: pagerHeight }}
                 initialPage={selectedPageIndex}
-                onPageScroll={pageScrollHandler}
+                onPageScroll={pageScrollHandler as never}
                 onPageSelected={(event) =>
                   handlePageSelected(event.nativeEvent.position)
                 }

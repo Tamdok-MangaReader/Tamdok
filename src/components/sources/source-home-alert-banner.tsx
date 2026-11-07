@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import { ThemedText } from "@/components/ui/themed-text";
+import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -45,9 +46,9 @@ export function SourceHomeAlertBanner({
       {onDismiss ? (
         <Pressable
           onPress={onDismiss}
-          hitSlop={8}
+          hitSlop={13}
           accessibilityRole="button"
-          accessibilityLabel="Dismiss"
+          accessibilityLabel={t("dismiss")}
         >
           <Ionicons name="close" size={18} color={colors.tertiaryLabel} />
         </Pressable>

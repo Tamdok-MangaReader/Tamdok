@@ -1,30 +1,55 @@
-import { Stack } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, StyleSheet, View, Switch } from 'react-native';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
+import { Stack } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Platform, StyleSheet, View, Switch } from "react-native";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 
-import { InlinePillGrid } from '@/components/library/inline-pill-grid';
-import { AccentColorPicker } from '@/components/settings/accent-color-picker';
-import { AppIconPicker } from '@/components/settings/app-icon-picker';
-import { Card, CardSeparator } from '@/components/ui/card';
-import { ScreenContent } from '@/components/ui/screen-content';
-import { SectionLabel } from '@/components/ui/section-label';
-import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
-import { t } from '@/constants/locales';
-import type { AccentColorId } from '@/constants/accent-colors';
-import type { AppIconId } from '@/constants/app-icons';
-import { useAppearance } from '@/context/appearance-context';
-import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
-import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, TabBarHideSettings, updateAppSettings } from '@/services/app-settings';
-import { notifyMangaDataChanged } from '@/utils/manga-events';
+import { AccentColorPicker } from "@/components/settings/accent-color-picker";
+import { AppIconPicker } from "@/components/settings/app-icon-picker";
+import { Card, CardSeparator } from "@/components/ui/card";
+import { ScreenContent } from "@/components/ui/screen-content";
+import { SectionFooter } from "@/components/ui/section-footer";
+import { SectionLabel } from "@/components/ui/section-label";
+import { ThemedText } from "@/components/ui/themed-text";
+import { Spacing } from "@/constants/theme";
+import { t } from "@/constants/locales";
+import type { AccentColorId } from "@/constants/accent-colors";
+import type { AppIconId } from "@/constants/app-icons";
+import { useAppearance } from "@/context/appearance-context";
+import {
+  AppThemeMode,
+  useThemePreference,
+} from "@/context/theme-preference-context";
+import {
+  getAppSettings,
+  CoverDisplaySettings,
+  MangaScreenSettings,
+  TabBadgeSettings,
+  TabBarHideSettings,
+  updateAppSettings,
+} from "@/services/app-settings";
+import type { ComponentType } from "react";
 
-const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
+// The library ships class-component typings that do not satisfy the current JSX types.
+const NativeSegmented = SegmentedControl as unknown as ComponentType<{
+  values: string[];
+  selectedIndex: number;
+  appearance: "light" | "dark";
+  style?: object;
+  onChange: (event: { nativeEvent: { selectedSegmentIndex: number } }) => void;
+}>;
+
+const THEME_MODES: AppThemeMode[] = ["system", "light", "dark"];
 
 export default function AppearanceScreen() {
   const { themeMode, setThemeMode, resolvedColorScheme } = useThemePreference();
-  const { accentColorId, appIconId, setAccentColorId, setAppIconId, appIconSupported } = useAppearance();
-  const isDark = resolvedColorScheme === 'dark';
+  const {
+    accentColorId,
+    appIconId,
+    setAccentColorId,
+    setAppIconId,
+    appIconSupported,
+  } = useAppearance();
+  const isDark = resolvedColorScheme === "dark";
   const selectedIndex = THEME_MODES.indexOf(themeMode);
   const [showBigMangaCover, setShowBigMangaCover] = useState(true);
   const [stretchMangaCover, setStretchMangaCover] = useState(true);
@@ -89,12 +114,15 @@ export default function AppearanceScreen() {
   };
 
   const handleAppIconSelect = (id: AppIconId) => {
-    if (Platform.OS !== 'ios') {
-      Alert.alert(t('app_icon_ios_only_title'), t('app_icon_ios_only_desc'));
+    if (Platform.OS !== "ios") {
+      Alert.alert(t("app_icon_ios_only_title"), t("app_icon_ios_only_desc"));
       return;
     }
     if (!appIconSupported) {
-      Alert.alert(t('app_icon_unavailable_title'), t('app_icon_unavailable_desc'));
+      Alert.alert(
+        t("app_icon_unavailable_title"),
+        t("app_icon_unavailable_desc"),
+      );
       return;
     }
     void setAppIconId(id);
@@ -124,42 +152,44 @@ export default function AppearanceScreen() {
           isFirst && { paddingTop: Spacing.lg },
           isLast && { paddingBottom: Spacing.lg },
           disabled && { opacity: 0.4 },
-        ]}>
+        ]}
+      >
         <View style={styles.switchText}>
-          <ThemedText variant='body'>{label}</ThemedText>
+          <ThemedText variant="body">{label}</ThemedText>
           {hint ? (
-            <ThemedText variant='footnote' color='secondaryLabel'>
+            <ThemedText variant="footnote" color="secondaryLabel">
               {hint}
             </ThemedText>
           ) : null}
         </View>
-        <Switch value={value} onValueChange={onChange} disabled={disabled} />
+        <Switch
+          value={value}
+          onValueChange={onChange}
+          disabled={disabled}
+          accessibilityLabel={label}
+        />
       </View>
     );
   }
 
   return (
     <>
-      <Stack.Title>{t('section_appearance')}</Stack.Title>
+      <Stack.Title>{t("section_appearance")}</Stack.Title>
       <ScreenContent>
-        <SectionLabel>{t('theme')}</SectionLabel>
-        <Card style={styles.card}>
-          <SegmentedControl
-            values={[t('theme_system'), t('theme_light'), t('theme_dark')]}
-            appearance={isDark ? 'dark' : 'light'}
-            selectedIndex={selectedIndex}
-            style={styles.segmented}
-            onChange={(event) => {
-              const index = event.nativeEvent.selectedSegmentIndex;
-              void setThemeMode(THEME_MODES[index] ?? 'system');
-            }}
-          />
-          <ThemedText variant='footnote' color='secondaryLabel'>
-            {t(`theme_${themeMode}_hint`)}
-          </ThemedText>
-        </Card>
+        <SectionLabel>{t("theme")}</SectionLabel>
+        <NativeSegmented
+          values={[t("theme_system"), t("theme_light"), t("theme_dark")]}
+          appearance={isDark ? "dark" : "light"}
+          selectedIndex={selectedIndex}
+          style={styles.segmented}
+          onChange={(event) => {
+            const index = event.nativeEvent.selectedSegmentIndex;
+            void setThemeMode(THEME_MODES[index] ?? "system");
+          }}
+        />
+        <SectionFooter>{t(`theme_${themeMode}_hint`)}</SectionFooter>
 
-        <SectionLabel>{t('appearance_accent_section')}</SectionLabel>
+        <SectionLabel>{t("appearance_accent_section")}</SectionLabel>
         <Card style={styles.card}>
           <AccentColorPicker
             selectedId={accentColorId}
@@ -167,91 +197,92 @@ export default function AppearanceScreen() {
               void setAccentColorId(id);
             }}
           />
-          <ThemedText variant='footnote' color='secondaryLabel'>
-            {t('appearance_accent_hint')}
-          </ThemedText>
         </Card>
+        <SectionFooter>{t("appearance_accent_hint")}</SectionFooter>
 
-        <SectionLabel>{t('appearance_app_icon_section')}</SectionLabel>
+        <SectionLabel>{t("appearance_app_icon_section")}</SectionLabel>
         <Card style={styles.card}>
-          <AppIconPicker selectedId={appIconId} onSelect={handleAppIconSelect} />
-          <ThemedText variant='footnote' color='secondaryLabel'>
-            {t('appearance_app_icon_hint')}
-          </ThemedText>
+          <AppIconPicker
+            selectedId={appIconId}
+            onSelect={handleAppIconSelect}
+          />
         </Card>
+        <SectionFooter>{t("appearance_app_icon_hint")}</SectionFooter>
 
-        <SectionLabel>{t('appearance_tab_badges_section')}</SectionLabel>
+        <SectionLabel>{t("appearance_tab_badges_section")}</SectionLabel>
         <Card>
           <SwitchRow
-            label={t('appearance_badge_sources')}
-            hint={t('appearance_badge_sources_hint')}
+            label={t("appearance_badge_sources")}
+            hint={t("appearance_badge_sources_hint")}
             value={tabBadges.sourceUpdates}
             onChange={(value) => updateTabBadges({ sourceUpdates: value })}
             isFirst
           />
           <CardSeparator />
           <SwitchRow
-            label={t('appearance_badge_library')}
-            hint={t('appearance_badge_library_hint')}
+            label={t("appearance_badge_library")}
+            hint={t("appearance_badge_library_hint")}
             value={tabBadges.libraryUnread}
             onChange={(value) => updateTabBadges({ libraryUnread: value })}
           />
           <CardSeparator />
           <SwitchRow
-            label={t('appearance_badge_library_manga')}
-            hint={t('appearance_badge_library_manga_hint')}
+            label={t("appearance_badge_library_manga")}
+            hint={t("appearance_badge_library_manga_hint")}
             value={tabBadges.libraryUnreadMangaCount}
-            onChange={(value) => updateTabBadges({ libraryUnreadMangaCount: value })}
+            onChange={(value) =>
+              updateTabBadges({ libraryUnreadMangaCount: value })
+            }
             disabled={!tabBadges.libraryUnread}
           />
           <CardSeparator />
           <SwitchRow
-            label={t('appearance_badge_library_updatable')}
-            hint={t('appearance_badge_library_updatable_hint')}
+            label={t("appearance_badge_library_updatable")}
+            hint={t("appearance_badge_library_updatable_hint")}
             value={tabBadges.libraryUnreadUpdatableOnly}
-            onChange={(value) => updateTabBadges({ libraryUnreadUpdatableOnly: value })}
+            onChange={(value) =>
+              updateTabBadges({ libraryUnreadUpdatableOnly: value })
+            }
             disabled={!tabBadges.libraryUnread}
             isLast
           />
         </Card>
 
-        <SectionLabel>{t('appearance_hide_nav_section')}</SectionLabel>
+        <SectionLabel>{t("appearance_hide_nav_section")}</SectionLabel>
         <Card>
           <SwitchRow
-            label={t('library')}
+            label={t("library")}
             value={tabBarHide.library}
             onChange={(value) => updateTabBarHide({ library: value })}
             isFirst
           />
           <CardSeparator />
           <SwitchRow
-            label={t('sources')}
+            label={t("sources")}
             value={tabBarHide.sources}
             onChange={(value) => updateTabBarHide({ sources: value })}
           />
           <CardSeparator />
           <SwitchRow
-            label={t('history')}
+            label={t("history")}
             value={tabBarHide.history}
             onChange={(value) => updateTabBarHide({ history: value })}
           />
           <CardSeparator />
           <SwitchRow
-            label={t('settings')}
+            label={t("settings")}
             value={tabBarHide.settings}
             onChange={(value) => updateTabBarHide({ settings: value })}
             isLast
           />
         </Card>
-        <ThemedText variant='footnote' color='secondaryLabel' style={styles.footer}>
-          {t('appearance_hide_nav_footer')}
-        </ThemedText>
+        <SectionFooter>{t("appearance_hide_nav_footer")}</SectionFooter>
 
-        <SectionLabel>{t('appearance_covers_section')}</SectionLabel>
+        <SectionLabel>{t("appearance_covers_section")}</SectionLabel>
         <Card>
           <SwitchRow
-            label={t('appearance_show_status')}
-            hint={t('appearance_show_status_hint')}
+            label={t("appearance_show_status")}
+            hint={t("appearance_show_status_hint")}
             value={showStatusBadge}
             onChange={(value) => {
               setShowStatusBadge(value);
@@ -261,8 +292,8 @@ export default function AppearanceScreen() {
           />
           <CardSeparator />
           <SwitchRow
-            label={t('appearance_show_finished')}
-            hint={t('appearance_show_finished_hint')}
+            label={t("appearance_show_finished")}
+            hint={t("appearance_show_finished_hint")}
             value={showFinishedBadge}
             onChange={(value) => {
               setShowFinishedBadge(value);
@@ -271,8 +302,8 @@ export default function AppearanceScreen() {
           />
           <CardSeparator />
           <SwitchRow
-            label={t('appearance_show_rating')}
-            hint={t('appearance_show_rating_hint')}
+            label={t("appearance_show_rating")}
+            hint={t("appearance_show_rating_hint")}
             value={showRating}
             onChange={(value) => {
               setShowRating(value);
@@ -282,10 +313,10 @@ export default function AppearanceScreen() {
           />
         </Card>
 
-        <SectionLabel>{t('library_manga_screen_section')}</SectionLabel>
+        <SectionLabel>{t("library_manga_screen_section")}</SectionLabel>
         <Card>
           <SwitchRow
-            label={t('show_big_manga_cover')}
+            label={t("show_big_manga_cover")}
             value={showBigMangaCover}
             onChange={(value) => {
               setShowBigMangaCover(value);
@@ -295,7 +326,7 @@ export default function AppearanceScreen() {
           />
           <CardSeparator />
           <SwitchRow
-            label={t('stretch_manga_cover')}
+            label={t("stretch_manga_cover")}
             value={stretchMangaCover}
             onChange={(value) => {
               setStretchMangaCover(value);
@@ -304,7 +335,7 @@ export default function AppearanceScreen() {
           />
           <CardSeparator />
           <SwitchRow
-            label={t('show_chapter_number')}
+            label={t("show_chapter_number")}
             value={showChapterNumber}
             onChange={(value) => {
               setShowChapterNumber(value);
@@ -323,16 +354,13 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  footer: {
-    paddingHorizontal: Spacing.sm,
-  },
   segmented: {
     height: 36,
   },
   switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,

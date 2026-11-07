@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useMemo } from "react";
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,12 +15,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { InlinePillGrid } from "@/components/library/inline-pill-grid";
+import { MenuPickerRow } from "@/components/ui/menu-picker-row";
+import { SectionFooter } from "@/components/ui/section-footer";
+import { SectionLabel } from "@/components/ui/section-label";
+import { OptionSegmentedControl } from "@/components/ui/option-segmented-control";
 import { useReader } from "@/components/reader/reader-context";
 import { areReaderTapZonesEnabled } from "@/utils/reader-tap-zones";
 import { TapZonePreview } from "@/components/reader/tap-zone-preview";
-import { Card } from "@/components/ui/card";
-import { GlassIconButton } from "@/components/ui/glass-icon-button";
+import { Card, CardSeparator } from "@/components/ui/card";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -78,7 +81,7 @@ export function ReaderSettingsSheet({
   onMangaReadingModeChange,
 }: ReaderSettingsSheetProps) {
   const insets = useSafeAreaInsets();
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
   const slowMode = useReaderSlowMode();
   const router = useRouter();
   const { manga, settings, mode } = useReader();
@@ -189,184 +192,180 @@ export function ReaderSettingsSheet({
           scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
           showsVerticalScrollIndicator={false}
         >
-          <ThemedText
-            variant="footnote"
-            color="secondaryLabel"
-            style={styles.sectionLabel}
-          >
-            {t("reader_manga_section")}
-          </ThemedText>
-          <Card style={styles.card}>
-            <ThemedText variant="subheadline" style={styles.cardTitle}>
-              {t("reader_manga_reading_mode")}
-            </ThemedText>
-            <ThemedText variant="footnote" color="secondaryLabel">
-              {t("reader_manga_reading_mode_hint")}
-            </ThemedText>
-            <InlinePillGrid
+          <SectionLabel isFirst>{t("reader_manga_section")}</SectionLabel>
+          <Card>
+            <MenuPickerRow
+              label={t("reader_manga_reading_mode")}
               options={modeOptions}
               selectedId={selectedMode}
-              preserveOrder
               onSelect={handleSelectMode}
+              isFirst
+              isLast
             />
           </Card>
-          <Card style={styles.card}>
-            <View style={styles.switchRow}>
-              <View
-                style={[
-                  styles.iconBadge,
-                  { backgroundColor: colors.tint, borderRadius: radius.sm },
-                ]}
-              >
-                <Ionicons name="hourglass-outline" size={18} color={colors.onTint} />
-              </View>
-              <View style={styles.switchText}>
-                <ThemedText variant="body">{t("reader_slow_mode")}</ThemedText>
-                <ThemedText variant="footnote" color="secondaryLabel">
-                  {t("reader_slow_mode_hint")}
-                </ThemedText>
-              </View>
-              <Switch value={slowMode} onValueChange={handleSlowModeChange} />
-            </View>
+          <SectionFooter spaced>{t("reader_manga_reading_mode_hint")}</SectionFooter>
+          <Card>
+            <SwitchRow
+              label={t("reader_slow_mode")}
+              value={slowMode}
+              onChange={handleSlowModeChange}
+            />
           </Card>
+          <SectionFooter>{t("reader_slow_mode_hint")}</SectionFooter>
 
           {areReaderTapZonesEnabled(mode) ? (
             <>
-          <ThemedText
-            variant="footnote"
-            color="secondaryLabel"
-            style={styles.sectionLabel}
-          >
-            {t("reader_controls_section")}
-          </ThemedText>
-                      <Card style={styles.card}>
-              <ThemedText variant="subheadline" style={styles.cardTitle}>
-                {t("reader_tap_zones")}
-              </ThemedText>
-              <InlinePillGrid
-                options={tapZoneOptions}
-                selectedId={settings.tapZones}
-                preserveOrder
-                onSelect={(id) => {
-                  void updateAppSettings({
-                    reader: { ...settings, tapZones: id as TapZones },
-                  });
-                }}
-              />
-              <TapZonePreview settings={settings} />
-              <View style={styles.invertRow}>
-                <ThemedText variant="body" style={styles.invertLabel}>
-                  {t("reader_invert_tap_zones")}
-                </ThemedText>
-                <Switch
-                  value={settings.invertTapZones}
-                  onValueChange={(value) => {
-                    void updateAppSettings({
-                      reader: { ...settings, invertTapZones: value },
-                    });
-                  }}
+              <SectionLabel>{t("reader_controls_section")}</SectionLabel>
+              <Card>
+                <MenuPickerRow
+                  label={t("reader_tap_zones")}
+                  options={tapZoneOptions}
+                  selectedId={settings.tapZones}
+                  onSelect={(id) => patchReader({ tapZones: id as TapZones })}
+                  isFirst
                 />
-              </View>
-            </Card>
+                <CardSeparator />
+                <View style={styles.preview}>
+                  <TapZonePreview settings={settings} />
+                </View>
+              </Card>
+              <Card>
+                <SwitchRow
+                  label={t("reader_invert_tap_zones")}
+                  value={settings.invertTapZones}
+                  onChange={(value) => patchReader({ invertTapZones: value })}
+                />
+              </Card>
             </>
           ) : null}
 
-          <ThemedText
-            variant="footnote"
-            color="secondaryLabel"
-            style={styles.sectionLabel}
-          >
-            {t("reader_display_section")}
-          </ThemedText>
-          <Card style={styles.card}>
-            <ThemedText variant="subheadline" style={styles.cardTitle}>
-              {t("reader_background_color")}
-            </ThemedText>
-            <InlinePillGrid
-              options={backgroundOptions}
-              selectedId={settings.backgroundColor}
-              preserveOrder
-              onSelect={(id) =>
-                patchReader({ backgroundColor: id as ReaderBackgroundColor })
-              }
+          <SectionLabel>{t("reader_background_color")}</SectionLabel>
+          <OptionSegmentedControl
+            options={backgroundOptions}
+            selectedId={settings.backgroundColor}
+            onSelect={(id) =>
+              patchReader({ backgroundColor: id as ReaderBackgroundColor })
+            }
+          />
+          <SectionLabel>{t("reader_orientation")}</SectionLabel>
+          <OptionSegmentedControl
+            options={orientationOptions}
+            selectedId={settings.orientation}
+            onSelect={(id) =>
+              patchReader({ orientation: id as ReaderOrientation })
+            }
+          />
+          {mode !== "continuous" && mode !== "webtoon" ? (
+            <>
+              <SectionLabel>{t("reader_page_layout")}</SectionLabel>
+              <OptionSegmentedControl
+                options={pageLayoutOptions}
+                selectedId={settings.pagedPageLayout}
+                onSelect={(id) =>
+                  patchReader({ pagedPageLayout: id as PagedPageLayout })
+                }
+              />
+            </>
+          ) : null}
+
+          <SectionLabel>{t("reader_display_section")}</SectionLabel>
+          <Card>
+            <SwitchRow
+              label={t("reader_crop_borders")}
+              value={settings.cropBorders}
+              onChange={(value) => patchReader({ cropBorders: value })}
             />
-            <ThemedText variant="subheadline" style={styles.cardTitle}>
-              {t("reader_orientation")}
-            </ThemedText>
-            <InlinePillGrid
-              options={orientationOptions}
-              selectedId={settings.orientation}
-              preserveOrder
-              onSelect={(id) =>
-                patchReader({ orientation: id as ReaderOrientation })
-              }
+            <CardSeparator />
+            <SwitchRow
+              label={t("reader_split_wide_images")}
+              value={settings.splitWideImages}
+              onChange={(value) => patchReader({ splitWideImages: value })}
             />
-            {mode !== "continuous" && mode !== "webtoon" ? (
+            <CardSeparator />
+            <SwitchRow
+              label={t("reader_animate_transitions")}
+              value={settings.animatePageTransitions}
+              onChange={(value) => patchReader({ animatePageTransitions: value })}
+            />
+            {mode !== "continuous" &&
+            mode !== "webtoon" &&
+            settings.pagedPageLayout !== "single" ? (
               <>
-                <ThemedText variant="subheadline" style={styles.cardTitle}>
-                  {t("reader_page_layout")}
-                </ThemedText>
-                <InlinePillGrid
-                  options={pageLayoutOptions}
-                  selectedId={settings.pagedPageLayout}
-                  preserveOrder
-                  onSelect={(id) =>
-                    patchReader({ pagedPageLayout: id as PagedPageLayout })
-                  }
+                <CardSeparator />
+                <SwitchRow
+                  label={t("reader_page_offset")}
+                  value={settings.pagedPageOffset}
+                  onChange={(value) => patchReader({ pagedPageOffset: value })}
+                />
+              </>
+            ) : null}
+            <CardSeparator />
+            <SwitchRow
+              label={t("reader_pillarbox")}
+              value={settings.pillarbox}
+              onChange={(value) => patchReader({ pillarbox: value })}
+            />
+            <CardSeparator />
+            <SwitchRow
+              label={t("reader_double_tap_zoom")}
+              value={!settings.disableDoubleTap}
+              onChange={(value) => patchReader({ disableDoubleTap: !value })}
+            />
+            {Platform.OS === "ios" ? (
+              <>
+                <CardSeparator />
+                <SwitchRow
+                  label={t("reader_live_text")}
+                  value={settings.liveText}
+                  onChange={(value) => patchReader({ liveText: value })}
                 />
               </>
             ) : null}
           </Card>
-          <Card style={styles.card}>
-            <View style={styles.invertRow}>
-              <ThemedText variant="body" style={styles.invertLabel}>
-                {t("reader_crop_borders")}
-              </ThemedText>
-              <Switch
-                value={settings.cropBorders}
-                onValueChange={(value) => patchReader({ cropBorders: value })}
-              />
-            </View>
-            <View style={styles.invertRow}>
-              <ThemedText variant="body" style={styles.invertLabel}>
-                {t("reader_split_wide_images")}
-              </ThemedText>
-              <Switch
-                value={settings.splitWideImages}
-                onValueChange={(value) =>
-                  patchReader({ splitWideImages: value })
-                }
-              />
-            </View>
-            <View style={styles.invertRow}>
-              <ThemedText variant="body" style={styles.invertLabel}>
-                {t("reader_animate_transitions")}
-              </ThemedText>
-              <Switch
-                value={settings.animatePageTransitions}
-                onValueChange={(value) =>
-                  patchReader({ animatePageTransitions: value })
-                }
-              />
-            </View>
-          </Card>
 
-          <Pressable onPress={handleOpenGlobalSettings}>
-            <Card style={styles.linkCard}>
-              <Ionicons name="settings-outline" size={20} color={colors.tint} />
-              <ThemedText variant="body" color="tint" style={styles.linkLabel}>
-                {t("reader_open_global_settings")}
-              </ThemedText>
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={colors.tertiaryLabel}
-              />
+          <View style={styles.linkWrap}>
+            <Card>
+              <Pressable
+                onPress={handleOpenGlobalSettings}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.linkRow,
+                  pressed && { backgroundColor: colors.quaternaryFill },
+                ]}
+              >
+                <ThemedText variant="body" style={styles.linkLabel}>
+                  {t("reader_open_global_settings")}
+                </ThemedText>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.tertiaryLabel}
+                />
+              </Pressable>
             </Card>
-          </Pressable>
+          </View>
         </ScrollView>
       </SwipeDismissSheet>
     </Modal>
+  );
+}
+
+function SwitchRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <View style={styles.switchRow}>
+      <ThemedText variant="body" style={styles.switchLabel}>
+        {label}
+      </ThemedText>
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
+    </View>
   );
 }
 
@@ -397,54 +396,33 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   content: {
-    gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-  },
-  sectionLabel: {
-    paddingHorizontal: Spacing.xs,
-    marginBottom: -Spacing.xs,
-    textTransform: "uppercase",
-  },
-  hint: {
-    paddingHorizontal: Spacing.xs,
-  },
-  card: {
-    padding: Spacing.lg,
     gap: Spacing.sm,
-  },
-  cardTitle: {
-    fontWeight: "600",
+    paddingHorizontal: Spacing.lg,
   },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    minHeight: 52,
   },
-  iconBadge: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  switchText: {
-    flex: 1,
-    gap: 2,
-  },
-  invertRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
-    paddingTop: Spacing.xs,
-  },
-  invertLabel: {
+  switchLabel: {
     flex: 1,
   },
-  linkCard: {
+  preview: {
+    padding: Spacing.lg,
+  },
+  linkWrap: {
+    marginTop: Spacing.lg,
+  },
+  linkRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    minHeight: 48,
   },
   linkLabel: {
     flex: 1,

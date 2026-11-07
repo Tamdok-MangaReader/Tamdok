@@ -16,6 +16,8 @@ import { t } from "@/constants/locales";
 import type { InstalledSource, RegistryEntry } from "@/parsers/shared/types";
 import { useSources } from "@/context/sources-context";
 import { useTheme } from "@/hooks/use-theme";
+import { languageFlagsEnabled } from "@/hooks/use-language-flags";
+import { languageFlag } from "@/utils/language-flag";
 import { useShowSuggestiveBadge } from "@/hooks/use-suggestive-badge";
 import { getSuggestiveAgeLabel } from "@/utils/age-rating";
 import { IMAGE_CACHE_POLICY } from "@/utils/image-memory";
@@ -186,13 +188,20 @@ export const SourceListItem = memo(function SourceListItem({
 const MAX_VISIBLE_LANGUAGES = 3;
 
 function formatLanguagesLabel(languages: string[]): string {
-  if (languages.length <= MAX_VISIBLE_LANGUAGES) {
-    return languages.join(", ");
+  if (!languageFlagsEnabled()) {
+    if (languages.length <= MAX_VISIBLE_LANGUAGES) return languages.join(", ");
+    const extra = languages.length - MAX_VISIBLE_LANGUAGES;
+    return `${languages.slice(0, MAX_VISIBLE_LANGUAGES).join(", ")} +${extra}`;
   }
 
-  const visible = languages.slice(0, MAX_VISIBLE_LANGUAGES);
-  const remaining = languages.length - MAX_VISIBLE_LANGUAGES;
-  return `${visible.join(", ")} +${remaining}`;
+  // Flags replace the language codes; variants of one language (en, en-GB) collapse into one flag.
+  const flags = [...new Set(languages.map(languageFlag))];
+  if (flags.length <= MAX_VISIBLE_LANGUAGES) {
+    return flags.join(" ");
+  }
+
+  const remaining = flags.length - MAX_VISIBLE_LANGUAGES;
+  return `${flags.slice(0, MAX_VISIBLE_LANGUAGES).join(" ")} +${remaining}`;
 }
 
 export function useHasMultipleSourceKinds(): boolean {

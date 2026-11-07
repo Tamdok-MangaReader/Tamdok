@@ -3,7 +3,7 @@ import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,11 +14,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Reanimated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
 import * as WebBrowser from "expo-web-browser";
 import * as SecureStore from "expo-secure-store";
 import CookieManager from "@react-native-cookies/cookies";
@@ -26,7 +21,8 @@ import { WebView } from "react-native-webview";
 
 import { Card, CardSeparator } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { GlassSurface } from "@/components/ui/glass-surface";
+import { MenuPickerRow } from "@/components/ui/menu-picker-row";
+import { SectionFooter } from "@/components/ui/section-footer";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { SectionLabel } from "@/components/ui/section-label";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -60,12 +56,6 @@ import {
   resetHostThrottle,
   subscribeChallenges,
 } from "@/parsers/shared/net-policy";
-
-const PRESS_SPRING = {
-  damping: 14,
-  stiffness: 320,
-  mass: 0.6,
-};
 
 type InstalledSourceSettingsProps = {
   sourceRouteId: string;
@@ -111,7 +101,7 @@ export function InstalledSourceSettings({
 }: InstalledSourceSettingsProps) {
   const router = useRouter();
   const { installed, uninstall } = useSources();
-  const { colors, radius, isDark } = useTheme();
+  const { colors, isDark } = useTheme();
 
   const source = findInstalledSource(installed, routeId);
 
@@ -161,7 +151,7 @@ export function InstalledSourceSettings({
     try {
       setFields(await loadSourceSettingFields(source));
     } catch {
-      Alert.alert("Error", "Can't load source settings.");
+      Alert.alert(t("error"), t("source_settings_load_error"));
     } finally {
       setIsLoading(false);
     }
@@ -191,7 +181,7 @@ export function InstalledSourceSettings({
         ),
       );
     } catch {
-      Alert.alert("Error", "Can't safe settings.");
+      Alert.alert(t("error"), t("source_settings_save_error"));
     }
   };
 
@@ -282,7 +272,7 @@ export function InstalledSourceSettings({
       Alert.alert(
         t("source_cloudflare_title"),
         t("source_cloudflare_saved"),
-        [{ text: "OK", onPress: closeLogin }],
+        [{ text: t("ok"), onPress: closeLogin }],
       );
     } catch {
       Alert.alert(
@@ -315,7 +305,7 @@ export function InstalledSourceSettings({
               await resetInstalledSourceSettings(source);
               await refreshFields();
             } catch {
-              Alert.alert("Error", t("source_maintenance_error"));
+              Alert.alert(t("error"), t("source_maintenance_error"));
             } finally {
               setBusyAction(null);
             }
@@ -335,7 +325,7 @@ export function InstalledSourceSettings({
         t("source_clear_cache_done"),
       );
     } catch {
-      Alert.alert("Error", t("source_maintenance_error"));
+      Alert.alert(t("error"), t("source_maintenance_error"));
     } finally {
       setBusyAction(null);
     }
@@ -370,7 +360,7 @@ export function InstalledSourceSettings({
       await setSourceSettingValue(source.id, capture.setting, value);
       await refreshFields();
       Alert.alert(t("source_token_title"), t("source_token_saved"), [
-        { text: "OK", onPress: closeLogin },
+        { text: t("ok"), onPress: closeLogin },
       ]);
     } catch {
       Alert.alert(
@@ -421,7 +411,7 @@ export function InstalledSourceSettings({
         `${t("web_cookies_saved")}: ${Object.keys(cookieValues).length}.`,
         [
           {
-            text: "OK",
+            text: t("ok"),
             onPress: closeLogin,
           },
         ],
@@ -467,6 +457,7 @@ export function InstalledSourceSettings({
           sections.map((section, sectionIndex) => (
             <View
               key={section.title ?? section.footer ?? `section-${sectionIndex}`}
+              style={styles.sectionWrap}
             >
               {section.title ? (
                 <SectionLabel isFirst={sectionIndex === 0}>
@@ -562,6 +553,7 @@ export function InstalledSourceSettings({
                           </View>
 
                           <Switch
+                            accessibilityLabel={field.title}
                             value={field.value}
                             onValueChange={(value) =>
                               void updateField(field, value)
@@ -576,80 +568,44 @@ export function InstalledSourceSettings({
 
                   if (field.type === "multi-select") {
                     return (
-                      <View key={field.id} style={styles.fieldBlock}>
-                        <ThemedText
-                          variant="subheadline"
-                          color="secondaryLabel"
-                          style={styles.fieldTitle}
-                        >
-                          {field.title}
-                        </ThemedText>
-
-                        <View style={styles.pillGrid}>
-                          {field.options.map((option) => {
-                            const selected = field.value.includes(option.id);
-
-                            if (selected) {
-                              return (
-                                <Pressable
-                                  key={option.id}
-                                  style={[
-                                    styles.pillActive,
-                                    {
-                                      borderRadius: radius.pill,
-                                      backgroundColor: colors.tint,
-                                    },
-                                  ]}
-                                  onPress={() =>
-                                    void updateField(
-                                      field,
-                                      field.value.filter(
-                                        (value) => value !== option.id,
-                                      ),
-                                    )
-                                  }
-                                >
-                                  <ThemedText
-                                    variant="subheadline"
-                                    color="onTint"
-                                    numberOfLines={1}
-                                  >
-                                    {option.label}
-                                  </ThemedText>
-                                </Pressable>
-                              );
-                            }
-
-                            return (
-                              <GlassSurface
-                                key={option.id}
-                                borderRadius={radius.pill}
-                                interactive
-                              >
-                                <Pressable
-                                  style={styles.pill}
-                                  onPress={() =>
-                                    void updateField(field, [
-                                      ...field.value,
-                                      option.id,
-                                    ])
-                                  }
-                                >
-                                  <ThemedText
-                                    variant="subheadline"
-                                    numberOfLines={1}
-                                  >
-                                    {option.label}
-                                  </ThemedText>
-                                </Pressable>
-                              </GlassSurface>
-                            );
-                          })}
+                      <View key={field.id}>
+                        <View style={styles.groupHeader}>
+                          <ThemedText variant="subheadline" color="secondaryLabel">
+                            {field.title}
+                          </ThemedText>
                         </View>
-
-                        {!isLast ? (
-                          <View style={styles.fieldSeparator} />
-                        ) : null}
+                        {field.options.map((option) => {
+                          const selected = field.value.includes(option.id);
+                          return (
+                            <View key={option.id}>
+                              <CardSeparator />
+                              <Pressable
+                                style={({ pressed }) => [
+                                  styles.row,
+                                  pressed && { backgroundColor: colors.quaternaryFill },
+                                ]}
+                                onPress={() =>
+                                  void updateField(
+                                    field,
+                                    selected
+                                      ? field.value.filter((value) => value !== option.id)
+                                      : [...field.value, option.id],
+                                  )
+                                }
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: selected }}
+                              >
+                                <ThemedText variant="body" style={styles.rowLabel}>
+                                  {option.label}
+                                </ThemedText>
+                                {selected ? (
+                                  <Ionicons name="checkmark" size={20} color={colors.tint} />
+                                ) : null}
+                              </Pressable>
+                            </View>
+                          );
+                        })}
+                        {!isLast ? <CardSeparator /> : null}
                       </View>
                     );
                   }
@@ -660,7 +616,6 @@ export function InstalledSourceSettings({
                         key={field.id}
                         field={field}
                         colors={colors}
-                        radius={radius}
                         isDark={isDark}
                         isLast={isLast}
                         onChange={(value) => void updateField(field, value)}
@@ -670,121 +625,45 @@ export function InstalledSourceSettings({
 
                   if (field.type === "select") {
                     return (
-                      <View key={field.id} style={styles.fieldBlock}>
-                        <ThemedText
-                          variant="subheadline"
-                          color="secondaryLabel"
-                          style={styles.fieldTitle}
-                        >
-                          {field.title}
-                        </ThemedText>
-
-                        <View style={styles.pillGrid}>
-                          {field.options.map((option) => {
-                            const selected = field.value === option.id;
-
-                            if (selected) {
-                              return (
-                                <Pressable
-                                  key={option.id}
-                                  style={[
-                                    styles.pillActive,
-                                    {
-                                      borderRadius: radius.pill,
-                                      backgroundColor: colors.tint,
-                                    },
-                                  ]}
-                                  onPress={() =>
-                                    void updateField(field, option.id)
-                                  }
-                                >
-                                  <ThemedText
-                                    variant="subheadline"
-                                    color="onTint"
-                                    numberOfLines={1}
-                                  >
-                                    {option.label}
-                                  </ThemedText>
-                                </Pressable>
-                              );
-                            }
-
-                            return (
-                              <GlassSurface
-                                key={option.id}
-                                borderRadius={radius.pill}
-                                interactive
-                              >
-                                <Pressable
-                                  style={styles.pill}
-                                  onPress={() =>
-                                    void updateField(field, option.id)
-                                  }
-                                >
-                                  <ThemedText
-                                    variant="subheadline"
-                                    numberOfLines={1}
-                                  >
-                                    {option.label}
-                                  </ThemedText>
-                                </Pressable>
-                              </GlassSurface>
-                            );
-                          })}
-                        </View>
-
-                        {!isLast ? (
-                          <View style={styles.fieldSeparator} />
-                        ) : null}
+                      <View key={field.id}>
+                        <MenuPickerRow
+                          label={field.title}
+                          options={field.options}
+                          selectedId={field.value}
+                          onSelect={(id) => void updateField(field, id)}
+                        />
+                        {!isLast ? <CardSeparator /> : null}
                       </View>
                     );
                   }
 
                   return (
-                    <View key={field.id} style={styles.fieldBlock}>
-                      <ThemedText
-                        variant="subheadline"
-                        color="secondaryLabel"
-                        style={styles.fieldTitle}
-                      >
-                        {field.title}
-                      </ThemedText>
-
-                      <GlassSurface
-                        borderRadius={radius.sm}
-                        style={styles.inputWrap}
-                        interactive
-                      >
+                    <View key={field.id}>
+                      <View style={styles.row}>
+                        <ThemedText variant="body" style={styles.inputLabel}>
+                          {field.title}
+                        </ThemedText>
                         <TextInput
+                          clearButtonMode="while-editing"
                           value={field.value}
-                          onChangeText={(value) =>
-                            void updateField(field, value)
-                          }
+                          onChangeText={(value) => void updateField(field, value)}
                           placeholder={field.placeholder ?? field.title}
                           placeholderTextColor={colors.tertiaryLabel}
                           keyboardAppearance={isDark ? "dark" : "light"}
                           secureTextEntry={field.secure}
                           autoCapitalize={field.secure ? "none" : "sentences"}
                           autoCorrect={!field.secure}
-                          style={[styles.textInput, { color: colors.label }]}
+                          accessibilityLabel={field.title}
+                          style={[styles.inlineInput, { color: colors.label }]}
                         />
-                      </GlassSurface>
-
-                      {!isLast ? <View style={styles.fieldSeparator} /> : null}
+                      </View>
+                      {!isLast ? <CardSeparator /> : null}
                     </View>
                   );
                 })}
               </Card>
 
-              {section.footer ? (
-                <ThemedText
-                  variant="footnote"
-                  color="secondaryLabel"
-                  style={styles.sectionFooter}
-                >
-                  {section.footer}
-                </ThemedText>
-              ) : null}
+              {section.footer ? <SectionFooter>{section.footer}</SectionFooter> : null}
             </View>
           ))
         )}
@@ -886,25 +765,23 @@ export function InstalledSourceSettings({
           </Pressable>
         </Card>
 
-        <GlassSurface
-          borderRadius={radius.pill}
-          style={styles.deleteButton}
-          interactive
-          glassStyle="clear"
-        >
-          <Pressable
-            style={({ pressed }) => [
-              styles.deleteButtonPressable,
-              pressed && { opacity: 0.82 },
-            ]}
-            onPress={confirmDelete}
-            accessibilityRole="button"
-          >
-            <ThemedText variant="headline" color="destructive">
-              {t("sources_uninstall_action")}
-            </ThemedText>
-          </Pressable>
-        </GlassSurface>
+        <View style={styles.deleteWrap}>
+          <Card style={styles.sectionCard}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.row,
+                styles.centeredRow,
+                pressed && { backgroundColor: colors.quaternaryFill },
+              ]}
+              onPress={confirmDelete}
+              accessibilityRole="button"
+            >
+              <ThemedText variant="body" color="destructive">
+                {t("sources_uninstall_action")}
+              </ThemedText>
+            </Pressable>
+          </Card>
+        </View>
       </ScreenContent>
 
       <Modal
@@ -941,9 +818,9 @@ export function InstalledSourceSettings({
           ) : null}
 
           {loginUrl !== null ? (
-            <WebView
+            <TypedWebView
               ref={webViewRef}
-              onMessage={(event) => {
+              onMessage={(event: { nativeEvent: { data: string } }) => {
                 try {
                   const data = JSON.parse(event.nativeEvent.data);
                   if (data && typeof data.tamdokLocalStorage === "string") {
@@ -983,7 +860,7 @@ export function InstalledSourceSettings({
               mediaPlaybackRequiresUserAction={false}
               onLoadStart={() => setIsWebViewLoading(true)}
               onLoadEnd={() => setIsWebViewLoading(false)}
-              onOpenWindow={({ nativeEvent }) => {
+              onOpenWindow={({ nativeEvent }: { nativeEvent: { targetUrl: string } }) => {
                 const targetUrl = nativeEvent.targetUrl;
 
                 if (
@@ -993,7 +870,7 @@ export function InstalledSourceSettings({
                   setLoginUrl(targetUrl);
                 }
               }}
-              onError={({ nativeEvent }) => {
+              onError={({ nativeEvent }: { nativeEvent: { description: string } }) => {
                 console.warn("WebView error:", nativeEvent.description);
               }}
             />
@@ -1003,6 +880,9 @@ export function InstalledSourceSettings({
     </>
   );
 }
+
+// The package typings do not satisfy the current JSX types; the runtime component is unchanged.
+const TypedWebView = WebView as unknown as ComponentType<any>;
 
 const IOS_MAJOR = parseInt(String(Platform.Version), 10) || 18;
 // Same OS token Safari reports (the minor part is frozen), Chrome for iOS product token.
@@ -1063,6 +943,35 @@ const styles = StyleSheet.create({
   rowLabel: {
     flex: 1,
   },
+  sectionWrap: {
+    gap: Spacing.sm,
+  },
+  groupHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  inputLabel: {
+    flexShrink: 0,
+    maxWidth: "45%",
+  },
+  inlineInput: {
+    flex: 1,
+    fontSize: 17,
+    textAlign: "right",
+    paddingVertical: Spacing.xs,
+  },
+  listInput: {
+    flex: 1,
+    fontSize: 17,
+    paddingVertical: Spacing.xs,
+  },
+  centeredRow: {
+    justifyContent: "center",
+  },
+  deleteWrap: {
+    marginTop: Spacing.lg,
+  },
   rowText: {
     flex: 1,
     gap: 2,
@@ -1098,7 +1007,7 @@ const styles = StyleSheet.create({
   textInput: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    fontSize: 16,
+    fontSize: 17,
     minHeight: 44,
   },
   deleteButton: {
@@ -1177,26 +1086,13 @@ type EditableListFieldProps = {
     tint: string;
     quaternaryFill: string;
   };
-  radius: { sm: number; pill: number };
   isDark: boolean;
   isLast: boolean;
   onChange: (value: string[]) => void;
 };
 
-function EditableListField({
-  field,
-  colors,
-  radius,
-  isDark,
-  isLast,
-  onChange,
-}: EditableListFieldProps) {
+function EditableListField({ field, colors, isDark, isLast, onChange }: EditableListFieldProps) {
   const [draft, setDraft] = useState("");
-  const scale = useSharedValue(1);
-
-  const addButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
 
   const addItem = () => {
     const trimmed = draft.trim();
@@ -1212,83 +1108,67 @@ function EditableListField({
   };
 
   return (
-    <View style={styles.fieldBlock}>
-      <ThemedText
-        variant="subheadline"
-        color="secondaryLabel"
-        style={styles.fieldTitle}
-      >
-        {field.title}
-      </ThemedText>
+    <View>
+      <View style={styles.groupHeader}>
+        <ThemedText variant="subheadline" color="secondaryLabel">
+          {field.title}
+        </ThemedText>
+      </View>
 
       {field.value.length === 0 ? (
-        <ThemedText variant="footnote" color="tertiaryLabel">
-          {t("source_settings_list_empty")}
-        </ThemedText>
+        <>
+          <CardSeparator />
+          <View style={styles.row}>
+            <ThemedText variant="body" color="tertiaryLabel">
+              {t("source_settings_list_empty")}
+            </ThemedText>
+          </View>
+        </>
       ) : (
         field.value.map((item, index) => (
-          <View key={`${item}-${index}`} style={styles.listRow}>
-            <ThemedText variant="body" style={styles.listValue}>
-              {item}
-            </ThemedText>
-
-            <Pressable
-              onPress={() => removeItem(index)}
-              hitSlop={8}
-              accessibilityRole="button"
-            >
-              <Ionicons name="trash-outline" size={18} color={colors.tint} />
-            </Pressable>
+          <View key={`${item}-${index}`}>
+            <CardSeparator />
+            <View style={styles.row}>
+              <ThemedText variant="body" style={styles.rowLabel}>
+                {item}
+              </ThemedText>
+              <Pressable
+                onPress={() => removeItem(index)}
+                hitSlop={13}
+                accessibilityRole="button"
+                accessibilityLabel={t("remove")}
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.tint} />
+              </Pressable>
+            </View>
           </View>
         ))
       )}
 
-      <View style={styles.listAddRow}>
-        <GlassSurface
-          borderRadius={radius.sm}
-          style={[styles.inputWrap, styles.listAddInput]}
-          interactive
-        >
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={field.placeholder ?? t("source_settings_add_item")}
-            placeholderTextColor={colors.tertiaryLabel}
-            keyboardAppearance={isDark ? "dark" : "light"}
-            returnKeyType="done"
-            onSubmitEditing={addItem}
-            style={[styles.textInput, { color: colors.label }]}
-          />
-        </GlassSurface>
-
+      <CardSeparator />
+      <View style={styles.row}>
+        <TextInput
+          clearButtonMode="while-editing"
+          value={draft}
+          onChangeText={setDraft}
+          placeholder={field.placeholder ?? t("source_settings_add_item")}
+          placeholderTextColor={colors.tertiaryLabel}
+          keyboardAppearance={isDark ? "dark" : "light"}
+          returnKeyType="done"
+          onSubmitEditing={addItem}
+          style={[styles.listInput, { color: colors.label }]}
+        />
         <Pressable
           onPress={addItem}
-          onPressIn={() => {
-            scale.value = withSpring(0.96, PRESS_SPRING);
-          }}
-          onPressOut={() => {
-            scale.value = withSpring(1, PRESS_SPRING);
-          }}
+          hitSlop={10}
           accessibilityRole="button"
+          accessibilityLabel={t("add")}
         >
-          <Reanimated.View
-            style={[
-              styles.listAddButton,
-              {
-                borderRadius: radius.pill,
-                backgroundColor: colors.tint,
-              },
-              addButtonStyle,
-            ]}
-          >
-            <ThemedText variant="subheadline" color="onTint">
-              {t("add")}
-            </ThemedText>
-          </Reanimated.View>
+          <Ionicons name="add-circle" size={26} color={colors.tint} />
         </Pressable>
       </View>
 
-      {!isLast ? <View style={styles.fieldSeparator} /> : null}
+      {!isLast ? <CardSeparator /> : null}
     </View>
   );
 }

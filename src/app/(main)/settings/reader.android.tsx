@@ -165,9 +165,9 @@ export default function ReaderSettingsScreen() {
           />
           <CardSeparator />
           <SettingSwitch
-            label={t('reader_disable_double_tap')}
-            value={settings.disableDoubleTap}
-            onChange={(value) => patch({ disableDoubleTap: value })}
+            label={t('reader_double_tap_zoom')}
+            value={!settings.disableDoubleTap}
+            onChange={(value) => patch({ disableDoubleTap: !value })}
           />
           <CardSeparator />
           <SettingSwitch

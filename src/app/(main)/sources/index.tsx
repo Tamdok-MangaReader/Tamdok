@@ -63,6 +63,7 @@ import { useSources } from "@/context/sources-context";
 import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { usePageScrollHandler } from "@/hooks/use-page-scroll-handler";
+import { useLanguageFlags } from "@/hooks/use-language-flags";
 import { useTheme } from "@/hooks/use-theme";
 import type { InstalledSource } from "@/parsers/shared/types";
 import { getSourceLayoutKey, sourceRouteId } from "@/services/sources";
@@ -90,7 +91,6 @@ function isNsfwSource(source: InstalledSource): boolean {
   return (source.manifest.info.contentRating ?? 0) >= 3;
 }
 const SOURCE_ROW_ESTIMATE = 72;
-const PIN_SWIPE_COLOR = "#E5B800";
 
 const LIST_FOOTER = <View style={{ height: Spacing.lg }} />;
 
@@ -160,6 +160,7 @@ const SourceRow = memo(function SourceRow({
   onDelete,
   onUpdate,
 }: SourceRowProps) {
+  const { colors } = useTheme();
   const leadingActions = useMemo<SwipeAction[]>(
     () =>
       swipeLeading
@@ -169,12 +170,12 @@ const SourceRow = memo(function SourceRow({
               label: pinned ? t("sources_unpin") : t("sources_pin"),
               icon: pinned ? "pin-outline" : "pin",
               sfSymbol: pinned ? "pin.slash.fill" : "pin.fill",
-              color: PIN_SWIPE_COLOR,
+              color: colors.systemYellow,
               onPress: () => (pinned ? onUnpin(source) : onPin(source)),
             },
           ]
         : EMPTY_SWIPE_ACTIONS,
-    [swipeLeading, pinned, source, onPin, onUnpin],
+    [swipeLeading, pinned, source, onPin, onUnpin, colors.systemYellow],
   );
 
   const trailingActions = useMemo<SwipeAction[]>(
@@ -185,12 +186,12 @@ const SourceRow = memo(function SourceRow({
               key: "settings",
               label: t("settings"),
               icon: "settings-outline",
-              color: "#8E8E93",
+              color: colors.systemGray,
               onPress: () => onOpenSettings(source),
             },
           ]
         : EMPTY_SWIPE_ACTIONS,
-    [swipeTrailing, source, onOpenSettings],
+    [swipeTrailing, source, onOpenSettings, colors.systemGray],
   );
 
   const handlePress = useCallback(() => onOpen(source), [onOpen, source]);
@@ -199,9 +200,10 @@ const SourceRow = memo(function SourceRow({
   const handleDelete = useCallback(() => onDelete(source), [onDelete, source]);
   const handleUpdate = useCallback(() => onUpdate(source), [onUpdate, source]);
   const showKind = useHasMultipleSourceKinds();
+  const languageFlags = useLanguageFlags();
   const subtitle = useMemo(
     () => installedSourceSubtitle(source, undefined, showKind),
-    [source, showKind],
+    [source, showKind, languageFlags],
   );
 
   return (
@@ -255,9 +257,10 @@ const ReorderRow = memo(function ReorderRow({
 }) {
   const { colors } = useTheme();
   const showKind = useHasMultipleSourceKinds();
+  const languageFlags = useLanguageFlags();
   const subtitle = useMemo(
     () => installedSourceSubtitle(source, undefined, showKind),
-    [source, showKind],
+    [source, showKind, languageFlags],
   );
 
   return (
@@ -272,7 +275,7 @@ const ReorderRow = memo(function ReorderRow({
           trailing={
             <Pressable
               onPressIn={drag}
-              hitSlop={8}
+              hitSlop={11}
               accessibilityRole="button"
               accessibilityLabel={t("sources_reorder")}
             >
@@ -295,6 +298,7 @@ const DragPlaceholder = memo(function DragPlaceholder({
   source: InstalledSource;
 }) {
   const showKind = useHasMultipleSourceKinds();
+  useLanguageFlags();
   return (
     <View style={styles.reorderItem}>
       <Card style={[styles.card, styles.dragPlaceholder]}>
@@ -801,7 +805,7 @@ export default function SourcesScreen() {
     () => (
       <Pressable
         onPress={exitReorderMode}
-        hitSlop={8}
+        hitSlop={10}
         accessibilityRole="button"
         accessibilityLabel={t("done")}
       >
@@ -917,7 +921,7 @@ export default function SourcesScreen() {
                 key={pagerKey}
                 style={{ height: pagerHeight }}
                 initialPage={selectedPageIndex}
-                onPageScroll={pageScrollHandler}
+                onPageScroll={pageScrollHandler as never}
                 onPageSelected={(event) =>
                   handlePageSelected(event.nativeEvent.position)
                 }

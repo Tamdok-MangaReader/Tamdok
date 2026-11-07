@@ -218,7 +218,7 @@ const DescriptionBlock = memo(function DescriptionBlock({
         {fullText}
       </ThemedText>
       {canExpand ? (
-        <Pressable onPress={toggle} hitSlop={8}>
+        <Pressable onPress={toggle} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <ThemedText
             variant="subheadline"
             color="tint"
@@ -288,7 +288,7 @@ const TagsBlock = memo(function TagsBlock({
         ))}
       </View>
       {canExpand ? (
-        <Pressable onPress={toggle} hitSlop={8}>
+        <Pressable onPress={toggle} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <ThemedText
             variant="subheadline"
             color="tint"
@@ -651,6 +651,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
                 onPress={onOpenInBrowser}
                 hitSlop={8}
                 accessibilityRole="button"
+                accessibilityLabel={t("manga_open_in_browser")}
               >
                 <GlassSurface
                   borderRadius={radius.pill}
@@ -913,12 +914,12 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
         {progressNode}
         {chapterSelectMode ? (
           <View style={styles.selectActions}>
-            <Pressable onPress={onSelectAllChapters} hitSlop={8}>
+            <Pressable onPress={onSelectAllChapters} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
               <ThemedText variant="footnote" color="tint">
                 {t("manga_select_all")}
               </ThemedText>
             </Pressable>
-            <Pressable onPress={onDeselectAllChapters} hitSlop={8}>
+            <Pressable onPress={onDeselectAllChapters} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
               <ThemedText variant="footnote" color="tint">
                 {t("manga_deselect_all")}
               </ThemedText>

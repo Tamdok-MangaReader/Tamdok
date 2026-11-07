@@ -57,6 +57,7 @@ export function TextPromptModal({
             </ThemedText>
           ) : null}
           <TextInput
+ clearButtonMode="while-editing"
             value={value}
             onChangeText={setValue}
             autoFocus
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", paddingHorizontal: 24 },
   dialog: { borderRadius: 0, padding: 24, gap: 12 },
   title: { fontWeight: "600" },
-  input: { borderBottomWidth: 2, fontSize: 16, paddingVertical: 8, paddingHorizontal: 4 },
+  input: { borderBottomWidth: 2, fontSize: 17, paddingVertical: 8, paddingHorizontal: 4 },
   actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 },
   button: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: "hidden" },
   ok: { fontWeight: "600" },

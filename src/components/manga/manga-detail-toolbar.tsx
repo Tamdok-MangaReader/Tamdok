@@ -88,20 +88,12 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
                 {t("manga_refresh")}
               </Stack.Toolbar.MenuAction>
             ) : null}
-            {!chapterSelectMode && canShare ? (
+            {!chapterSelectMode ? (
               <Stack.Toolbar.MenuAction
-                icon="square.and.arrow.up"
-                onPress={props.onShare}
+                icon="checklist"
+                onPress={props.onSelectChapters}
               >
-                {t("manga_share")}
-              </Stack.Toolbar.MenuAction>
-            ) : null}
-            {!chapterSelectMode && canShare ? (
-              <Stack.Toolbar.MenuAction
-                icon="safari"
-                onPress={props.onOpenInBrowser}
-              >
-                {t("manga_open_in_browser")}
+                {t("manga_select_chapters")}
               </Stack.Toolbar.MenuAction>
             ) : null}
             {!chapterSelectMode ? (
@@ -142,6 +134,22 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
                 </Stack.Toolbar.MenuAction>
               </Stack.Toolbar.Menu>
             ) : null}
+            {!chapterSelectMode && canShare ? (
+              <Stack.Toolbar.MenuAction
+                icon="square.and.arrow.up"
+                onPress={props.onShare}
+              >
+                {t("manga_share")}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
+            {!chapterSelectMode && canShare ? (
+              <Stack.Toolbar.MenuAction
+                icon="safari"
+                onPress={props.onOpenInBrowser}
+              >
+                {t("manga_open_in_browser")}
+              </Stack.Toolbar.MenuAction>
+            ) : null}
             {!chapterSelectMode && hasDownloads ? (
               <Stack.Toolbar.MenuAction
                 icon="trash"
@@ -149,14 +157,6 @@ export function MangaDetailToolbar(props: MangaDetailToolbarProps) {
                 onPress={props.onRemoveDownloads}
               >
                 {t("manga_remove_downloads")}
-              </Stack.Toolbar.MenuAction>
-            ) : null}
-            {!chapterSelectMode ? (
-              <Stack.Toolbar.MenuAction
-                icon="checklist"
-                onPress={props.onSelectChapters}
-              >
-                {t("manga_select_chapters")}
               </Stack.Toolbar.MenuAction>
             ) : null}
             {chapterSelectMode ? (

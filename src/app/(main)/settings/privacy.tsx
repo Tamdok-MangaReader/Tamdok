@@ -11,6 +11,7 @@ import { Alert, StyleSheet, Switch, View } from "react-native";
 
 import { Card, CardSeparator } from "@/components/ui/card";
 import { ScreenContent } from "@/components/ui/screen-content";
+import { SectionFooter } from "@/components/ui/section-footer";
 import { SectionLabel } from "@/components/ui/section-label";
 import { ThemedText } from "@/components/ui/themed-text";
 import { t } from "@/constants/locales";
@@ -40,7 +41,7 @@ function isNsfwSource(source: InstalledSource): boolean {
 
 type SwitchRowProps = {
   label: string;
-  hint: string;
+  hint?: string;
   value: boolean;
   disabled: boolean;
   onChange: (value: boolean) => void;
@@ -51,11 +52,13 @@ function SwitchRow({ label, hint, value, disabled, onChange }: SwitchRowProps) {
     <View style={styles.switchRow}>
       <View style={styles.switchMeta}>
         <ThemedText variant="body">{label}</ThemedText>
-        <ThemedText variant="caption1" color="secondaryLabel">
-          {hint}
-        </ThemedText>
+        {hint ? (
+          <ThemedText variant="caption1" color="secondaryLabel">
+            {hint}
+          </ThemedText>
+        ) : null}
       </View>
-      <Switch value={value} disabled={disabled} onValueChange={onChange} />
+      <Switch value={value} disabled={disabled} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }
@@ -143,7 +146,6 @@ export default function PrivacySettingsScreen() {
     <SwitchRow
       key="incognito"
       label={t("incognito_mode")}
-      hint={t("incognito_mode_hint")}
       value={incognito}
       disabled={!ready}
       onChange={toggleIncognito}
@@ -215,25 +217,33 @@ export default function PrivacySettingsScreen() {
       <Stack.Title>{t("section_privacy")}</Stack.Title>
       <ScreenContent>
         <SectionLabel isFirst>{t("settings_privacy_section")}</SectionLabel>
-        <Card>
-          {rows.map((row, index) => (
-            <Fragment key={(row as { key: string }).key}>
-              {index > 0 ? <CardSeparator /> : null}
-              {row}
-            </Fragment>
-          ))}
-        </Card>
+        <Card>{rows[0]}</Card>
+        <SectionFooter>{t("incognito_mode_hint")}</SectionFooter>
 
         <SectionLabel>{t("privacy_security_section")}</SectionLabel>
         <Card>
           <SwitchRow
             label={t("privacy_biometrics")}
-            hint={t("privacy_biometrics_hint")}
             value={privacy.requireBiometrics}
             disabled={!ready}
             onChange={(value) => void toggleBiometrics(value)}
           />
         </Card>
+        <SectionFooter>{t("privacy_biometrics_hint")}</SectionFooter>
+
+        {rows.length > 1 ? (
+          <>
+            <SectionLabel>{t("settings_sources_nsfw")}</SectionLabel>
+            <Card>
+              {rows.slice(1).map((row, index) => (
+                <Fragment key={(row as { key: string }).key}>
+                  {index > 0 ? <CardSeparator /> : null}
+                  {row}
+                </Fragment>
+              ))}
+            </Card>
+          </>
+        ) : null}
       </ScreenContent>
     </>
   );

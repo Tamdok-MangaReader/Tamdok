@@ -1,6 +1,8 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { OptionSegmentedControl } from '@/components/ui/option-segmented-control';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
@@ -40,6 +42,19 @@ function actionColor(action: TapAction): string {
   }
 }
 
+function actionIcon(action: TapAction): keyof typeof Ionicons.glyphMap | null {
+  switch (action) {
+    case 'previous':
+      return 'chevron-back';
+    case 'next':
+      return 'chevron-forward';
+    case 'toggleBars':
+      return 'ellipsis-horizontal';
+    default:
+      return null;
+  }
+}
+
 export function TapZonePreview({ settings }: TapZonePreviewProps) {
   const { colors, radius } = useTheme();
   const [previewMode, setPreviewMode] = useState<ResolvedReadingMode>('rtl');
@@ -48,86 +63,71 @@ export function TapZonePreview({ settings }: TapZonePreviewProps) {
 
   return (
     <View style={styles.root}>
-      <ThemedText variant='footnote' color='secondaryLabel'>
-        {t('reader_tap_zones_paged_hint')}
-      </ThemedText>
-      <View style={styles.modeRow}>
-        {PREVIEW_MODES.map((mode) => {
-          const selected = previewMode === mode;
-          return (
-            <Pressable
-              key={mode}
-              onPress={() => setPreviewMode(mode)}
-              style={[
-                styles.modePill,
-                { borderRadius: radius.pill, backgroundColor: selected ? colors.tint : colors.tertiaryFill },
-              ]}
-              accessibilityRole='button'>
-              <ThemedText variant='footnote' style={selected ? styles.modePillLabelOn : undefined}>
-                {t(`reader_mode_${mode}`)}
-              </ThemedText>
-            </Pressable>
-          );
-        })}
-      </View>
+      <OptionSegmentedControl
+        options={PREVIEW_MODES.map((mode) => ({ id: mode, label: t(`reader_mode_${mode}`) }))}
+        selectedId={previewMode}
+        onSelect={(id) => setPreviewMode(id as ResolvedReadingMode)}
+      />
       <View
         style={[
           styles.grid,
-          { borderRadius: radius.md, backgroundColor: colors.tertiaryFill, opacity: disabled ? 0.45 : 1 },
+          {
+            borderRadius: radius.md,
+            backgroundColor: colors.tertiaryFill,
+            borderColor: colors.separator,
+            opacity: disabled ? 0.45 : 1,
+          },
         ]}
-        pointerEvents='none'>
+        pointerEvents='none'
+        accessibilityElementsHidden>
         {grid.map((row, rowIndex) => (
           <View key={rowIndex} style={styles.gridRow}>
-            {row.map((action, colIndex) => (
-              <View
-                key={`${rowIndex}:${colIndex}`}
-                style={[
-                  styles.cell,
-                  { backgroundColor: actionColor(action), borderRadius: radius.sm },
-                ]}>
-                <ThemedText variant='caption2' style={styles.cellLabel} numberOfLines={1}>
-                  {actionLabel(action)}
-                </ThemedText>
-              </View>
-            ))}
+            {row.map((action, colIndex) => {
+              const icon = actionIcon(action);
+              return (
+                <View
+                  key={`${rowIndex}:${colIndex}`}
+                  style={[styles.cell, { backgroundColor: actionColor(action), borderRadius: radius.sm }]}>
+                  {icon ? <Ionicons name={icon} size={22} color='#FFFFFF' /> : null}
+                  <ThemedText variant='caption2' style={styles.cellLabel} numberOfLines={1}>
+                    {actionLabel(action)}
+                  </ThemedText>
+                </View>
+              );
+            })}
           </View>
         ))}
       </View>
+      <ThemedText variant='footnote' color='secondaryLabel'>
+        {t('reader_tap_zones_paged_hint')}
+      </ThemedText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    gap: Spacing.sm,
+    alignSelf: 'stretch',
+    gap: Spacing.md,
   },
-  modeRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  modePill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-  },
-  modePillLabelOn: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
+  // Full card width; the three equal rows and columns match how taps are hit-tested on the page.
   grid: {
-    aspectRatio: 0.72,
-    maxHeight: 220,
-    padding: 6,
-    gap: 4,
+    alignSelf: 'stretch',
+    aspectRatio: 1,
+    padding: Spacing.sm,
+    gap: Spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   gridRow: {
     flex: 1,
     flexDirection: 'row',
-    gap: 4,
+    gap: Spacing.sm,
   },
   cell: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
     paddingHorizontal: 2,
   },
   cellLabel: {

@@ -125,7 +125,7 @@ export function BackupOptionsModal({ visible, mode, onClose, onCreate }: Props) 
                       {t("backups_auto_enabled_hint")}
                     </ThemedText>
                   </View>
-                  <Switch value={autoEnabled} onValueChange={setAutoEnabled} />
+                  <Switch value={autoEnabled} onValueChange={setAutoEnabled} accessibilityLabel={t("backups_auto_enabled")} />
                 </View>
                 {autoEnabled ? (
                   <>
@@ -186,6 +186,7 @@ export function BackupOptionsModal({ visible, mode, onClose, onCreate }: Props) 
                               {t(`backups_scope_${key}`)}
                             </ThemedText>
                             <Switch
+                              accessibilityLabel={t(`backups_scope_${key}`)}
                               value={scope[key]}
                               onValueChange={(value) => toggleKey(key, value)}
                             />

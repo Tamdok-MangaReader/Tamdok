@@ -297,7 +297,7 @@ export default function BackupsSettingsScreen() {
                         <Ionicons
                           name="document-outline"
                           size={22}
-                          color="#888"
+                          color={colors.secondaryLabel}
                         />
                         <View style={styles.backupText}>
                           <View style={styles.nameRow}>

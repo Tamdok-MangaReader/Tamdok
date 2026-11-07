@@ -551,6 +551,7 @@ function MangaMenuOverlay({
         label: t("manga_remove_downloads"),
         sf: "trash.slash",
         fallback: "trash-outline",
+        destructive: true,
         onPress: () =>
           run(() => void removeMangaDownloads(sourceId, manga.key)),
       });
@@ -585,14 +586,6 @@ function MangaMenuOverlay({
         onPress: () => run(share),
       });
     }
-    more.push({
-      key: "remove",
-      label: t("manga_remove_from_library"),
-      sf: "trash",
-      fallback: "trash-outline",
-      destructive: true,
-      onPress: () => run(remove),
-    });
     items.push({
       key: "more",
       label: t("reader_more"),
@@ -600,6 +593,14 @@ function MangaMenuOverlay({
       fallback: "ellipsis-horizontal-circle-outline",
       onPress: NOOP,
       children: more,
+    });
+    items.push({
+      key: "remove",
+      label: t("manga_remove_from_library"),
+      sf: "trash",
+      fallback: "trash-outline",
+      destructive: true,
+      onPress: () => run(remove),
     });
   } else if (pageUrl) {
     items.push({
@@ -610,6 +611,9 @@ function MangaMenuOverlay({
       onPress: () => run(share),
     });
   }
+  // Most used actions first, destructive ones last.
+  const ITEM_ORDER = ["add", "add-category", "favorite", "categories", "mark", "download", "select", "share", "more", "remove-downloads", "remove"];
+  items.sort((a, b) => ITEM_ORDER.indexOf(a.key) - ITEM_ORDER.indexOf(b.key));
   const activeGroup = items.find((item) => item.key === openGroup);
 
   const menuLeft = Math.min(

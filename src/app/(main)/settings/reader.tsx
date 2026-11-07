@@ -2,7 +2,8 @@ import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Switch, View } from 'react-native';
 
-import { InlinePillGrid } from '@/components/library/inline-pill-grid';
+import { MenuPickerRow } from '@/components/ui/menu-picker-row';
+import { OptionSegmentedControl } from '@/components/ui/option-segmented-control';
 import { TapZonePreview } from '@/components/reader/tap-zone-preview';
 import { Card, CardSeparator } from '@/components/ui/card';
 import { ScreenContent } from '@/components/ui/screen-content';
@@ -121,108 +122,43 @@ export default function ReaderSettingsScreen() {
     <>
       <Stack.Screen options={{ title: t('reader_settings_title') }} />
       <ScreenContent>
-        <SectionLabel isFirst>{t('reader_general_section')}</SectionLabel>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_reading_mode')}</ThemedText>
-          <InlinePillGrid
+        <SectionLabel isFirst>{t('reader_reading_mode')}</SectionLabel>
+        <Card>
+          <MenuPickerRow
+            label={t('reader_reading_mode')}
             options={readingModeOptions}
             selectedId={settings.readingMode}
-            preserveOrder
             onSelect={(id) => patch({ readingMode: id as ReadingMode })}
-          />
-        </Card>
-        <Card>
-          <SettingSwitch
-            label={t('reader_skip_duplicate_chapters')}
-            value={settings.skipDuplicateChapters}
-            onChange={(value) => patch({ skipDuplicateChapters: value })}
             isFirst
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_mark_duplicate_chapters')}
-            value={settings.markDuplicateChapters}
-            onChange={(value) => patch({ markDuplicateChapters: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_downsample_images')}
-            value={settings.downsampleImages}
-            onChange={(value) => patch({ downsampleImages: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_crop_borders')}
-            value={settings.cropBorders}
-            onChange={(value) => patch({ cropBorders: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_disable_quick_actions')}
-            value={settings.disableQuickActions}
-            onChange={(value) => patch({ disableQuickActions: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_disable_double_tap')}
-            value={settings.disableDoubleTap}
-            onChange={(value) => patch({ disableDoubleTap: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_live_text')}
-            value={settings.liveText}
-            onChange={(value) => patch({ liveText: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_reading_live_activity')}
-            value={settings.showReadingLiveActivity}
-            onChange={(value) => patch({ showReadingLiveActivity: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_hide_bars_on_swipe')}
-            value={settings.hideBarsOnSwipe}
-            onChange={(value) => patch({ hideBarsOnSwipe: value })}
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_hide_status_bar_with_menu')}
-            value={settings.hideStatusBarWithMenu}
-            onChange={(value) => patch({ hideStatusBarWithMenu: value })}
             isLast
           />
         </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_background_color')}</ThemedText>
-          <InlinePillGrid
-            options={backgroundOptions}
-            selectedId={settings.backgroundColor}
-            preserveOrder
-            onSelect={(id) => patch({ backgroundColor: id as ReaderBackgroundColor })}
-          />
-        </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_orientation')}</ThemedText>
-          <InlinePillGrid
-            options={orientationOptions}
-            selectedId={settings.orientation}
-            preserveOrder
-            onSelect={(id) => patch({ orientation: id as ReaderOrientation })}
-          />
-        </Card>
+        <SectionLabel>{t('reader_background_color')}</SectionLabel>
+        <OptionSegmentedControl
+          options={backgroundOptions}
+          selectedId={settings.backgroundColor}
+          onSelect={(id) => patch({ backgroundColor: id as ReaderBackgroundColor })}
+        />
+        <SectionLabel>{t('reader_orientation')}</SectionLabel>
+        <OptionSegmentedControl
+          options={orientationOptions}
+          selectedId={settings.orientation}
+          onSelect={(id) => patch({ orientation: id as ReaderOrientation })}
+        />
 
         <SectionLabel>{t('reader_tap_zones_section')}</SectionLabel>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_tap_zones')}</ThemedText>
-          <InlinePillGrid
+        <Card>
+          <MenuPickerRow
+            label={t('reader_tap_zones')}
             options={tapZoneOptions}
             selectedId={settings.tapZones}
-            preserveOrder
             onSelect={(id) => patch({ tapZones: id as TapZones })}
+            isFirst
           />
-          <TapZonePreview settings={settings} />
+          <CardSeparator />
+          <View style={cardStyle}>
+            <TapZonePreview settings={settings} />
+          </View>
         </Card>
         <Card>
           <SettingSwitch
@@ -230,12 +166,6 @@ export default function ReaderSettingsScreen() {
             value={settings.invertTapZones}
             onChange={(value) => patch({ invertTapZones: value })}
             isFirst
-          />
-          <CardSeparator />
-          <SettingSwitch
-            label={t('reader_animate_transitions')}
-            value={settings.animatePageTransitions}
-            onChange={(value) => patch({ animatePageTransitions: value })}
             isLast
           />
         </Card>
@@ -247,35 +177,18 @@ export default function ReaderSettingsScreen() {
             value={settings.legacyPagedReader}
             onChange={(value) => patch({ legacyPagedReader: value })}
             isFirst
-            isLast
           />
-        </Card>
-        <Card>
-          <StepperRow
-            label={t('reader_pages_to_preload')}
-            value={settings.pagesToPreload}
-            min={0}
-            max={5}
-            onChange={(value) => patch({ pagesToPreload: value })}
-            isFirst
-            isLast
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_animate_transitions')}
+            value={settings.animatePageTransitions}
+            onChange={(value) => patch({ animatePageTransitions: value })}
           />
-        </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_page_layout')}</ThemedText>
-          <InlinePillGrid
-            options={pageLayoutOptions}
-            selectedId={settings.pagedPageLayout}
-            preserveOrder
-            onSelect={(id) => patch({ pagedPageLayout: id as PagedPageLayout })}
-          />
-        </Card>
-        <Card>
+          <CardSeparator />
           <SettingSwitch
             label={t('reader_page_offset')}
             value={settings.pagedPageOffset}
             onChange={(value) => patch({ pagedPageOffset: value })}
-            isFirst
           />
           <CardSeparator />
           <SettingSwitch
@@ -288,9 +201,23 @@ export default function ReaderSettingsScreen() {
             label={t('reader_reverse_split_order')}
             value={settings.reverseSplitOrder}
             onChange={(value) => patch({ reverseSplitOrder: value })}
+          />
+          <CardSeparator />
+          <StepperRow
+            label={t('reader_pages_to_preload')}
+            value={settings.pagesToPreload}
+            min={0}
+            max={5}
+            onChange={(value) => patch({ pagesToPreload: value })}
             isLast
           />
         </Card>
+        <SectionLabel>{t('reader_page_layout')}</SectionLabel>
+        <OptionSegmentedControl
+          options={pageLayoutOptions}
+          selectedId={settings.pagedPageLayout}
+          onSelect={(id) => patch({ pagedPageLayout: id as PagedPageLayout })}
+        />
 
         <SectionLabel>{t('reader_webtoon_section')}</SectionLabel>
         <Card>
@@ -316,29 +243,132 @@ export default function ReaderSettingsScreen() {
             isLast
           />
         </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_pillarbox_orientation')}</ThemedText>
-          <InlinePillGrid
-            options={pillarboxOrientationOptions}
-            selectedId={settings.pillarboxOrientation}
-            preserveOrder
-            onSelect={(id) => patch({ pillarboxOrientation: id as PillarboxOrientation })}
-          />
-        </Card>
+        <SectionLabel>{t('reader_pillarbox_orientation')}</SectionLabel>
+        <OptionSegmentedControl
+          options={pillarboxOrientationOptions}
+          selectedId={settings.pillarboxOrientation}
+          onSelect={(id) => patch({ pillarboxOrientation: id as PillarboxOrientation })}
+        />
 
-        <SectionLabel>{t('reader_experimental_section')}</SectionLabel>
+        <SectionLabel>{t('reader_gestures_section')}</SectionLabel>
         <Card>
           <SettingSwitch
-            label={t('reader_seamless_pages')}
-            value={settings.seamlessPages}
-            onChange={(value) => patch({ seamlessPages: value })}
+            label={t('reader_disable_quick_actions')}
+            value={settings.disableQuickActions}
+            onChange={(value) => patch({ disableQuickActions: value })}
             isFirst
+          />
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_double_tap_zoom')}
+            value={!settings.disableDoubleTap}
+            onChange={(value) => patch({ disableDoubleTap: !value })}
             isLast
           />
         </Card>
-        <ThemedText variant='footnote' color='secondaryLabel' style={{ paddingHorizontal: 16 }}>
-          {t('reader_seamless_pages_hint')}
-        </ThemedText>
+
+        <SectionLabel>{t('reader_bars_section')}</SectionLabel>
+        <Card>
+          <SettingSwitch
+            label={t('reader_hide_bars_on_swipe')}
+            value={settings.hideBarsOnSwipe}
+            onChange={(value) => patch({ hideBarsOnSwipe: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_hide_status_bar_with_menu')}
+            value={settings.hideStatusBarWithMenu}
+            onChange={(value) => patch({ hideStatusBarWithMenu: value })}
+            isLast
+          />
+        </Card>
+
+        <SectionLabel>{t('reader_images_section')}</SectionLabel>
+        <Card>
+          <SettingSwitch
+            label={t('reader_downsample_images')}
+            value={settings.downsampleImages}
+            onChange={(value) => patch({ downsampleImages: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_crop_borders')}
+            value={settings.cropBorders}
+            onChange={(value) => patch({ cropBorders: value })}
+          />
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_live_text')}
+            value={settings.liveText}
+            onChange={(value) => patch({ liveText: value })}
+            isLast
+          />
+        </Card>
+
+        <SectionLabel>{t('reader_reading_section')}</SectionLabel>
+        <Card>
+          <SettingSwitch
+            label={t('reader_skip_duplicate_chapters')}
+            value={settings.skipDuplicateChapters}
+            onChange={(value) => patch({ skipDuplicateChapters: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_mark_duplicate_chapters')}
+            value={settings.markDuplicateChapters}
+            onChange={(value) => patch({ markDuplicateChapters: value })}
+          />
+          <CardSeparator />
+          <SettingSwitch
+            label={t('reader_reading_live_activity')}
+            value={settings.showReadingLiveActivity}
+            onChange={(value) => patch({ showReadingLiveActivity: value })}
+            isLast
+          />
+        </Card>
+
+        <SectionLabel>{t('reader_text_section')}</SectionLabel>
+        <OptionSegmentedControl
+          options={textStyleOptions}
+          selectedId={settings.textReaderStyle}
+          onSelect={(id) => patch({ textReaderStyle: id as TextReaderStyle })}
+        />
+        <SectionLabel>{t('reader_text_font_family')}</SectionLabel>
+        <OptionSegmentedControl
+          options={fontFamilyOptions}
+          selectedId={settings.textFontFamily}
+          onSelect={(id) => patch({ textFontFamily: id })}
+        />
+        <Card>
+          <StepperRow
+            label={t('reader_text_font_size')}
+            value={settings.textFontSize}
+            min={12}
+            max={32}
+            onChange={(value) => patch({ textFontSize: value })}
+            isFirst
+          />
+          <CardSeparator />
+          <StepperRow
+            label={t('reader_text_line_spacing')}
+            value={settings.textLineSpacing}
+            min={0}
+            max={24}
+            onChange={(value) => patch({ textLineSpacing: value })}
+          />
+          <CardSeparator />
+          <StepperRow
+            label={t('reader_text_horizontal_padding')}
+            value={settings.textHorizontalPadding}
+            min={0}
+            max={64}
+            onChange={(value) => patch({ textHorizontalPadding: value })}
+            isLast
+          />
+        </Card>
 
         <SectionLabel>{t('dictionary_section')}</SectionLabel>
         <Card>
@@ -347,17 +377,15 @@ export default function ReaderSettingsScreen() {
             value={dictionarySettings.enable}
             onChange={(value) => patchDictionary({ enable: value })}
             isFirst
+            isLast
           />
         </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('dictionary_lookup_gesture')}</ThemedText>
-          <InlinePillGrid
-            options={dictionaryGestureOptions}
-            selectedId={dictionarySettings.lookupGesture}
-            preserveOrder
-            onSelect={(id) => patchDictionary({ lookupGesture: id as DictionaryLookupGesture })}
-          />
-        </Card>
+        <SectionLabel>{t('dictionary_lookup_gesture')}</SectionLabel>
+        <OptionSegmentedControl
+          options={dictionaryGestureOptions}
+          selectedId={dictionarySettings.lookupGesture}
+          onSelect={(id) => patchDictionary({ lookupGesture: id as DictionaryLookupGesture })}
+        />
         <Card>
           <SettingSwitch
             label={t('dictionary_text_overlay')}
@@ -389,15 +417,12 @@ export default function ReaderSettingsScreen() {
             isLast
           />
         </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('dictionary_display_mode')}</ThemedText>
-          <InlinePillGrid
-            options={dictionaryDisplayOptions}
-            selectedId={dictionarySettings.displayMode}
-            preserveOrder
-            onSelect={(id) => patchDictionary({ displayMode: id as DictionaryDisplayMode })}
-          />
-        </Card>
+        <SectionLabel>{t('dictionary_display_mode')}</SectionLabel>
+        <OptionSegmentedControl
+          options={dictionaryDisplayOptions}
+          selectedId={dictionarySettings.displayMode}
+          onSelect={(id) => patchDictionary({ displayMode: id as DictionaryDisplayMode })}
+        />
         <Card>
           <StepperRow
             label={t('dictionary_popup_width')}
@@ -420,52 +445,19 @@ export default function ReaderSettingsScreen() {
           />
         </Card>
 
-        <SectionLabel>{t('reader_text_section')}</SectionLabel>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_text_style')}</ThemedText>
-          <InlinePillGrid
-            options={textStyleOptions}
-            selectedId={settings.textReaderStyle}
-            preserveOrder
-            onSelect={(id) => patch({ textReaderStyle: id as TextReaderStyle })}
-          />
-        </Card>
-        <Card style={cardStyle}>
-          <ThemedText variant='subheadline'>{t('reader_text_font_family')}</ThemedText>
-          <InlinePillGrid
-            options={fontFamilyOptions}
-            selectedId={settings.textFontFamily}
-            preserveOrder
-            onSelect={(id) => patch({ textFontFamily: id })}
-          />
-        </Card>
+        <SectionLabel>{t('reader_experimental_section')}</SectionLabel>
         <Card>
-          <StepperRow
-            label={t('reader_text_font_size')}
-            value={settings.textFontSize}
-            min={12}
-            max={32}
-            onChange={(value) => patch({ textFontSize: value })}
+          <SettingSwitch
+            label={t('reader_seamless_pages')}
+            value={settings.seamlessPages}
+            onChange={(value) => patch({ seamlessPages: value })}
             isFirst
-          />
-          <CardSeparator />
-          <StepperRow
-            label={t('reader_text_line_spacing')}
-            value={settings.textLineSpacing}
-            min={0}
-            max={24}
-            onChange={(value) => patch({ textLineSpacing: value })}
-          />
-          <CardSeparator />
-          <StepperRow
-            label={t('reader_text_horizontal_padding')}
-            value={settings.textHorizontalPadding}
-            min={0}
-            max={64}
-            onChange={(value) => patch({ textHorizontalPadding: value })}
             isLast
           />
         </Card>
+        <ThemedText variant='footnote' color='secondaryLabel' style={{ paddingHorizontal: Spacing.sm }}>
+          {t('reader_seamless_pages_hint')}
+        </ThemedText>
       </ScreenContent>
     </>
   );
@@ -501,7 +493,7 @@ function SettingSwitch({
       <ThemedText variant='body' style={{ flex: 1 }}>
         {label}
       </ThemedText>
-      <Switch value={value} onValueChange={onChange} />
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }
@@ -543,7 +535,7 @@ function StepperRow({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
         <Pressable
           onPress={() => onChange(Math.max(min, value - step))}
-          hitSlop={8}
+          hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
           accessibilityRole='button'>
           <ThemedText variant='title3'>−</ThemedText>
         </Pressable>
@@ -552,7 +544,7 @@ function StepperRow({
         </ThemedText>
         <Pressable
           onPress={() => onChange(Math.min(max, value + step))}
-          hitSlop={8}
+          hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
           accessibilityRole='button'>
           <ThemedText variant='title3'>+</ThemedText>
         </Pressable>

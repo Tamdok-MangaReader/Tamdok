@@ -1,4 +1,5 @@
 import * as DocumentPicker from "expo-document-picker";
+import { useLanguageFlags } from "@/hooks/use-language-flags";
 import { useShowSuggestiveBadge } from "@/hooks/use-suggestive-badge";
 import { updateAppSettings } from "@/services/app-settings";
 import { checkSourceCompatibility } from "@/utils/app-version";
@@ -144,6 +145,7 @@ export default function SettingsSourcesScreen() {
     refreshInBackground,
   } = useSources();
   const showSuggestiveBadge = useShowSuggestiveBadge();
+  const languageFlags = useLanguageFlags();
   const [newRegistryUrl, setNewRegistryUrl] = useState("");
   const [languageFilter, setLanguageFilter] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<SourceKindFilter | null>(null);
@@ -505,11 +507,11 @@ export default function SettingsSourcesScreen() {
         key: "settings",
         label: t("settings"),
         icon: "settings-outline",
-        color: "#8E8E93",
+        color: colors.systemGray,
         onPress: () => openSourceSettings(source),
       },
     ],
-    [openSourceSettings],
+    [openSourceSettings, colors.systemGray],
   );
 
   const refreshControl = (
@@ -560,11 +562,11 @@ export default function SettingsSourcesScreen() {
         key: "install",
         label: t("source_install_action"),
         icon: "download-outline",
-        color: "#34C759",
+        color: colors.systemGreen,
         onPress: () => confirmInstallEntry(registryUrl, entry),
       },
     ],
-    [confirmInstallEntry],
+    [confirmInstallEntry, colors.systemGreen],
   );
 
   const hasUpdatesSection = pendingUpdates.length > 0;
@@ -801,7 +803,7 @@ export default function SettingsSourcesScreen() {
 
       if (item.type === "controls") {
         return (
-          <View>
+          <View style={styles.controlsList}>
             <SectionLabel>{t("settings_sources_import")}</SectionLabel>
             <Pressable
               style={[
@@ -823,19 +825,37 @@ export default function SettingsSourcesScreen() {
                   {t("settings_sources_show_nsfw")}
                 </ThemedText>
                 <Switch
+                  accessibilityLabel={t("settings_sources_show_nsfw")}
                   value={showNsfw}
                   onValueChange={(value) => void setShowNsfw(value)}
                 />
               </View>
+              <CardSeparator />
               <View style={styles.switchRow}>
                 <ThemedText variant="body" style={styles.switchLabel}>
                   {t("settings_sources_suggestive_badge")}
                 </ThemedText>
                 <Switch
+                  accessibilityLabel={t("settings_sources_suggestive_badge")}
                   value={showSuggestiveBadge}
                   onValueChange={(value) => {
                     void updateAppSettings({
                       sourceDisplay: { showSuggestiveBadge: value },
+                    });
+                  }}
+                />
+              </View>
+              <CardSeparator />
+              <View style={styles.switchRow}>
+                <ThemedText variant="body" style={styles.switchLabel}>
+                  {t("settings_sources_language_flags")}
+                </ThemedText>
+                <Switch
+                  accessibilityLabel={t("settings_sources_language_flags")}
+                  value={languageFlags}
+                  onValueChange={(value) => {
+                    void updateAppSettings({
+                      sourceDisplay: { languageFlags: value },
                     });
                   }}
                 />
@@ -902,6 +922,7 @@ export default function SettingsSourcesScreen() {
 
             <View style={styles.addRegistryRow}>
               <TextInput
+ clearButtonMode="while-editing"
                 value={newRegistryUrl}
                 onChangeText={setNewRegistryUrl}
                 placeholder={t("settings_sources_registry_placeholder")}
@@ -1072,6 +1093,7 @@ export default function SettingsSourcesScreen() {
       registryCatalogs,
       setShowNsfw,
       showSuggestiveBadge,
+      languageFlags,
       showKindFilter,
       showNsfw,
       submitNewRegistry,
@@ -1170,6 +1192,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.md,
   },
+  controlsList: {
+    gap: Spacing.sm,
+  },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1193,14 +1218,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     minHeight: 44,
-    fontSize: 16,
+    fontSize: 17,
   },
   searchInput: {
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     minHeight: 44,
-    fontSize: 16,
+    fontSize: 17,
     marginBottom: Spacing.sm,
   },
   addButton: {

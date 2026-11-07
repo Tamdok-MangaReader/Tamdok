@@ -19,6 +19,16 @@ import { useAppearance } from '@/context/appearance-context';
 import { AppThemeMode, useThemePreference } from '@/context/theme-preference-context';
 import { getAppSettings, CoverDisplaySettings, MangaScreenSettings, TabBadgeSettings, updateAppSettings } from '@/services/app-settings';
 import { notifyMangaDataChanged } from '@/utils/manga-events';
+import type { ComponentType } from "react";
+
+// The library ships class-component typings that do not satisfy the current JSX types.
+const NativeSegmented = SegmentedControl as unknown as ComponentType<{
+  values: string[];
+  selectedIndex: number;
+  appearance: "light" | "dark";
+  style?: object;
+  onChange: (event: { nativeEvent: { selectedSegmentIndex: number } }) => void;
+}>;
 
 const THEME_MODES: AppThemeMode[] = ['system', 'light', 'dark'];
 
@@ -132,7 +142,7 @@ export default function AppearanceScreen() {
       <ScreenContent>
         <SectionLabel>{t('theme')}</SectionLabel>
         <Card style={styles.card}>
-          <SegmentedControl
+          <NativeSegmented
             values={[t('theme_system'), t('theme_light'), t('theme_dark')]}
             appearance={isDark ? 'dark' : 'light'}
             selectedIndex={selectedIndex}

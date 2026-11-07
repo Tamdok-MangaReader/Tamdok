@@ -1390,7 +1390,7 @@ export default function HistoryScreen() {
               ref={pagerRef}
               style={{ height: pagerHeight }}
               initialPage={selectedPage === "nsfw" ? 1 : 0}
-              onPageScroll={pageScrollHandler}
+              onPageScroll={pageScrollHandler as never}
               onPageSelected={(event) =>
                 handlePageSelected(event.nativeEvent.position)
               }

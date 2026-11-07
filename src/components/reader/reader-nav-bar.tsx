@@ -158,7 +158,12 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
 
   // The custom bar stays mounted and only fades (mounting the glass controls on every tap made the
   // menu appear late); the native-header variant still mounts and unmounts.
-  const glassEpoch = useGlassEpoch(visible);
+  // Loading a neighbouring chapter changes the page count and the title; the glass views are rebuilt then.
+  const glassEpoch = useGlassEpoch(
+    visible,
+    undefined,
+    `${chapter.key}|${chrome.chapterTitle}|${chrome.totalPages}`,
+  );
   const opacity = useSharedValue(visible ? 1 : 0);
   useEffect(() => {
     opacity.value = withTiming(visible ? 1 : 0, { duration: 180 });
@@ -353,7 +358,7 @@ export function ReaderNavBar({ visible }: ReaderNavBarProps) {
                   const subtitle = item.chapterNumber != null ? name : undefined;
                   const icon =
                     item.key === chapter.key
-                      ? "book.fill"
+                      ? "arrow.right"
                       : readKeys.has(item.key)
                         ? "checkmark.circle.fill"
                         : "circle";

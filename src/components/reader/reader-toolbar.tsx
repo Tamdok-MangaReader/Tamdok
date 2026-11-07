@@ -27,10 +27,10 @@ export function ReaderToolbar({ visible }: ReaderToolbarProps) {
   // Folded Duo: keep the controls out from under the system rail (it swallows touches there).
   const rail = useSystemRail();
   const { colors } = useTheme();
-  const { chrome, actions, foregroundColor, mode, bookmarked } = useReader();
+  const { chrome, actions, foregroundColor, mode, bookmarked, chapter } = useReader();
 
   // Stays mounted and only fades: mounting the glass controls on every tap made the menu appear late.
-  const glassEpoch = useGlassEpoch(visible);
+  const glassEpoch = useGlassEpoch(visible, undefined, `${chapter.key}|${chrome.totalPages}`);
   const opacity = useSharedValue(visible ? 1 : 0);
   useEffect(() => {
     opacity.value = withTiming(visible ? 1 : 0, { duration: 180 });

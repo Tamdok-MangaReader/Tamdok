@@ -12,8 +12,8 @@ import {
 import PagerView from "react-native-pager-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ReaderPageSlider } from "@/components/reader/reader-page-slider";
-import { GlassSegmentedControl } from "@/components/ui/glass-segmented-control";
+import { GridColumnsSlider } from "@/components/library/grid-columns-slider";
+import { OptionSegmentedControl } from "@/components/ui/option-segmented-control";
 import { SwipeDismissSheet } from "@/components/ui/swipe-dismiss-sheet";
 import { MODAL_HEADER_HEIGHT, ModalHeader } from "@/components/ui/modal-header";
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
@@ -65,34 +65,31 @@ const STATUS_IDS = [
 const DISPLAY_MODES: LibraryDisplayMode[] = ["grid", "list", "descriptiveList"];
 const MAX_COLUMNS = 6;
 
-/**
- * Plain pill without an interactive glass wrapper: nested interactive glass can swallow the first
- * tap on iOS, which made multi-select pills need two presses.
- */
-function Pill({
+function CheckRow({
   label,
   selected,
   onPress,
+  showDivider,
   iconUri,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  showDivider: boolean;
   iconUri?: string;
 }) {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected }}
       style={[
-        styles.pill,
-        {
-          borderRadius: radius.pill,
-          backgroundColor: selected ? colors.tint : colors.tertiaryFill,
+        styles.optionRow,
+        showDivider && {
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.separator,
         },
-        iconUri ? styles.pillWithIcon : null,
       ]}
     >
       {iconUri ? (
@@ -103,13 +100,12 @@ function Pill({
           cachePolicy={IMAGE_CACHE_POLICY}
         />
       ) : null}
-      <ThemedText
-        variant="subheadline"
-        color={selected ? "onTint" : "label"}
-        numberOfLines={1}
-      >
+      <ThemedText variant="body" style={styles.switchLabel} numberOfLines={1}>
         {label}
       </ThemedText>
+      {selected ? (
+        <SFSymbolIcon name="checkmark" fallback="checkmark" size={18} color={colors.tint} />
+      ) : null}
     </Pressable>
   );
 }
@@ -139,7 +135,7 @@ function SwitchLine({
       <ThemedText variant="body" style={styles.switchLabel}>
         {label}
       </ThemedText>
-      <Switch value={value} onValueChange={onChange} />
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }
@@ -273,10 +269,10 @@ export function LibraryOptionsSheet({
     pagerRef.current?.setPage(index);
   }, []);
 
-  const segmentLabels = [
-    t("library_options_filter"),
-    t("library_options_sort"),
-    t("library_options_display"),
+  const segmentOptions = [
+    { id: "0", label: t("library_options_filter") },
+    { id: "1", label: t("library_options_sort") },
+    { id: "2", label: t("library_options_display") },
   ];
 
   const pageContent = {
@@ -321,10 +317,10 @@ export function LibraryOptionsSheet({
         />
         <View style={{ paddingTop: MODAL_HEADER_HEIGHT + Spacing.sm }}>
           <View style={styles.segmentWrap}>
-            <GlassSegmentedControl
-              values={segmentLabels}
-              selectedIndex={pageIndex}
-              onChange={handleSegment}
+            <OptionSegmentedControl
+              options={segmentOptions}
+              selectedId={String(pageIndex)}
+              onSelect={(id) => handleSegment(Number(id))}
             />
           </View>
         </View>
@@ -343,12 +339,13 @@ export function LibraryOptionsSheet({
               keyboardShouldPersistTaps="handled"
             >
               <Section title={t("library_filter_status")}>
-                <View style={styles.pillWrap}>
-                  {STATUS_IDS.map((id) => (
-                    <Pill
+                <View style={[styles.group, { backgroundColor: colors.tertiaryFill }]}>
+                  {STATUS_IDS.map((id, index) => (
+                    <CheckRow
                       key={id}
                       label={t(`library_status_${id}`)}
                       selected={filters.statuses.includes(id)}
+                      showDivider={index > 0}
                       onPress={() =>
                         patchFilters({ statuses: toggleIn(filters.statuses, id) })
                       }
@@ -358,50 +355,37 @@ export function LibraryOptionsSheet({
               </Section>
 
               <Section title={t("library_filter_reading")}>
-                <View style={styles.pillWrap}>
-                  {(["all", "unread", "read", "finished"] as const).map((id) => (
-                    <Pill
-                      key={id}
-                      label={t(`library_filter_${id}`)}
-                      selected={filters.readState === id}
-                      onPress={() => patchFilters({ readState: id })}
-                    />
-                  ))}
-                </View>
+                <OptionSegmentedControl
+                  options={(["all", "unread", "read", "finished"] as const).map((id) => ({
+                    id,
+                    label: t(`library_filter_${id}`),
+                  }))}
+                  selectedId={filters.readState}
+                  onSelect={(id) => patchFilters({ readState: id as typeof filters.readState })}
+                />
               </Section>
 
               <Section title={t("library_filter_favorites")}>
-                <View style={styles.pillWrap}>
-                  <Pill
-                    label={t("library_filter_all")}
-                    selected={!filters.favorites}
-                    onPress={() => patchFilters({ favorites: false })}
-                  />
-                  <Pill
-                    label={t("library_filter_favorites_only")}
-                    selected={filters.favorites}
-                    onPress={() => patchFilters({ favorites: true })}
-                  />
-                </View>
+                <OptionSegmentedControl
+                  options={[
+                    { id: "all", label: t("library_filter_all") },
+                    { id: "favorites", label: t("library_filter_favorites_only") },
+                  ]}
+                  selectedId={filters.favorites ? "favorites" : "all"}
+                  onSelect={(id) => patchFilters({ favorites: id === "favorites" })}
+                />
               </Section>
 
               <Section title={t("library_filter_downloads")}>
-                <View style={styles.pillWrap}>
-                  {(
-                    [
-                      ["all", t("library_filter_all")],
-                      ["downloaded", t("library_filter_downloaded")],
-                      ["notDownloaded", t("library_filter_not_downloaded")],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <Pill
-                      key={id}
-                      label={label}
-                      selected={filters.downloaded === id}
-                      onPress={() => patchFilters({ downloaded: id })}
-                    />
-                  ))}
-                </View>
+                <OptionSegmentedControl
+                  options={[
+                    { id: "all", label: t("library_filter_all") },
+                    { id: "downloaded", label: t("library_filter_downloaded") },
+                    { id: "notDownloaded", label: t("library_filter_not_downloaded") },
+                  ]}
+                  selectedId={filters.downloaded}
+                  onSelect={(id) => patchFilters({ downloaded: id as typeof filters.downloaded })}
+                />
               </Section>
 
               <Section title={t("library_filter_sources")}>
@@ -428,13 +412,19 @@ export function LibraryOptionsSheet({
                   />
                 </Pressable>
                 {sourcesOpen ? (
-                  <View style={styles.pillWrap}>
-                    {sources.map((source) => (
-                      <Pill
+                  <View
+                    style={[
+                      styles.group,
+                      { backgroundColor: colors.tertiaryFill },
+                    ]}
+                  >
+                    {sources.map((source, index) => (
+                      <CheckRow
                         key={source.id}
                         label={`${source.name} · ${source.count}`}
                         iconUri={source.iconUri}
                         selected={filters.sourceIds.includes(source.id)}
+                        showDivider={index > 0}
                         onPress={() =>
                           patchFilters({
                             sourceIds: toggleIn(filters.sourceIds, source.id),
@@ -546,36 +536,29 @@ export function LibraryOptionsSheet({
             {/* Display */}
             <ScrollView key="display" contentContainerStyle={pageContent}>
               <Section title={t("library_display_mode")}>
-                <View style={styles.pillWrap}>
-                  {DISPLAY_MODES.map((mode) => (
-                    <Pill
-                      key={mode}
-                      label={t(
-                        mode === "grid"
-                          ? "library_display_grid"
-                          : mode === "list"
-                            ? "library_display_list"
-                            : "library_display_descriptive",
-                      )}
-                      selected={display.displayMode === mode}
-                      onPress={() => patchDisplay({ displayMode: mode })}
-                    />
-                  ))}
-                </View>
+                <OptionSegmentedControl
+                  options={DISPLAY_MODES.map((mode) => ({
+                    id: mode,
+                    label: t(
+                      mode === "grid"
+                        ? "library_display_grid"
+                        : mode === "list"
+                          ? "library_display_list"
+                          : "library_display_descriptive_short",
+                    ),
+                  }))}
+                  selectedId={display.displayMode}
+                  onSelect={(id) => patchDisplay({ displayMode: id as typeof display.displayMode })}
+                />
               </Section>
 
               {display.displayMode === "grid" ? (
                 <Section title={t("library_display_columns")}>
-                  <View style={styles.sliderRow}>
-                    <ReaderPageSlider
-                      untinted
-                      flat={!isDark}
-                      fillColor={colors.tertiaryFill}
-                      currentPage={libraryDisplayColumns(display) - 1}
-                      totalPages={MAX_COLUMNS}
-                      accentColor={colors.tint}
-                      labelColor={colors.label}
-                      onSeek={(page) => patchDisplay({ gridColumns: page + 1 })}
+                  <View style={[styles.group, { backgroundColor: colors.tertiaryFill }]}>
+                    <GridColumnsSlider
+                      value={libraryDisplayColumns(display)}
+                      max={MAX_COLUMNS}
+                      onChange={(next) => patchDisplay({ gridColumns: next })}
                     />
                   </View>
                 </Section>
@@ -703,9 +686,10 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   pillIcon: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    marginRight: Spacing.md,
   },
   pill: {
     paddingHorizontal: Spacing.md,

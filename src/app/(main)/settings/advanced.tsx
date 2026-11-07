@@ -254,58 +254,7 @@ export default function AdvancedSettingsScreen() {
     <>
       <Stack.Screen options={{ title: t('advanced_settings_title') }} />
       <ScreenContent>
-        <SectionLabel isFirst>{t('advanced_onboarding_section')}</SectionLabel>
-        <Card>
-          <ListRow
-            icon='sparkles-outline'
-            label={t('advanced_show_onboarding')}
-            onPress={() => void replayWelcome()}
-            isFirst
-            isLast
-          />
-        </Card>
-        <Pressable onPress={handleSecretTap} accessible={false}>
-          <SectionLabel>{t('advanced_debug_section')}</SectionLabel>
-        </Pressable>
-        <Card>
-          <View style={[styles.switchRow, styles.switchRowFirst]}>
-            <View style={styles.switchText}>
-              <ThemedText variant='body'>{t('advanced_debug_page_numbers')}</ThemedText>
-              <ThemedText variant='footnote' color='secondaryLabel'>
-                {t('advanced_debug_page_numbers_hint')}
-              </ThemedText>
-            </View>
-            <Switch value={showReaderPageNumbers} onValueChange={togglePageNumbers} />
-          </View>
-          <CardSeparator />
-          <View style={styles.switchRow}>
-            <View style={styles.switchText}>
-              <ThemedText variant='body'>{t('advanced_debug_image_size')}</ThemedText>
-              <ThemedText variant='footnote' color='secondaryLabel'>
-                {t('advanced_debug_image_size_hint')}
-              </ThemedText>
-            </View>
-            <Switch value={showImageSize} onValueChange={toggleImageSize} />
-          </View>
-          <CardSeparator />
-          <View style={[styles.switchRow, styles.switchRowLast]}>
-            <View style={styles.switchText}>
-              <ThemedText variant='body'>{t('advanced_debug_max_height')}</ThemedText>
-              <ThemedText variant='footnote' color='secondaryLabel'>
-                {t('advanced_debug_max_height_hint')}
-              </ThemedText>
-            </View>
-            <TextInput
-              value={maxHeightRatio}
-              onChangeText={changeMaxHeightRatio}
-              keyboardType='number-pad'
-              style={[styles.ratioInput, { color: colors.label }]}
-              placeholderTextColor={colors.tertiaryLabel}
-              keyboardAppearance={isDark ? 'dark' : 'light'}
-            />
-          </View>
-        </Card>
-        <SectionLabel>Storage</SectionLabel>
+        <SectionLabel isFirst>{t('advanced_storage_section')}</SectionLabel>
         <Card>
           {storageRows.map((row, index, rows) => (
             <View key={row.label}>
@@ -327,11 +276,14 @@ export default function AdvancedSettingsScreen() {
         <Card>
           <ListRow icon='cloud-outline' label={t('advanced_clear_cache')} onPress={() => void clearCache()} isFirst />
           <CardSeparator />
-          <ListRow icon='download-outline' label={t('advanced_clear_downloads')} onPress={clearDownloads} />
+          <ListRow icon='download-outline' label={t('advanced_clear_downloads')} onPress={clearDownloads} isLast />
+        </Card>
+
+        <SectionLabel>{t('advanced_reset_section')}</SectionLabel>
+        <Card>
+          <ListRow icon='time-outline' label={t('advanced_clear_history')} onPress={clearHistory} destructive isFirst />
           <CardSeparator />
-          <ListRow icon='time-outline' label={t('advanced_clear_history')} onPress={clearHistory} />
-          <CardSeparator />
-          <ListRow icon='refresh-outline' label={t('advanced_reset_settings')} onPress={resetSettings} />
+          <ListRow icon='refresh-outline' label={t('advanced_reset_settings')} onPress={resetSettings} destructive />
           <CardSeparator />
           <ListRow icon='trash-outline' label={t('advanced_reset_library')} onPress={resetLibrary} destructive />
           <CardSeparator />
@@ -340,6 +292,58 @@ export default function AdvancedSettingsScreen() {
             label={t('advanced_remove_sources')}
             onPress={removeAllSources}
             destructive
+            isLast
+          />
+        </Card>
+
+        <Pressable onPress={handleSecretTap} accessible={false}>
+          <SectionLabel>{t('advanced_debug_section')}</SectionLabel>
+        </Pressable>
+        <Card>
+          <View style={[styles.switchRow, styles.switchRowFirst]}>
+            <View style={styles.switchText}>
+              <ThemedText variant='body'>{t('advanced_debug_page_numbers')}</ThemedText>
+              <ThemedText variant='footnote' color='secondaryLabel'>
+                {t('advanced_debug_page_numbers_hint')}
+              </ThemedText>
+            </View>
+            <Switch value={showReaderPageNumbers} onValueChange={togglePageNumbers} accessibilityLabel={t('advanced_debug_page_numbers')} />
+          </View>
+          <CardSeparator />
+          <View style={styles.switchRow}>
+            <View style={styles.switchText}>
+              <ThemedText variant='body'>{t('advanced_debug_image_size')}</ThemedText>
+              <ThemedText variant='footnote' color='secondaryLabel'>
+                {t('advanced_debug_image_size_hint')}
+              </ThemedText>
+            </View>
+            <Switch value={showImageSize} onValueChange={toggleImageSize} accessibilityLabel={t('advanced_debug_image_size')} />
+          </View>
+          <CardSeparator />
+          <View style={[styles.switchRow, styles.switchRowLast]}>
+            <View style={styles.switchText}>
+              <ThemedText variant='body'>{t('advanced_debug_max_height')}</ThemedText>
+              <ThemedText variant='footnote' color='secondaryLabel'>
+                {t('advanced_debug_max_height_hint')}
+              </ThemedText>
+            </View>
+            <TextInput
+              value={maxHeightRatio}
+              onChangeText={changeMaxHeightRatio}
+              keyboardType='number-pad'
+              style={[styles.ratioInput, { color: colors.label }]}
+              placeholderTextColor={colors.tertiaryLabel}
+              keyboardAppearance={isDark ? 'dark' : 'light'}
+            />
+          </View>
+        </Card>
+        <SectionLabel>{t('advanced_onboarding_section')}</SectionLabel>
+        <Card>
+          <ListRow
+            icon='sparkles-outline'
+            label={t('advanced_show_onboarding')}
+            onPress={() => void replayWelcome()}
+            isFirst
             isLast
           />
         </Card>
@@ -366,7 +370,7 @@ const styles = StyleSheet.create({
   ratioInput: {
     minWidth: 64,
     textAlign: 'right',
-    fontSize: 16,
+    fontSize: 17,
   },
   switchText: {
     flex: 1,

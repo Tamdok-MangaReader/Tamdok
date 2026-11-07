@@ -228,20 +228,53 @@ function MangaOverflowMenuFallback({
                   showDivider={false}
                   onPress={() => run(refreshItem.onPress)}
                 />
-                {shareItem ? (
-                  <MenuRow
-                    item={shareItem}
-                    showDivider
-                    onPress={() => run(shareItem.onPress)}
-                  />
-                ) : null}
-                {browserItem ? (
-                  <MenuRow
-                    item={browserItem}
-                    showDivider
-                    onPress={() => run(browserItem.onPress)}
-                  />
-                ) : null}
+                {normalModeItems.filter((item) => ["select"].includes(item.key)).map((item) =>
+                  item.key === "download" ? (
+                    <Fragment key={item.key}>
+                      <MenuRow
+                        item={item}
+                        showDivider
+                        trailingSymbol={
+                          downloadExpanded ? "chevron.up" : "chevron.down"
+                        }
+                        onPress={item.onPress}
+                      />
+                      {downloadExpanded ? (
+                        <>
+                          <MenuRow
+                            item={{
+                              key: "download-all-chapters",
+                              label: t("manga_download_all_chapters"),
+                              sfSymbol: "square.stack",
+                              fallbackIcon: "download-outline",
+                              onPress: onDownloadAll,
+                            }}
+                            showDivider
+                            onPress={() => run(onDownloadAll)}
+                          />
+                          <MenuRow
+                            item={{
+                              key: "download-unread-chapters",
+                              label: t("manga_download_unread_chapters"),
+                              sfSymbol: "circle",
+                              fallbackIcon: "ellipse-outline",
+                              onPress: onDownloadUnread,
+                            }}
+                            showDivider
+                            onPress={() => run(onDownloadUnread)}
+                          />
+                        </>
+                      ) : null}
+                    </Fragment>
+                  ) : (
+                    <MenuRow
+                      key={item.key}
+                      item={item}
+                      showDivider
+                      onPress={() => run(item.onPress)}
+                    />
+                  ),
+                )}
                 <MenuRow
                   item={{
                     key: "mark-all",
@@ -282,7 +315,68 @@ function MangaOverflowMenuFallback({
                     />
                   </>
                 ) : null}
-                {normalModeItems.map((item) =>
+                {normalModeItems.filter((item) => ["download"].includes(item.key)).map((item) =>
+                  item.key === "download" ? (
+                    <Fragment key={item.key}>
+                      <MenuRow
+                        item={item}
+                        showDivider
+                        trailingSymbol={
+                          downloadExpanded ? "chevron.up" : "chevron.down"
+                        }
+                        onPress={item.onPress}
+                      />
+                      {downloadExpanded ? (
+                        <>
+                          <MenuRow
+                            item={{
+                              key: "download-all-chapters",
+                              label: t("manga_download_all_chapters"),
+                              sfSymbol: "square.stack",
+                              fallbackIcon: "download-outline",
+                              onPress: onDownloadAll,
+                            }}
+                            showDivider
+                            onPress={() => run(onDownloadAll)}
+                          />
+                          <MenuRow
+                            item={{
+                              key: "download-unread-chapters",
+                              label: t("manga_download_unread_chapters"),
+                              sfSymbol: "circle",
+                              fallbackIcon: "ellipse-outline",
+                              onPress: onDownloadUnread,
+                            }}
+                            showDivider
+                            onPress={() => run(onDownloadUnread)}
+                          />
+                        </>
+                      ) : null}
+                    </Fragment>
+                  ) : (
+                    <MenuRow
+                      key={item.key}
+                      item={item}
+                      showDivider
+                      onPress={() => run(item.onPress)}
+                    />
+                  ),
+                )}
+                {shareItem ? (
+                  <MenuRow
+                    item={shareItem}
+                    showDivider
+                    onPress={() => run(shareItem.onPress)}
+                  />
+                ) : null}
+                {browserItem ? (
+                  <MenuRow
+                    item={browserItem}
+                    showDivider
+                    onPress={() => run(browserItem.onPress)}
+                  />
+                ) : null}
+                {normalModeItems.filter((item) => ["remove-downloads"].includes(item.key)).map((item) =>
                   item.key === "download" ? (
                     <Fragment key={item.key}>
                       <MenuRow

@@ -474,8 +474,9 @@ function collectSettingDefaults(
 
   for (const definition of definitions) {
     if (definition.type === "section" || definition.type === "link") continue;
-    if (definition.default === undefined) continue;
-    defaults[definition.id] = definition.default;
+    const value = "default" in definition ? definition.default : undefined;
+    if (value === undefined) continue;
+    defaults[definition.id] = value;
   }
 
   return defaults;

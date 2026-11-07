@@ -403,6 +403,7 @@ export default function DownloadsSettingsScreen() {
                 {t('downloads_wifi_only')}
               </ThemedText>
               <Switch
+                accessibilityLabel={t('downloads_wifi_only')}
                 value={downloadOnlyOnWifi}
                 onValueChange={(value) => {
                   setDownloadOnlyOnWifi(value);
@@ -416,6 +417,7 @@ export default function DownloadsSettingsScreen() {
                 {t('downloads_delete_after_reading')}
               </ThemedText>
               <Switch
+                accessibilityLabel={t('downloads_delete_after_reading')}
                 value={deleteAfterReading}
                 onValueChange={(value) => {
                   setDeleteAfterReading(value);

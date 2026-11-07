@@ -18,6 +18,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   TextInput,
   View,
   useWindowDimensions as useRNWindowDimensions,
@@ -27,11 +28,12 @@ import {
   KeyboardAwareScrollView,
 } from "react-native-keyboard-controller";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Card } from "@/components/ui/card";
-import { GlassDestructiveButton } from "@/components/ui/glass-destructive-button";
-import { GlassSegmentedControl } from "@/components/ui/glass-segmented-control";
+import { NativeFilterMenu, isNativeMenuFilter } from "@/components/sources/native-filter-menu";
+import { Card, CardSeparator } from "@/components/ui/card";
+import { MenuPickerRow } from "@/components/ui/menu-picker-row";
+import { SwipeDismissSheet } from "@/components/ui/swipe-dismiss-sheet";
+import { OptionSegmentedControl } from "@/components/ui/option-segmented-control";
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { SectionLabel } from "@/components/ui/section-label";
 import { ThemedText } from "@/components/ui/themed-text";
@@ -174,12 +176,10 @@ export function MangaSearchFilterBar({
     <>
       <View style={styles.bar}>
         {openDefinition ? (
-          <Animated.View
-            entering={FadeIn.duration(180)}
-            exiting={FadeOut.duration(150)}
+          <View
             style={[
               styles.dim,
-              { backgroundColor: isDark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.3)" },
+              { backgroundColor: "transparent" },
             ]}
           >
             <Pressable
@@ -188,7 +188,7 @@ export function MangaSearchFilterBar({
               accessibilityRole="button"
               accessibilityLabel={t("cancel")}
             />
-          </Animated.View>
+          </View>
         ) : null}
         <ScrollView
           horizontal
@@ -217,6 +217,18 @@ export function MangaSearchFilterBar({
           {inlineDefinitions.map((definition) => {
             const isOpen = openFilterId === definition.id;
             const label = filterLabel(definition, values);
+
+            if (Platform.OS === "ios" && isNativeMenuFilter(definition)) {
+              return (
+                <NativeFilterMenu
+                  key={definition.id}
+                  definition={definition}
+                  values={values}
+                  label={label}
+                  onApply={applyValue}
+                />
+              );
+            }
 
             return (
               <FilterChip
@@ -307,7 +319,6 @@ function FilterDropdown({
   definition,
   values,
   onApply,
-  onClose,
 }: {
   definitions: FilterDefinition[];
   definition: FilterDefinition;
@@ -315,66 +326,65 @@ function FilterDropdown({
   onApply: (next: FilterValue) => void;
   onClose: () => void;
 }) {
+  let content: React.ReactNode = null;
   switch (definition.type) {
     case "sort":
-      return (
-        <SortOptions
-          definition={definition}
-          values={values}
-          onApply={onApply}
-          compact
-        />
-      );
+      content = <SortOptions definition={definition} values={values} onApply={onApply} inline />;
+      break;
     case "multiSelect":
-      return (
+      content = (
         <MultiSelectOptions
           definition={definition}
           values={values}
           onApply={onApply}
-          compact
           variant={multiSelectVariant(definition)}
           showMatchMode={shouldShowMatchMode(definition, definitions)}
         />
       );
+      break;
     case "select":
-      return (
-        <SelectOptions
-          definition={definition}
-          values={values}
-          onApply={onApply}
-          compact
-        />
-      );
+      content = <SelectOptions definition={definition} values={values} onApply={onApply} inline />;
+      break;
     case "text":
-      return (
-        <TextOptions
-          definition={definition}
-          values={values}
-          onApply={onApply}
-          compact
-        />
-      );
+      content = <TextOptions definition={definition} values={values} onApply={onApply} />;
+      break;
     case "check":
-      return (
-        <CheckOptions
-          definition={definition}
-          values={values}
-          onApply={onApply}
-          compact
-        />
-      );
+      content = <CheckOptions definition={definition} values={values} onApply={onApply} />;
+      break;
     case "range":
-      return (
-        <RangeOptions
-          definition={definition}
-          values={values}
-          onApply={onApply}
-          compact
-        />
-      );
+      content = <RangeOptions definition={definition} values={values} onApply={onApply} />;
+      break;
     default:
       return null;
   }
+  return <DropdownPanel>{content}</DropdownPanel>;
+}
+
+/** Floating card under the chip row: rounded surface with a shadow, scrolls when the options are long. */
+function DropdownPanel({ children }: { children: React.ReactNode }) {
+  const { isDark } = useTheme();
+  const { height } = useRNWindowDimensions();
+  return (
+    <Animated.View
+      entering={FadeIn.duration(160)}
+      exiting={FadeOut.duration(120)}
+      style={[
+        styles.panel,
+        { maxHeight: height * 0.5, shadowOpacity: isDark ? 0.5 : 0.18 },
+      ]}
+    >
+      <GlassSurface glassStyle="regular" borderRadius={20}>
+        <ScrollView
+          style={[styles.panelScroll, { maxHeight: height * 0.5 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
+        >
+          {children}
+        </ScrollView>
+      </GlassSurface>
+    </Animated.View>
+  );
 }
 
 export function MangaFilterModal({
@@ -391,12 +401,23 @@ export function MangaFilterModal({
   onClose: () => void;
 }) {
   const { colors, radius } = useTheme();
+  const { height: windowHeight } = useRNWindowDimensions();
   const [draft, setDraft] = useState(values);
   const [genreQuery, setGenreQuery] = useState("");
   const [tagQuery, setTagQuery] = useState("");
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailDefinition = useMemo(
+    () =>
+      definitions.find(
+        (definition): definition is MultiSelectDefinition =>
+          definition.id === detailId && definition.type === "multiSelect",
+      ) ?? null,
+    [definitions, detailId],
+  );
 
   useEffect(() => {
     if (visible) {
+      setDetailId(null);
       setDraft(values);
       setGenreQuery("");
       setTagQuery("");
@@ -421,53 +442,91 @@ export function MangaFilterModal({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
+      animationType="none"
+      transparent
       onRequestClose={onClose}
     >
+      <Animated.View entering={FadeIn.duration(250)} style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.modalAvoiding}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        behavior="padding"
+        style={StyleSheet.absoluteFill}
+        pointerEvents="box-none"
       >
-        <View
+        <SwipeDismissSheet
+          onClose={onClose}
           style={[
-            styles.modal,
-            {
-              backgroundColor: colors.systemBackground,
-            },
+            styles.sheet,
+            { backgroundColor: colors.systemBackground },
+            // The genre/tag screen is a long list: give it a stable, tall sheet instead of resizing per search result.
+            detailDefinition
+              ? { height: Math.round(windowHeight * 0.85) }
+              : { maxHeight: Math.round(windowHeight * 0.9) },
           ]}
         >
           <ModalHeader
-            title={t("source_search_filters")}
-            closeLabel={t("cancel")}
-            onClose={onClose}
-            actionLabel={t("source_search_filters_apply")}
-            onAction={commitDraft}
+            title={detailDefinition ? detailDefinition.title : t("source_search_filters")}
+            closeLabel={detailDefinition ? t("back") : t("cancel")}
+            onClose={detailDefinition ? () => setDetailId(null) : onClose}
+            actionLabel={
+              detailDefinition ? t("done") : t("source_search_filters_apply")
+            }
+            onAction={detailDefinition ? () => setDetailId(null) : commitDraft}
           />
 
+          {detailDefinition ? (
+            <SelectedBar
+              definition={detailDefinition}
+              values={draft}
+              showMatchMode={shouldShowMatchMode(detailDefinition, definitions)}
+              onApply={applyDraft}
+            />
+          ) : null}
+
           <KeyboardAwareScrollView
-            style={styles.modalScroll}
+            style={detailDefinition ? styles.modalScrollFill : styles.modalScrollFit}
             contentContainerStyle={[
               styles.modalContent,
               {
-                paddingTop: MODAL_HEADER_HEIGHT + Spacing.md,
+                paddingTop:
+                  MODAL_HEADER_HEIGHT +
+                  Spacing.md +
+                  (detailDefinition ? SELECTED_BAR_HEIGHT : 0),
                 paddingBottom: Spacing.xxxl,
               },
             ]}
-            scrollIndicatorInsets={{ top: MODAL_HEADER_HEIGHT }}
+            scrollIndicatorInsets={{
+              top: MODAL_HEADER_HEIGHT + (detailDefinition ? SELECTED_BAR_HEIGHT : 0),
+            }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bottomOffset={Spacing.lg}
           >
+            {detailDefinition ? (
+              <MultiSelectOptions
+                definition={detailDefinition}
+                values={draft}
+                onApply={applyDraft}
+                query={detailDefinition.id === "tags" ? tagQuery : genreQuery}
+                onQueryChange={
+                  detailDefinition.id === "tags" ? setTagQuery : setGenreQuery
+                }
+                variant="list"
+                showMatchMode={shouldShowMatchMode(detailDefinition, definitions)}
+              />
+            ) : (
+              <>
             {definitions.map((definition, index) => (
               <Fragment key={definition.id}>
-                <SectionLabel isFirst={index === 0}>
-                  {definition.type === "sort"
-                    ? t("source_search_filters_sorting")
-                    : definition.title}
-                </SectionLabel>
-                <Card style={styles.modalSectionCard}>
+                {isDrillIn(definition) ? null : (
+                  <SectionLabel isFirst={index === 0}>
+                    {definition.type === "sort"
+                      ? t("source_search_filters_sorting")
+                      : definition.title}
+                  </SectionLabel>
+                )}
+                <ModalSectionBody bare={definition.type === "select" && definition.options.length <= 4}>
                   {definition.type === "sort" ? (
                     <SortOptions
                       definition={definition}
@@ -475,30 +534,21 @@ export function MangaFilterModal({
                       onApply={applyDraft}
                     />
                   ) : definition.type === "multiSelect" ? (
-                    <MultiSelectOptions
-                      definition={definition}
-                      values={draft}
-                      onApply={applyDraft}
-                      query={
-                        definition.id === "tags"
-                          ? tagQuery
-                          : definition.id === "genres"
-                            ? genreQuery
-                            : undefined
-                      }
-                      onQueryChange={
-                        definition.id === "tags"
-                          ? setTagQuery
-                          : definition.id === "genres"
-                            ? setGenreQuery
-                            : undefined
-                      }
-                      variant={multiSelectVariant(definition)}
-                      showMatchMode={shouldShowMatchMode(
-                        definition,
-                        definitions,
-                      )}
-                    />
+                    isDrillIn(definition) ? (
+                      <DrillInRow
+                        label={definition.title}
+                        summary={drillSummary(draft, definition)}
+                        onPress={() => setDetailId(definition.id)}
+                      />
+                    ) : (
+                      <MultiSelectOptions
+                        definition={definition}
+                        values={draft}
+                        onApply={applyDraft}
+                        variant={multiSelectVariant(definition)}
+                        showMatchMode={false}
+                      />
+                    )
                   ) : definition.type === "select" ? (
                     <SelectOptions
                       definition={definition}
@@ -524,26 +574,159 @@ export function MangaFilterModal({
                       onApply={applyDraft}
                     />
                   ) : null}
-                </Card>
+                </ModalSectionBody>
               </Fragment>
             ))}
+            <View style={styles.resetWrap}>
+              <Card>
+                <Pressable
+                  onPress={resetDraft}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.choiceRow,
+                    styles.resetRow,
+                    pressed && { backgroundColor: colors.quaternaryFill },
+                  ]}
+                >
+                  <ThemedText variant="body" color="destructive">
+                    {t("source_search_filters_reset")}
+                  </ThemedText>
+                </Pressable>
+              </Card>
+            </View>
+              </>
+            )}
           </KeyboardAwareScrollView>
 
-          <SafeAreaView
-            edges={["bottom"]}
-            style={[styles.modalFooter, { borderTopColor: colors.separator }]}
-          >
-            <GlassDestructiveButton
-              glassStyle="regular"
-              label={t("source_search_filters_reset")}
-              onPress={resetDraft}
-              style={styles.footerButton}
-            />
-          </SafeAreaView>
-        </View>
+        </SwipeDismissSheet>
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+/** Segmented controls sit directly on the sheet (no card), every other control lives in a grouped card. */
+const SELECTED_BAR_HEIGHT = 52;
+
+/** Pinned under the header of the genre/tag screen: how many options are chosen, each one removable with a tap. */
+function SelectedBar({
+  definition,
+  values,
+  showMatchMode,
+  onApply,
+}: {
+  definition: MultiSelectDefinition;
+  values: FilterValue[];
+  showMatchMode: boolean;
+  onApply: (next: FilterValue) => void;
+}) {
+  const { colors, radius } = useTheme();
+  const { included, excluded, matchAll } = getMultiSelectState(values, definition);
+  const count = included.length + excluded.length;
+  const labelOf = (id: string) =>
+    definition.options.find((option) => option.id === id)?.label ?? id;
+
+  const remove = (id: string) =>
+    onApply({
+      type: "multiSelect",
+      id: definition.id,
+      included: included.filter((value) => value !== id),
+      excluded: excluded.filter((value) => value !== id),
+      ...(showMatchMode ? { matchAll } : {}),
+    });
+
+  return (
+    <View
+      style={[
+        styles.selectedBar,
+        {
+          top: MODAL_HEADER_HEIGHT,
+          backgroundColor: colors.systemBackground,
+          borderBottomColor: colors.separator,
+        },
+      ]}
+    >
+      <ThemedText variant="subheadline" color="secondaryLabel" style={styles.selectedCount}>
+        {t("source_search_filters_selected")}: {count}
+      </ThemedText>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.selectedChips}
+        keyboardShouldPersistTaps="handled"
+      >
+        {[...included, ...excluded].map((id) => (
+          <Pressable
+            key={id}
+            onPress={() => remove(id)}
+            accessibilityRole="button"
+            accessibilityLabel={labelOf(id)}
+            style={[
+              styles.selectedChip,
+              {
+                borderRadius: radius.pill,
+                backgroundColor: excluded.includes(id) ? colors.destructive : colors.tint,
+              },
+            ]}
+          >
+            <ThemedText variant="subheadline" color="onTint" numberOfLines={1}>
+              {labelOf(id)}
+            </ThemedText>
+            <Ionicons name="close" size={14} color={colors.onTint} />
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function isDrillIn(definition: FilterDefinition): boolean {
+  return (
+    definition.type === "multiSelect" && multiSelectVariant(definition) === "tags"
+  );
+}
+
+function drillSummary(values: FilterValue[], definition: MultiSelectDefinition): string {
+  const { included, excluded } = getMultiSelectState(values, definition);
+  const count = included.length + excluded.length;
+  if (count === 0) return "";
+  if (count === 1) {
+    const id = included[0] ?? excluded[0];
+    return definition.options.find((option) => option.id === id)?.label ?? "1";
+  }
+  return t("library_filter_sources_count", { count: String(count) });
+}
+
+/** Row that opens a dedicated screen with a searchable list (for long option sets such as genres and tags). */
+function DrillInRow({
+  label,
+  summary,
+  onPress,
+}: {
+  label: string;
+  summary: string;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.choiceRow,
+        pressed && { backgroundColor: colors.quaternaryFill },
+      ]}
+    >
+      <ThemedText variant="body">{label}</ThemedText>
+      <ThemedText variant="body" color="secondaryLabel" numberOfLines={1} style={styles.drillSummary}>
+        {summary}
+      </ThemedText>
+      <Ionicons name="chevron-forward" size={16} color={colors.tertiaryLabel} />
+    </Pressable>
+  );
+}
+
+function ModalSectionBody({ bare, children }: { bare: boolean; children: React.ReactNode }) {
+  return bare ? <View>{children}</View> : <Card style={styles.modalSectionCard}>{children}</Card>;
 }
 
 function ModalHeaderButton({
@@ -573,16 +756,76 @@ function ModalHeaderButton({
   );
 }
 
+/** Settings-style row with a trailing checkmark; `excluded` shows a red cross instead (tri-state filters). */
+const ChoiceRow = memo(function ChoiceRow({
+  label,
+  selected,
+  excluded,
+  onPress,
+  id,
+  onToggle,
+}: {
+  label: string;
+  selected: boolean;
+  excluded?: boolean;
+  onPress?: () => void;
+  /** With `onToggle`, lets long lists pass one stable callback instead of a new closure per row. */
+  id?: string;
+  onToggle?: (id: string) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onToggle && id !== undefined ? () => onToggle(id) : onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: selected || Boolean(excluded) }}
+      style={({ pressed }) => [
+        styles.choiceRow,
+        pressed && { backgroundColor: colors.quaternaryFill },
+      ]}
+    >
+      <ThemedText
+        variant="body"
+        style={styles.choiceLabel}
+        color={excluded ? "destructive" : undefined}
+      >
+        {label}
+      </ThemedText>
+      {excluded ? (
+        <Ionicons name="close" size={20} color={colors.destructive} />
+      ) : selected ? (
+        <Ionicons name="checkmark" size={20} color={colors.tint} />
+      ) : null}
+    </Pressable>
+  );
+});
+
+function ChoiceList({ children }: { children: React.ReactNode[] }) {
+  return (
+    <View>
+      {children.map((child, index) => (
+        <Fragment key={index}>
+          {index > 0 ? <CardSeparator /> : null}
+          {child}
+        </Fragment>
+      ))}
+    </View>
+  );
+}
+
 function SelectOptionsImpl({
   definition,
   values,
   onApply,
   compact,
+  inline,
 }: {
   definition: Extract<FilterDefinition, { type: "select" }>;
   values: FilterValue[];
   onApply: (next: FilterValue) => void;
   compact?: boolean;
+  /** Inside the dropdown panel: always a checkmark list instead of a segmented control or pull-down menu. */
+  inline?: boolean;
 }) {
   const { colors, radius } = useTheme();
   const current = values.find(
@@ -591,6 +834,41 @@ function SelectOptionsImpl({
   );
   const selected =
     current?.value ?? definition.default ?? definition.options[0]?.id ?? "";
+
+  if (!compact && inline) {
+    return (
+      <ChoiceList>
+        {definition.options.map((option) => (
+          <ChoiceRow
+            key={option.id}
+            label={option.label}
+            selected={selected === option.id}
+            onPress={() => onApply({ type: "select", id: definition.id, value: option.id })}
+          />
+        ))}
+      </ChoiceList>
+    );
+  }
+
+  if (!compact) {
+    if (definition.options.length <= 4) {
+      return (
+        <OptionSegmentedControl
+          options={definition.options}
+          selectedId={selected}
+          onSelect={(id) => onApply({ type: "select", id: definition.id, value: id })}
+        />
+      );
+    }
+    return (
+      <MenuPickerRow
+        label={definition.title}
+        options={definition.options}
+        selectedId={selected}
+        onSelect={(id) => onApply({ type: "select", id: definition.id, value: id })}
+      />
+    );
+  }
 
   return (
     <View style={[styles.pillGrid, compact && styles.pillGridCompact]}>
@@ -647,17 +925,70 @@ function SortOptionsImpl({
   values,
   onApply,
   compact,
+  inline,
 }: {
   definition: Extract<FilterDefinition, { type: "sort" }>;
   values: FilterValue[];
   onApply: (next: FilterValue) => void;
   compact?: boolean;
+  inline?: boolean;
 }) {
   const { colors, radius } = useTheme();
   const current = values.find((value) => value.id === definition.id);
   const selectedIndex =
     current?.type === "sort" ? current.index : (definition.default ?? 0);
   const defaultAscending = definition.defaultAscending ?? true;
+
+  if (!compact && inline) {
+    return (
+      <ChoiceList>
+        {definition.options.map((option, index) => (
+          <ChoiceRow
+            key={`${definition.id}-${index}`}
+            label={option}
+            selected={selectedIndex === index}
+            onPress={() =>
+              onApply({
+                type: "sort",
+                id: definition.id,
+                index,
+                ascending:
+                  current?.type === "sort" && selectedIndex === index
+                    ? current.ascending
+                    : index === (definition.default ?? 0)
+                      ? defaultAscending
+                      : false,
+              })
+            }
+          />
+        ))}
+      </ChoiceList>
+    );
+  }
+
+  if (!compact) {
+    return (
+      <MenuPickerRow
+        label={definition.title}
+        options={definition.options.map((option, index) => ({ id: String(index), label: option }))}
+        selectedId={String(selectedIndex)}
+        onSelect={(id) => {
+          const index = Number(id);
+          onApply({
+            type: "sort",
+            id: definition.id,
+            index,
+            ascending:
+              current?.type === "sort" && selectedIndex === index
+                ? current.ascending
+                : index === (definition.default ?? 0)
+                  ? defaultAscending
+                  : false,
+          });
+        }}
+      />
+    );
+  }
 
   return (
     <ScrollView
@@ -739,14 +1070,13 @@ function MatchModeToggle({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <GlassSegmentedControl
-      glassStyle="regular"
-      values={[
-        t("source_search_filters_match_and"),
-        t("source_search_filters_match_or"),
+    <OptionSegmentedControl
+      options={[
+        { id: "and", label: t("source_search_filters_match_and") },
+        { id: "or", label: t("source_search_filters_match_or") },
       ]}
-      selectedIndex={matchAll ? 0 : 1}
-      onChange={(index) => onChange(index === 0)}
+      selectedId={matchAll ? "and" : "or"}
+      onSelect={(id) => onChange(id === "and")}
     />
   );
 }
@@ -990,7 +1320,7 @@ function MultiSelectOptionsImpl({
   values: FilterValue[];
   onApply: (next: FilterValue) => void;
   compact?: boolean;
-  variant: "checkbox" | "tags" | "pills";
+  variant: "checkbox" | "tags" | "pills" | "list";
   columns?: number;
   showMatchMode?: boolean;
   query?: string;
@@ -1112,6 +1442,92 @@ function MultiSelectOptionsImpl({
   );
 
 
+  if (variant === "list") {
+    const shown = visibleOptions.slice(0, limit);
+    const remaining = visibleOptions.length - shown.length;
+    return (
+      <View style={styles.listVariant}>
+        {showMatchMode ? (
+          <MatchModeToggle
+            matchAll={matchAll}
+            onChange={(next) =>
+              onApply({
+                type: "multiSelect",
+                id: definition.id,
+                included,
+                excluded,
+                matchAll: next,
+              })
+            }
+          />
+        ) : null}
+        <View style={[styles.searchField, { backgroundColor: colors.tertiaryFill }]}>
+          <Ionicons name="search" size={16} color={colors.secondaryLabel} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t("search")}
+            placeholderTextColor={colors.secondaryLabel}
+            accessibilityLabel={t("search")}
+            style={[styles.searchInput, { color: colors.label }]}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            autoCorrect={false}
+            autoCapitalize="none"
+            spellCheck={false}
+            autoComplete="off"
+            textContentType="none"
+          />
+        </View>
+        {shown.length > 0 ? (
+          <Card>
+            <ChoiceList>
+              {shown.map((option) => (
+                <ChoiceRow
+                  key={option.id}
+                  label={option.label}
+                  selected={includedSet.has(option.id)}
+                  excluded={excludedSet.has(option.id)}
+                  id={option.id}
+                  onToggle={toggleOption}
+                />
+              ))}
+            </ChoiceList>
+          </Card>
+        ) : null}
+        {remaining > 0 ? (
+          <ShowMoreButton remaining={remaining} onPress={showMore} />
+        ) : null}
+      </View>
+    );
+  }
+
+  if (variant !== "tags" && !compact) {
+    const shown = definition.options.slice(0, limit);
+    const remaining = definition.options.length - shown.length;
+    return (
+      <View>
+        <ChoiceList>
+          {shown.map((option) => (
+            <ChoiceRow
+              key={option.id}
+              label={option.label}
+              selected={includedSet.has(option.id)}
+              excluded={excludedSet.has(option.id)}
+              id={option.id}
+              onToggle={toggleOption}
+            />
+          ))}
+        </ChoiceList>
+        {remaining > 0 ? (
+          <View style={styles.modalPad}>
+            <ShowMoreButton remaining={remaining} onPress={showMore} />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   if (variant === "pills") {
     const shown = definition.options.slice(0, limit);
     const remaining = definition.options.length - shown.length;
@@ -1170,7 +1586,7 @@ function MultiSelectOptionsImpl({
   const remainingTags = unselectedOptions.length - shownTags.length;
 
   return (
-    <View style={compact ? styles.dropdown : styles.genreModalSection}>
+    <View style={compact ? styles.dropdown : [styles.genreModalSection, styles.modalPad]}>
       {showMatchMode ? (
         <MatchModeToggle
           matchAll={matchAll}
@@ -1302,9 +1718,26 @@ function TextOptionsImpl({
         entry.id === definition.id && entry.type === "text",
     )?.value ?? "";
 
+  if (!compact) {
+    return (
+      <View style={styles.choiceRow}>
+        <TextInput
+          clearButtonMode="while-editing"
+          value={value}
+          onChangeText={(text) => onApply({ type: "text", id: definition.id, value: text })}
+          placeholder={definition.placeholder ?? definition.title}
+          placeholderTextColor={colors.tertiaryLabel}
+          accessibilityLabel={definition.title}
+          style={[styles.modalTextInput, { color: colors.label }]}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={compact ? styles.dropdown : undefined}>
       <TextInput
+ clearButtonMode="while-editing"
         value={value}
         onChangeText={(text) =>
           onApply({ type: "text", id: definition.id, value: text })
@@ -1343,6 +1776,21 @@ function CheckOptionsImpl({
     )?.value ??
     definition.default ??
     false;
+
+  if (!compact) {
+    return (
+      <View style={styles.choiceRow}>
+        <ThemedText variant="body" style={styles.choiceLabel}>
+          {definition.title}
+        </ThemedText>
+        <Switch
+          accessibilityLabel={definition.title}
+          value={checked}
+          onValueChange={(value) => onApply({ type: "check", id: definition.id, value })}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={compact ? styles.dropdown : styles.optionList}>
@@ -1583,7 +2031,7 @@ const styles = StyleSheet.create({
     alignContent: "flex-end",
     alignItems: "flex-end",
     width: "60%",
-    fontSize: 16,
+    fontSize: 17,
     minHeight: 44,
   },
   selectedSection: {
@@ -1610,7 +2058,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     minHeight: 60,
-    fontSize: 16,
+    fontSize: 17,
   },
   rangeRow: {
     flexDirection: "row",
@@ -1623,7 +2071,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     minHeight: 44,
-    fontSize: 16,
+    fontSize: 17,
   },
   textInputView: {
     flexDirection: "row",
@@ -1655,17 +2103,117 @@ const styles = StyleSheet.create({
     minWidth: 96,
     alignItems: "center",
   },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  sheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+  },
+  // Sized to the content up to the sheet's maximum height, then scrolls.
+  modalScrollFit: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  modalScrollFill: {
+    flex: 1,
+  },
   modalScroll: {
     flex: 1,
   },
   modalContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
-  modalSectionCard: {
+  modalSectionCard: {},
+  panelScroll: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  panel: {
+    marginHorizontal: Spacing.lg,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  modalPad: {
     padding: Spacing.lg,
+  },
+  choiceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    minHeight: 48,
+  },
+  resetWrap: {
+    marginTop: Spacing.lg,
+  },
+  resetRow: {
+    justifyContent: "center",
+  },
+  selectedBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: SELECTED_BAR_HEIGHT,
+    zIndex: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: Spacing.lg,
+    gap: Spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  selectedCount: {
+    flexShrink: 0,
+  },
+  selectedChips: {
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingRight: Spacing.lg,
+  },
+  selectedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    maxWidth: 200,
+  },
+  drillSummary: {
+    flex: 1,
+    textAlign: "right",
+  },
+  listVariant: {
+    gap: Spacing.sm,
+  },
+  searchField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: 12,
+    minHeight: 40,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 17,
+    minHeight: 40,
+  },
+  choiceLabel: {
+    flex: 1,
+  },
+  modalTextInput: {
+    flex: 1,
+    fontSize: 17,
+    minHeight: 40,
   },
   modalFooter: {
     paddingHorizontal: Spacing.lg,

@@ -9,10 +9,12 @@ import {
   View,
 } from "react-native";
 
+import { MenuPickerRow } from "@/components/ui/menu-picker-row";
 import { InlinePillGrid } from "@/components/library/inline-pill-grid";
-import { Card } from "@/components/ui/card";
+import { Card, CardSeparator } from "@/components/ui/card";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { SectionLabel } from "@/components/ui/section-label";
+import { SectionFooter } from "@/components/ui/section-footer";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -131,36 +133,13 @@ export default function NotificationsSettingsScreen() {
               </ThemedText>
             </View>
             <Switch
+              accessibilityLabel={t("settings_notifications_new_chapters")}
               value={newChapters}
               disabled={isLoading}
               onValueChange={(value) => void toggleNewChapters(value)}
             />
           </View>
-        </Card>
-
-        {newChapters && (
-          <Card style={styles.intervalCard}>
-            <ThemedText variant="subheadline">
-              {t("settings_notifications_interval")}
-            </ThemedText>
-            <InlinePillGrid
-              options={intervalOptions}
-              selectedId={interval}
-              preserveOrder
-              onSelect={selectInterval}
-            />
-            <ThemedText variant="caption1" color="secondaryLabel">
-              {t("settings_notifications_interval_hint")}
-            </ThemedText>
-            {!backgroundAvailable && Platform.OS === "ios" && (
-              <ThemedText variant="caption1" color="destructive">
-                {t("settings_notifications_background_restricted")}
-              </ThemedText>
-            )}
-          </Card>
-        )}
-
-        <Card>
+          <CardSeparator />
           <View style={styles.switchRow}>
             <View style={styles.switchMeta}>
               <ThemedText variant="body">
@@ -171,12 +150,35 @@ export default function NotificationsSettingsScreen() {
               </ThemedText>
             </View>
             <Switch
+              accessibilityLabel={t("settings_notifications_source_updates")}
               value={sourceUpdates}
               disabled={isLoading}
               onValueChange={(value) => void toggleSourceUpdates(value)}
             />
           </View>
         </Card>
+
+        {newChapters && (
+          <>
+            <SectionLabel>{t("settings_notifications_interval")}</SectionLabel>
+            <Card>
+              <MenuPickerRow
+                label={t("settings_notifications_interval")}
+                options={intervalOptions}
+                selectedId={interval}
+                onSelect={selectInterval}
+                isFirst
+                isLast
+              />
+            </Card>
+            <SectionFooter>{t("settings_notifications_interval_hint")}</SectionFooter>
+            {!backgroundAvailable && Platform.OS === "ios" && (
+              <ThemedText variant="caption1" color="destructive" style={styles.footer}>
+                {t("settings_notifications_background_restricted")}
+              </ThemedText>
+            )}
+          </>
+        )}
 
         {Platform.OS === "ios" && (
           <ThemedText

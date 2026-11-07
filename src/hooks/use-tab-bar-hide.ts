@@ -17,7 +17,17 @@ export function useTabBarHideActive(): boolean {
     let active = true;
     const load = () =>
       void getAppSettings().then((value) => {
-        if (active) setSettings(value.tabBarHide);
+        if (!active) return;
+        // Same values keep the old object, so unrelated settings changes do not re-render the tab layout.
+        setSettings((current) => {
+          const next = value.tabBarHide;
+          return current.library === next.library &&
+            current.sources === next.sources &&
+            current.history === next.history &&
+            current.settings === next.settings
+            ? current
+            : next;
+        });
       });
     load();
     const unsubscribe = subscribeAppSettings(load);

@@ -383,7 +383,7 @@ function RealSourceHomeScreen() {
           key={pagerKey}
           style={{ height: pagerHeight }}
           initialPage={selectedIndex}
-          onPageScroll={pageScrollHandler}
+          onPageScroll={pageScrollHandler as never}
           onPageSelected={(event) =>
             handlePageSelected(event.nativeEvent.position)
           }

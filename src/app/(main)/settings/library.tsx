@@ -10,8 +10,7 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ReactElement,
-} from "react";
+  type ReactElement, Fragment } from "react";
 import {
   Alert,
   Platform,
@@ -26,8 +25,6 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 
 import {
-  InlinePillGrid,
-  InlinePillToggleGrid,
 } from "@/components/library/inline-pill-grid";
 import {
   SwipeableRow,
@@ -41,7 +38,10 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useMangaDataRefresh } from "@/hooks/use-manga-data";
-import { ReaderPageSlider } from "@/components/reader/reader-page-slider";
+import { GridColumnsSlider } from "@/components/library/grid-columns-slider";
+import { SectionFooter } from "@/components/ui/section-footer";
+import { MenuPickerRow } from "@/components/ui/menu-picker-row";
+import { OptionSegmentedControl } from "@/components/ui/option-segmented-control";
 import { useTheme } from "@/hooks/use-theme";
 import {
   getAppSettings,
@@ -235,7 +235,7 @@ export default function LibrarySettingsScreen() {
     () => [
       { id: "grid", label: t("library_display_grid") },
       { id: "list", label: t("library_display_list") },
-      { id: "descriptiveList", label: t("library_display_descriptive") },
+      { id: "descriptiveList", label: t("library_display_descriptive_short") },
     ],
     [],
   );
@@ -392,8 +392,9 @@ export default function LibrarySettingsScreen() {
                 {canDrag ? (
                   <Pressable
                     onPressIn={drag}
-                    hitSlop={8}
+                    hitSlop={11}
                     accessibilityRole="button"
+                    accessibilityLabel={t("sources_reorder")}
                   >
                     <Ionicons
                       name="reorder-three-outline"
@@ -446,119 +447,52 @@ export default function LibrarySettingsScreen() {
         </Stack.Toolbar>
       ) : null}
       <ScreenContent>
+        <SectionLabel isFirst>{t("library_display_mode")}</SectionLabel>
+        <OptionSegmentedControl
+          options={displayModeOptions}
+          selectedId={displayMode}
+          onSelect={(mode) => {
+            const next = mode as LibraryDisplayMode;
+            setDisplayMode(next);
+            patchLibraryDisplay({ displayMode: next });
+          }}
+        />
+        <SectionLabel>{t("library_display_columns")}</SectionLabel>
         <Card>
-          <SwitchRow
-            label={t("library_hide_empty_categories")}
-            hint={t("library_hide_empty_categories_hint")}
-            value={hideEmptyCategories}
-            onChange={(value) => {
-              setHideEmptyCategories(value);
-              patchLibraryDisplay({ hideEmptyCategories: value });
+          <GridColumnsSlider
+            value={gridColumns}
+            max={6}
+            onChange={(next) => {
+              setGridColumns(next);
+              patchLibraryDisplay({
+                gridColumns: next,
+                gridSize:
+                  next >= 4
+                    ? "small"
+                    : next === 3
+                      ? "medium"
+                      : next === 2
+                        ? "large"
+                        : "extraLarge",
+              });
             }}
-            isLast
-          />
-        </Card>
-        <SectionLabel>{t("library_categories")}</SectionLabel>
-        <SwipeableRowsProvider>
-          <Card style={styles.categoriesCard}>
-            {categories.length === 0 ? (
-              <ThemedText
-                variant="body"
-                color="secondaryLabel"
-                style={styles.emptyRow}
-              >
-                {t("library_category_picker_empty")}
-              </ThemedText>
-            ) : (
-              <DraggableFlatList
-                data={categories}
-                keyExtractor={(item) => item.id}
-                renderItem={renderCategoryItem}
-                scrollEnabled={false}
-                onDragEnd={({ data }) => {
-                  setCategories(data);
-                  void reorderLibraryCategories(
-                    data.map((category) => category.id),
-                  );
-                }}
-              />
-            )}
-          </Card>
-        </SwipeableRowsProvider>
-        <ThemedText
-          variant="footnote"
-          color="tertiaryLabel"
-          style={styles.sectionHint}
-        >
-          {t("library_settings_footer")}
-        </ThemedText>
-
-        <SectionLabel>{t("library_default_category_section")}</SectionLabel>
-        <Card style={styles.inlineCard}>
-          <InlinePillGrid
-            options={defaultOptions}
-            selectedId={defaultCategoryId}
-            onSelect={(categoryId) =>
-              void setDefaultCategoryId(categoryId).then(load)
-            }
           />
         </Card>
 
-        <SectionLabel>{t("library_display_section")}</SectionLabel>
-        <Card style={styles.inlineCard}>
-          <View style={styles.sortBlock}>
-            <ThemedText variant="body">{t("library_sort_section")}</ThemedText>
-            <InlinePillGrid
-              options={sortOptions}
-              selectedId={sortMode}
-              preserveOrder
-              onSelect={(mode) => {
-                const next = mode as LibrarySortMode;
-                setSortMode(next);
-                patchLibraryDisplay({ sortMode: next });
-              }}
-            />
-            <ThemedText variant="body">{t("library_display_columns")}</ThemedText>
-            <View style={{ flexDirection: "row" }}>
-              <ReaderPageSlider
-                untinted
-                flat={!isDark}
-                fillColor={colors.tertiaryFill}
-                currentPage={gridColumns - 1}
-                totalPages={6}
-                accentColor={colors.tint}
-                labelColor={colors.label}
-                onSeek={(page) => {
-                  const next = page + 1;
-                  setGridColumns(next);
-                  patchLibraryDisplay({
-                    gridColumns: next,
-                    gridSize:
-                      next >= 4
-                        ? "small"
-                        : next === 3
-                          ? "medium"
-                          : next === 2
-                            ? "large"
-                            : "extraLarge",
-                  });
-                }}
-              />
-            </View>
-            <ThemedText variant="body">{t("library_display_mode")}</ThemedText>
-            <InlinePillGrid
-              options={displayModeOptions}
-              selectedId={displayMode}
-              preserveOrder
-              onSelect={(mode) => {
-                const next = mode as LibraryDisplayMode;
-                setDisplayMode(next);
-                patchLibraryDisplay({ displayMode: next });
-              }}
-            />
-          </View>
-        </Card>
+        <SectionLabel>{t("library_sort_section")}</SectionLabel>
         <Card>
+          <MenuPickerRow
+            label={t("library_sort_section")}
+            options={sortOptions}
+            selectedId={sortMode}
+            onSelect={(mode) => {
+              const next = mode as LibrarySortMode;
+              setSortMode(next);
+              patchLibraryDisplay({ sortMode: next });
+            }}
+            isFirst
+          />
+          <CardSeparator />
           <SwitchRow
             label={t("library_sort_reverse")}
             value={sortReversed}
@@ -566,10 +500,10 @@ export default function LibrarySettingsScreen() {
               setSortReversed(value);
               patchLibraryDisplay({ sortReversed: value });
             }}
-            isFirst
             isLast
           />
         </Card>
+        <SectionLabel>{t("library_badges_section")}</SectionLabel>
         <Card>
           <SwitchRow
             label={t("library_show_cover_titles")}
@@ -626,6 +560,147 @@ export default function LibrarySettingsScreen() {
             </>
           ) : null}
         </Card>
+        <SectionLabel>{t("library_categories")}</SectionLabel>
+        <SwipeableRowsProvider>
+          <Card style={styles.categoriesCard}>
+            {categories.length === 0 ? (
+              <ThemedText
+                variant="body"
+                color="secondaryLabel"
+                style={styles.emptyRow}
+              >
+                {t("library_category_picker_empty")}
+              </ThemedText>
+            ) : (
+              <DraggableFlatList
+                data={categories}
+                keyExtractor={(item) => item.id}
+                renderItem={renderCategoryItem}
+                scrollEnabled={false}
+                onDragEnd={({ data }) => {
+                  setCategories(data);
+                  void reorderLibraryCategories(
+                    data.map((category) => category.id),
+                  );
+                }}
+              />
+            )}
+          </Card>
+        </SwipeableRowsProvider>
+        <Card>
+          <SwitchRow
+            label={t("library_hide_empty_categories")}
+            hint={t("library_hide_empty_categories_hint")}
+            value={hideEmptyCategories}
+            onChange={(value) => {
+              setHideEmptyCategories(value);
+              patchLibraryDisplay({ hideEmptyCategories: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <MenuPickerRow
+            label={t("library_default_category_section")}
+            options={defaultOptions}
+            selectedId={defaultCategoryId}
+            onSelect={(categoryId) =>
+              void setDefaultCategoryId(categoryId).then(load)
+            }
+            isLast
+          />
+        </Card>
+        <ThemedText
+          variant="footnote"
+          color="tertiaryLabel"
+          style={styles.sectionHint}
+        >
+          {t("library_settings_footer")}
+        </ThemedText>
+
+        <SectionLabel>{t("library_updates_section")}</SectionLabel>
+        <Card>
+          <SwitchRow
+            label={t("library_update_wifi_only")}
+            hint={t("library_update_wifi_only_hint")}
+            value={updateOnWifiOnly}
+            onChange={(value) => {
+              setUpdateOnWifiOnlyState(value);
+              patchUpdateSettings({ updateOnWifiOnly: value });
+              patchLibraryDisplay({ updateOnWifiOnly: value });
+            }}
+            isFirst
+          />
+          <CardSeparator />
+          <MenuPickerRow
+            label={t("library_update_interval")}
+            options={intervalOptions}
+            selectedId={updateInterval}
+            onSelect={(interval) => {
+              const next = interval as LibraryUpdateInterval;
+              setUpdateIntervalState(next);
+              patchUpdateSettings({ updateInterval: next });
+            }}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t("library_refresh_metadata")}
+            hint={t("library_refresh_metadata_hint")}
+            value={refreshMetadata}
+            onChange={(value) => {
+              setRefreshMetadataState(value);
+              patchUpdateSettings({ refreshMetadata: value });
+            }}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t("library_background_refresh")}
+            hint={t("library_background_refresh_hint")}
+            value={backgroundRefresh}
+            onChange={(value) => {
+              setBackgroundRefreshState(value);
+              patchUpdateSettings({ backgroundRefresh: value });
+            }}
+            isLast
+          />
+        </Card>
+        <SectionFooter>{t("library_update_interval_hint")}</SectionFooter>
+
+        <SectionLabel>{t("library_skip_titles_section")}</SectionLabel>
+        <Card>
+          <SwitchRow
+            isFirst
+            label={t("library_skip_unread_chapters")}
+            value={skipUnreadChapters}
+            onChange={(value) => {
+              setSkipUnreadChaptersState(value);
+              patchUpdateSettings({ skipUnreadChapters: value });
+            }}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t("library_skip_completed_status")}
+            value={skipCompletedStatus}
+            onChange={(value) => {
+              setSkipCompletedStatusState(value);
+              patchUpdateSettings({ skipCompletedStatus: value });
+            }}
+          />
+          <CardSeparator />
+          <SwitchRow
+            label={t("library_skip_unread_manga")}
+            value={skipUnreadManga}
+            onChange={(value) => {
+              setSkipUnreadMangaState(value);
+              patchUpdateSettings({ skipUnreadManga: value });
+            }}
+            isLast
+          />
+        </Card>
+        <ThemedText variant="footnote" color="secondaryLabel" style={styles.sectionHint}>
+          {t("library_skip_titles_hint")}
+        </ThemedText>
+
+        <SectionLabel>{t("library_refresh_indicators_section")}</SectionLabel>
         <Card>
           <SwitchRow
             label={t("library_show_refresh_status")}
@@ -660,130 +735,33 @@ export default function LibrarySettingsScreen() {
           />
         </Card>
 
-        <SectionLabel>{t("library_updates_section")}</SectionLabel>
-        <Card>
-          <SwitchRow
-            label={t("library_update_wifi_only")}
-            hint={t("library_update_wifi_only_hint")}
-            value={updateOnWifiOnly}
-            onChange={(value) => {
-              setUpdateOnWifiOnlyState(value);
-              patchUpdateSettings({ updateOnWifiOnly: value });
-              patchLibraryDisplay({ updateOnWifiOnly: value });
-            }}
-            isFirst
-          />
-          <CardSeparator />
-          <View style={styles.inlineSection}>
-            <ThemedText variant="body">
-              {t("library_update_interval")}
-            </ThemedText>
-            <ThemedText variant="footnote" color="secondaryLabel">
-              {t("library_update_interval_hint")}
-            </ThemedText>
-            <InlinePillGrid
-              options={intervalOptions}
-              selectedId={updateInterval}
-              onSelect={(interval) => {
-                const next = interval as LibraryUpdateInterval;
-                setUpdateIntervalState(next);
-                patchUpdateSettings({ updateInterval: next });
-              }}
-            />
-          </View>
-        </Card>
-        <Card>
-          <View style={styles.inlineSection}>
-            <ThemedText variant="body">
-              {t("library_skip_titles_section")}
-            </ThemedText>
-            <ThemedText variant="footnote" color="secondaryLabel">
-              {t("library_skip_titles_hint")}
-            </ThemedText>
-          </View>
-          <SwitchRow
-            label={t("library_skip_unread_chapters")}
-            value={skipUnreadChapters}
-            onChange={(value) => {
-              setSkipUnreadChaptersState(value);
-              patchUpdateSettings({ skipUnreadChapters: value });
-            }}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("library_skip_completed_status")}
-            value={skipCompletedStatus}
-            onChange={(value) => {
-              setSkipCompletedStatusState(value);
-              patchUpdateSettings({ skipCompletedStatus: value });
-            }}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("library_skip_unread_manga")}
-            value={skipUnreadManga}
-            onChange={(value) => {
-              setSkipUnreadMangaState(value);
-              patchUpdateSettings({ skipUnreadManga: value });
-            }}
-            isLast
-          />
-        </Card>
-        <Card>
-          <SwitchRow
-            isFirst
-            label={t("library_refresh_metadata")}
-            hint={t("library_refresh_metadata_hint")}
-            value={refreshMetadata}
-            onChange={(value) => {
-              setRefreshMetadataState(value);
-              patchUpdateSettings({ refreshMetadata: value });
-            }}
-          />
-          <CardSeparator />
-          <SwitchRow
-            label={t("library_background_refresh")}
-            hint={t("library_background_refresh_hint")}
-            value={backgroundRefresh}
-            onChange={(value) => {
-              setBackgroundRefreshState(value);
-              patchUpdateSettings({ backgroundRefresh: value });
-            }}
-            isLast
-          />
-        </Card>
-
         {updateOptions.length > 0 ? (
           <>
             <SectionLabel>{t("categories_updates_section")}</SectionLabel>
-            <Card style={styles.inlineCard}>
-              <ThemedText
-                variant="footnote"
-                color="secondaryLabel"
-                style={styles.updateCategoriesHint}
-              >
-                {t("library_updates_categories_hint")}
-              </ThemedText>
-              <InlinePillToggleGrid
-                options={updateOptions}
-                selectedIds={includedCategoryIds}
-                onToggle={(categoryId) => {
-                  const included = includedCategoryIds.includes(categoryId);
-                  const nextExcluded = included
-                    ? [...excludedCategoryIds, categoryId]
-                    : excludedCategoryIds.filter((id) => id !== categoryId);
-                  setExcludedCategoryIds(nextExcluded);
-                  void setCategoryExcludedFromUpdates(categoryId, included);
-                }}
-              />
+            <Card>
+              {updateOptions.map((option, index) => {
+                const included = includedCategoryIds.includes(option.id);
+                return (
+                  <Fragment key={option.id}>
+                    {index > 0 ? <CardSeparator /> : null}
+                    <SwitchRow
+                      label={option.label}
+                      value={included}
+                      onChange={() => {
+                        const nextExcluded = included
+                          ? [...excludedCategoryIds, option.id]
+                          : excludedCategoryIds.filter((id) => id !== option.id);
+                        setExcludedCategoryIds(nextExcluded);
+                        void setCategoryExcludedFromUpdates(option.id, included);
+                      }}
+                      isFirst={index === 0}
+                      isLast={index === updateOptions.length - 1}
+                    />
+                  </Fragment>
+                );
+              })}
             </Card>
-            <ThemedText
-              variant="footnote"
-              color="secondaryLabel"
-              style={styles.sectionHint}
-            >
-              {t("library_updates_hint")}
-            </ThemedText>
+            <SectionFooter>{`${t("library_updates_categories_hint")}\n\n${t("library_updates_hint")}`}</SectionFooter>
           </>
         ) : (
           <ThemedText
@@ -830,7 +808,7 @@ function SwitchRow({
           </ThemedText>
         ) : null}
       </View>
-      <Switch value={value} onValueChange={onChange} />
+      <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }
@@ -884,9 +862,6 @@ const styles = StyleSheet.create({
   switchText: {
     flex: 1,
     gap: 2,
-  },
-  updateCategoriesHint: {
-    marginBottom: Spacing.sm,
   },
   emptyRow: {
     paddingHorizontal: Spacing.lg,

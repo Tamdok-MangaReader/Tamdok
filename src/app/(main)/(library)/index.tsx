@@ -1294,6 +1294,13 @@ export default function LibraryScreen() {
         ],
       },
     );
+    items.push({
+      key: "summary",
+      label: t("library_summary"),
+      sf: "list.bullet.rectangle",
+      icon: "list-outline",
+      onPress: () => setSummaryOpen(true),
+    });
     if (categoryEntries.some((entry) => (entry.downloadedCount ?? 0) > 0)) {
       items.push({
         key: "remove-downloads",
@@ -1304,13 +1311,6 @@ export default function LibraryScreen() {
         onPress: removeCategoryDownloads,
       });
     }
-    items.push({
-      key: "summary",
-      label: t("library_summary"),
-      sf: "list.bullet.rectangle",
-      icon: "list-outline",
-      onPress: () => setSummaryOpen(true),
-    });
     return items;
   }, [
     selecting,
@@ -1546,7 +1546,7 @@ export default function LibraryScreen() {
                   key={pagerKey}
                   style={{ height: pagerHeight }}
                   initialPage={selectedPageIndex}
-                  onPageScroll={pageScrollHandler}
+                  onPageScroll={pageScrollHandler as never}
                   onPageSelected={(event) =>
                     handlePageSelected(event.nativeEvent.position)
                   }

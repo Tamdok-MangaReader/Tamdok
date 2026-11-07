@@ -27,6 +27,9 @@ const BASE_COLORS = {
     white: "#FFFFFF",
     black: "#000000",
     onTint: "#FFFFFF",
+    systemGray: "#8E8E93",
+    systemGreen: "#34C759",
+    systemYellow: "#FFCC00",
   },
   dark: {
     label: "#FFFFFF",
@@ -47,6 +50,9 @@ const BASE_COLORS = {
     white: "#FFFFFF",
     black: "#000000",
     onTint: "#FFFFFF",
+    systemGray: "#8E8E93",
+    systemGreen: "#30D158",
+    systemYellow: "#FFD60A",
   },
 } as const;
 

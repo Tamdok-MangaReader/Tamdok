@@ -1,9 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { OptionSegmentedControl } from '@/components/ui/option-segmented-control';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t, getLocale } from '@/constants/locales';
 import { useTheme } from '@/hooks/use-theme';
+import { languageFlag } from '@/utils/language-flag';
 
 export type SourceKindFilter = 'tamdok' | 'aidoku';
 
@@ -31,34 +33,15 @@ export function SourceFilterBar({
   return (
     <View style={styles.wrapper}>
       {showKindFilter && (
-        <ScrollView
-          horizontal
-          nestedScrollEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.scroll}
-          contentContainerStyle={styles.row}>
-          <FilterChip
-            label={t('source_filter_all')}
-            active={kindSelected === null}
-            onPress={() => onKindChange(null)}
-            colors={colors}
-            radius={radius.sm}
-          />
-          <FilterChip
-            label={t('sources_tab_tamdok')}
-            active={kindSelected === 'tamdok'}
-            onPress={() => onKindChange('tamdok')}
-            colors={colors}
-            radius={radius.sm}
-          />
-          <FilterChip
-            label={t('sources_tab_aidoku')}
-            active={kindSelected === 'aidoku'}
-            onPress={() => onKindChange('aidoku')}
-            colors={colors}
-            radius={radius.sm}
-          />
-        </ScrollView>
+        <OptionSegmentedControl
+          options={[
+            { id: 'all', label: t('source_filter_all') },
+            { id: 'tamdok', label: t('sources_tab_tamdok') },
+            { id: 'aidoku', label: t('sources_tab_aidoku') },
+          ]}
+          selectedId={kindSelected ?? 'all'}
+          onSelect={(id) => onKindChange(id === 'all' ? null : (id as SourceKindFilter))}
+        />
       )}
 
       {languages.length > 0 && (
@@ -124,9 +107,9 @@ function FilterChip({
 function formatLanguage(code: string): string {
   try {
     const label = new Intl.DisplayNames([getLocale()], { type: 'language' }).of(code);
-    return label ? `${label} (${code})` : code.toUpperCase();
+    return label ? `${languageFlag(code)} ${label} (${code})` : `${languageFlag(code)} ${code.toUpperCase()}`;
   } catch {
-    return code.toUpperCase();
+    return `${languageFlag(code)} ${code.toUpperCase()}`;
   }
 }
 
