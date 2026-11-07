@@ -48,7 +48,10 @@ import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
 import { LibraryCategoryPicker } from "@/components/library/library-category-picker";
 import { processQueuedDownloads } from "@/services/download-processor";
-import { queueChapterDownloads, removeMangaDownloads } from "@/services/downloads";
+import {
+  queueChapterDownloads,
+  removeMangaDownloads,
+} from "@/services/downloads";
 import type { Manga } from "@/parsers/shared/types";
 import {
   peekMangaDetailCache,
@@ -96,7 +99,6 @@ import {
   setCurrentCategoryId,
   setLibraryCategories,
   sortLibraryEntries,
-  toggleMangaLibraryCategory,
   updateLibraryEntryMetadata,
   type LibraryCategory,
   type LibraryEntry,
@@ -119,7 +121,7 @@ import {
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 import { markStartupReady } from "@/utils/startup-gate";
 import { findInstalledSource, sourceRouteId } from "@/services/sources";
-import { mangaHref, mangaTransferHref } from "@/utils/manga-route";
+import { mangaHref } from "@/utils/manga-route";
 
 const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
 
@@ -291,7 +293,9 @@ export default function LibraryScreen() {
     Record<string, LibraryCategorySort>
   >({});
   const [displayMode, setDisplayMode] = useState<LibraryDisplayMode>("grid");
-  const [filters, setFilters] = useState<LibraryFilters>(DEFAULT_LIBRARY_FILTERS);
+  const [filters, setFilters] = useState<LibraryFilters>(
+    DEFAULT_LIBRARY_FILTERS,
+  );
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -307,10 +311,7 @@ export default function LibraryScreen() {
   // Extra row details (authors, tags, rating) for the descriptive list; the in-memory detail cache
   // is empty after a relaunch, so they are loaded from the on-disk cache.
   const [detailMeta, setDetailMeta] = useState<
-    Map<
-      string,
-      Pick<Manga, "description" | "authors" | "tags" | "rating">
-    >
+    Map<string, Pick<Manga, "description" | "authors" | "tags" | "rating">>
   >(() => new Map());
   const loadLibrary = useCallback(async () => {
     const [
@@ -386,7 +387,10 @@ export default function LibraryScreen() {
     const nextLastRead = new Map<string, number>();
     for (const entry of rawEntries) {
       if (entry.lastReadAt) {
-        nextLastRead.set(`${entry.sourceId}:${entry.mangaKey}`, entry.lastReadAt);
+        nextLastRead.set(
+          `${entry.sourceId}:${entry.mangaKey}`,
+          entry.lastReadAt,
+        );
       }
     }
 
@@ -395,7 +399,9 @@ export default function LibraryScreen() {
     setDisplayMode(settings.libraryDisplay.displayMode);
     setSortReversed(settings.libraryDisplay.sortReversed);
     setFilters(settings.libraryDisplay.filters);
-    setSummaryExcluded(settings.libraryDisplay.summaryExcludedCategoryIds ?? []);
+    setSummaryExcluded(
+      settings.libraryDisplay.summaryExcludedCategoryIds ?? [],
+    );
     setAllCategories(rawCategories);
     setShowUnreadBadges(settings.libraryDisplay.showUnreadBadges);
     setShowCoverTitles(settings.libraryDisplay.showCoverTitles ?? true);
@@ -615,46 +621,44 @@ export default function LibraryScreen() {
         unreadOf,
         order.favoritesFirst ?? favoritesFirst,
       ).map((entry): LibraryListItem => {
-            const key = `${entry.sourceId}:${entry.mangaKey}`;
-            return {
-              key: entry.mangaKey,
-              title: entry.title,
-              cover: entry.cover,
-              sourceId: entry.sourceId,
-              inLibrary: true,
-              unreadCount: showUnreadBadges ? unreadOf(entry) : 0,
-              downloadedCount: showDownloadedBadges
-                ? (entry.downloadedCount ?? 0)
-                : 0,
-              updateFailed: Boolean(entry.updateFailed),
-              hideTitle: !showCoverTitles,
-              ...(listMode
-                ? {
-                    sourceName: findInstalledSource(installed, entry.sourceId)
-                      ?.manifest.info.name,
-                    statusLabel: t(
-                      `library_status_${entry.status ?? "unknown"}`,
-                    ),
-                    totalChapters: entry.chapterCount ?? 0,
-                    lastReadAt: lastReadAt.get(key),
-                    downloadedTotal: entry.downloadedCount ?? 0,
-                    ...(displayMode === "descriptiveList"
-                      ? (() => {
-                          const detail =
-                            peekMangaDetailCache(entry.sourceId, entry.mangaKey)
-                              ?.manga ?? detailMeta.get(key);
-                          return {
-                            summary: detail?.description,
-                            authors: detail?.authors,
-                            tags: detail?.tags,
-                            rating: detail?.rating,
-                          };
-                        })()
-                      : null),
-                  }
-                : null),
-            };
-          });
+        const key = `${entry.sourceId}:${entry.mangaKey}`;
+        return {
+          key: entry.mangaKey,
+          title: entry.title,
+          cover: entry.cover,
+          sourceId: entry.sourceId,
+          inLibrary: true,
+          unreadCount: showUnreadBadges ? unreadOf(entry) : 0,
+          downloadedCount: showDownloadedBadges
+            ? (entry.downloadedCount ?? 0)
+            : 0,
+          updateFailed: Boolean(entry.updateFailed),
+          hideTitle: !showCoverTitles,
+          ...(listMode
+            ? {
+                sourceName: findInstalledSource(installed, entry.sourceId)
+                  ?.manifest.info.name,
+                statusLabel: t(`library_status_${entry.status ?? "unknown"}`),
+                totalChapters: entry.chapterCount ?? 0,
+                lastReadAt: lastReadAt.get(key),
+                downloadedTotal: entry.downloadedCount ?? 0,
+                ...(displayMode === "descriptiveList"
+                  ? (() => {
+                      const detail =
+                        peekMangaDetailCache(entry.sourceId, entry.mangaKey)
+                          ?.manga ?? detailMeta.get(key);
+                      return {
+                        summary: detail?.description,
+                        authors: detail?.authors,
+                        tags: detail?.tags,
+                        rating: detail?.rating,
+                      };
+                    })()
+                  : null),
+              }
+            : null),
+        };
+      });
     },
     [
       displayMode,
@@ -894,7 +898,9 @@ export default function LibraryScreen() {
     const items = searching
       ? searchItems
       : (basePages.get(selectedCategoryId) ?? EMPTY_LIST_ITEMS);
-    setSelectedIds(new Set(items.map((item) => entryId(item.sourceId, item.key))));
+    setSelectedIds(
+      new Set(items.map((item) => entryId(item.sourceId, item.key))),
+    );
   }, [searching, searchItems, basePages, selectedCategoryId]);
 
   const selectedEntries = useCallback(
@@ -933,7 +939,11 @@ export default function LibraryScreen() {
   // Entries of the category on screen, as filtered by the user: category-wide actions apply only to these.
   const categoryEntries = useMemo(
     () =>
-      filterLibraryEntries(entriesForCategory(selectedCategoryId), filters, unreadOf),
+      filterLibraryEntries(
+        entriesForCategory(selectedCategoryId),
+        filters,
+        unreadOf,
+      ),
     [entriesForCategory, selectedCategoryId, filters, unreadOf],
   );
 
@@ -1070,18 +1080,19 @@ export default function LibraryScreen() {
       !summaryOpen
         ? []
         : entriesForCategory(ALL_CATEGORY_ID)
-        // Hidden only when every category of the title is excluded; uncategorised titles always stay.
-        .filter(
-          (entry) =>
-            entry.categoryIds.length === 0 ||
-            entry.categoryIds.some((id) => !summaryExcluded.includes(id)),
-        )
-        .map((entry) => ({ entry, unread: unreadOf(entry) }))
-        .filter((item) => item.unread > 0)
-        .sort(
-          (a, b) =>
-            b.unread - a.unread || a.entry.title.localeCompare(b.entry.title),
-        ),
+            // Hidden only when every category of the title is excluded; uncategorised titles always stay.
+            .filter(
+              (entry) =>
+                entry.categoryIds.length === 0 ||
+                entry.categoryIds.some((id) => !summaryExcluded.includes(id)),
+            )
+            .map((entry) => ({ entry, unread: unreadOf(entry) }))
+            .filter((item) => item.unread > 0)
+            .sort(
+              (a, b) =>
+                b.unread - a.unread ||
+                a.entry.title.localeCompare(b.entry.title),
+            ),
     [summaryOpen, entriesForCategory, unreadOf, summaryExcluded],
   );
 
@@ -1124,7 +1135,8 @@ export default function LibraryScreen() {
 
   const isRefreshingAny = refreshing || refreshProgress != null;
   const filtersActive = hasActiveLibraryFilters(filters);
-  const hasCategoryScope = showCategoryTabs && !isAllCategory(selectedCategoryId);
+  const hasCategoryScope =
+    showCategoryTabs && !isAllCategory(selectedCategoryId);
 
   const menuItems = useMemo<LibraryMenuItem[]>(() => {
     if (selecting) {
@@ -1346,8 +1358,11 @@ export default function LibraryScreen() {
     categories.map((category) => category.id),
     selectedPageIndex,
   );
-  const { onScroll: handlePinnedScroll, spacer, renderTabs } =
-    usePinnedTabs(hasCategoryTabs && !searching);
+  const {
+    onScroll: handlePinnedScroll,
+    spacer,
+    renderTabs,
+  } = usePinnedTabs(hasCategoryTabs && !searching);
   const refreshControl = useMemo(
     () => (
       <RefreshControl
@@ -1433,34 +1448,34 @@ export default function LibraryScreen() {
               separateBackground
               tintColor={colors.label}
             >
-            {menuItems.map((item) =>
-              item.children ? (
-                <Stack.Toolbar.Menu
-                  key={item.key}
-                  icon={item.sf as never}
-                  title={item.label}
-                >
-                  {item.children.map((child) => (
-                    <Stack.Toolbar.MenuAction
-                      key={child.key}
-                      icon={child.sf as never}
-                      onPress={child.onPress}
-                    >
-                      {child.label}
-                    </Stack.Toolbar.MenuAction>
-                  ))}
-                </Stack.Toolbar.Menu>
-              ) : (
-                <Stack.Toolbar.MenuAction
-                  key={item.key}
-                  icon={item.sf as never}
-                  destructive={item.destructive}
-                  onPress={item.onPress}
-                >
-                  {item.label}
-                </Stack.Toolbar.MenuAction>
-              ),
-            )}
+              {menuItems.map((item) =>
+                item.children ? (
+                  <Stack.Toolbar.Menu
+                    key={item.key}
+                    icon={item.sf as never}
+                    title={item.label}
+                  >
+                    {item.children.map((child) => (
+                      <Stack.Toolbar.MenuAction
+                        key={child.key}
+                        icon={child.sf as never}
+                        onPress={child.onPress}
+                      >
+                        {child.label}
+                      </Stack.Toolbar.MenuAction>
+                    ))}
+                  </Stack.Toolbar.Menu>
+                ) : (
+                  <Stack.Toolbar.MenuAction
+                    key={item.key}
+                    icon={item.sf as never}
+                    destructive={item.destructive}
+                    onPress={item.onPress}
+                  >
+                    {item.label}
+                  </Stack.Toolbar.MenuAction>
+                ),
+              )}
             </Stack.Toolbar.Menu>
           </Stack.Toolbar>
         </>
@@ -1564,7 +1579,7 @@ export default function LibraryScreen() {
                       onHeight={handlePageHeight}
                       onPressManga={handlePressManga}
                       onLongPressManga={longPressHandler}
-                onSelectManga={selectHandler}
+                      onSelectManga={selectHandler}
                     />
                   ))}
                 </AnimatedPagerView>

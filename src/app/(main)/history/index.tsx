@@ -51,7 +51,6 @@ import {
 import {
   SourceCoverHeadersProvider,
   useSourceCoverHeaders,
-  useSourceCoverHeadersReady,
 } from "@/context/source-cover-context";
 import { useSources } from "@/context/sources-context";
 import { useMultipleSourceKinds } from "@/hooks/use-multiple-source-kinds";
@@ -307,7 +306,10 @@ function buildRows(
         chapters: regular,
         timeRange: from === to ? from : `${from} – ${to}`,
         latest: newest.dateRead,
-        bulkCount: bulkEntries.reduce((sum, entry) => sum + (entry.bulkCount ?? 0), 0),
+        bulkCount: bulkEntries.reduce(
+          (sum, entry) => sum + (entry.bulkCount ?? 0),
+          0,
+        ),
         bulkTimes: bulkEntries.map((entry) => entry.dateRead),
       };
 
@@ -349,7 +351,11 @@ const LIST_HEADER = <IncognitoModeBanner />;
 function confirmDelete(message: string, onConfirm: () => void) {
   Alert.alert(t("history_delete_confirm_title"), message, [
     { text: t("cancel"), style: "cancel" },
-    { text: t("history_clear_action"), style: "destructive", onPress: onConfirm },
+    {
+      text: t("history_clear_action"),
+      style: "destructive",
+      onPress: onConfirm,
+    },
   ]);
 }
 
@@ -412,7 +418,10 @@ const HistoryHeaderRow = memo(function HistoryHeaderRow({
             {title}
           </ThemedText>
           <View
-            style={[styles.countBadge, { backgroundColor: colors.tertiaryFill }]}
+            style={[
+              styles.countBadge,
+              { backgroundColor: colors.tertiaryFill },
+            ]}
           >
             <ThemedText variant="caption1" color="secondaryLabel">
               {count}
@@ -543,10 +552,13 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
 
   const handleCoverError = useCallback(() => {
     if (coverRetryTimerRef.current) return;
-    coverRetryTimerRef.current = setTimeout(() => {
-      coverRetryTimerRef.current = null;
-      setCoverRetry((value) => (value < 3 ? value + 1 : value));
-    }, 2500 * (coverRetry + 1));
+    coverRetryTimerRef.current = setTimeout(
+      () => {
+        coverRetryTimerRef.current = null;
+        setCoverRetry((value) => (value < 3 ? value + 1 : value));
+      },
+      2500 * (coverRetry + 1),
+    );
   }, [coverRetry]);
 
   const hasChapters = group.chapters.length > 0;
@@ -728,80 +740,88 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
                 onLongPress={onLongPress}
                 delayLongPress={340}
               >
-          <View style={coverBoxStyle}>
-            {coverSource ? (
-              <Image
-                key={coverRetry}
-                source={coverSource}
-                recyclingKey={group.cover}
-                onError={coverRetry < 3 ? handleCoverError : undefined}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                cachePolicy={IMAGE_CACHE_POLICY}
-                allowDownscaling
-              />
-            ) : (
-              <ThemedText variant="title3" color="tertiaryLabel">
-                {group.mangaTitle.slice(0, 1)}
-              </ThemedText>
-            )}
-          </View>
-          <View style={styles.mangaMeta}>
-            <ThemedText variant="headline" numberOfLines={2}>
-              {group.mangaTitle}
-            </ThemedText>
-            <View style={styles.metaLine}>
-              <View
-                style={[
-                  styles.sourceChip,
-                  { backgroundColor: colors.tertiaryFill },
-                ]}
-              >
-                <ThemedText
-                  variant="caption1"
-                  color="secondaryLabel"
-                  numberOfLines={1}
-                >
-                  {sourceLabel}
-                </ThemedText>
-              </View>
-              {group.bulkCount > 0 ? (
-                <View
-                  style={[
-                    styles.sourceChip,
-                    styles.bulkChip,
-                    { backgroundColor: colors.tertiaryFill },
-                  ]}
-                >
-                  <Ionicons name="layers-outline" size={12} color={colors.tint} />
-                  <ThemedText variant="caption1" color="tint" numberOfLines={1}>
-                    {bulkLabel}
-                  </ThemedText>
+                <View style={coverBoxStyle}>
+                  {coverSource ? (
+                    <Image
+                      key={coverRetry}
+                      source={coverSource}
+                      recyclingKey={group.cover}
+                      onError={coverRetry < 3 ? handleCoverError : undefined}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      cachePolicy={IMAGE_CACHE_POLICY}
+                      allowDownscaling
+                    />
+                  ) : (
+                    <ThemedText variant="title3" color="tertiaryLabel">
+                      {group.mangaTitle.slice(0, 1)}
+                    </ThemedText>
+                  )}
                 </View>
-              ) : null}
-            </View>
-            <View style={styles.metaLine}>
-              <Ionicons
-                name="time-outline"
-                size={13}
-                color={colors.tertiaryLabel}
-              />
-              <ThemedText variant="caption1" color="tertiaryLabel">
-                {hasChapters
-                  ? group.timeRange
-                    ? `${group.timeRange} · ${chaptersLabel}`
-                    : chaptersLabel
-                  : group.timeRange}
-              </ThemedText>
-            </View>
-          </View>
-          {hasChapters ? (
-            <Ionicons
-              name={open ? "chevron-down" : "chevron-forward"}
-              size={16}
-              color={colors.tertiaryLabel}
-            />
-          ) : null}
+                <View style={styles.mangaMeta}>
+                  <ThemedText variant="headline" numberOfLines={2}>
+                    {group.mangaTitle}
+                  </ThemedText>
+                  <View style={styles.metaLine}>
+                    <View
+                      style={[
+                        styles.sourceChip,
+                        { backgroundColor: colors.tertiaryFill },
+                      ]}
+                    >
+                      <ThemedText
+                        variant="caption1"
+                        color="secondaryLabel"
+                        numberOfLines={1}
+                      >
+                        {sourceLabel}
+                      </ThemedText>
+                    </View>
+                    {group.bulkCount > 0 ? (
+                      <View
+                        style={[
+                          styles.sourceChip,
+                          styles.bulkChip,
+                          { backgroundColor: colors.tertiaryFill },
+                        ]}
+                      >
+                        <Ionicons
+                          name="layers-outline"
+                          size={12}
+                          color={colors.tint}
+                        />
+                        <ThemedText
+                          variant="caption1"
+                          color="tint"
+                          numberOfLines={1}
+                        >
+                          {bulkLabel}
+                        </ThemedText>
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.metaLine}>
+                    <Ionicons
+                      name="time-outline"
+                      size={13}
+                      color={colors.tertiaryLabel}
+                    />
+                    <ThemedText variant="caption1" color="tertiaryLabel">
+                      {hasChapters
+                        ? group.timeRange
+                          ? `${group.timeRange} · ${chaptersLabel}`
+                          : chaptersLabel
+                        : group.timeRange}
+                    </ThemedText>
+                  </View>
+                </View>
+                {hasChapters ? (
+                  <Ionicons
+                    name={open ? "chevron-down" : "chevron-forward"}
+                    size={16}
+                    color={colors.tertiaryLabel}
+                  />
+                ) : null}
               </Pressable>
             </View>
           )}
@@ -1039,7 +1059,6 @@ export default function HistoryScreen() {
   const mainCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
   const nsfwCacheRef = useRef<Map<string, MangaHistoryGroup>>(new Map());
 
-
   const mainRows = useMemo(() => {
     const result = buildRows(mainEntries, mainCacheRef.current);
     mainCacheRef.current = result.groups;
@@ -1194,8 +1213,11 @@ export default function HistoryScreen() {
     ["main", "nsfw"],
     selectedPage === "nsfw" ? 1 : 0,
   );
-  const { onScroll: handlePinnedScroll, spacer, renderTabs } =
-    usePinnedTabs(showTabs);
+  const {
+    onScroll: handlePinnedScroll,
+    spacer,
+    renderTabs,
+  } = usePinnedTabs(showTabs);
 
   const renderRow = useCallback(
     (row: HistoryRow) =>
@@ -1218,11 +1240,7 @@ export default function HistoryScreen() {
         startOfLocalDay(6),
       ),
     all: () =>
-      confirmClear(
-        t("history_clear_all"),
-        t("history_clear_all_confirm"),
-        0,
-      ),
+      confirmClear(t("history_clear_all"), t("history_clear_all_confirm"), 0),
   };
   const headerNodes = (
     <>

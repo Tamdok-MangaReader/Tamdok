@@ -2,24 +2,11 @@ import { uniqueByKey } from "@/utils/unique-entries";
 import { SourceCoverHeadersProvider } from "@/context/source-cover-context";
 import { SourceNotFound } from "@/components/sources/source-not-found";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentType,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Platform,
-  type LayoutChangeEvent,
-  type StyleProp,
-  type ViewStyle,
   StyleSheet,
   View,
 } from "react-native";
@@ -218,7 +205,9 @@ export default function SourceSearchScreen() {
   const hasFilterBar = definitions.length > 0;
   // The native header is transparent and the filter bar floats under it; the list reserves both.
   const topInset =
-    headerHeight + (hasFilterBar ? FILTER_BAR_HEIGHT + Spacing.sm : 0) + Spacing.sm;
+    headerHeight +
+    (hasFilterBar ? FILTER_BAR_HEIGHT + Spacing.sm : 0) +
+    Spacing.sm;
   const topSpacer = useMemo(
     () => <View style={{ height: topInset }} />,
     [topInset],
@@ -233,118 +222,119 @@ export default function SourceSearchScreen() {
   const showRating = entries.length > 0 && entries[0]!.rating !== undefined;
 
   if (!source) {
-    return (
-      <SourceNotFound />
-    );
+    return <SourceNotFound />;
   }
 
   return (
     <SourceCoverHeadersProvider source={source}>
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={rootStyle}
-      keyboardVerticalOffset={0}
-    >
-      {Platform.OS === "ios" && hasFilterBar ? (
-        <Stack.Toolbar placement="right">
-          <Stack.Toolbar.Button
-            icon="line.3.horizontal.decrease"
-            separateBackground
-            accessibilityLabel={t("source_search_filters")}
-            tintColor={colors.label}
-            onPress={openFilters}
-          />
-        </Stack.Toolbar>
-      ) : null}
-      <Stack.SearchBar
-        ref={searchBarRef}
-        key={isDark ? "source-search-dark" : "source-search-light"}
-        placeholder={t("search_placeholder")}
-        {...stackSearchBarProps}
-        placement="integratedButton"
-        autoFocus
-        onChangeText={handleSearchText}
-        onSearchButtonPress={handleSearchText}
-        onCancelButtonPress={() =>
-          handleSearchText({ nativeEvent: { text: "" } })
-        }
-        onClose={() => handleSearchText({ nativeEvent: { text: "" } })}
-      />
-      <View style={styles.flex}>
-      <ScreenContent
-        padded={false}
-        centerContent={centerContent}
-        scrollable={false}
-        contentContainerStyle={
-          entries.length === 0 ? topSpaceStyle : undefined
-        }
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={rootStyle}
+        keyboardVerticalOffset={0}
       >
-        {displayError ? (
-          <View style={styles.errorWrap}>
-            <ErrorState message={displayError} />
-          </View>
-        ) : showInitialLoading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator />
-            <ThemedText
-              variant="subheadline"
-              color="secondaryLabel"
-              style={styles.loadingLabel}
-            >
-              {t("search_loading")}
-            </ThemedText>
-          </View>
-        ) : entries.length === 0 ? (
-          <EmptyState icon="search-outline" title={t("sources_browse_empty")} />
-        ) : (
-          <View style={styles.gridWrap}>
-            <ResultsGrid
-              listRef={listRef}
-              entries={entries}
-              sourceId={sourceId}
-              showRating={showRating}
-              isRatingCompact={false}
-              onPressManga={openManga}
-              onEndReached={handleEndReached}
-              ListHeaderComponent={topSpacer}
-              contentInsetAdjustmentBehavior="never"
-              ListFooterComponent={footer}
+        {Platform.OS === "ios" && hasFilterBar ? (
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Button
+              icon="line.3.horizontal.decrease"
+              separateBackground
+              accessibilityLabel={t("source_search_filters")}
+              tintColor={colors.label}
+              onPress={openFilters}
             />
-            {isLoading ? (
-              <View style={styles.searchOverlay} pointerEvents="none">
-                <View style={overlayCardStyle}>
-                  <ActivityIndicator color={colors.tint} />
-                </View>
-              </View>
-            ) : null}
-          </View>
-        )}
-      </ScreenContent>
-      {hasFilterBar ? (
-        <View
-          style={[styles.topOverlay, { top: headerHeight }]}
-          pointerEvents="box-none"
-        >
-          <MangaSearchFilterBar
-            definitions={definitions}
-            values={filters}
-            onChange={setFilters}
-            onOpenFilters={openFilters}
-            hideFiltersButton={Platform.OS === "ios"}
-          />
-        </View>
-      ) : null}
-      {hasFilterBar ? (
-        <MangaFilterModal
-          visible={filtersOpen}
-          definitions={definitions}
-          values={filters}
-          onChange={setFilters}
-          onClose={() => setFiltersOpen(false)}
+          </Stack.Toolbar>
+        ) : null}
+        <Stack.SearchBar
+          ref={searchBarRef}
+          key={isDark ? "source-search-dark" : "source-search-light"}
+          placeholder={t("search_placeholder")}
+          {...stackSearchBarProps}
+          placement="integratedButton"
+          autoFocus
+          onChangeText={handleSearchText}
+          onSearchButtonPress={handleSearchText}
+          onCancelButtonPress={() =>
+            handleSearchText({ nativeEvent: { text: "" } })
+          }
+          onClose={() => handleSearchText({ nativeEvent: { text: "" } })}
         />
-      ) : null}
-      </View>
-    </KeyboardAvoidingView>
+        <View style={styles.flex}>
+          <ScreenContent
+            padded={false}
+            centerContent={centerContent}
+            scrollable={false}
+            contentContainerStyle={
+              entries.length === 0 ? topSpaceStyle : undefined
+            }
+          >
+            {displayError ? (
+              <View style={styles.errorWrap}>
+                <ErrorState message={displayError} />
+              </View>
+            ) : showInitialLoading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator />
+                <ThemedText
+                  variant="subheadline"
+                  color="secondaryLabel"
+                  style={styles.loadingLabel}
+                >
+                  {t("search_loading")}
+                </ThemedText>
+              </View>
+            ) : entries.length === 0 ? (
+              <EmptyState
+                icon="search-outline"
+                title={t("sources_browse_empty")}
+              />
+            ) : (
+              <View style={styles.gridWrap}>
+                <ResultsGrid
+                  listRef={listRef}
+                  entries={entries}
+                  sourceId={sourceId}
+                  showRating={showRating}
+                  isRatingCompact={false}
+                  onPressManga={openManga}
+                  onEndReached={handleEndReached}
+                  ListHeaderComponent={topSpacer}
+                  contentInsetAdjustmentBehavior="never"
+                  ListFooterComponent={footer}
+                />
+                {isLoading ? (
+                  <View style={styles.searchOverlay} pointerEvents="none">
+                    <View style={overlayCardStyle}>
+                      <ActivityIndicator color={colors.tint} />
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            )}
+          </ScreenContent>
+          {hasFilterBar ? (
+            <View
+              style={[styles.topOverlay, { top: headerHeight }]}
+              pointerEvents="box-none"
+            >
+              <MangaSearchFilterBar
+                definitions={definitions}
+                values={filters}
+                onChange={setFilters}
+                onOpenFilters={openFilters}
+                hideFiltersButton={Platform.OS === "ios"}
+              />
+            </View>
+          ) : null}
+          {hasFilterBar ? (
+            <MangaFilterModal
+              visible={filtersOpen}
+              definitions={definitions}
+              values={filters}
+              onChange={setFilters}
+              onClose={() => setFiltersOpen(false)}
+            />
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
     </SourceCoverHeadersProvider>
   );
 }

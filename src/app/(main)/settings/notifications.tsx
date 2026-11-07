@@ -10,7 +10,6 @@ import {
 } from "react-native";
 
 import { MenuPickerRow } from "@/components/ui/menu-picker-row";
-import { InlinePillGrid } from "@/components/library/inline-pill-grid";
 import { Card, CardSeparator } from "@/components/ui/card";
 import { ScreenContent } from "@/components/ui/screen-content";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -171,9 +170,15 @@ export default function NotificationsSettingsScreen() {
                 isLast
               />
             </Card>
-            <SectionFooter>{t("settings_notifications_interval_hint")}</SectionFooter>
+            <SectionFooter>
+              {t("settings_notifications_interval_hint")}
+            </SectionFooter>
             {!backgroundAvailable && Platform.OS === "ios" && (
-              <ThemedText variant="caption1" color="destructive" style={styles.footer}>
+              <ThemedText
+                variant="caption1"
+                color="destructive"
+                style={styles.footer}
+              >
                 {t("settings_notifications_background_restricted")}
               </ThemedText>
             )}

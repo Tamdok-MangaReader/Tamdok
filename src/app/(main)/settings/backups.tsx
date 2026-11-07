@@ -2,8 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { NativeContextMenu } from "@/components/ui/native-context-menu";
 import * as DocumentPicker from "expo-document-picker";
 import { Stack } from "expo-router";
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import { Alert, Platform, StyleSheet, View } from "react-native";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
+import { Alert, StyleSheet, View } from "react-native";
 
 import {
   SwipeableRow,
@@ -12,7 +18,6 @@ import {
 } from "@/components/sources/swipeable-row";
 import { Card, CardSeparator } from "@/components/ui/card";
 import { ScreenContent } from "@/components/ui/screen-content";
-import { SectionLabel } from "@/components/ui/section-label";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
@@ -287,7 +292,8 @@ export default function BackupsSettingsScreen() {
                     onFullSwipeLeading={() => confirmRestore(backup.uri)}
                     onFullSwipe={() => confirmDelete(backup.uri, backup.name)}
                   >
-                    {renderBackupRow(backup, (
+                    {renderBackupRow(
+                      backup,
                       <View
                         style={[
                           styles.backupRow,
@@ -324,8 +330,8 @@ export default function BackupsSettingsScreen() {
                         <ThemedText variant="footnote" color="secondaryLabel">
                           {formatSize(backup.size)}
                         </ThemedText>
-                      </View>
-                    ))}
+                      </View>,
+                    )}
                   </SwipeableRow>
                   {index < backups.length - 1 ? <CardSeparator /> : null}
                 </View>
