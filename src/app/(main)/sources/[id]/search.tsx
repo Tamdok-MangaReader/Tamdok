@@ -5,7 +5,6 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   StyleSheet,
   View,
@@ -14,6 +13,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { useHeaderHeight } from "@react-navigation/elements";
 
+import type { FlashListRef } from "@shopify/flash-list";
 import { MangaGrid, type MangaGridItem } from "@/components/manga/manga-grid";
 import {
   MangaFilterModal,
@@ -79,7 +79,7 @@ export default function SourceSearchScreen() {
   const searchBarRef = useRef<SearchBarCommands>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const openFilters = useCallback(() => setFiltersOpen(true), []);
-  const listRef = useRef<FlatList<MangaGridItem>>(null);
+  const listRef = useRef<FlashListRef<MangaGridItem>>(null);
   const [query, setQuery] = useState(initialQuery);
   const [entries, setEntries] = useState<Manga[]>([]);
   const [isLoading, setIsLoading] = useState(false);

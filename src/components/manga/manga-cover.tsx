@@ -1,3 +1,4 @@
+import { useRecyclingState } from "@shopify/flash-list";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Image } from "expo-image";
@@ -7,7 +8,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { SFSymbolIcon } from "@/components/ui/sf-symbol-icon";
 import { LongPressScalePressable } from "@/components/ui/long-press-scale-pressable";
 import { ThemedText } from "@/components/ui/themed-text";
-import { StarRating } from "@/components/manga/star-rating";
+import { CoverRatingBadge } from "@/components/manga/star-rating";
 import { useCoverDisplay } from "@/hooks/use-cover-display";
 import { t } from "@/constants/locales";
 import { Spacing } from "@/constants/theme";
@@ -108,8 +109,14 @@ export const MangaCover = memo(function MangaCover({
   const contextHeaders = useSourceCoverHeaders();
   const storedHeaders = useStoredCoverHeaders(sourceId);
   const coverHeaders = contextHeaders ?? storedHeaders;
-  const [retry, setRetry] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Resets with the cover, also when a recycling list (FlashList) reuses this cell for another title.
+  const [retry, setRetry] = useRecyclingState(0, [cover], () => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  });
 
   useEffect(
     () => () => {
@@ -118,17 +125,13 @@ export const MangaCover = memo(function MangaCover({
     [],
   );
 
-  useEffect(() => {
-    setRetry(0);
-  }, [cover]);
-
   const handleImageError = useCallback(() => {
     if (retryTimerRef.current) return;
     retryTimerRef.current = setTimeout(() => {
       retryTimerRef.current = null;
       setRetry((value) => (value < 3 ? value + 1 : value));
     }, 2500 * (retry + 1));
-  }, [retry]);
+  }, [retry, setRetry]);
 
   const imageSource = useMemo(
     () => (cover ? coverImageSource(cover, coverHeaders) : undefined),
@@ -166,13 +169,17 @@ export const MangaCover = memo(function MangaCover({
     [width, height, radius.sm, colors.secondaryFill],
   );
 
+  const showRatingBadge = Boolean(rating) && coverDisplay.showRating;
+
+  // Top-left row: library counters followed by the rating badge.
   const countStyles = useMemo(() => {
     if (
       !showUnread &&
       !showDownloaded &&
       !showDownloading &&
       !showFailed &&
-      !showFinishedBadge
+      !showFinishedBadge &&
+      !showRatingBadge
     )
       return null;
     const scale = scaleBadges ? coverBadgeScale(width) : 1;
@@ -199,6 +206,7 @@ export const MangaCover = memo(function MangaCover({
     showDownloading,
     showFailed,
     showFinishedBadge,
+    showRatingBadge,
     scaleBadges,
     width,
   ]);
@@ -341,6 +349,13 @@ export const MangaCover = memo(function MangaCover({
               </Text>
             </View>
           ) : null}
+          {showRatingBadge && rating ? (
+            <CoverRatingBadge
+              rating={rating}
+              height={countStyles.ringSize}
+              fontSize={countStyles.text.fontSize}
+            />
+          ) : null}
         </View>
       ) : null}
 
@@ -400,16 +415,7 @@ export const MangaCover = memo(function MangaCover({
     </View>
   );
 
-  const content = (
-    <>
-      {coverBody}
-      {rating && coverDisplay.showRating ? (
-        <View style={styles.ratingWrap}>
-          <StarRating rating={rating} compact={isRatingCompact} />
-        </View>
-      ) : null}
-    </>
-  );
+  const content = coverBody;
 
   const interactive = !!(onPress || onLongPress);
   const pressableProps = {
@@ -481,7 +487,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: Spacing.xs,
     left: Spacing.xs,
+    // Leaves room for the bookmark / favorite badge in the top-right corner; extra badges wrap below.
+    right: 28,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 4,
     zIndex: 2,
@@ -556,5 +565,4 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     fontWeight: "700",
   },
-  ratingWrap: { paddingHorizontal: 2 },
 });

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useRecyclingState } from "@shopify/flash-list";
 import {
   ActivityIndicator,
   Pressable,
@@ -37,6 +37,8 @@ type GlobalSearchSourceSectionProps = {
   group: SourceSearchGroup;
   resetKey?: string;
   columns?: number;
+  /** Space below the section; lists that render nothing for empty sources use it instead of a separator. */
+  bottomSpacing?: number;
   onPressSource: (source: InstalledSource) => void;
   onPressManga: (source: InstalledSource, manga: Manga) => void;
   onRetry?: (source: InstalledSource) => void;
@@ -46,12 +48,17 @@ export function GlobalSearchSourceSection({
   group,
   resetKey,
   columns: baseColumns = 3,
+  bottomSpacing,
   onPressSource,
   onPressManga,
   onRetry,
 }: GlobalSearchSourceSectionProps) {
   const { colors, radius } = useTheme();
-  const [expanded, setExpanded] = useState(false);
+  // Resets on a new query and when FlashList reuses the section for another source.
+  const [expanded, setExpanded] = useRecyclingState(false, [
+    resetKey,
+    group.source.id,
+  ]);
   const { width } = useWindowDimensions();
   const columns = useAdaptiveColumns(baseColumns);
   const itemWidth = Math.floor(
@@ -62,10 +69,6 @@ export function GlobalSearchSourceSection({
       columns,
   );
   const coverHeight = Math.round(itemWidth * 1.45);
-
-  useEffect(() => {
-    setExpanded(false);
-  }, [resetKey, group.source.id]);
 
   const isLoading = group.status === "loading";
   const isError = group.status === "error";
@@ -80,7 +83,11 @@ export function GlobalSearchSourceSection({
 
   return (
     <SourceCoverHeadersProvider source={group.source}>
-      <View style={styles.section}>
+      <View
+        style={
+          bottomSpacing ? [styles.section, { marginBottom: bottomSpacing }] : styles.section
+        }
+      >
         <Pressable
           style={({ pressed }) => [styles.header, pressed && { opacity: 0.72 }]}
           onPress={() => onPressSource(group.source)}
@@ -98,6 +105,7 @@ export function GlobalSearchSourceSection({
             {group.source.iconUri ? (
               <Image
                 source={{ uri: normalizeIconUri(group.source.iconUri) }}
+                recyclingKey={group.source.id}
                 style={[styles.icon, { borderRadius: radius.sm }]}
                 contentFit="cover"
                 transition={150}

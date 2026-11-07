@@ -5,15 +5,14 @@ import * as Haptics from "expo-haptics";
 import { Stack, useFocusEffect, useRouter } from "expo-router";
 import Animated, { useSharedValue } from "react-native-reanimated";
 import PagerView from "react-native-pager-view";
+import { FlashList, useRecyclingState } from "@shopify/flash-list";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
-  FlatList,
   Platform,
   Pressable,
   StyleSheet,
   View,
-  type ListRenderItemInfo,
   type PressableStateCallbackType,
   type ScrollViewProps,
 } from "react-native";
@@ -534,10 +533,26 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     source?.id ?? group.sourceId,
   );
   const coverHeaders = contextCoverHeaders ?? storedCoverHeaders;
-  const [coverRetry, setCoverRetry] = useState(0);
   const coverRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [open, setOpen] = useState(false);
+  // Recycling state: FlashList reuses this component for other groups, so per-group UI state resets with the group.
+  const [coverRetry, setCoverRetry] = useRecyclingState(
+    0,
+    [group.sourceId, group.key, group.cover],
+    () => {
+      if (coverRetryTimerRef.current) {
+        clearTimeout(coverRetryTimerRef.current);
+        coverRetryTimerRef.current = null;
+      }
+    },
+  );
+  const [expanded, setExpanded] = useRecyclingState(false, [
+    group.sourceId,
+    group.key,
+  ]);
+  const [open, setOpen] = useRecyclingState(false, [
+    group.sourceId,
+    group.key,
+  ]);
 
   useEffect(
     () => () => {
@@ -545,10 +560,6 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     },
     [],
   );
-
-  useEffect(() => {
-    setCoverRetry(0);
-  }, [group.cover]);
 
   const handleCoverError = useCallback(() => {
     if (coverRetryTimerRef.current) return;
@@ -559,7 +570,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
       },
       2500 * (coverRetry + 1),
     );
-  }, [coverRetry]);
+  }, [coverRetry, setCoverRetry]);
 
   const hasChapters = group.chapters.length > 0;
   const chaptersLabel = t("history_chapters_count", {
@@ -653,7 +664,7 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
   const handleToggleOpen = useCallback(() => {
     // A bulk mark has nothing to list, so such a card never expands.
     if (hasChapters) setOpen((value) => !value);
-  }, [hasChapters]);
+  }, [hasChapters, setOpen]);
 
   const menuItems = useMemo<LiftedMenuItem[]>(() => {
     const items: LiftedMenuItem[] = [
@@ -695,8 +706,8 @@ const HistoryMangaGroup = memo(function HistoryMangaGroup({
     });
     return items;
   }, [group, source, router, onOpenManga, onChanged]);
-  const handleShowMore = useCallback(() => setExpanded(true), []);
-  const handleShowLess = useCallback(() => setExpanded(false), []);
+  const handleShowMore = useCallback(() => setExpanded(true), [setExpanded]);
+  const handleShowLess = useCallback(() => setExpanded(false), [setExpanded]);
 
   const coverBoxStyle = useMemo(
     () => [
@@ -1185,7 +1196,7 @@ export default function HistoryScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<HistoryRow>) => {
+    ({ item }: { item: HistoryRow }) => {
       if (item.kind === "header") {
         return (
           <HistoryHeaderRow
@@ -1221,7 +1232,7 @@ export default function HistoryScreen() {
 
   const renderRow = useCallback(
     (row: HistoryRow) =>
-      renderItem({ item: row } as ListRenderItemInfo<HistoryRow>),
+      renderItem({ item: row }),
     [renderItem],
   );
 
@@ -1311,21 +1322,17 @@ export default function HistoryScreen() {
       );
     }
     return (
-      <FlatList
+      <FlashList
         style={styles.root}
         data={rows}
         keyExtractor={rowKeyExtractor}
         renderItem={renderItem}
+        getItemType={rowItemType}
         contentInsetAdjustmentBehavior="automatic"
         automaticallyAdjustsScrollIndicatorInsets
         contentContainerStyle={styles.list}
         ListHeaderComponent={LIST_HEADER}
         renderScrollComponent={renderScrollComponent}
-        initialNumToRender={8}
-        maxToRenderPerBatch={6}
-        updateCellsBatchingPeriod={50}
-        windowSize={7}
-        removeClippedSubviews={Platform.OS === "android"}
         onEndReached={hasMore ? loadMore : undefined}
         onEndReachedThreshold={1.5}
       />
@@ -1354,7 +1361,7 @@ export default function HistoryScreen() {
         renderRow={renderRow}
         pageId={pageId}
         onHeight={handlePageHeight}
-        style={styles.list}
+        style={styles.pageList}
         footer={
           hasMore ? (
             <Pressable onPress={loadMore} style={styles.loadMore}>
@@ -1454,6 +1461,10 @@ function rowKeyExtractor(row: HistoryRow): string {
   return row.id;
 }
 
+function rowItemType(row: HistoryRow): string {
+  return row.kind;
+}
+
 const styles = StyleSheet.create({
   loadMore: {
     alignItems: "center",
@@ -1464,6 +1475,12 @@ const styles = StyleSheet.create({
   },
   list: {
     flexGrow: 1,
+    padding: Spacing.lg,
+    paddingBottom: BottomTabInset + Spacing.lg,
+  },
+  // No flexGrow: this container's measured height sizes the pager page. Growing to the page would feed
+  // the page height back into the measurement, so the page could only grow and never shrink.
+  pageList: {
     padding: Spacing.lg,
     paddingBottom: BottomTabInset + Spacing.lg,
   },

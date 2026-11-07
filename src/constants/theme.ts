@@ -29,6 +29,8 @@ const BASE_COLORS = {
     onTint: "#FFFFFF",
     systemGray: "#8E8E93",
     systemGreen: "#34C759",
+    systemBlue: "#0A84FF",
+    systemOrange: "#FF9500",
     systemYellow: "#FFCC00",
   },
   dark: {
@@ -52,6 +54,8 @@ const BASE_COLORS = {
     onTint: "#FFFFFF",
     systemGray: "#8E8E93",
     systemGreen: "#30D158",
+    systemBlue: "#409CFF",
+    systemOrange: "#FF9F0A",
     systemYellow: "#FFD60A",
   },
 } as const;

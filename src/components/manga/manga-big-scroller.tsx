@@ -10,8 +10,8 @@ import {
 } from "react-native";
 
 import { useFeaturedCardWidth, useRailBleed } from "@/hooks/use-duo-layout";
-import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { StarRating } from "@/components/manga/star-rating";
+import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { useCoverDisplay } from "@/hooks/use-cover-display";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";

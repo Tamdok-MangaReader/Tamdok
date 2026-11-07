@@ -80,7 +80,7 @@ import {
   readerHref,
 } from "@/utils/manga-route";
 import { resolveMangaPageUrl } from "@/utils/manga-url";
-import { getAppSettings } from "@/services/app-settings";
+import { getAppSettings, updateAppSettings } from "@/services/app-settings";
 import { subscribeAppSettings } from "@/utils/app-settings-events";
 
 const styles = StyleSheet.create({
@@ -304,6 +304,7 @@ export default function MangaDetailScreen() {
   );
   const [stretchMangaCover, setStretchMangaCover] = useState(true);
   const [showChapterNumber, setShowChapterNumber] = useState(true);
+  const [chapterSortAscending, setChapterSortAscending] = useState(false);
 
   const bulkBusyRef = useRef(false);
 
@@ -368,6 +369,17 @@ export default function MangaDetailScreen() {
     setShowBigMangaCover(settings.mangaScreen.showBigMangaCover);
     setStretchMangaCover(settings.mangaScreen.stretchMangaCover);
     setShowChapterNumber(settings.mangaScreen.showChapterNumber);
+    setChapterSortAscending(settings.mangaScreen.chapterSortAscending);
+  }, []);
+
+  const handleChangeChapterSort = useCallback((ascending: boolean) => {
+    setChapterSortAscending(ascending);
+    void getAppSettings().then((settings) => {
+      if (settings.mangaScreen.chapterSortAscending === ascending) return;
+      return updateAppSettings({
+        mangaScreen: { ...settings.mangaScreen, chapterSortAscending: ascending },
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -805,8 +817,8 @@ export default function MangaDetailScreen() {
     });
   }, []);
 
-  const selectAllChapters = useCallback(() => {
-    setSelectedChapterKeys(new Set(live.current.chapterKeys));
+  const selectAllChapters = useCallback((keys?: string[]) => {
+    setSelectedChapterKeys(new Set(keys ?? live.current.chapterKeys));
   }, []);
 
   const deselectAllChapters = useCallback(() => {
@@ -829,6 +841,11 @@ export default function MangaDetailScreen() {
     () => setChapterSelectMode(true),
     [],
   );
+
+  const selectChapterFromMenu = useCallback((chapter: Chapter) => {
+    setSelectedChapterKeys(new Set([chapter.key]));
+    setChapterSelectMode(true);
+  }, []);
 
   handlersRef.current = {
     onCancelSelect: exitChapterSelectMode,
@@ -1121,8 +1138,11 @@ export default function MangaDetailScreen() {
           void handleRemoveChapterDownload(chapter)
         }
         onToggleChapterSelected={toggleChapterSelected}
+        onSelectChapter={selectChapterFromMenu}
         onSelectAllChapters={selectAllChapters}
         onDeselectAllChapters={deselectAllChapters}
+        chapterSortAscending={chapterSortAscending}
+        onChangeChapterSort={handleChangeChapterSort}
         onRefresh={refresh}
       />
     </SourceCoverHeadersProvider>

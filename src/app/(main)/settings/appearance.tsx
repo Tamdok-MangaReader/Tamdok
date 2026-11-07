@@ -13,7 +13,11 @@ import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import type { AccentColorId } from "@/constants/accent-colors";
-import type { AppIconId } from "@/constants/app-icons";
+import {
+  APP_ICON_OPTIONS,
+  THEMED_APP_ICON_OPTIONS,
+  type AppIconId,
+} from "@/constants/app-icons";
 import { useAppearance } from "@/context/appearance-context";
 import {
   AppThemeMode,
@@ -203,6 +207,16 @@ export default function AppearanceScreen() {
         <SectionLabel>{t("appearance_app_icon_section")}</SectionLabel>
         <Card style={styles.card}>
           <AppIconPicker
+            options={APP_ICON_OPTIONS}
+            selectedId={appIconId}
+            onSelect={handleAppIconSelect}
+          />
+        </Card>
+
+        <SectionLabel>{t("appearance_app_icon_themed")}</SectionLabel>
+        <Card style={styles.card}>
+          <AppIconPicker
+            options={THEMED_APP_ICON_OPTIONS}
             selectedId={appIconId}
             onSelect={handleAppIconSelect}
           />

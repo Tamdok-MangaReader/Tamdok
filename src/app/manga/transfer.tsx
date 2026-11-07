@@ -1,10 +1,10 @@
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { FlashList, useRecyclingState } from "@shopify/flash-list";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   StyleSheet,
   View,
 } from "react-native";
@@ -53,6 +53,8 @@ type SectionProps = {
   source: InstalledSource;
   origin: TransferOrigin;
   twin: boolean;
+  /** Finished searches by source key, shared by all sections of this screen. */
+  results: Map<string, SourceSearchGroup>;
   onPick: (source: InstalledSource, manga: Manga) => void;
 };
 
@@ -62,18 +64,24 @@ const TransferSourceSection = memo(function TransferSourceSection({
   source,
   origin,
   twin,
+  results,
   onPick,
 }: SectionProps) {
-  const [group, setGroup] = useState<SourceSearchGroup>({
-    source,
-    entries: [],
-    status: "loading",
-  });
-  const [attempt, setAttempt] = useState(0);
+  const sourceKey = keyExtractor(source);
+  // FlashList reuses sections for other sources: state resets with the source and finished searches
+  // come from `results`, so scrolling back never shows another source's results or searches again.
+  const [group, setGroup] = useRecyclingState<SourceSearchGroup>(
+    () => results.get(sourceKey) ?? { source, entries: [], status: "loading" },
+    [sourceKey],
+  );
+  const [attempt, setAttempt] = useRecyclingState(0, [sourceKey]);
 
   useEffect(() => {
+    const cached = results.get(sourceKey);
+    if (cached && attempt === 0) return;
     let alive = true;
     const cancel = { cancelled: false };
+    results.delete(sourceKey);
     setGroup({ source, entries: [], status: "loading" });
 
     void (async () => {
@@ -91,9 +99,13 @@ const TransferSourceSection = memo(function TransferSourceSection({
         if (entries.length === 0) {
           entries = await searchTransferCandidates(source, origin, cancel);
         }
-        if (alive) setGroup({ source, entries, status: "done" });
+        if (!alive) return;
+        const done: SourceSearchGroup = { source, entries, status: "done" };
+        results.set(sourceKey, done);
+        setGroup(done);
       } catch (error) {
         if (!alive) return;
+        // Errors are not cached: the section searches again when it comes back into view.
         setGroup({
           source,
           entries: [],
@@ -107,14 +119,18 @@ const TransferSourceSection = memo(function TransferSourceSection({
       alive = false;
       cancel.cancelled = true;
     };
-  }, [source, origin, twin, attempt]);
+  }, [source, sourceKey, origin, twin, attempt, results, setGroup]);
 
-  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  const retry = useCallback(
+    () => setAttempt((value) => value + 1),
+    [setAttempt],
+  );
 
   return (
     <GlobalSearchSourceSection
       group={group}
       resetKey={origin.mangaKey}
+      bottomSpacing={Spacing.lg}
       onPressSource={noop}
       onPressManga={onPick}
       onRetry={retry}
@@ -296,6 +312,13 @@ export default function MangaTransferScreen() {
     [runTransfer],
   );
 
+  const searchResults = useMemo(
+    () => new Map<string, SourceSearchGroup>(),
+    // A new origin (another title) starts with an empty cache.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [origin?.mangaKey, origin?.sourceId],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: InstalledSource }) =>
       origin ? (
@@ -303,10 +326,11 @@ export default function MangaTransferScreen() {
           source={item}
           origin={origin}
           twin={candidates.twinIds.has(`${item.kind}:${item.id}`)}
+          results={searchResults}
           onPick={handlePick}
         />
       ) : null,
-    [origin, candidates.twinIds, handlePick],
+    [origin, candidates.twinIds, searchResults, handlePick],
   );
 
   const header = useMemo(
@@ -324,11 +348,13 @@ export default function MangaTransferScreen() {
   return (
     <ThemedView color="groupedBackground" style={styles.root}>
       <Stack.Screen options={screenOptions} />
-      <FlatList
+      <FlashList
         data={origin ? candidates.list : []}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        ListHeaderComponent={header ?? undefined}
+        ListHeaderComponent={
+          header ? <View style={styles.header}>{header}</View> : undefined
+        }
         ListEmptyComponent={
           origin ? (
             <EmptyState
@@ -343,10 +369,6 @@ export default function MangaTransferScreen() {
         automaticallyAdjustsScrollIndicatorInsets
         renderScrollComponent={renderScrollComponent}
         contentContainerStyle={styles.list}
-        initialNumToRender={3}
-        maxToRenderPerBatch={2}
-        windowSize={5}
-        updateCellsBatchingPeriod={50}
       />
       {busy ? (
         <View style={styles.busy} pointerEvents="auto">
@@ -374,7 +396,10 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xxxl,
-    gap: Spacing.lg,
+  },
+  // Replaces the content-container gap (ignored by FlashList) between the origin card and the sources.
+  header: {
+    marginBottom: Spacing.lg,
   },
   loader: {
     paddingVertical: Spacing.xxxl,

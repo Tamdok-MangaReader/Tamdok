@@ -1,12 +1,12 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { useScrollerCoverWidth, useRailBleed } from "@/hooks/use-duo-layout";
+import { InlineRating } from "@/components/manga/star-rating";
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
 import type { HomeScrollerEntry, Listing } from "@/parsers/shared/types";
 import { homeChapterLabel } from "@/utils/chapter-label";
-import { StarRating } from "@/components/manga/star-rating";
 import { useCoverDisplay } from "@/hooks/use-cover-display";
 import {
   parseMangaDescription,
@@ -88,7 +88,6 @@ export function MangaScroller({
                 manga={entry.manga}
                 cover={entry.homeCover ?? entry.manga.cover}
                 width={coverWidth}
-                rating={undefined}
                 onPress={() => onPressManga(entry)}
               />
               <View
@@ -101,18 +100,14 @@ export function MangaScroller({
                   },
                 ]}
               >
-                {rating ? (
-                  <View style={styles.ratingWrap}>
-                    <StarRating rating={rating} />
-                  </View>
-                ) : null}
+                {rating ? <InlineRating rating={rating} /> : null}
                 {rating && chapterLabel && !isTitleBig ? (
                   <ThemedText
                     variant="footnote"
-                    color="secondaryLabel"
+                    color="tertiaryLabel"
                     numberOfLines={1}
                   >
-                    |
+                    ·
                   </ThemedText>
                 ) : null}
                 {chapterLabel ? (
@@ -156,8 +151,5 @@ const styles = StyleSheet.create({
   },
   bottom: {
     gap: Spacing.xs,
-  },
-  ratingWrap: {
-    paddingLeft: 2,
   },
 });

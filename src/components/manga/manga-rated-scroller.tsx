@@ -1,8 +1,8 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { useScrollerCoverWidth, useRailBleed } from "@/hooks/use-duo-layout";
+import { InlineRating } from "@/components/manga/star-rating";
 import { LibraryMangaCover } from "@/components/manga/library-manga-cover";
-import { StarRating } from "@/components/manga/star-rating";
 import { useCoverDisplay } from "@/hooks/use-cover-display";
 import { ThemedText } from "@/components/ui/themed-text";
 import { Spacing } from "@/constants/theme";
@@ -95,9 +95,7 @@ export function MangaRatedScroller({
                 </ThemedText>
               ) : null}
               {rating ? (
-                <View style={styles.ratingWrap}>
-                  <StarRating rating={rating} compact />
-                </View>
+                <InlineRating rating={rating} small />
               ) : entry.subtitle ? (
                 <ThemedText
                   variant="caption2"
@@ -135,8 +133,5 @@ const styles = StyleSheet.create({
   },
   tile: {
     gap: Spacing.xs,
-  },
-  ratingWrap: {
-    paddingHorizontal: 2,
   },
 });

@@ -12,8 +12,8 @@ import {
   type NativeContextMenuItem,
 } from "@/components/ui/native-context-menu";
 import { ChapterListSkeleton } from "@/components/ui/skeleton";
-import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { FlashList, type ListRenderItem } from "@shopify/flash-list";
 import {
   memo,
   useCallback,
@@ -25,16 +25,15 @@ import {
 } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
+  type ScrollViewProps,
   StyleSheet,
   useWindowDimensions,
   View,
   type LayoutChangeEvent,
-  type ListRenderItem,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type PressableStateCallbackType,
@@ -44,6 +43,11 @@ import {
 
 import { useHeaderHeight } from "@react-navigation/elements";
 import { StarRating } from "@/components/manga/star-rating";
+import {
+  ChapterListMenu,
+  type ChapterListFilter,
+} from "@/components/manga/chapter-list-menu";
+import { MangaMetaPills, MetaPill } from "@/components/manga/manga-meta-pills";
 import { IncognitoModeBanner } from "@/components/settings/incognito-mode-banner";
 import {
   LibraryCategoryDropdown,
@@ -86,7 +90,6 @@ import {
 
 const DESCRIPTION_PREVIEW_LINES = 4;
 const TAG_PREVIEW_COUNT = 6;
-const DOWNLOADED_COLOR = "#007AFF";
 const COVER_WIDTH = 160;
 const COVER_REFERENCE_WIDTH = 430;
 const COVER_MIN_WIDTH = 110;
@@ -110,26 +113,6 @@ const DATE_TEXT_BASE: TextStyle = {
   fontWeight: "700",
   fontVariant: ["tabular-nums"],
 };
-
-const STATUS_PILL = {
-  ongoing: { tint: "transparent", icon: "play.fill" },
-  completed: { tint: "rgba(1,200,100,0.6)", icon: "checkmark" },
-  hiatus: { tint: "rgba(230,210,30,0.6)", icon: "pause.fill" },
-  other: { tint: "rgba(255,40,20,0.6)", icon: "x.circle.fill" },
-} as const;
-
-function getStatusPill(status: string) {
-  switch (status) {
-    case "ongoing":
-      return STATUS_PILL.ongoing;
-    case "completed":
-      return STATUS_PILL.completed;
-    case "hiatus":
-      return STATUS_PILL.hiatus;
-    default:
-      return STATUS_PILL.other;
-  }
-}
 
 const DATE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 function formatUploadDate(timestampSeconds: number): string {
@@ -156,9 +139,17 @@ const PULL_TRIGGER_DISTANCE = 70;
 
 const formatCount = (n: number) => (n > 99 ? "99+" : String(n));
 
-const renderScrollComponent = (
-  props: React.ComponentProps<typeof LiquidGlassScrollComponent>,
-) => <LiquidGlassScrollComponent {...props} scrollsToTop={false} />;
+// Module-level component so FlashList gets a stable type; React 19 passes the list's ref through props.
+function ChapterScrollComponent(props: ScrollViewProps) {
+  return (
+    <LiquidGlassScrollComponent
+      {...(props as React.ComponentProps<typeof LiquidGlassScrollComponent>)}
+      scrollsToTop={false}
+    />
+  );
+}
+
+const MVCP_DISABLED = { disabled: true } as const;
 
 function chapterKeyExtractor(chapter: Chapter): string {
   return chapter.key;
@@ -169,6 +160,7 @@ const ChapterDownloadIndicator = memo(function ChapterDownloadIndicator({
 }: {
   entry?: DownloadEntry;
 }) {
+  const { colors } = useTheme();
   if (!entry) return null;
 
   if (entry.status === "downloading" || entry.status === "pending") {
@@ -176,15 +168,29 @@ const ChapterDownloadIndicator = memo(function ChapterDownloadIndicator({
       <ProgressRing
         progress={entry.progress}
         size={18}
-        color={DOWNLOADED_COLOR}
+        color={colors.systemBlue}
       />
     );
   }
   if (entry.status === "completed") {
-    return <Ionicons name="download" size={14} color={DOWNLOADED_COLOR} />;
+    return (
+      <SFSymbolIcon
+        name="arrow.down.circle.fill"
+        fallback="download"
+        size={14}
+        color={colors.systemBlue}
+      />
+    );
   }
   if (entry.status === "failed") {
-    return <Ionicons name="alert-circle" size={14} color="#FF3B30" />;
+    return (
+      <SFSymbolIcon
+        name="exclamationmark.circle.fill"
+        fallback="alert-circle"
+        size={14}
+        color={colors.destructive}
+      />
+    );
   }
   return null;
 });
@@ -218,7 +224,10 @@ const DescriptionBlock = memo(function DescriptionBlock({
         {fullText}
       </ThemedText>
       {canExpand ? (
-        <Pressable onPress={toggle} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <Pressable
+          onPress={toggle}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <ThemedText
             variant="subheadline"
             color="tint"
@@ -288,7 +297,10 @@ const TagsBlock = memo(function TagsBlock({
         ))}
       </View>
       {canExpand ? (
-        <Pressable onPress={toggle} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <Pressable
+          onPress={toggle}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
           <ThemedText
             variant="subheadline"
             color="tint"
@@ -330,24 +342,18 @@ type HeaderProps = {
   onLibraryPress: () => void;
   onOpenInBrowser: () => void;
   onToggleFavorite: () => void;
+  allChaptersSelected: boolean;
+  chapterSortAscending: boolean;
+  chapterFilter: ChapterListFilter;
+  onChangeChapterSort?: (ascending: boolean) => void;
+  onChangeChapterFilter: (filter: ChapterListFilter) => void;
   onSelectAllChapters?: () => void;
   onDeselectAllChapters?: () => void;
 };
 
 function MoreBadge({ count }: { count: number }) {
-  const { radius } = useTheme();
   if (count <= 0) return null;
-  return (
-    <GlassSurface borderRadius={radius.pill}>
-      <ThemedText
-        variant="footnote"
-        color="secondaryLabel"
-        style={styles.moreBadgeText}
-      >
-        {`+${count}`}
-      </ThemedText>
-    </GlassSurface>
-  );
+  return <MetaPill label={`+${count}`} />;
 }
 
 const MangaDetailHeader = memo(function MangaDetailHeader({
@@ -377,10 +383,15 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   onLibraryPress,
   onOpenInBrowser,
   onToggleFavorite,
+  allChaptersSelected,
+  chapterSortAscending,
+  chapterFilter,
+  onChangeChapterSort,
+  onChangeChapterFilter,
   onSelectAllChapters,
   onDeselectAllChapters,
 }: HeaderProps) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, isGlass } = useTheme();
   const coverHeaders = useSourceCoverHeaders();
   const { width: windowWidth } = useWindowDimensions();
   // Folded Duo: the system rail eats one side; this screen is not wrapped by DuoScreenLayout, so keep the hero clear of it here.
@@ -430,9 +441,11 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   const libraryButtonContent = (
     <>
       <View style={styles.libraryIconLeading} pointerEvents="none">
-        <Ionicons
-          name={inLibrary ? "bookmark" : "bookmark-outline"}
-          size={18}
+        <SFSymbolIcon
+          name={inLibrary ? "bookmark.fill" : "bookmark"}
+          fallback={inLibrary ? "bookmark" : "bookmark-outline"}
+          size={17}
+          weight="semibold"
           color={inLibrary ? colors.tint : colors.onTint}
         />
       </View>
@@ -449,9 +462,11 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       </ThemedText>
       {hasCustomCategories ? (
         <View style={styles.libraryIconTrailing} pointerEvents="none">
-          <Ionicons
-            name={libraryPickerOpen ? "chevron-up" : "chevron-down"}
-            size={14}
+          <SFSymbolIcon
+            name={libraryPickerOpen ? "chevron.up" : "chevron.down"}
+            fallback={libraryPickerOpen ? "chevron-up" : "chevron-down"}
+            size={13}
+            weight="semibold"
             color={inLibrary ? colors.tint : colors.onTint}
           />
         </View>
@@ -491,11 +506,6 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   }, []);
   const closeCoverPreview = useCallback(() => setCoverPreviewOpen(false), []);
 
-  const statusPill =
-    manga.status && manga.status !== "unknown"
-      ? getStatusPill(manga.status)
-      : null;
-
   const heroMeta = (
     <>
       <ThemedText variant="title2" numberOfLines={2}>
@@ -511,15 +521,7 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             {sourceName}
           </ThemedText>
           {sourceKind ? (
-            <GlassSurface borderRadius={radius.pill}>
-              <ThemedText
-                variant="footnote"
-                color="secondaryLabel"
-                style={styles.kindBadge}
-              >
-                {sourceKind === "aidoku" ? "Aidoku" : "Tamdok"}
-              </ThemedText>
-            </GlassSurface>
+            <MetaPill label={sourceKind === "aidoku" ? "Aidoku" : "Tamdok"} />
           ) : null}
         </View>
       ) : null}
@@ -538,7 +540,12 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       ) : null}
       {authors ? (
         <View style={styles.creditRow}>
-          <ThemedText variant="subheadline" color="secondaryLabel" numberOfLines={2} style={styles.creditText}>
+          <ThemedText
+            variant="subheadline"
+            color="secondaryLabel"
+            numberOfLines={2}
+            style={styles.creditText}
+          >
             {authors}
           </ThemedText>
           <MoreBadge count={moreAuthors} />
@@ -546,173 +553,145 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       ) : null}
       {artists && artists !== authors ? (
         <View style={styles.creditRow}>
-          <ThemedText variant="footnote" color="secondaryLabel" numberOfLines={1} style={styles.creditText}>
+          <ThemedText
+            variant="footnote"
+            color="secondaryLabel"
+            numberOfLines={1}
+            style={styles.creditText}
+          >
             {artists}
           </ThemedText>
           <MoreBadge count={moreArtists} />
         </View>
       ) : null}
-      {rating ? <StarRating rating={rating} bigger /> : null}
-      <View style={styles.pills}>
-        {statusPill && manga.status ? (
-          <GlassSurface
-            borderRadius={radius.pill}
-            style={styles.statusPill}
-            tintColor={statusPill.tint}
-          >
-            <SFSymbolIcon
-              name={statusPill.icon}
-              size={16}
-              color={colors.secondaryLabel}
-              fallback="globe-outline"
-            />
-            <ThemedText
-              variant="footnote"
-              color="secondaryLabel"
-              style={styles.statusText}
-            >
-              {formatStatus(manga.status)}
-            </ThemedText>
-          </GlassSurface>
-        ) : null}
-        {manga.viewer ? (
-          <GlassSurface borderRadius={radius.pill} style={styles.typePill}>
-            <ThemedText
-              variant="footnote"
-              color="secondaryLabel"
-              style={styles.typeText}
-            >
-              {manga.viewer === "webtoon" ? "Webtoon" : "Manga"}
-            </ThemedText>
-          </GlassSurface>
-        ) : null}
-      </View>
-      {!chapterSelectMode ? (
-        <View style={styles.librarySection}>
-          <View style={styles.libraryRow}>
-            <Pressable
-              ref={libraryButtonRef}
-              onPress={onLibraryPress}
-              hitSlop={8}
-              style={libraryPressableStyle}
-            >
-              {inLibrary ? (
-                <GlassSurface
-                  borderRadius={radius.pill}
-                  style={[styles.libraryButton]}
-                  interactive
-                >
-                  {libraryButtonContent}
-                </GlassSurface>
-              ) : (
-                <View
-                  style={[
-                    styles.libraryButton,
-                    {
-                      borderRadius: radius.pill,
-                      backgroundColor: inLibrary
-                        ? colors.secondaryFill
-                        : colors.tint,
-                    },
-                  ]}
-                >
-                  {libraryButtonContent}
-                </View>
-              )}
-            </Pressable>
-            {inLibrary ? (
-              <Pressable
-                style={styles.safariPressable}
-                onPress={onToggleFavorite}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  isFavorite
-                    ? t("manga_favorite_remove")
-                    : t("manga_favorite_add")
-                }
-              >
-                <GlassSurface
-                  borderRadius={radius.pill}
-                  style={styles.safariButton}
-                  interactive
-                >
-                  <SFSymbolIcon
-                    name={isFavorite ? "star.fill" : "star"}
-                    size={18}
-                    color={isFavorite ? "#F5B301" : colors.tint}
-                    fallback={isFavorite ? "star" : "star-outline"}
-                  />
-                </GlassSurface>
-              </Pressable>
-            ) : canOpenInBrowser ? (
-              <Pressable
-                style={styles.safariPressable}
-                onPress={onOpenInBrowser}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={t("manga_open_in_browser")}
-              >
-                <GlassSurface
-                  borderRadius={radius.pill}
-                  style={styles.safariButton}
-                  interactive
-                >
-                  <SFSymbolIcon
-                    name="safari"
-                    size={18}
-                    color={colors.tint}
-                    fallback="globe-outline"
-                  />
-                </GlassSurface>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
+      {rating ? <StarRating rating={rating} large /> : null}
+      <MangaMetaPills status={manga.status} viewer={manga.viewer} />
     </>
   );
 
-  const progressNode = !chapterSelectMode && chaptersCount > 0 ? (
-        <View style={styles.readingProgress}>
-          <View style={styles.readingProgressCard}>
-            <View style={styles.readingProgressHeader}>
-              <ThemedText
-                variant="caption1"
-                color="secondaryLabel"
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-                style={styles.readingProgressLabel}
-              >
-                {t("manga_reading_progress", {
-                  read: String(Math.max(0, chaptersCount - unreadCount)),
-                  total: String(chaptersCount),
-                })}
-              </ThemedText>
-              <ThemedText variant="caption1" color="tint" style={styles.readingProgressPercent}>
-                {Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100)}%
-              </ThemedText>
-            </View>
+  const libraryNode = !chapterSelectMode ? (
+    <View style={styles.librarySection}>
+      <View style={styles.libraryRow}>
+        <Pressable
+          ref={libraryButtonRef}
+          onPress={onLibraryPress}
+          hitSlop={8}
+          style={libraryPressableStyle}
+        >
+          <GlassSurface
+            borderRadius={radius.pill}
+            glassStyle="regular"
+            tintColor={inLibrary ? undefined : `${colors.tint}80`}
+            style={
+              isGlass || inLibrary
+                ? styles.libraryButton
+                : [styles.libraryButton, { backgroundColor: colors.tint }]
+            }
+            interactive
+          >
+            {libraryButtonContent}
+          </GlassSurface>
+        </Pressable>
+        {inLibrary ? (
+          <Pressable
+            style={styles.safariPressable}
+            onPress={onToggleFavorite}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isFavorite ? t("manga_favorite_remove") : t("manga_favorite_add")
+            }
+          >
+            <GlassSurface
+              borderRadius={radius.pill}
+              glassStyle="regular"
+              style={styles.safariButton}
+              interactive
+            >
+              <SFSymbolIcon
+                name={isFavorite ? "star.fill" : "star"}
+                size={18}
+                color={isFavorite ? colors.systemYellow : colors.tint}
+                fallback={isFavorite ? "star" : "star-outline"}
+              />
+            </GlassSurface>
+          </Pressable>
+        ) : canOpenInBrowser ? (
+          <Pressable
+            style={styles.safariPressable}
+            onPress={onOpenInBrowser}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={t("manga_open_in_browser")}
+          >
+            <GlassSurface
+              borderRadius={radius.pill}
+              glassStyle="regular"
+              style={styles.safariButton}
+              interactive
+            >
+              <SFSymbolIcon
+                name="safari"
+                size={18}
+                color={colors.tint}
+                fallback="globe-outline"
+              />
+            </GlassSurface>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  ) : null;
+
+  const progressNode =
+    !chapterSelectMode && chaptersCount > 0 ? (
+      <View style={styles.readingProgress}>
+        <View style={styles.readingProgressCard}>
+          <View style={styles.readingProgressHeader}>
+            <ThemedText
+              variant="caption1"
+              color="secondaryLabel"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              style={styles.readingProgressLabel}
+            >
+              {t("manga_reading_progress", {
+                read: String(Math.max(0, chaptersCount - unreadCount)),
+                total: String(chaptersCount),
+              })}
+            </ThemedText>
+            <ThemedText
+              variant="caption1"
+              color="tint"
+              style={styles.readingProgressPercent}
+            >
+              {Math.round(
+                (Math.max(0, chaptersCount - unreadCount) / chaptersCount) *
+                  100,
+              )}
+              %
+            </ThemedText>
+          </View>
+          <View
+            style={[
+              styles.readingProgressTrack,
+              { backgroundColor: colors.secondaryFill },
+            ]}
+          >
             <View
               style={[
-                styles.readingProgressTrack,
-                { backgroundColor: colors.secondaryFill },
+                styles.readingProgressFill,
+                {
+                  backgroundColor: colors.tint,
+                  width: `${Math.max(2, Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100))}%`,
+                },
               ]}
-            >
-              <View
-                style={[
-                  styles.readingProgressFill,
-                  {
-                    backgroundColor: colors.tint,
-                    width: `${Math.max(2, Math.round((Math.max(0, chaptersCount - unreadCount) / chaptersCount) * 100))}%`,
-                  },
-                ]}
-              />
-            </View>
+            />
           </View>
         </View>
-      ) : null;
+      </View>
+    ) : null;
 
   const showCounts =
     inLibrary && !isLoading && (unreadCount > 0 || downloadedCount > 0);
@@ -726,77 +705,70 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           : null,
       ]}
     >
-        <Pressable
-          style={[styles.coverPressable, !stretchCover && styles.coverPressableFixed]}
-          onLongPress={handleCoverLongPress}
-          onPressIn={handleCoverPressIn}
-          onPressOut={handleCoverPressOut}
-          delayLongPress={250}
-          disabled={!coverSource}
-          accessibilityRole="imagebutton"
-        >
-          <Animated.View style={[coverStyle, coverPressStyle]}>
-            {coverSource ? (
-              <Image
-                source={coverSource}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                recyclingKey={manga.cover}
-                cachePolicy={IMAGE_CACHE_POLICY}
-                allowDownscaling
-                transition={200}
+      <Pressable
+        style={[
+          styles.coverPressable,
+          !stretchCover && styles.coverPressableFixed,
+        ]}
+        onLongPress={handleCoverLongPress}
+        onPressIn={handleCoverPressIn}
+        onPressOut={handleCoverPressOut}
+        delayLongPress={250}
+        disabled={!coverSource}
+        accessibilityRole="imagebutton"
+      >
+        <Animated.View style={[coverStyle, coverPressStyle]}>
+          {coverSource ? (
+            <Image
+              source={coverSource}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              recyclingKey={manga.cover}
+              cachePolicy={IMAGE_CACHE_POLICY}
+              allowDownscaling
+              transition={200}
+            />
+          ) : (
+            <ThemedText variant="title1" color="tertiaryLabel">
+              {manga.title.slice(0, 1)}
+            </ThemedText>
+          )}
+          {inLibrary ? (
+            <View
+              style={[styles.coverBookmark, { backgroundColor: colors.tint }]}
+            >
+              <SFSymbolIcon
+                name="bookmark.fill"
+                size={11}
+                color={colors.onTint}
+                fallback="bookmark"
               />
-            ) : (
-              <ThemedText variant="title1" color="tertiaryLabel">
-                {manga.title.slice(0, 1)}
-              </ThemedText>
-            )}
-            {inLibrary ? (
-              <View
-                style={[styles.coverBookmark, { backgroundColor: colors.tint }]}
-              >
-                <SFSymbolIcon
-                  name="bookmark.fill"
-                  size={11}
-                  color={colors.onTint}
-                  fallback="bookmark"
-                />
-              </View>
-            ) : null}
-            {showCounts ? (
-              <View style={styles.coverCountRow}>
-                {unreadCount > 0 ? (
-                  <View
-                    style={[styles.coverCountBadge, styles.coverUnreadBadge]}
-                  >
-                    <ThemedText
-                      variant="caption2"
-                      style={styles.coverCountText}
-                    >
-                      {formatCount(unreadCount)}
-                    </ThemedText>
-                  </View>
-                ) : null}
-                {downloadedCount > 0 ? (
-                  <View
-                    style={[
-                      styles.coverCountBadge,
-                      styles.coverDownloadedBadge,
-                    ]}
-                  >
-                    <ThemedText
-                      variant="caption2"
-                      style={styles.coverCountText}
-                    >
-                      {formatCount(downloadedCount)}
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-          </Animated.View>
-        </Pressable>
+            </View>
+          ) : null}
+          {showCounts ? (
+            <View style={styles.coverCountRow}>
+              {unreadCount > 0 ? (
+                <View style={[styles.coverCountBadge, styles.coverUnreadBadge]}>
+                  <ThemedText variant="caption2" style={styles.coverCountText}>
+                    {formatCount(unreadCount)}
+                  </ThemedText>
+                </View>
+              ) : null}
+              {downloadedCount > 0 ? (
+                <View
+                  style={[styles.coverCountBadge, styles.coverDownloadedBadge]}
+                >
+                  <ThemedText variant="caption2" style={styles.coverCountText}>
+                    {formatCount(downloadedCount)}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </Animated.View>
+      </Pressable>
 
+      <View style={styles.heroColumn}>
         {!showBigMangaCover ? (
           <View style={styles.heroMeta}>{heroMeta}</View>
         ) : (
@@ -807,7 +779,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
             {heroMeta}
           </GlassSurface>
         )}
+        {libraryNode}
       </View>
+    </View>
   );
 
   const descNode = (
@@ -833,7 +807,9 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
   return (
     <View
       style={styles.header}
-      onLayout={(event) => setHeaderWidth(Math.round(event.nativeEvent.layout.width))}
+      onLayout={(event) =>
+        setHeaderWidth(Math.round(event.nativeEvent.layout.width))
+      }
     >
       {showInfo && showBigMangaCover && coverSource ? (
         <MangaBackground source={coverSource} />
@@ -844,7 +820,10 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
           onDismiss={onDismissInlineError}
         />
       ) : retrying ? (
-        <SourceHomeAlertBanner message={t("source_connection_retrying")} loading />
+        <SourceHomeAlertBanner
+          message={t("source_connection_retrying")}
+          loading
+        />
       ) : null}
       <IncognitoModeBanner />
 
@@ -897,36 +876,47 @@ const MangaDetailHeader = memo(function MangaDetailHeader({
       ) : null}
 
       {showChapters ? (
-      <View style={styles.chapterHeader}>
-        <View style={styles.chapterTitleRow}>
-          {isRefreshing && !chapterSelectMode ? (
-            <ShimmerText variant="headline" style={styles.blockTitle}>
-              {t("manga_loading")}
-            </ShimmerText>
-          ) : (
-            <ThemedText variant="headline" style={styles.blockTitle}>
-              {chapterSelectMode
-                ? t("manga_select_chapters")
-                : `${t("manga_chapters")}${chaptersCount > 0 ? ` (${chaptersCount})` : ""}`}
-            </ThemedText>
-          )}
-        </View>
-        {progressNode}
-        {chapterSelectMode ? (
-          <View style={styles.selectActions}>
-            <Pressable onPress={onSelectAllChapters} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
-              <ThemedText variant="footnote" color="tint">
-                {t("manga_select_all")}
+        <View style={styles.chapterHeader}>
+          <View style={styles.chapterTitleRow}>
+            {isRefreshing && !chapterSelectMode ? (
+              <ShimmerText variant="headline" style={styles.blockTitle}>
+                {t("manga_loading")}
+              </ShimmerText>
+            ) : (
+              <ThemedText variant="headline" style={styles.blockTitle}>
+                {chapterSelectMode
+                  ? t("manga_select_chapters")
+                  : `${t("manga_chapters")}${chaptersCount > 0 ? ` (${chaptersCount})` : ""}`}
               </ThemedText>
-            </Pressable>
-            <Pressable onPress={onDeselectAllChapters} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
-              <ThemedText variant="footnote" color="tint">
-                {t("manga_deselect_all")}
-              </ThemedText>
-            </Pressable>
+            )}
           </View>
-        ) : null}
-      </View>
+          {progressNode}
+          {chapterSelectMode ? (
+            <Pressable
+              onPress={
+                allChaptersSelected
+                  ? onDeselectAllChapters
+                  : onSelectAllChapters
+              }
+              hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+              accessibilityRole="button"
+              style={styles.selectActions}
+            >
+              <ThemedText variant="subheadline" color="tint">
+                {allChaptersSelected
+                  ? t("manga_deselect_all")
+                  : t("manga_select_all")}
+              </ThemedText>
+            </Pressable>
+          ) : chaptersCount > 0 && onChangeChapterSort ? (
+            <ChapterListMenu
+              ascending={chapterSortAscending}
+              filter={chapterFilter}
+              onChangeSort={onChangeChapterSort}
+              onChangeFilter={onChangeChapterFilter}
+            />
+          ) : null}
+        </View>
       ) : null}
     </View>
   );
@@ -971,9 +961,14 @@ type MangaDetailViewProps = {
   onToggleChapterBookmark?: (chapter: Chapter) => void;
   onDownloadChapter?: (chapter: Chapter) => void;
   onRemoveChapterDownload?: (chapter: Chapter) => void;
+  /** Enters selection mode with this chapter selected. */
+  onSelectChapter?: (chapter: Chapter) => void;
   onToggleChapterSelected?: (chapter: Chapter) => void;
-  onSelectAllChapters?: () => void;
+  /** Called with the visible chapter keys when a filter hides some chapters. */
+  onSelectAllChapters?: (keys?: string[]) => void;
   onDeselectAllChapters?: () => void;
+  chapterSortAscending?: boolean;
+  onChangeChapterSort?: (ascending: boolean) => void;
 };
 
 export function MangaDetailView({
@@ -1015,12 +1010,17 @@ export function MangaDetailView({
   onToggleChapterBookmark,
   onDownloadChapter,
   onRemoveChapterDownload,
+  onSelectChapter,
   onToggleChapterSelected,
   onSelectAllChapters,
   onDeselectAllChapters,
+  chapterSortAscending = false,
+  onChangeChapterSort,
 }: MangaDetailViewProps) {
   const { colors } = useTheme();
   const libraryButtonRef = useRef<ViewType>(null);
+  const chaptersRef = useRef(chapters);
+  chaptersRef.current = chapters;
   const [dropdownAnchor, setDropdownAnchor] =
     useState<CategoryDropdownAnchor | null>(null);
 
@@ -1048,6 +1048,7 @@ export function MangaDetailView({
     onToggleChapterBookmark,
     onDownloadChapter,
     onRemoveChapterDownload,
+    onSelectChapter,
     onContinueReading,
     onOpenInBrowser,
     onToggleFavorite,
@@ -1056,6 +1057,7 @@ export function MangaDetailView({
     onDeselectAllChapters,
     onToggleCategory,
     onToggleLibraryPicker,
+    onChangeChapterSort,
   });
   handlersRef.current = {
     onOpenChapter,
@@ -1065,6 +1067,7 @@ export function MangaDetailView({
     onToggleChapterBookmark,
     onDownloadChapter,
     onRemoveChapterDownload,
+    onSelectChapter,
     onContinueReading,
     onOpenInBrowser,
     onToggleFavorite,
@@ -1073,6 +1076,7 @@ export function MangaDetailView({
     onDeselectAllChapters,
     onToggleCategory,
     onToggleLibraryPicker,
+    onChangeChapterSort,
   };
 
   const stableOpenChapter = useCallback(
@@ -1103,6 +1107,10 @@ export function MangaDetailView({
     (c: Chapter) => handlersRef.current.onRemoveChapterDownload?.(c),
     [],
   );
+  const stableSelectChapter = useCallback(
+    (c: Chapter) => handlersRef.current.onSelectChapter?.(c),
+    [],
+  );
   const stableContinue = useCallback(
     () => handlersRef.current.onContinueReading(),
     [],
@@ -1119,10 +1127,14 @@ export function MangaDetailView({
     () => handlersRef.current.onDismissInlineError?.(),
     [],
   );
-  const stableSelectAll = useCallback(
-    () => handlersRef.current.onSelectAllChapters?.(),
-    [],
-  );
+  const stableSelectAll = useCallback(() => {
+    const visible = visibleChaptersRef.current;
+    handlersRef.current.onSelectAllChapters?.(
+      visible.length === chaptersRef.current.length
+        ? undefined
+        : visible.map((chapter) => chapter.key),
+    );
+  }, []);
   const stableDeselectAll = useCallback(
     () => handlersRef.current.onDeselectAllChapters?.(),
     [],
@@ -1149,6 +1161,52 @@ export function MangaDetailView({
   }, [closeLibraryPicker, hasCustomCategories, libraryPickerOpen]);
 
   const total = chapters.length;
+  const [chapterFilter, setChapterFilter] = useState<ChapterListFilter>("all");
+
+  // `chapters` arrives newest first; the view only reorders and filters it, actions elsewhere keep using the full list.
+  const visibleChapters = useMemo(() => {
+    let list = chapters;
+    if (chapterFilter !== "all") {
+      list = list.filter((chapter) =>
+        chapterFilter === "unread"
+          ? !readChapterKeys.has(chapter.key)
+          : chapterFilter === "downloaded"
+            ? downloadedChapterKeys.has(chapter.key)
+            : (bookmarkedChapterKeys?.has(chapter.key) ?? false),
+      );
+    }
+    return chapterSortAscending ? [...list].reverse() : list;
+  }, [
+    chapters,
+    chapterFilter,
+    chapterSortAscending,
+    readChapterKeys,
+    downloadedChapterKeys,
+    bookmarkedChapterKeys,
+  ]);
+  const visibleCount = visibleChapters.length;
+  const isReordered = chapterFilter !== "all" || chapterSortAscending;
+  const fallbackNumbers = useMemo(() => {
+    if (!isReordered) return null;
+    const map = new Map<string, number>();
+    chapters.forEach((chapter, index) => map.set(chapter.key, total - index));
+    return map;
+  }, [chapters, isReordered, total]);
+
+  const visibleChaptersRef = useRef(visibleChapters);
+  visibleChaptersRef.current = visibleChapters;
+  const allChaptersSelected = useMemo(
+    () =>
+      visibleCount > 0 &&
+      (selectedChapterKeys?.size ?? 0) >= visibleCount &&
+      visibleChapters.every((chapter) => selectedChapterKeys?.has(chapter.key)),
+    [visibleChapters, visibleCount, selectedChapterKeys],
+  );
+  const stableChangeSort = useCallback(
+    (ascending: boolean) =>
+      handlersRef.current.onChangeChapterSort?.(ascending),
+    [],
+  );
 
   const [chapterMenusReady, setChapterMenusReady] = useState(false);
   useEffect(() => {
@@ -1161,7 +1219,7 @@ export function MangaDetailView({
       <ChapterRow
         chapter={item}
         index={index}
-        total={total}
+        fallbackNumber={fallbackNumbers?.get(item.key) ?? total - index}
         selectMode={chapterSelectMode}
         showChapterNumber={showChapterNumber}
         isSelected={selectedChapterKeys?.has(item.key) ?? false}
@@ -1169,7 +1227,7 @@ export function MangaDetailView({
         isBookmarked={bookmarkedChapterKeys?.has(item.key) ?? false}
         isDownloaded={downloadedChapterKeys.has(item.key)}
         downloadEntry={chapterDownloads[item.key]}
-        isLast={index === total - 1}
+        isLast={index === visibleCount - 1}
         menuEnabled={chapterMenusReady}
         onOpen={stableOpenChapter}
         onToggleSelected={stableToggleSelected}
@@ -1178,6 +1236,7 @@ export function MangaDetailView({
         onToggleBookmark={stableToggleBookmark}
         onDownload={stableDownload}
         onRemoveDownload={stableRemoveDownload}
+        onSelect={onSelectChapter ? stableSelectChapter : undefined}
       />
     ),
     [
@@ -1190,6 +1249,8 @@ export function MangaDetailView({
       selectedChapterKeys,
       showChapterNumber,
       total,
+      visibleCount,
+      fallbackNumbers,
       stableOpenChapter,
       stableToggleSelected,
       stableMarkRead,
@@ -1197,6 +1258,8 @@ export function MangaDetailView({
       stableToggleBookmark,
       stableDownload,
       stableRemoveDownload,
+      stableSelectChapter,
+      onSelectChapter,
     ],
   );
 
@@ -1238,6 +1301,11 @@ export function MangaDetailView({
       onLibraryPress={handleLibraryPickerPress}
       onOpenInBrowser={stableOpenInBrowser}
       onToggleFavorite={stableToggleFavorite}
+      allChaptersSelected={allChaptersSelected}
+      chapterSortAscending={chapterSortAscending}
+      chapterFilter={chapterFilter}
+      onChangeChapterSort={onChangeChapterSort ? stableChangeSort : undefined}
+      onChangeChapterFilter={setChapterFilter}
       onSelectAllChapters={onSelectAllChapters ? stableSelectAll : undefined}
       onDeselectAllChapters={
         onDeselectAllChapters ? stableDeselectAll : undefined
@@ -1250,10 +1318,15 @@ export function MangaDetailView({
     () =>
       isLoading ? (
         <ChapterListSkeleton />
+      ) : total > 0 ? (
+        <EmptyState
+          icon="filter-outline"
+          title={t("manga_chapters_filter_empty")}
+        />
       ) : (
         <EmptyState icon="book-outline" title={t("manga_no_chapters")} />
       ),
-    [isLoading],
+    [isLoading, total],
   );
 
   const contentContainerStyle = useMemo(
@@ -1272,7 +1345,10 @@ export function MangaDetailView({
   const handlePullEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       if (isRefreshing || !onRefresh) return;
-      if (event.nativeEvent.contentOffset.y < -(navHeaderHeight + PULL_TRIGGER_DISTANCE)) {
+      if (
+        event.nativeEvent.contentOffset.y <
+        -(navHeaderHeight + PULL_TRIGGER_DISTANCE)
+      ) {
         onRefresh();
       }
     },
@@ -1292,27 +1368,25 @@ export function MangaDetailView({
   );
 
   const chaptersList = (
-    <FlatList
-          style={split ? styles.splitFill : styles.root}
-          data={isLoading ? EMPTY_CHAPTERS : chapters}
-          keyExtractor={chapterKeyExtractor}
-          renderItem={renderChapter}
-          ListHeaderComponent={listHeader}
-          ListEmptyComponent={listEmpty}
-          contentContainerStyle={contentContainerStyle}
-          contentInsetAdjustmentBehavior="automatic"
-          automaticallyAdjustsScrollIndicatorInsets
-          scrollsToTop={false}
-          showsVerticalScrollIndicator={false}
-          refreshControl={coverBackdrop ? undefined : refreshControl}
-          onScrollEndDrag={coverBackdrop ? handlePullEnd : undefined}
-          renderScrollComponent={split ? undefined : renderScrollComponent}
-          initialNumToRender={14}
-          maxToRenderPerBatch={12}
-          updateCellsBatchingPeriod={30}
-          windowSize={7}
-          removeClippedSubviews={Platform.OS === "android"}
-        />
+    <FlashList
+      style={split ? styles.splitFill : styles.root}
+      data={isLoading ? EMPTY_CHAPTERS : visibleChapters}
+      keyExtractor={chapterKeyExtractor}
+      renderItem={renderChapter}
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={listEmpty}
+      contentContainerStyle={contentContainerStyle}
+      contentInsetAdjustmentBehavior="automatic"
+      automaticallyAdjustsScrollIndicatorInsets
+      scrollsToTop={false}
+      showsVerticalScrollIndicator={false}
+      refreshControl={coverBackdrop ? undefined : refreshControl}
+      onScrollEndDrag={coverBackdrop ? handlePullEnd : undefined}
+      renderScrollComponent={split ? undefined : ChapterScrollComponent}
+      extraData={renderChapter}
+      // Sorting, filtering and refreshes replace the list; keep FlatList's behaviour of not anchoring to the old first row.
+      maintainVisibleContentPosition={MVCP_DISABLED}
+    />
   );
 
   return (
@@ -1330,12 +1404,7 @@ export function MangaDetailView({
             >
               {renderHeader("info")}
             </ScrollView>
-            <View
-              style={[
-                styles.splitRight,
-                { paddingRight: sideRight },
-              ]}
-            >
+            <View style={[styles.splitRight, { paddingRight: sideRight }]}>
               {chaptersList}
             </View>
           </View>
@@ -1359,7 +1428,8 @@ export function MangaDetailView({
 type ChapterRowProps = {
   chapter: Chapter;
   index: number;
-  total: number;
+  /** Position counted from the oldest chapter in the full list; used when the chapter has no number. */
+  fallbackNumber: number;
   selectMode: boolean;
   isSelected: boolean;
   isRead: boolean;
@@ -1376,6 +1446,7 @@ type ChapterRowProps = {
   onToggleBookmark: (chapter: Chapter) => void;
   onDownload: (chapter: Chapter) => void;
   onRemoveDownload: (chapter: Chapter) => void;
+  onSelect?: (chapter: Chapter) => void;
 };
 
 // All chapter rows share one width. It is measured once on the plain RN card and handed to the
@@ -1394,9 +1465,7 @@ function downloadEntryEqual(a?: DownloadEntry, b?: DownloadEntry): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return (
-    a.status === b.status &&
-    a.progress === b.progress &&
-    a.error === b.error
+    a.status === b.status && a.progress === b.progress && a.error === b.error
   );
 }
 
@@ -1415,7 +1484,7 @@ function chapterRowPropsEqual(
 const ChapterRow = memo(function ChapterRow({
   chapter,
   index,
-  total,
+  fallbackNumber,
   selectMode,
   isSelected,
   isRead,
@@ -1431,6 +1500,7 @@ const ChapterRow = memo(function ChapterRow({
   onToggleBookmark,
   onDownload,
   onRemoveDownload,
+  onSelect,
   showChapterNumber,
 }: ChapterRowProps) {
   const { colors, radius, isDark } = useTheme();
@@ -1439,11 +1509,9 @@ const ChapterRow = memo(function ChapterRow({
   const isDownloading = status === "downloading" || status === "pending";
   const isFailed = status === "failed";
   const isFirst = index === 0;
-  const loneReadIcon =
-    isRead && !isLocked && !isFailed && (isDownloading || !isDownloaded);
 
   const chapterNumberLabel = showChapterNumber
-    ? formatChapterNumber(chapter, index, total)
+    ? formatChapterNumber(chapter, fallbackNumber)
     : null;
   const title = useMemo(
     () => chapterTitleForDisplay(chapter) ?? formatChapterLabel(chapter),
@@ -1564,13 +1632,16 @@ const ChapterRow = memo(function ChapterRow({
     <Pressable
       style={pressableStyle}
       onPress={handlePress}
-      onLongPress={menuEnabled && !selectMode ? noopChapterLongPress : undefined}
+      onLongPress={
+        menuEnabled && !selectMode ? noopChapterLongPress : undefined
+      }
       delayLongPress={250}
       accessibilityRole="button"
     >
       {selectMode ? (
-        <Ionicons
-          name={isSelected ? "checkmark-circle" : "ellipse-outline"}
+        <SFSymbolIcon
+          name={isSelected ? "checkmark.circle.fill" : "circle"}
+          fallback={isSelected ? "checkmark-circle" : "ellipse-outline"}
           size={22}
           color={isSelected ? colors.tint : colors.tertiaryLabel}
         />
@@ -1594,7 +1665,12 @@ const ChapterRow = memo(function ChapterRow({
       <View style={styles.chapterMeta}>
         <View style={styles.chapterTitleRow}>
           {isBookmarked ? (
-            <Ionicons name="bookmark" size={14} color={colors.tint} />
+            <SFSymbolIcon
+              name="bookmark.fill"
+              fallback="bookmark"
+              size={13}
+              color={colors.tint}
+            />
           ) : null}
           <ThemedText
             variant="body"
@@ -1624,34 +1700,14 @@ const ChapterRow = memo(function ChapterRow({
         ) : null}
       </View>
       <View style={styles.sourceRowRightInfo}>
-        {dateLabel || loneReadIcon ? (
-          <View style={styles.dateRow}>
-            {dateLabel ? (
-              <View style={dateBadgeStyle}>
-                <ThemedText variant="caption2" style={dateTextStyle}>
-                  {dateLabel}
-                </ThemedText>
-              </View>
-            ) : null}
-            {loneReadIcon ? (
-              <SFSymbolIcon
-                name="eye.fill"
-                fallback="eye-outline"
-                size={14}
-                color={colors.tertiaryLabel}
-              />
-            ) : null}
+        {dateLabel ? (
+          <View style={dateBadgeStyle}>
+            <ThemedText variant="caption2" style={dateTextStyle}>
+              {dateLabel}
+            </ThemedText>
           </View>
         ) : null}
         <View style={styles.chapterIcons}>
-          {isRead && !loneReadIcon ? (
-            <SFSymbolIcon
-              name="eye.fill"
-              fallback="eye-outline"
-              size={14}
-              color={colors.tertiaryLabel}
-            />
-          ) : null}
           {isLocked ? (
             <SFSymbolIcon
               name="lock.fill"
@@ -1661,10 +1717,20 @@ const ChapterRow = memo(function ChapterRow({
             />
           ) : null}
           {!isDownloading && isDownloaded ? (
-            <Ionicons name="download" size={14} color={DOWNLOADED_COLOR} />
+            <SFSymbolIcon
+              name="arrow.down.circle.fill"
+              fallback="download"
+              size={14}
+              color={colors.systemBlue}
+            />
           ) : null}
           {isFailed ? (
-            <Ionicons name="alert-circle" size={14} color="#FF3B30" />
+            <SFSymbolIcon
+              name="exclamationmark.circle.fill"
+              fallback="alert-circle"
+              size={14}
+              color={colors.destructive}
+            />
           ) : null}
         </View>
       </View>
@@ -1672,9 +1738,11 @@ const ChapterRow = memo(function ChapterRow({
         isDownloading ? (
           <ChapterDownloadIndicator entry={downloadEntry} />
         ) : (
-          <Ionicons
-            name="chevron-forward"
-            size={18}
+          <SFSymbolIcon
+            name="chevron.forward"
+            fallback="chevron-forward"
+            size={13}
+            weight="semibold"
             color={colors.tertiaryLabel}
           />
         )
@@ -1685,11 +1753,13 @@ const ChapterRow = memo(function ChapterRow({
   const [rowWidth, setRowWidth] = useState(cachedChapterRowWidth);
   const handleCardLayout = useCallback((event: LayoutChangeEvent) => {
     const width = Math.round(event.nativeEvent.layout.width);
-    if (width > 0 && width !== cachedChapterRowWidth) {
-      cachedChapterRowWidth = width;
-      setRowWidth(width);
-    }
+    if (width <= 0) return;
+    cachedChapterRowWidth = width;
+    // Compare with this row's own value: a row mounted before the cache was filled must still pick it up.
+    setRowWidth((previous) => (previous === width ? previous : width));
   }, []);
+  // Recycled rows may render before their own layout event; the shared width keeps the hosted menu content bounded.
+  const hostedWidth = rowWidth > 0 ? rowWidth : cachedChapterRowWidth;
 
   const canRemoveDownload = isDownloaded && !isDownloading;
   const canDownload = !isDownloaded && !isDownloading && !isLocked;
@@ -1727,6 +1797,14 @@ const ChapterRow = memo(function ChapterRow({
       destructive: true,
       onPress: () => onRemoveDownload(chapter),
     });
+  if (onSelect)
+    menuItems.unshift({
+      key: "select",
+      label: t("chapter_select"),
+      systemImage: "checkmark.circle",
+      icon: "checkmark-circle-outline",
+      onPress: () => onSelect(chapter),
+    });
 
   const menuRow =
     menuEnabled && !selectMode ? (
@@ -1734,7 +1812,7 @@ const ChapterRow = memo(function ChapterRow({
         <View
           style={{
             backgroundColor: colors.secondarySystemBackground,
-            ...(rowWidth > 0 ? { width: rowWidth } : null),
+            ...(hostedWidth > 0 ? { width: hostedWidth } : null),
           }}
         >
           {row}
@@ -1763,19 +1841,11 @@ const ChapterRow = memo(function ChapterRow({
   );
 }, chapterRowPropsEqual);
 
-function formatStatus(status: NonNullable<Manga["status"]>): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function formatChapterNumber(
-  chapter: Chapter,
-  index: number,
-  total: number,
-): string {
+function formatChapterNumber(chapter: Chapter, fallbackNumber: number): string {
   if (chapter.chapterNumber != null) {
     return `${formatChapterNumberValue(chapter.chapterNumber)}`;
   }
-  return `${total - index}`;
+  return `${fallbackNumber}`;
 }
 
 const styles = StyleSheet.create({
@@ -1870,9 +1940,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
   },
+  heroColumn: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.sm,
+  },
   heroMeta: {
     flex: 1,
     gap: Spacing.xs,
+    // The panel stretches to the cover height; short metadata sits in the middle instead of leaving a gap below.
+    justifyContent: "center",
   },
   sourceRow: {
     flexDirection: "row",
@@ -1887,25 +1964,11 @@ const styles = StyleSheet.create({
     verticalAlign: "middle",
     flexShrink: 0,
   },
-  kindBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-  },
-  statusPill: {
-    paddingHorizontal: Spacing.sm,
-    flexDirection: "row",
-    alignSelf: "center",
-    alignItems: "center",
-    gap: 2,
-  },
   typePill: {
     paddingHorizontal: Spacing.sm,
     flexDirection: "row",
     alignSelf: "center",
     alignItems: "center",
-  },
-  statusText: {
-    paddingVertical: 4,
   },
   typeText: {
     paddingVertical: 4,
@@ -1945,8 +2008,8 @@ const styles = StyleSheet.create({
   libraryRow: {
     flexDirection: "row",
     alignItems: "stretch",
-    gap: Spacing.xs,
-    alignSelf: "flex-start",
+    gap: 6,
+    alignSelf: "stretch",
   },
   libraryButtonPressable: {
     flex: 1,
@@ -1958,7 +2021,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
-    minHeight: 40,
+    minHeight: 44,
   },
   libraryButtonText: {
     // A fixed lineHeight stays put while adjustsFontSizeToFit shrinks the glyphs, pushing the text down.
@@ -2060,11 +2123,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     gap: 2,
   },
-  dateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
   chapterIcons: {
     flexDirection: "row",
     alignItems: "center",
@@ -2098,14 +2156,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  pills: {
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: Spacing.xs,
-    gap: Spacing.xs,
-    flex: 1,
-  },
   altTitles: {
     display: "flex",
     flexDirection: "row",
@@ -2118,10 +2168,6 @@ const styles = StyleSheet.create({
   },
   creditText: {
     flexShrink: 1,
-  },
-  moreBadgeText: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 1,
   },
   caltTitleBadge: {
     minWidth: 20,

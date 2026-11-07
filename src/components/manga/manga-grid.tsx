@@ -1,7 +1,6 @@
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { memo, useCallback, useMemo, useRef } from "react";
 import {
-  FlatList,
-  Platform,
   StyleSheet,
   View,
   type RefreshControlProps,
@@ -63,7 +62,7 @@ type MangaGridProps = {
   extraData?: unknown;
   scrollEnabled?: boolean;
   contentInsetAdjustmentBehavior?: "automatic" | "never";
-  listRef?: React.Ref<FlatList<MangaGridItem>>;
+  listRef?: React.Ref<FlashListRef<MangaGridItem>>;
 };
 
 type CellProps = {
@@ -246,6 +245,9 @@ const selectionStyles = StyleSheet.create({
 
 const keyExtractor = (item: { key: string }) => item.key;
 
+// New search results replace the data; start from the top instead of anchoring to the old first cell.
+const MVCP_DISABLED = { disabled: true } as const;
+
 const renderScrollComponent = (props: ScrollViewProps) => (
   <LiquidGlassScrollComponent {...props} />
 );
@@ -300,22 +302,38 @@ export function MangaGrid({
   );
   const hasLongPress = !!onLongPressManga;
 
+  // FlashList gives every column an equal slot (no columnWrapperStyle): shift each cover inside its slot
+  // so the columns keep a Spacing.sm gap and the outer covers stay flush with the list padding.
+  const columnStyles = useMemo(
+    () =>
+      Array.from({ length: columns }, (_, column) => ({
+        paddingLeft: (column * Spacing.sm) / columns,
+        // FlatList used row marginBottom (md) plus the content gap (xs) between rows.
+        marginBottom: Spacing.md + Spacing.xs,
+      })),
+    [columns],
+  );
+
   const renderItem = useCallback(
-    ({ item }: { item: MangaGridItem }) => (
-      <MangaGridCell
-        item={item}
-        sourceId={sourceId}
-        width={itemWidth}
-        getMeta={getMeta}
-        showBookmark={showBookmark}
-        showRating={showRating}
-        isRatingCompact={isRatingCompact}
-        scaleBadges={scaleBadges}
-        onPress={handlePress}
-        onLongPress={hasLongPress ? handleLongPress : undefined}
-      />
+    ({ item, index }: { item: MangaGridItem; index: number }) => (
+      <View style={columnStyles[index % columns]}>
+        <MangaGridCell
+          item={item}
+          sourceId={sourceId}
+          width={itemWidth}
+          getMeta={getMeta}
+          showBookmark={showBookmark}
+          showRating={showRating}
+          isRatingCompact={isRatingCompact}
+          scaleBadges={scaleBadges}
+          onPress={handlePress}
+          onLongPress={hasLongPress ? handleLongPress : undefined}
+        />
+      </View>
     ),
     [
+      columnStyles,
+      columns,
       sourceId,
       itemWidth,
       getMeta,
@@ -335,7 +353,7 @@ export function MangaGrid({
   );
 
   return (
-    <FlatList
+    <FlashList
       ref={listRef}
       key={`manga-grid-${columns}`}
       style={styles.root}
@@ -343,7 +361,6 @@ export function MangaGrid({
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       numColumns={columns}
-      columnWrapperStyle={columns > 1 ? styles.row : undefined}
       contentContainerStyle={contentContainerStyle}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior}
       scrollEnabled={scrollEnabled}
@@ -356,11 +373,7 @@ export function MangaGrid({
       ListEmptyComponent={ListEmptyComponent}
       refreshControl={refreshControl ?? undefined}
       extraData={extraData}
-      initialNumToRender={columns * 4}
-      maxToRenderPerBatch={columns * 2}
-      updateCellsBatchingPeriod={50}
-      windowSize={7}
-      removeClippedSubviews={Platform.OS === "android"}
+      maintainVisibleContentPosition={MVCP_DISABLED}
     />
   );
 }
@@ -369,12 +382,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   list: {
     paddingHorizontal: Spacing.lg,
-    gap: Spacing.xs,
     paddingBottom: Spacing.xxxl,
   },
   emptyList: { flexGrow: 1 },
-  row: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
 });

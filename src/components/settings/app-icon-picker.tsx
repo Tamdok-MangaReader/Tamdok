@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 
-import { APP_ICON_OPTIONS, THEMED_APP_ICON_OPTIONS, type AppIconId, type AppIconOption } from '@/constants/app-icons';
+import type { AppIconId, AppIconOption } from '@/constants/app-icons';
 import { ThemedText } from '@/components/ui/themed-text';
 import { Spacing } from '@/constants/theme';
 import { t } from '@/constants/locales';
@@ -16,11 +16,12 @@ const RING_GAP = 2;
 const ICON_CORNER_RATIO = 0.2237;
 
 type AppIconPickerProps = {
+  options: AppIconOption[];
   selectedId: AppIconId;
   onSelect: (id: AppIconId) => void;
 };
 
-export function AppIconPicker({ selectedId, onSelect }: AppIconPickerProps) {
+export function AppIconPicker({ options, selectedId, onSelect }: AppIconPickerProps) {
   const { colors } = useTheme();
   const COLUMNS = useAdaptiveColumns(BASE_COLUMNS);
   const [rowWidth, setRowWidth] = useState(0);
@@ -30,7 +31,7 @@ export function AppIconPicker({ selectedId, onSelect }: AppIconPickerProps) {
   const iconRadius = iconSize * ICON_CORNER_RATIO;
 
   const renderOption = (option: AppIconOption) => {
-        const selected = option.id === selectedId;
+    const selected = option.id === selectedId;
     return (
       <Pressable
         key={option.id}
@@ -62,22 +63,13 @@ export function AppIconPicker({ selectedId, onSelect }: AppIconPickerProps) {
   };
 
   return (
-    <View style={styles.sections}>
-      <View style={styles.grid} onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}>
-        {APP_ICON_OPTIONS.map(renderOption)}
-      </View>
-      <ThemedText variant='footnote' color='secondaryLabel'>
-        {t('appearance_app_icon_themed')}
-      </ThemedText>
-      <View style={styles.grid}>{THEMED_APP_ICON_OPTIONS.map(renderOption)}</View>
+    <View style={styles.grid} onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}>
+      {options.map(renderOption)}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sections: {
-    gap: Spacing.md,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -8,12 +8,11 @@ import {
   useRef,
   useState,
 } from "react";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  FlatList,
-  Platform,
   StyleSheet,
   View,
-  type ListRenderItemInfo,
 } from "react-native";
 
 import {
@@ -29,7 +28,7 @@ import {
 } from "@/components/search/global-search-source-section";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedView } from "@/components/ui/themed-view";
-import { Spacing } from "@/constants/theme";
+import { BottomTabInset, Spacing } from "@/constants/theme";
 import { t } from "@/constants/locales";
 import { useSearchBarReset } from "@/hooks/use-search-bar-reset";
 import { useNavigationTheme } from "@/hooks/use-navigation-theme";
@@ -88,7 +87,7 @@ export default function SearchScreen() {
     [visibleInstalled],
   );
   const headerHeight = useHeaderHeight();
-  const listRef = useRef<FlatList<SourceSearchGroup>>(null);
+  const listRef = useRef<FlashListRef<SourceSearchGroup>>(null);
   const [query, setQuery] = useState("");
   const [committedQuery, setCommittedQuery] = useState("");
   const [filters, setFilters] = useState<GlobalSearchFilters>(
@@ -411,7 +410,7 @@ export default function SearchScreen() {
   }, [isSearchActive, noSourcesForFilters, showNoResults]);
 
   const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<SourceSearchGroup>) => (
+    ({ item }: { item: SourceSearchGroup }) => (
       <GlobalSearchSourceSection
         group={item}
         resetKey={resetKey}
@@ -423,13 +422,19 @@ export default function SearchScreen() {
     [resetKey, openSource, openManga, retrySource],
   );
 
+  // Insets are not adjusted automatically here (the header is drawn over the list), so clear the tab bar
+  // and the home indicator by hand: otherwise the last source's "Show more" sits under the bottom bar.
+  const { bottom: safeBottom } = useSafeAreaInsets();
   const contentContainerStyle = useMemo(
     () => [
       styles.listContent,
-      { paddingTop: headerHeight + FILTER_BAR_HEIGHT + Spacing.sm },
+      {
+        paddingTop: headerHeight + FILTER_BAR_HEIGHT + Spacing.sm,
+        paddingBottom: safeBottom + BottomTabInset + Spacing.xxxl,
+      },
       !showResultsList && styles.listContentEmpty,
     ],
-    [showResultsList, headerHeight],
+    [showResultsList, headerHeight, safeBottom],
   );
 
   const listData = showResultsList ? view.visible : EMPTY_GROUPS;
@@ -481,12 +486,15 @@ export default function SearchScreen() {
         </ThemedView>
       ) : (
         <ThemedView color="groupedBackground" style={styles.root}>
-          <FlatList
+          <FlashList
             ref={listRef}
             style={styles.list}
             data={listData}
             keyExtractor={keyExtractor}
             renderItem={renderItem}
+            getItemType={groupItemType}
+            ItemSeparatorComponent={SectionSeparator}
+            maintainVisibleContentPosition={MVCP_DISABLED}
             contentContainerStyle={contentContainerStyle}
             contentInsetAdjustmentBehavior="never"
             automaticallyAdjustsScrollIndicatorInsets={false}
@@ -494,11 +502,6 @@ export default function SearchScreen() {
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
             ListEmptyComponent={emptyComponent}
-            initialNumToRender={4}
-            maxToRenderPerBatch={3}
-            updateCellsBatchingPeriod={50}
-            windowSize={5}
-            removeClippedSubviews={Platform.OS === "android"}
           />
           <View
             style={[styles.filterOverlay, { top: headerHeight }]}
@@ -513,6 +516,18 @@ export default function SearchScreen() {
 }
 
 const EMPTY_GROUPS: SourceSearchGroup[] = [];
+
+// Results stream in source by source; never anchor the scroll to a section that just moved.
+const MVCP_DISABLED = { disabled: true } as const;
+
+// FlashList ignores `gap` on the content container; the separator keeps the old spacing between sources.
+function SectionSeparator() {
+  return <View style={styles.separator} />;
+}
+
+function groupItemType(group: SourceSearchGroup): string {
+  return group.status;
+}
 
 const styles = StyleSheet.create({
   root: {
@@ -544,8 +559,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xxxl,
-    gap: Spacing.md,
+  },
+  separator: {
+    height: Spacing.md,
   },
   listContentEmpty: {
     flexGrow: 1,

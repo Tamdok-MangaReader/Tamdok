@@ -26,7 +26,8 @@ import {
   RefreshControl,
   View,
 } from "react-native";
-import { FlatList } from "react-native-gesture-handler";
+import { FlashList } from "@shopify/flash-list";
+import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import Reanimated, {
   useAnimatedStyle,
   useSharedValue,
@@ -761,6 +762,7 @@ export default function SettingsSourcesScreen() {
         return (
           <GroupedCard index={item.index} total={item.total}>
             <SwipeableRow
+              rowId={`installed:${item.source.id}`}
               leadingActions={installedLeadingActions(item.source)}
               fullSwipeLeadingActionKey="settings"
               actions={installedActions(item.source)}
@@ -990,6 +992,7 @@ export default function SettingsSourcesScreen() {
         return (
           <GroupedCard index={item.index} total={item.total}>
             <SwipeableRow
+              rowId={`available:${item.key}`}
               actions={availableActions(registryUrl, entry)}
               fullSwipeActionKey="install"
               onFullSwipe={() => confirmInstallEntry(registryUrl, entry)}
@@ -1105,21 +1108,20 @@ export default function SettingsSourcesScreen() {
       <Stack.Screen options={{ title: t("section_sources") }} />
       <ThemedView color="groupedBackground" style={styles.root}>
         <SwipeableRowsProvider>
-          <FlatList
+          <FlashList
             data={listData}
-            keyExtractor={(item) => item.key}
+            keyExtractor={rowKeyExtractor}
             renderItem={renderItem}
+            getItemType={rowItemType}
+            // Gesture-handler scroll view, as with the previous RNGH FlatList: swipe rows and scrolling share one gesture system.
+            renderScrollComponent={GestureScrollView}
+            maintainVisibleContentPosition={MVCP_DISABLED}
             ListHeaderComponent={listHeader}
             contentContainerStyle={styles.content}
             contentInsetAdjustmentBehavior="automatic"
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            initialNumToRender={8}
-            maxToRenderPerBatch={6}
             refreshControl={refreshControl}
-            windowSize={7}
-            updateCellsBatchingPeriod={50}
-            removeClippedSubviews
             extraData={`${updatingSourceId}:${showNsfw}:${isCheckingUpdates}:${newRegistryUrl}:${availableSearch}`}
           />
         </SwipeableRowsProvider>
@@ -1292,4 +1294,15 @@ function AddRegistryButton({
       </Reanimated.View>
     </Pressable>
   );
+}
+
+// Search, expanding and catalog loads rewrite the rows; keep the scroll position plain instead of anchoring.
+const MVCP_DISABLED = { disabled: true } as const;
+
+function rowKeyExtractor(row: ListRow): string {
+  return row.key;
+}
+
+function rowItemType(row: ListRow): string {
+  return row.type;
 }

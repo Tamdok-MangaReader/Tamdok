@@ -164,6 +164,8 @@ export type MangaScreenSettings = {
   showBigMangaCover: boolean;
   stretchMangaCover: boolean;
   showChapterNumber: boolean;
+  /** Chapter list order on the manga screen: oldest first when true. */
+  chapterSortAscending: boolean;
 };
 
 export type CoverDisplaySettings = {
@@ -279,6 +281,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showBigMangaCover: Platform.OS !== "android",
     stretchMangaCover: true,
     showChapterNumber: true,
+    chapterSortAscending: false,
   },
   sourceDisplay: {
     showSuggestiveBadge: true,
@@ -388,6 +391,9 @@ async function readSettings(): Promise<AppSettings> {
       showChapterNumber:
         stored.mangaScreen?.showChapterNumber ??
         DEFAULT_SETTINGS.mangaScreen.showChapterNumber,
+      chapterSortAscending:
+        stored.mangaScreen?.chapterSortAscending ??
+        DEFAULT_SETTINGS.mangaScreen.chapterSortAscending,
     },
     sourceDisplay: {
       showSuggestiveBadge:
