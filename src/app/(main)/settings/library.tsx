@@ -522,6 +522,8 @@ export default function LibrarySettingsScreen() {
             <View style={{ flexDirection: "row" }}>
               <ReaderPageSlider
                 untinted
+                flat={!isDark}
+                fillColor={colors.tertiaryFill}
                 currentPage={gridColumns - 1}
                 totalPages={6}
                 accentColor={colors.tint}
