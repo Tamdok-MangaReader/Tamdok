@@ -1,7 +1,7 @@
 {
   "name": "tamdok",
   "main": "index.js",
-  "version": "1.4",
+  "version": "1.5",
   "scripts": {
     "run:expo": "expo start --dev-client --lan",
     "run:ios": "node scripts/sync-ios-icon.mjs && expo run:ios --device",
